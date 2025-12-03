@@ -1,0 +1,19 @@
+{
+  "titulo": "Demo e Documentação do Framework",
+  "description": "Aprenda como usar o Framework MVC",
+  "keywords": "mvc, framework, documentação, tutorial",
+  "t": {
+    "title": "Demo do Framework",
+    "quick_start": "Início Rápido",
+    "structure": "Estrutura do Projeto",
+    "controllers": "Criar um Controller",
+    "routes": "Criar Rotas",
+    "views": "Criar Views",
+    "database": "Usar Base de Dados",
+    "features": "Funcionalidades",
+    "examples": "Exemplos de Código",
+    "tips": "Dicas e Boas Práticas",
+    "resources": "Recursos"
+  }
+}
+

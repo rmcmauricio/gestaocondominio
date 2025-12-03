@@ -1,0 +1,422 @@
+<div class="container mt-5 mb-5">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <!-- Header -->
+            <div class="text-center mb-5">
+                <h1 class="display-4 mb-3">MVC Framework</h1>
+                <p class="lead">A simple and lightweight PHP MVC Framework</p>
+            </div>
+
+            <!-- Quick Start -->
+            <section class="mb-5">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title mb-4">
+                            <i class="bi bi-rocket-takeoff text-primary"></i> Quick Start
+                        </h2>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <h5>1. Configure Environment</h5>
+                                <p>Copy <code>env.example</code> to <code>.env</code> and configure:</p>
+                                <pre class="bg-light p-3 rounded"><code># Database (optional)
+host=localhost
+dbname=your_database
+dbuser=root
+dbpass=
+
+# Application
+APP_ENV=development
+BASE_PATH=
+MAINTENANCE_MODE=false</code></pre>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <h5>2. Install Dependencies</h5>
+                                <pre class="bg-light p-3 rounded"><code>composer install</code></pre>
+                                
+                                <h5 class="mt-4">3. Start Building</h5>
+                                <p>Create your controllers, models, and views!</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Project Structure -->
+            <section class="mb-5">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title mb-4">
+                            <i class="bi bi-folder2-open text-primary"></i> Project Structure
+                        </h2>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>Core Files</h5>
+                                <ul class="list-unstyled">
+                                    <li><code>index.php</code> - Entry point</li>
+                                    <li><code>config.php</code> - Configuration</li>
+                                    <li><code>routes.php</code> - Route definitions</li>
+                                    <li><code>.env</code> - Environment variables</li>
+                                </ul>
+                                
+                                <h5 class="mt-4">App Directory</h5>
+                                <ul class="list-unstyled">
+                                    <li><code>app/Controllers/</code> - Controllers</li>
+                                    <li><code>app/Models/</code> - Models</li>
+                                    <li><code>app/Views/</code> - Twig templates</li>
+                                    <li><code>app/Core/</code> - Core classes</li>
+                                    <li><code>app/Metafiles/</code> - Translations</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Assets</h5>
+                                <ul class="list-unstyled">
+                                    <li><code>assets/css/</code> - Stylesheets</li>
+                                    <li><code>assets/js/</code> - JavaScript</li>
+                                    <li><code>assets/images/</code> - Images</li>
+                                </ul>
+                                
+                                <h5 class="mt-4">Other</h5>
+                                <ul class="list-unstyled">
+                                    <li><code>vendor/</code> - Composer dependencies</li>
+                                    <li><code>cache/</code> - Cache files</li>
+                                    <li><code>logs/</code> - Log files</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Creating a Controller -->
+            <section class="mb-5">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title mb-4">
+                            <i class="bi bi-code-slash text-primary"></i> Creating a Controller
+                        </h2>
+                        <p>Create a new controller in <code>app/Controllers/</code>:</p>
+                        <pre class="bg-light p-3 rounded"><code>&lt;?php
+namespace App\Controllers;
+
+use App\Core\Controller;
+
+class MyController extends Controller
+{
+    public function index()
+    {
+        $this->loadPageTranslations('mypage');
+        
+        $this->data += [
+            'viewName' => 'pages/mypage.html.twig',
+            'page' => [
+                'titulo' => 'My Page',
+                'description' => 'Page description',
+                'keywords' => 'keywords'
+            ],
+            'customData' => 'Your custom data here'
+        ];
+        
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+}</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Creating Routes -->
+            <section class="mb-5">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title mb-4">
+                            <i class="bi bi-signpost text-primary"></i> Creating Routes
+                        </h2>
+                        <p>Add routes in <code>routes.php</code>:</p>
+                        <pre class="bg-light p-3 rounded"><code>// Simple route
+$router->get('/', 'App\Controllers\HomeController@index');
+
+// Route with parameter
+$router->get('/user/{id}', 'App\Controllers\UserController@show');
+
+// POST route
+$router->post('/submit', 'App\Controllers\FormController@submit');</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Creating Views -->
+            <section class="mb-5">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title mb-4">
+                            <i class="bi bi-file-earmark-code text-primary"></i> Creating Views
+                        </h2>
+                        <p>Create Twig templates in <code>app/Views/pages/</code>:</p>
+                        <pre class="bg-light p-3 rounded"><code>&lt;div class="container mt-5"&gt;
+    &lt;h1&gt;{{ page.titulo }}&lt;/h1&gt;
+    &lt;p&gt;{{ page.description }}&lt;/p&gt;
+    
+    {% if user %}
+        &lt;p&gt;Welcome, {{ user.email }}!&lt;/p&gt;
+    {% endif %}
+    
+    &lt;p&gt;Base URL: {{ BASE_URL }}&lt;/p&gt;
+&lt;/div&gt;</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Database Usage -->
+            <section class="mb-5">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title mb-4">
+                            <i class="bi bi-database text-primary"></i> Database Usage (Optional)
+                        </h2>
+                        <p>The framework works with or without a database. To use a database:</p>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>1. Configure .env</h5>
+                                <pre class="bg-light p-3 rounded"><code>host=localhost
+dbname=your_database
+dbuser=root
+dbpass=your_password</code></pre>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>2. Create a Model</h5>
+                                <pre class="bg-light p-3 rounded"><code>&lt;?php
+namespace App\Models;
+
+use App\Core\Model;
+
+class MyModel extends Model
+{
+    public function getData()
+    {
+        $this->requireDatabase();
+        $stmt = $this->db->prepare("SELECT * FROM table");
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Features -->
+            <section class="mb-5">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title mb-4">
+                            <i class="bi bi-star text-primary"></i> Framework Features
+                        </h2>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5><i class="bi bi-check-circle text-success"></i> Twig Templates</h5>
+                                        <p class="small">Powerful templating engine for clean views</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5><i class="bi bi-check-circle text-success"></i> Optional Database</h5>
+                                        <p class="small">Works with or without database connection</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5><i class="bi bi-check-circle text-success"></i> Email Service</h5>
+                                        <p class="small">PHPMailer integration for sending emails</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5><i class="bi bi-check-circle text-success"></i> Translations</h5>
+                                        <p class="small">Multi-language support with JSON metafiles</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5><i class="bi bi-check-circle text-success"></i> Routing</h5>
+                                        <p class="small">Simple and flexible URL routing system</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5><i class="bi bi-check-circle text-success"></i> Responsive</h5>
+                                        <p class="small">Modern, mobile-first responsive design</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Examples -->
+            <section class="mb-5">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title mb-4">
+                            <i class="bi bi-lightbulb text-primary"></i> Code Examples
+                        </h2>
+                        <div class="accordion" id="examplesAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#example1">
+                                        Example: Simple Page
+                                    </button>
+                                </h2>
+                                <div id="example1" class="accordion-collapse collapse show" data-bs-parent="#examplesAccordion">
+                                    <div class="accordion-body">
+                                        <pre class="bg-light p-3 rounded"><code>// routes.php
+$router->get('/about', 'App\Controllers\AboutController@index');
+
+// AboutController.php
+public function index() {
+    $this->data += [
+        'viewName' => 'pages/about.html.twig',
+        'page' => ['titulo' => 'About Us']
+    ];
+    echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+}</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example2">
+                                        Example: Route with Parameter
+                                    </button>
+                                </h2>
+                                <div id="example2" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                                    <div class="accordion-body">
+                                        <pre class="bg-light p-3 rounded"><code>// routes.php
+$router->get('/user/{id}', 'App\Controllers\UserController@show');
+
+// UserController.php
+public function show($id) {
+    // $id contains the parameter from URL
+    $this->data += [
+        'viewName' => 'pages/user.html.twig',
+        'userId' => $id
+    ];
+    echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+}</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example3">
+                                        Example: Form Submission
+                                    </button>
+                                </h2>
+                                <div id="example3" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                                    <div class="accordion-body">
+                                        <pre class="bg-light p-3 rounded"><code>// routes.php
+$router->get('/contact', 'App\Controllers\ContactController@form');
+$router->post('/contact', 'App\Controllers\ContactController@submit');
+
+// ContactController.php
+public function submit() {
+    $name = $_POST['name'] ?? '';
+    $email = $_POST['email'] ?? '';
+    // Process form data...
+    header('Location: ' . BASE_URL . 'contact?success=1');
+}</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tips -->
+            <section class="mb-5">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title mb-4">
+                            <i class="bi bi-info-circle text-primary"></i> Tips & Best Practices
+                        </h2>
+                        <ul>
+                            <li><strong>Use translations:</strong> Store page content in <code>app/Metafiles/{lang}/</code> for easy localization</li>
+                            <li><strong>Check database:</strong> Use <code>$this->requireDatabase()</code> in models before database operations</li>
+                            <li><strong>Environment variables:</strong> Store sensitive data in <code>.env</code> file</li>
+                            <li><strong>Template inheritance:</strong> Use <code>mainTemplate.html.twig</code> for consistent layout</li>
+                            <li><strong>Error handling:</strong> Framework handles 404 errors automatically</li>
+                            <li><strong>Session management:</strong> Sessions are started automatically in <code>index.php</code></li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Resources -->
+            <section class="mb-5">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title mb-4">
+                            <i class="bi bi-book text-primary"></i> Resources
+                        </h2>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>Documentation</h5>
+                                <ul>
+                                    <li><a href="https://twig.symfony.com/doc/" target="_blank">Twig Documentation</a></li>
+                                    <li><a href="https://getcomposer.org/doc/" target="_blank">Composer Documentation</a></li>
+                                    <li><a href="https://getbootstrap.com/docs/5.3/" target="_blank">Bootstrap Documentation</a></li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Example Files</h5>
+                                <ul>
+                                    <li><code>app/Controllers/HomeController.php</code></li>
+                                    <li><code>app/Controllers/AuthController.php</code></li>
+                                    <li><code>app/Views/pages/home.html.twig</code></li>
+                                    <li><code>routes.php</code></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Back to Home -->
+            <div class="text-center mt-5">
+                <a href="{{ BASE_URL }}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-house-fill"></i> Back to Home
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+pre {
+    overflow-x: auto;
+    max-width: 100%;
+}
+code {
+    font-size: 0.9em;
+}
+.accordion-button {
+    font-weight: 500;
+}
+.card {
+    margin-bottom: 1.5rem;
+}
+</style>
+
