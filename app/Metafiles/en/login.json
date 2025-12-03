@@ -1,0 +1,17 @@
+{
+  "titulo": "Login",
+  "description": "Login to your account",
+  "keywords": "login, authentication, account",
+  "t": {
+    "title": "Login",
+    "email_label": "Email",
+    "password_label": "Password",
+    "remember_me": "Remember me",
+    "login_button": "Login",
+    "back_to_home": "Back to home",
+    "error_required": "Please fill in all fields.",
+    "error_invalid": "Invalid email or password.",
+    "success": "Login successful!"
+  }
+}
+
