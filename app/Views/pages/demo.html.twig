@@ -165,6 +165,118 @@ $router->post('/submit', 'App\Controllers\FormController@submit');</code></pre>
                 </div>
             </section>
 
+            <!-- Translations -->
+            <section class="mb-5">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title mb-4">
+                            <i class="bi bi-translate text-primary"></i> Using Translations
+                        </h2>
+                        <p class="mb-4">The framework includes a built-in translation system using JSON metafiles. Here's how to use it:</p>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <h5>1. Create Translation Files</h5>
+                                <p>Create JSON files in <code>app/Metafiles/{lang}/</code>:</p>
+                                <p class="small text-muted mb-2">Example: <code>app/Metafiles/pt/mypage.json</code></p>
+                                <pre class="bg-light p-3 rounded"><code>{
+  "titulo": "Minha Página",
+  "description": "Descrição da página",
+  "keywords": "palavras, chave",
+  "t": {
+    "welcome": "Bem-vindo",
+    "title": "Título da Página",
+    "button_save": "Guardar"
+  }
+}</code></pre>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>2. Load Translations in Controller</h5>
+                                <p>Use <code>loadPageTranslations()</code> method:</p>
+                                <pre class="bg-light p-3 rounded"><code>&lt;?php
+namespace App\Controllers;
+
+use App\Core\Controller;
+
+class MyController extends Controller
+{
+    public function index()
+    {
+        // Load page-specific translations
+        $this->loadPageTranslations('mypage');
+        
+        $this->data += [
+            'viewName' => 'pages/mypage.html.twig',
+            'page' => [
+                'titulo' => 'My Page'
+            ]
+        ];
+        
+        echo $GLOBALS['twig']->render(
+            'templates/mainTemplate.html.twig', 
+            $this->data
+        );
+    }
+}</code></pre>
+                            </div>
+                        </div>
+
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <h5>3. Use Translations in Views</h5>
+                                <p>Access translations in Twig templates:</p>
+                                <pre class="bg-light p-3 rounded"><code>&lt;!-- Page translations --&gt;
+&lt;h1&gt;{{ page.t.t.welcome }}&lt;/h1&gt;
+&lt;button&gt;{{ page.t.t.button_save }}&lt;/button&gt;
+
+&lt;!-- Global translations --&gt;
+&lt;nav&gt;
+    &lt;a href="#"&gt;{{ global_t.t.menu_home }}&lt;/a&gt;
+    &lt;a href="#"&gt;{{ global_t.t.menu_about }}&lt;/a&gt;
+&lt;/nav&gt;
+
+&lt;!-- Current language --&gt;
+&lt;p&gt;Current language: {{ current_lang }}&lt;/p&gt;</code></pre>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>4. Translation File Structure</h5>
+                                <p class="small mb-2">Each translation file should contain:</p>
+                                <ul class="small">
+                                    <li><code>titulo</code> - Page title</li>
+                                    <li><code>description</code> - Meta description</li>
+                                    <li><code>keywords</code> - Meta keywords</li>
+                                    <li><code>t</code> - Translation object with key-value pairs</li>
+                                </ul>
+                                <p class="small mt-3 mb-2"><strong>Global translations:</strong></p>
+                                <p class="small">Store common translations in <code>app/Metafiles/{lang}/global.json</code></p>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info mb-4">
+                            <h5 class="alert-heading"><i class="bi bi-info-circle me-2"></i> Translation Tips</h5>
+                            <ul class="mb-0">
+                                <li>Global translations are automatically loaded in all controllers</li>
+                                <li>Page translations must be loaded explicitly with <code>loadPageTranslations()</code></li>
+                                <li>Language is stored in session: <code>$_SESSION['lang']</code></li>
+                                <li>Default language is <code>'pt'</code> if not set</li>
+                                <li>Use the language selector in the header to switch languages</li>
+                            </ul>
+                        </div>
+
+                        <h5 class="mb-3">5. Language Switching</h5>
+                        <p>The framework includes a language switcher in the header. Users can switch between languages, and the selection is saved in the session.</p>
+                        <pre class="bg-light p-3 rounded"><code>// Language is automatically detected from session
+// Current language: {{ current_lang }}
+
+// To manually set language in code:
+$_SESSION['lang'] = 'en'; // or 'pt'
+
+// Language route (already configured):
+// GET /lang/{lang} → LanguageController@switch</code></pre>
+                    </div>
+                </div>
+            </section>
+
             <!-- Database Usage -->
             <section class="mb-5">
                 <div class="card">
@@ -337,6 +449,38 @@ public function submit() {
     // Process form data...
     header('Location: ' . BASE_URL . 'contact?success=1');
 }</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example4">
+                                        Example: Using Translations
+                                    </button>
+                                </h2>
+                                <div id="example4" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                                    <div class="accordion-body">
+                                        <pre class="bg-light p-3 rounded"><code>// 1. Create app/Metafiles/pt/products.json
+{
+  "titulo": "Produtos",
+  "t": {
+    "title": "Nossos Produtos",
+    "add_to_cart": "Adicionar ao Carrinho"
+  }
+}
+
+// 2. In ProductsController.php
+public function index() {
+    $this->loadPageTranslations('products');
+    $this->data += [
+        'viewName' => 'pages/products.html.twig'
+    ];
+    echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+}
+
+// 3. In products.html.twig
+&lt;h1&gt;{{ page.t.t.title }}&lt;/h1&gt;
+&lt;button&gt;{{ page.t.t.add_to_cart }}&lt;/button&gt;</code></pre>
                                     </div>
                                 </div>
                             </div>

@@ -1,0 +1,14 @@
+{
+  "titulo": "About MVC Framework",
+  "description": "Learn more about the MVC Framework",
+  "keywords": "mvc, framework, about, php",
+  "t": {
+    "title": "About",
+    "what_is": "What is MVC Framework?",
+    "features": "Key Features",
+    "technology": "Technology Stack",
+    "why_choose": "Why Choose This Framework?",
+    "getting_started": "Getting Started"
+  }
+}
+
