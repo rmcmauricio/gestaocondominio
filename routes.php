@@ -15,6 +15,9 @@ $router->get('/', 'App\Controllers\HomeController@index');
 // Demo route
 $router->get('/demo', 'App\Controllers\DemoController@index');
 
+// About route
+$router->get('/about', 'App\Controllers\AboutController@index');
+
 // Language routes
 $router->get('/lang/{lang}', 'App\Controllers\LanguageController@switch');
 

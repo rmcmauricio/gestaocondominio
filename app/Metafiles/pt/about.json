@@ -1,0 +1,14 @@
+{
+  "titulo": "Sobre o MVC Framework",
+  "description": "Saiba mais sobre o MVC Framework",
+  "keywords": "mvc, framework, sobre, php",
+  "t": {
+    "title": "Sobre",
+    "what_is": "O que é o MVC Framework?",
+    "features": "Características Principais",
+    "technology": "Stack Tecnológico",
+    "why_choose": "Por que escolher este Framework?",
+    "getting_started": "Começar"
+  }
+}
+
