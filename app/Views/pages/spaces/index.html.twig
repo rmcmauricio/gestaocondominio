@@ -1,0 +1,101 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Espaços Comuns</h2>
+            <p class="text-muted mb-0">{{ condominium.name }}</p>
+        </div>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces/create" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Novo Espaço
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if spaces %}
+    <div class="row g-4">
+        {% for space in spaces %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">{{ space.name }}</h5>
+                    <p class="card-text text-muted">{{ space.description|default('Sem descrição') }}</p>
+                    <div class="mb-2">
+                        <small class="text-muted">
+                            <i class="bi bi-tag"></i> {{ space.type|default('N/A') }}
+                            {% if space.capacity %}
+                            <br><i class="bi bi-people"></i> Capacidade: {{ space.capacity }} pessoas
+                            {% endif %}
+                        </small>
+                    </div>
+                    {% if space.price_per_hour > 0 or space.price_per_day > 0 %}
+                    <div class="mb-2">
+                        <small>
+                            {% if space.price_per_hour > 0 %}
+                                <strong>€{{ space.price_per_hour|number_format(2, ',', '.') }}/hora</strong>
+                            {% endif %}
+                            {% if space.price_per_day > 0 %}
+                                <strong>€{{ space.price_per_day|number_format(2, ',', '.') }}/dia</strong>
+                            {% endif %}
+                        </small>
+                    </div>
+                    {% endif %}
+                    {% if space.deposit_required > 0 %}
+                    <div class="mb-2">
+                        <small class="text-warning">
+                            <i class="bi bi-shield-check"></i> Caução: €{{ space.deposit_required|number_format(2, ',', '.') }}
+                        </small>
+                    </div>
+                    {% endif %}
+                    <div class="mt-3">
+                        <span class="badge {% if space.requires_approval %}bg-warning{% else %}bg-success{% endif %}">
+                            {% if space.requires_approval %}Requer Aprovação{% else %}Aprovação Automática{% endif %}
+                        </span>
+                    </div>
+                </div>
+                <div class="card-footer bg-white">
+                    <div class="btn-group w-100">
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces/{{ space.id }}/edit" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-pencil"></i> Editar
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card shadow">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-building display-1 text-muted"></i>
+            <h4 class="mt-3">Nenhum espaço cadastrado</h4>
+            <p class="text-muted">Comece criando o primeiro espaço comum</p>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces/create" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Criar Espaço
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mt-3">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar ao Condomínio
+        </a>
+    </div>
+</div>
+
+
+
+
+

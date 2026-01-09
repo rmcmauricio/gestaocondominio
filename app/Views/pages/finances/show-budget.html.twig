@@ -1,0 +1,160 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Orçamento {{ budget.year }}</h2>
+            <p class="text-muted mb-0">{{ condominium.name }}</p>
+        </div>
+        <div>
+            {% if budget.status == 'draft' %}
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}/edit" class="btn btn-primary">
+                <i class="bi bi-pencil"></i> Editar
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Total Receitas</h6>
+                    <h3 class="text-success mb-0">€{{ total_revenue|number_format(2, ',', '.') }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Total Despesas</h6>
+                    <h3 class="text-danger mb-0">€{{ total_expenses|number_format(2, ',', '.') }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Saldo Previsto</h6>
+                    <h3 class="mb-0 {% if (total_revenue - total_expenses) < 0 %}text-danger{% else %}text-success{% endif %}">
+                        €{{ (total_revenue - total_expenses)|number_format(2, ',', '.') }}
+                    </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Receitas</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Descrição</th>
+                                    <th>Categoria</th>
+                                    <th class="text-end">Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in revenue_items %}
+                                <tr>
+                                    <td>{{ item.description }}</td>
+                                    <td><span class="badge bg-success">{{ item.category|replace({'Receita: ': ''}) }}</span></td>
+                                    <td class="text-end"><strong>€{{ item.amount|number_format(2, ',', '.') }}</strong></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th colspan="2">Total</th>
+                                    <th class="text-end">€{{ total_revenue|number_format(2, ',', '.') }}</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">Despesas</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Descrição</th>
+                                    <th>Categoria</th>
+                                    <th class="text-end">Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in expense_items %}
+                                <tr>
+                                    <td>{{ item.description }}</td>
+                                    <td><span class="badge bg-danger">{{ item.category|replace({'Despesa: ': ''}) }}</span></td>
+                                    <td class="text-end"><strong>€{{ item.amount|number_format(2, ',', '.') }}</strong></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th colspan="2">Total</th>
+                                    <th class="text-end">€{{ total_expenses|number_format(2, ',', '.') }}</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if budget.notes %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h6>Notas</h6>
+            <p class="mb-0">{{ budget.notes }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="d-flex justify-content-between">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+        {% if budget.status == 'draft' %}
+        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}/approve" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-success">
+                <i class="bi bi-check-circle"></i> Aprovar Orçamento
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+
+
+
+

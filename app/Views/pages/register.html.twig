@@ -1,0 +1,154 @@
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-lg border-0">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <h1 class="h2 fw-bold mb-2">Criar Conta de Administrador</h1>
+                        <p class="text-muted">Comece a gerir o seu condomínio hoje mesmo</p>
+                    </div>
+                    
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+                    
+                    {% if success %}
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        {{ success }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ BASE_URL }}register/process" id="registerForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="role" value="admin">
+                        
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Nome Completo <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg" id="name" name="name" required autofocus>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control form-control-lg" id="email" name="email" required>
+                            <div class="form-text">Usaremos este email para comunicar consigo</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="phone" class="form-label">Telefone</label>
+                            <input type="tel" class="form-control form-control-lg" id="phone" name="phone" placeholder="+351 XXX XXX XXX">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="nif" class="form-label">NIF</label>
+                            <input type="text" class="form-control form-control-lg" id="nif" name="nif" placeholder="123456789">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="password" class="form-control form-control-lg" id="password" name="password" required minlength="8">
+                                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                    <i class="bi bi-eye" id="eyeIcon"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">Mínimo de 8 caracteres</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password_confirm" class="form-label">Confirmar Password <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="password" class="form-control form-control-lg" id="password_confirm" name="password_confirm" required minlength="8">
+                                <button class="btn btn-outline-secondary" type="button" id="togglePasswordConfirm">
+                                    <i class="bi bi-eye" id="eyeIconConfirm"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mb-4 form-check">
+                            <input type="checkbox" class="form-check-input" id="terms" name="terms" required>
+                            <label class="form-check-label" for="terms">
+                                Aceito os <a href="#" target="_blank">Termos e Condições</a> e a <a href="#" target="_blank">Política de Privacidade</a> <span class="text-danger">*</span>
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg w-100 mb-3">Criar Conta</button>
+                        
+                        <div class="text-center">
+                            <p class="mb-0">
+                                <small class="text-muted">
+                                    Ao criar conta, receberá 14 dias grátis para experimentar todas as funcionalidades
+                                </small>
+                            </p>
+                        </div>
+                    </form>
+
+                    <hr class="my-4">
+
+                    <div class="text-center">
+                        <p class="mb-0">Já tem uma conta? <a href="{{ BASE_URL }}login" class="text-decoration-none">Faça login aqui</a></p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-4">
+                <p class="text-muted small">
+                    <i class="bi bi-shield-check"></i> Dados protegidos com encriptação SSL
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Toggle password visibility
+document.getElementById('togglePassword')?.addEventListener('click', function() {
+    const passwordInput = document.getElementById('password');
+    const eyeIcon = document.getElementById('eyeIcon');
+    
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        eyeIcon.classList.remove('bi-eye');
+        eyeIcon.classList.add('bi-eye-slash');
+    } else {
+        passwordInput.type = 'password';
+        eyeIcon.classList.remove('bi-eye-slash');
+        eyeIcon.classList.add('bi-eye');
+    }
+});
+
+document.getElementById('togglePasswordConfirm')?.addEventListener('click', function() {
+    const passwordInput = document.getElementById('password_confirm');
+    const eyeIcon = document.getElementById('eyeIconConfirm');
+    
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        eyeIcon.classList.remove('bi-eye');
+        eyeIcon.classList.add('bi-eye-slash');
+    } else {
+        passwordInput.type = 'password';
+        eyeIcon.classList.remove('bi-eye-slash');
+        eyeIcon.classList.add('bi-eye');
+    }
+});
+
+// Password match validation
+document.getElementById('registerForm')?.addEventListener('submit', function(e) {
+    const password = document.getElementById('password').value;
+    const passwordConfirm = document.getElementById('password_confirm').value;
+    
+    if (password !== passwordConfirm) {
+        e.preventDefault();
+        alert('As senhas não coincidem!');
+        return false;
+    }
+});
+</script>
+
+
+
+
+

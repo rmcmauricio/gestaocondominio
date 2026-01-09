@@ -20,6 +20,8 @@
                     {% endif %}
 
                     <form method="POST" action="{{ BASE_URL }}login/process">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        
                         <div class="mb-3">
                             <label for="email" class="form-label">Email</label>
                             <input type="email" class="form-control" id="email" name="email" required autofocus>
@@ -45,8 +47,13 @@
                         <button type="submit" class="btn btn-primary w-100 mb-3">Login</button>
                     </form>
 
-                    <div class="text-center">
-                        <a href="{{ BASE_URL }}" class="text-decoration-none">Back to home</a>
+                    <div class="text-center mt-3">
+                        <p class="mb-2">
+                            <a href="{{ BASE_URL }}register" class="text-decoration-none">Criar nova conta</a>
+                        </p>
+                        <p class="mb-0">
+                            <a href="{{ BASE_URL }}forgot-password" class="text-decoration-none">Esqueceu a senha?</a>
+                        </p>
                     </div>
                 </div>
             </div>

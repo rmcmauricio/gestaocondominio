@@ -1,7 +1,7 @@
 <header id="header" class="header">
   <div class="container">
     <a href="{{ BASE_URL }}" class="logo">
-      <span class="logo-text">MVC Framework</span>
+      <img src="{{ BASE_URL }}assets/images/logo.svg" alt="MeuPrédio" class="logo-img">
     </a>
 
     <button class="mobile-nav-toggle" aria-label="Toggle navigation" id="mobileNavToggle">
@@ -10,14 +10,18 @@
 
     <nav id="navmenu" class="navmenu">
       <ul>
-        <li><a href="{{ BASE_URL }}">Home</a></li>
-        <li><a href="{{ BASE_URL }}demo">Demo</a></li>
-        <li><a href="{{ BASE_URL }}about">About</a></li>
+        <li><a href="{{ BASE_URL }}">Início</a></li>
         {% if not user %}
+        <li><a href="{{ BASE_URL }}register" class="btn btn-outline-primary btn-sm">Criar Conta</a></li>
         <li><a href="{{ BASE_URL }}login">Login</a></li>
-        {% endif %}
-        {% if user %}
-        <li><a href="{{ BASE_URL }}logout">Logout</a></li>
+        {% else %}
+        <li>
+          <button class="btn btn-link text-white" onclick="toggleSidebar()" style="padding: 0.25rem 0.5rem;">
+            <i class="bi bi-list"></i>
+          </button>
+        </li>
+        <li><a href="{{ BASE_URL }}dashboard">Dashboard</a></li>
+        <li><a href="{{ BASE_URL }}logout">Sair</a></li>
         {% endif %}
         <li class="language-selector">
           <div class="dropdown">

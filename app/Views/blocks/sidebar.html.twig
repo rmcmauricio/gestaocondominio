@@ -1,0 +1,111 @@
+{% if user %}
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h5 class="mb-0">Menu</h5>
+    </div>
+    <nav class="sidebar-nav">
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}dashboard">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+            </li>
+            
+            {% if user.role == 'admin' or user.role == 'super_admin' %}
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums">
+                    <i class="bi bi-building"></i> Condomínios
+                </a>
+            </li>
+            {% endif %}
+            
+            {% if condominium %}
+            <li class="nav-section">
+                <span class="nav-section-title">{{ condominium.name }}</span>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}">
+                    <i class="bi bi-info-circle"></i> Visão Geral
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions">
+                    <i class="bi bi-house-door"></i> Frações
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances">
+                    <i class="bi bi-cash-coin"></i> Finanças
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees">
+                    <i class="bi bi-receipt"></i> Quotas
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents">
+                    <i class="bi bi-file-earmark"></i> Documentos
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences">
+                    <i class="bi bi-exclamation-triangle"></i> Ocorrências
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies">
+                    <i class="bi bi-people"></i> Assembleias
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations">
+                    <i class="bi bi-calendar-check"></i> Reservas
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers">
+                    <i class="bi bi-truck"></i> Fornecedores
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages">
+                    <i class="bi bi-envelope"></i> Mensagens
+                </a>
+            </li>
+            {% endif %}
+            
+            {% if user.role == 'admin' or user.role == 'super_admin' %}
+            <li class="nav-section">
+                <span class="nav-section-title">Sistema</span>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}subscription">
+                    <i class="bi bi-credit-card"></i> Subscrição
+                </a>
+            </li>
+            
+            {% if user.role == 'super_admin' %}
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}api-keys">
+                    <i class="bi bi-key"></i> API Keys
+                </a>
+            </li>
+            {% endif %}
+            {% endif %}
+        </ul>
+    </nav>
+</div>
+{% endif %}
+

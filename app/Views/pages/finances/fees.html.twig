@@ -1,0 +1,485 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Quotas</h2>
+            <p class="text-muted mb-0">{{ condominium.name }}</p>
+        </div>
+        <div>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateFeesModal">
+                <i class="bi bi-calculator"></i> Gerar Quotas
+            </button>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="row g-3" id="filtersForm">
+                <div class="col-md-3">
+                    <label for="year" class="form-label">Ano</label>
+                    <select class="form-select" id="year" name="year">
+                        <option value="" {% if selected_year == '' or selected_year is empty %}selected{% endif %}>Todos</option>
+                        {% for y in range(current_year - 2, current_year + 1) %}
+                        <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="month" class="form-label">Mês</label>
+                    <select class="form-select" id="month" name="month">
+                        <option value="">Todos</option>
+                        <option value="1" {% if selected_month == 1 %}selected{% endif %}>Janeiro</option>
+                        <option value="2" {% if selected_month == 2 %}selected{% endif %}>Fevereiro</option>
+                        <option value="3" {% if selected_month == 3 %}selected{% endif %}>Março</option>
+                        <option value="4" {% if selected_month == 4 %}selected{% endif %}>Abril</option>
+                        <option value="5" {% if selected_month == 5 %}selected{% endif %}>Maio</option>
+                        <option value="6" {% if selected_month == 6 %}selected{% endif %}>Junho</option>
+                        <option value="7" {% if selected_month == 7 %}selected{% endif %}>Julho</option>
+                        <option value="8" {% if selected_month == 8 %}selected{% endif %}>Agosto</option>
+                        <option value="9" {% if selected_month == 9 %}selected{% endif %}>Setembro</option>
+                        <option value="10" {% if selected_month == 10 %}selected{% endif %}>Outubro</option>
+                        <option value="11" {% if selected_month == 11 %}selected{% endif %}>Novembro</option>
+                        <option value="12" {% if selected_month == 12 %}selected{% endif %}>Dezembro</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="status" class="form-label">Status</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">Todos</option>
+                        <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Pendentes</option>
+                        <option value="paid" {% if selected_status == 'paid' %}selected{% endif %}>Pagas</option>
+                        <option value="overdue" {% if selected_status == 'overdue' %}selected{% endif %}>Em Atraso</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="show_historical" name="show_historical" value="1" {% if show_historical %}checked{% endif %} onchange="document.getElementById('filtersForm').submit()">
+                        <label class="form-check-label" for="show_historical">Incluir Dívidas</label>
+                    </div>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-outline-primary w-100">Filtrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if fees %}
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Fração</th>
+                            <th>Período</th>
+                            <th>Valor Total</th>
+                            <th>Pago</th>
+                            <th>Pendente</th>
+                            <th>Vencimento</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for fee in fees %}
+                        {% set paid_amount = fee.paid_amount|default(0) %}
+                        {% set pending_amount = fee.pending_amount|default(fee.amount) %}
+                        {% set calculated_status = fee.calculated_status|default(fee.status) %}
+                        <tr>
+                            <td>
+                                {% if fee.is_historical %}
+                                    <span class="badge bg-warning text-dark" title="Dívida Histórica">
+                                        <i class="bi bi-clock-history"></i> Dívida
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-primary">Quota</span>
+                                {% endif %}
+                            </td>
+                            <td><strong>{{ fee.fraction_identifier }}</strong></td>
+                            <td>
+                                {% if fee.period_month %}
+                                    {{ fee.period_month }}/{{ fee.period_year }}
+                                {% else %}
+                                    {{ fee.period_year }}
+                                {% endif %}
+                            </td>
+                            <td><strong>€{{ fee.amount|number_format(2, ',', '.') }}</strong></td>
+                            <td>
+                                {% if paid_amount > 0 %}
+                                    <span class="text-success">€{{ paid_amount|number_format(2, ',', '.') }}</span>
+                                {% else %}
+                                    <span class="text-muted">€0,00</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if pending_amount > 0 %}
+                                    <strong class="text-danger">€{{ pending_amount|number_format(2, ',', '.') }}</strong>
+                                {% else %}
+                                    <span class="text-success">€0,00</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ fee.due_date|date('d/m/Y') }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if calculated_status == 'paid' %}bg-success
+                                    {% elseif calculated_status == 'overdue' %}bg-danger
+                                    {% elseif calculated_status == 'partial' %}bg-info
+                                    {% else %}bg-warning{% endif %}">
+                                    {% if calculated_status == 'paid' %}Paga
+                                    {% elseif calculated_status == 'overdue' %}Em Atraso
+                                    {% elseif calculated_status == 'partial' %}Parcial
+                                    {% else %}Pendente{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    {% if calculated_status != 'paid' %}
+                                    <button type="button" class="btn btn-outline-primary" 
+                                            onclick="showPaymentModal({{ fee.id }})" 
+                                            title="Registar Pagamento">
+                                        <i class="bi bi-cash-coin"></i>
+                                    </button>
+                                    {% endif %}
+                                    <button type="button" class="btn btn-outline-info" 
+                                            onclick="showFeeDetails({{ fee.id }})" 
+                                            title="Ver Detalhes">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    {% if calculated_status == 'paid' %}
+                                    <span class="text-success"><i class="bi bi-check-circle"></i></span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    {% if summary %}
+    <div class="card shadow-sm mt-4">
+        <div class="card-body">
+            <h5>Resumo</h5>
+            <div class="row">
+                <div class="col-md-3">
+                    <strong>Total:</strong> €{{ summary.total|number_format(2, ',', '.') }}
+                </div>
+                <div class="col-md-3">
+                    <strong>Pagas:</strong> €{{ summary.paid|number_format(2, ',', '.') }}
+                </div>
+                <div class="col-md-2">
+                    <strong>Pendentes:</strong> €{{ summary.pending|number_format(2, ',', '.') }}
+                </div>
+                <div class="col-md-2">
+                    <strong>Parciais:</strong> €{{ summary.partial|default(0)|number_format(2, ',', '.') }}
+                </div>
+                <div class="col-md-2">
+                    <strong>Em Atraso:</strong> €{{ summary.overdue|number_format(2, ',', '.') }}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="card shadow">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-receipt display-1 text-muted"></i>
+            <h4 class="mt-3">Nenhuma quota encontrada</h4>
+            <p class="text-muted">Gere as quotas mensais para começar</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Modal para Gerar Quotas -->
+    <div class="modal fade" id="generateFeesModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/generate">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Gerar Quotas Mensais</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="year" class="form-label">Ano <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="year" name="year" value="{{ current_year }}" min="2020" max="2100" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="month" class="form-label">Mês <span class="text-danger">*</span></label>
+                            <select class="form-select" id="month" name="month" required>
+                                <option value="1" {% if 1 == current_month %}selected{% endif %}>1 - Janeiro</option>
+                                <option value="2" {% if 2 == current_month %}selected{% endif %}>2 - Fevereiro</option>
+                                <option value="3" {% if 3 == current_month %}selected{% endif %}>3 - Março</option>
+                                <option value="4" {% if 4 == current_month %}selected{% endif %}>4 - Abril</option>
+                                <option value="5" {% if 5 == current_month %}selected{% endif %}>5 - Maio</option>
+                                <option value="6" {% if 6 == current_month %}selected{% endif %}>6 - Junho</option>
+                                <option value="7" {% if 7 == current_month %}selected{% endif %}>7 - Julho</option>
+                                <option value="8" {% if 8 == current_month %}selected{% endif %}>8 - Agosto</option>
+                                <option value="9" {% if 9 == current_month %}selected{% endif %}>9 - Setembro</option>
+                                <option value="10" {% if 10 == current_month %}selected{% endif %}>10 - Outubro</option>
+                                <option value="11" {% if 11 == current_month %}selected{% endif %}>11 - Novembro</option>
+                                <option value="12" {% if 12 == current_month %}selected{% endif %}>12 - Dezembro</option>
+                            </select>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> As quotas serão calculadas automaticamente com base nas <strong>receitas</strong> do orçamento e permilagem de cada fração.
+                            <br><small>Certifique-se de que o orçamento está aprovado e tem receitas definidas.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Gerar Quotas</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar às Finanças
+        </a>
+    </div>
+</div>
+
+<!-- Modal para Registar Pagamento -->
+<div class="modal fade" id="paymentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Registar Pagamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="paymentForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <div id="feeInfo" class="alert alert-info mb-3">
+                        <small>Carregando informações...</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="payment_amount" class="form-label">Valor do Pagamento (€) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">€</span>
+                            <input type="number" class="form-control" id="payment_amount" name="amount" 
+                                   step="0.01" min="0.01" required placeholder="0.00">
+                        </div>
+                        <small class="text-muted" id="maxAmountHint">Valor máximo: €0,00</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="payment_method" class="form-label">Método de Pagamento <span class="text-danger">*</span></label>
+                        <select class="form-select" id="payment_method" name="payment_method" required>
+                            <option value="">Selecione...</option>
+                            <option value="multibanco">Multibanco</option>
+                            <option value="mbway">MBWay</option>
+                            <option value="transfer">Transferência</option>
+                            <option value="cash">Dinheiro</option>
+                            <option value="card">Cartão</option>
+                            <option value="sepa">Débito Direto SEPA</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="payment_date" class="form-label">Data do Pagamento <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="payment_date" name="payment_date" 
+                               value="{{ "now"|date("Y-m-d") }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="payment_reference" class="form-label">Referência</label>
+                        <input type="text" class="form-control" id="payment_reference" name="reference" 
+                               placeholder="Ex: Referência Multibanco, número de transferência, etc.">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="payment_notes" class="form-label">Notas</label>
+                        <textarea class="form-control" id="payment_notes" name="notes" rows="2" 
+                                  placeholder="Informações adicionais sobre o pagamento"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Registar Pagamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Ver Detalhes -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalhes da Quota/Dívida</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="feeDetailsContent">
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">A carregar...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentFeeId = null;
+
+function showPaymentModal(feeId) {
+    currentFeeId = feeId;
+    const modal = new bootstrap.Modal(document.getElementById('paymentModal'));
+    
+    // Load fee info
+    fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)
+        .then(response => response.json())
+        .then(data => {
+            const pendingAmount = data.pending_amount;
+            const totalAmount = data.total_amount;
+            const paidAmount = data.total_paid;
+            
+            document.getElementById('feeInfo').innerHTML = `
+                <strong>Fração:</strong> ${data.fraction.identifier}<br>
+                <strong>Valor Total:</strong> €${parseFloat(totalAmount).toFixed(2).replace('.', ',')}<br>
+                <strong>Já Pago:</strong> €${parseFloat(paidAmount).toFixed(2).replace('.', ',')}<br>
+                <strong>Pendente:</strong> <span class="text-danger">€${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}</span>
+            `;
+            
+            document.getElementById('payment_amount').max = pendingAmount;
+            document.getElementById('payment_amount').value = '';
+            document.getElementById('maxAmountHint').textContent = `Valor máximo: €${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}`;
+            
+            document.getElementById('paymentForm').action = `{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/add-payment`;
+        })
+        .catch(error => {
+            console.error('Erro ao carregar informações:', error);
+            document.getElementById('feeInfo').innerHTML = '<div class="alert alert-danger">Erro ao carregar informações</div>';
+        });
+    
+    modal.show();
+}
+
+function showFeeDetails(feeId) {
+    const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+    
+    fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)
+        .then(response => response.json())
+        .then(data => {
+            const pendingAmount = data.pending_amount;
+            const totalAmount = data.total_amount;
+            const paidAmount = data.total_paid;
+            const payments = data.payments || [];
+            
+            let paymentsHtml = '';
+            if (payments.length > 0) {
+                paymentsHtml = `
+                    <h6 class="mt-4">Histórico de Pagamentos</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Valor</th>
+                                    <th>Método</th>
+                                    <th>Referência</th>
+                                    <th>Registado por</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${payments.map(p => `
+                                    <tr>
+                                        <td>${new Date(p.payment_date).toLocaleDateString('pt-PT')}</td>
+                                        <td><strong>€${parseFloat(p.amount).toFixed(2).replace('.', ',')}</strong></td>
+                                        <td>${p.payment_method}</td>
+                                        <td>${p.reference || '-'}</td>
+                                        <td>${p.created_by_name || '-'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } else {
+                paymentsHtml = '<p class="text-muted">Nenhum pagamento registado ainda.</p>';
+            }
+            
+            document.getElementById('feeDetailsContent').innerHTML = `
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Fração:</strong> ${data.fraction.identifier}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Tipo:</strong> ${data.fee.is_historical ? '<span class="badge bg-warning text-dark">Dívida Histórica</span>' : '<span class="badge bg-primary">Quota</span>'}
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Período:</strong> ${data.fee.period_month ? data.fee.period_month + '/' + data.fee.period_year : data.fee.period_year}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Vencimento:</strong> ${new Date(data.fee.due_date).toLocaleDateString('pt-PT')}
+                    </div>
+                </div>
+                <hr>
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>Valor Total:</strong><br>
+                        <h5>€${parseFloat(totalAmount).toFixed(2).replace('.', ',')}</h5>
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Já Pago:</strong><br>
+                        <h5 class="text-success">€${parseFloat(paidAmount).toFixed(2).replace('.', ',')}</h5>
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Pendente:</strong><br>
+                        <h5 class="text-danger">€${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}</h5>
+                    </div>
+                </div>
+                ${paymentsHtml}
+                ${data.fee.notes ? `<hr><div><strong>Notas:</strong><br>${data.fee.notes}</div>` : ''}
+            `;
+        })
+        .catch(error => {
+            console.error('Erro ao carregar detalhes:', error);
+            document.getElementById('feeDetailsContent').innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes</div>';
+        });
+    
+    modal.show();
+}
+
+// Update max amount when input changes
+document.getElementById('payment_amount')?.addEventListener('input', function() {
+    const maxAmount = parseFloat(this.max);
+    const currentAmount = parseFloat(this.value);
+    if (currentAmount > maxAmount) {
+        this.value = maxAmount.toFixed(2);
+        alert(`O valor máximo é €${maxAmount.toFixed(2).replace('.', ',')}`);
+    }
+});
+</script>
+
+

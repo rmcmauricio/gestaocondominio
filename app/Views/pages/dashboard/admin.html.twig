@@ -1,0 +1,92 @@
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Painel Administrador</h1>
+            
+            <div class="row mb-4">
+                <div class="col-md-3 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-primary">{{ stats.total_condominiums }}</h3>
+                            <p class="text-muted mb-0">Condomínios</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-success">{{ stats.total_fractions }}</h3>
+                            <p class="text-muted mb-0">Frações</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-warning">{{ stats.overdue_fees }}</h3>
+                            <p class="text-muted mb-0">Quotas em Atraso</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-info">{{ stats.open_occurrences }}</h3>
+                            <p class="text-muted mb-0">Ocorrências Abertas</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {% if condominiums %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Meus Condomínios</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        {% for condominium in condominiums %}
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ condominium.name }}</h6>
+                                <small>{{ condominium.city }}</small>
+                            </div>
+                            <p class="mb-1">{{ condominium.address }}</p>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Ações Rápidas</h5>
+                        </div>
+                        <div class="card-body">
+                            <a href="{{ BASE_URL }}condominiums/create" class="btn btn-primary mb-2 d-block">Criar Condomínio</a>
+                            <a href="{{ BASE_URL }}subscription" class="btn btn-secondary mb-2 d-block">Gerir Subscrição</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Visão Geral Financeira</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted">Estatísticas financeiras serão exibidas aqui.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

@@ -1,0 +1,44 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">{{ message.subject }}</h4>
+                </div>
+                <div class="card-body p-4">
+                    <div class="mb-4">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>De:</strong> {{ message.sender_name|default('Sistema') }}<br>
+                                <strong>Para:</strong> {{ message.recipient_name|default('Todos os condóminos') }}
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <strong>Data:</strong> {{ message.created_at|date('d/m/Y H:i') }}<br>
+                                {% if message.is_read %}
+                                <small class="text-muted">Lida em {{ message.read_at|date('d/m/Y H:i') }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="message-content">
+                        {{ message.message|nl2br }}
+                    </div>
+
+                    <div class="mt-4">
+                        <a href="{{ BASE_URL }}condominiums/{{ message.condominium_id }}/messages" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Voltar
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+

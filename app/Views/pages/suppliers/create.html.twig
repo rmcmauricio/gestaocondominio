@@ -1,0 +1,84 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Adicionar Fornecedor</h4>
+                    <small>{{ condominium.name }}</small>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Nome <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" required autofocus>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="nif" class="form-label">NIF</label>
+                                <input type="text" class="form-control" id="nif" name="nif" placeholder="123456789">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="area" class="form-label">Área de Atuação</label>
+                                <select class="form-select" id="area" name="area">
+                                    <option value="">Selecione...</option>
+                                    <option value="Limpeza">Limpeza</option>
+                                    <option value="Manutenção">Manutenção</option>
+                                    <option value="Jardim">Jardim</option>
+                                    <option value="Segurança">Segurança</option>
+                                    <option value="Energia">Energia</option>
+                                    <option value="Outro">Outro</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="address" class="form-label">Morada</label>
+                            <input type="text" class="form-control" id="address" name="address">
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="phone" class="form-label">Telefone</label>
+                                <input type="tel" class="form-control" id="phone" name="phone" placeholder="+351 XXX XXX XXX">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="email" name="email">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="website" class="form-label">Website</label>
+                            <input type="url" class="form-control" id="website" name="website" placeholder="https://">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notas</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">Adicionar Fornecedor</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+

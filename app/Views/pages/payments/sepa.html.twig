@@ -1,0 +1,70 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white text-center">
+                    <h4 class="mb-0"><i class="bi bi-arrow-repeat"></i> Débito Direto SEPA</h4>
+                </div>
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <h5>{{ plan.name }}</h5>
+                        <h2 class="text-primary">€{{ payment_data.amount }}</h2>
+                        <p class="text-muted">Pagamento mensal recorrente</p>
+                    </div>
+
+                    <div class="alert alert-success">
+                        <h6 class="alert-heading"><i class="bi bi-check-circle"></i> Mandato Criado com Sucesso</h6>
+                        <p class="mb-0">O seu mandato de débito direto foi criado e será processado em 2-3 dias úteis.</p>
+                    </div>
+
+                    <div class="bg-light p-4 rounded mb-4">
+                        <h6 class="mb-3">Detalhes do Mandato</h6>
+                        <div class="row mb-2">
+                            <div class="col-5"><strong>Referência:</strong></div>
+                            <div class="col-7"><code>{{ payment_data.mandate_reference }}</code></div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-5"><strong>Titular:</strong></div>
+                            <div class="col-7">{{ payment_data.account_holder }}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-5"><strong>IBAN:</strong></div>
+                            <div class="col-7"><code>{{ payment_data.iban }}</code></div>
+                        </div>
+                        <div class="row">
+                            <div class="col-5"><strong>Valor:</strong></div>
+                            <div class="col-7"><strong class="text-primary">€{{ payment_data.amount }}/mês</strong></div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading"><i class="bi bi-info-circle"></i> Como Funciona</h6>
+                        <ul class="mb-0 small">
+                            <li>O primeiro débito será processado em 2-3 dias úteis</li>
+                            <li>Os pagamentos seguintes serão debitados automaticamente todos os meses</li>
+                            <li>Receberá um email de confirmação antes de cada débito</li>
+                            <li>Pode cancelar o débito direto a qualquer momento na sua área de subscrição</li>
+                        </ul>
+                    </div>
+
+                    <div class="d-grid">
+                        <a href="{{ BASE_URL }}subscription" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Entendi
+                        </a>
+                    </div>
+
+                    <div class="mt-4 text-center">
+                        <small class="text-muted">
+                            O seu mandato de débito direto foi registado. A sua subscrição será ativada após o primeiro débito.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+

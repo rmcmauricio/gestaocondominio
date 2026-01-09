@@ -1,0 +1,169 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>API Keys</h2>
+            <p class="text-muted mb-0">Gerir chaves de API para integrações</p>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if not has_business_plan %}
+    <div class="card shadow-sm mb-4 border-warning">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-exclamation-triangle-fill text-warning display-6 me-3"></i>
+                <div>
+                    <h5 class="mb-1">Plano BUSINESS Necessário</h5>
+                    <p class="mb-0">O acesso à API REST está disponível apenas para utilizadores com plano BUSINESS.</p>
+                    <a href="{{ BASE_URL }}subscription/choose-plan" class="btn btn-warning btn-sm mt-2">
+                        <i class="bi bi-arrow-up-circle"></i> Atualizar Plano
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+        {% if api_key_info %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">API Key Ativa</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">API Key</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace" id="apiKey" value="{{ api_key_info.api_key }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey()">
+                            <i class="bi bi-clipboard"></i> Copiar
+                        </button>
+                    </div>
+                    <small class="text-muted">Use esta chave no cabeçalho X-API-Key nas suas requisições</small>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Criada em:</strong><br>
+                        {{ api_key_info.created_at|date('d/m/Y H:i') }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Última utilização:</strong><br>
+                        {% if api_key_info.last_used_at %}
+                            {{ api_key_info.last_used_at|date('d/m/Y H:i') }}
+                        {% else %}
+                            <span class="text-muted">Nunca utilizada</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <form method="POST" action="{{ BASE_URL }}api-keys/revoke" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('Tem certeza que deseja revogar esta API Key? Todas as integrações que a utilizam deixarão de funcionar.');">
+                        <i class="bi bi-x-circle"></i> Revogar API Key
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-key display-1 text-muted mb-3"></i>
+                <h4>Nenhuma API Key</h4>
+                <p class="text-muted">Gere uma API Key para começar a utilizar a API REST</p>
+                <form method="POST" action="{{ BASE_URL }}api-keys/generate" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Gerar API Key
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if api_key_generated %}
+        <div class="card shadow-sm mb-4 border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-check-circle"></i> API Key Gerada</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> <strong>Importante:</strong> Guarde esta chave em segurança. Ela não será exibida novamente.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Sua Nova API Key</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace" id="newApiKey" value="{{ api_key_generated }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyNewApiKey()">
+                            <i class="bi bi-clipboard"></i> Copiar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">Documentação da API</h5>
+            </div>
+            <div class="card-body">
+                <h6>Autenticação</h6>
+                <p>Inclua a sua API Key no cabeçalho HTTP:</p>
+                <pre class="bg-light p-3 rounded"><code>X-API-Key: pk_sua_chave_aqui</code></pre>
+
+                <h6 class="mt-4">Endpoints Disponíveis</h6>
+                <ul>
+                    <li><strong>GET /api/condominiums</strong> - Listar condomínios</li>
+                    <li><strong>GET /api/condominiums/{id}</strong> - Detalhes do condomínio</li>
+                    <li><strong>GET /api/condominiums/{id}/fees</strong> - Listar quotas</li>
+                    <li><strong>GET /api/fractions/{id}/fees</strong> - Quotas por fração</li>
+                </ul>
+
+                <h6 class="mt-4">Exemplo de Requisição</h6>
+                <pre class="bg-light p-3 rounded"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/condominiums</code></pre>
+
+                <div class="mt-4">
+                    <a href="{{ BASE_URL }}api/documentation" class="btn btn-outline-primary">
+                        <i class="bi bi-book"></i> Ver Documentação Completa
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+function copyApiKey() {
+    const apiKey = document.getElementById('apiKey');
+    apiKey.select();
+    document.execCommand('copy');
+    alert('API Key copiada!');
+}
+
+{% if api_key_generated %}
+function copyNewApiKey() {
+    const apiKey = document.getElementById('newApiKey');
+    apiKey.select();
+    document.execCommand('copy');
+    alert('API Key copiada! Guarde-a em segurança.');
+}
+{% endif %}
+</script>
+
+
+
+
+

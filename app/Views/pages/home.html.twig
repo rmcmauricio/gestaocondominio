@@ -1,53 +1,206 @@
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-8 text-center">
-            <h1 class="display-4 mb-4">Welcome to MVC Framework</h1>
-            <p class="lead mb-4">Your PHP MVC Framework is running successfully!</p>
-            
-            <div class="card mt-4">
-                <div class="card-body">
-                    <h5 class="card-title">Getting Started</h5>
-                    <p class="card-text">To start building your application:</p>
-                    <ul class="list-unstyled text-start">
-                        <li>✅ Create controllers in <code>app/Controllers/</code></li>
-                        <li>✅ Create models in <code>app/Models/</code></li>
-                        <li>✅ Create views in <code>app/Views/pages/</code></li>
-                        <li>✅ Define routes in <code>routes.php</code></li>
-                    </ul>
+<!-- Hero Section -->
+<section class="hero-section bg-primary text-white py-5">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <h1 class="display-4 fw-bold mb-4">Gerir o seu condomínio nunca foi tão fácil</h1>
+                <p class="lead mb-4">A solução completa para gestão de condomínios em Portugal. Automatize quotas, assembleias, documentos e muito mais.</p>
+                <div class="d-flex gap-3 flex-wrap">
+                    <a href="{{ BASE_URL }}register" class="btn btn-light btn-lg">Começar Grátis</a>
+                    <a href="{{ BASE_URL }}login" class="btn btn-outline-light btn-lg">Já tenho conta</a>
+                </div>
+                <p class="mt-3 mb-0">
+                    <i class="bi bi-check-circle"></i> 14 dias grátis • 
+                    <i class="bi bi-check-circle"></i> Sem cartão de crédito • 
+                    <i class="bi bi-check-circle"></i> Cancele quando quiser
+                </p>
+            </div>
+            <div class="col-lg-6 text-center mt-4 mt-lg-0">
+                <div class="hero-image-placeholder bg-white bg-opacity-10 rounded p-5">
+                    <i class="bi bi-building display-1"></i>
+                    <p class="mt-3">Dashboard Interativo</p>
                 </div>
             </div>
+        </div>
+    </div>
+</section>
 
-            <div class="mt-4">
-                <h5>Framework Features</h5>
-                <div class="row mt-3">
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body">
-                                <h6>Twig Templates</h6>
-                                <p class="small">Powerful templating engine</p>
-                            </div>
+<!-- Features Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="display-5 fw-bold">Tudo o que precisa para gerir o seu condomínio</h2>
+            <p class="lead text-muted">Funcionalidades completas num só lugar</p>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                            <i class="bi bi-calculator fs-3 text-primary"></i>
                         </div>
+                        <h5 class="card-title">Gestão Financeira</h5>
+                        <p class="card-text text-muted">Orçamentos, despesas, quotas automáticas e relatórios financeiros completos.</p>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body">
-                                <h6>Optional Database</h6>
-                                <p class="small">Works with or without DB</p>
-                            </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon bg-success bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                            <i class="bi bi-file-earmark-text fs-3 text-success"></i>
                         </div>
+                        <h5 class="card-title">Documentos</h5>
+                        <p class="card-text text-muted">Organize todos os documentos do condomínio de forma segura e acessível.</p>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body">
-                                <h6>Email Service</h6>
-                                <p class="small">PHPMailer integration</p>
-                            </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon bg-info bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                            <i class="bi bi-people fs-3 text-info"></i>
                         </div>
+                        <h5 class="card-title">Assembleias</h5>
+                        <p class="card-text text-muted">Convocatórias automáticas, votações online e geração de atas.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon bg-warning bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                            <i class="bi bi-exclamation-triangle fs-3 text-warning"></i>
+                        </div>
+                        <h5 class="card-title">Ocorrências</h5>
+                        <p class="card-text text-muted">Registe e acompanhe ocorrências com workflow completo de estados.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon bg-danger bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                            <i class="bi bi-calendar-check fs-3 text-danger"></i>
+                        </div>
+                        <h5 class="card-title">Reservas</h5>
+                        <p class="card-text text-muted">Gerir reservas de espaços comuns com calendário integrado.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon bg-secondary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                            <i class="bi bi-shield-check fs-3 text-secondary"></i>
+                        </div>
+                        <h5 class="card-title">Segurança</h5>
+                        <p class="card-text text-muted">Dados protegidos com encriptação e conformidade GDPR.</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
+</section>
 
+<!-- Pricing Section -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="display-5 fw-bold">Planos para todos os tamanhos</h2>
+            <p class="lead text-muted">Escolha o plano ideal para o seu condomínio</p>
+        </div>
+        
+        <div class="row g-4 justify-content-center">
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-2">
+                    <div class="card-header bg-white text-center py-4">
+                        <h4 class="fw-bold">START</h4>
+                        <div class="mt-3">
+                            <span class="display-4 fw-bold">€9,90</span>
+                            <span class="text-muted">/mês</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> 1 condomínio</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Até 20 frações</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Finanças básicas</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Documentos</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Ocorrências</li>
+                        </ul>
+                    </div>
+                    <div class="card-footer bg-white text-center">
+                        <a href="{{ BASE_URL }}register" class="btn btn-outline-primary w-100">Começar</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-primary border-2 shadow">
+                    <div class="card-header bg-primary text-white text-center py-4">
+                        <span class="badge bg-light text-primary mb-2">Mais Popular</span>
+                        <h4 class="fw-bold">PRO</h4>
+                        <div class="mt-3">
+                            <span class="display-4 fw-bold">€29,90</span>
+                            <span class="opacity-75">/mês</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Até 5 condomínios</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Até 150 frações</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Finanças completas</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Votações online</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Reservas de espaços</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Gestão de contratos</li>
+                        </ul>
+                    </div>
+                    <div class="card-footer bg-white text-center">
+                        <a href="{{ BASE_URL }}register" class="btn btn-primary w-100">Começar</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-2">
+                    <div class="card-header bg-white text-center py-4">
+                        <h4 class="fw-bold">BUSINESS</h4>
+                        <div class="mt-3">
+                            <span class="display-4 fw-bold">€59,90</span>
+                            <span class="text-muted">/mês</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Condomínios ilimitados</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Frações ilimitadas</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> API e integrações</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Branding personalizado</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> App Mobile Premium</li>
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Todos os módulos</li>
+                        </ul>
+                    </div>
+                    <div class="card-footer bg-white text-center">
+                        <a href="{{ BASE_URL }}register" class="btn btn-outline-primary w-100">Começar</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 
+<!-- CTA Section -->
+<section class="py-5 bg-primary text-white">
+    <div class="container text-center">
+        <h2 class="display-5 fw-bold mb-4">Pronto para começar?</h2>
+        <p class="lead mb-4">Junte-se a centenas de condomínios que já confiam no MeuPrédio</p>
+        <a href="{{ BASE_URL }}register" class="btn btn-light btn-lg px-5">Criar Conta Grátis</a>
+    </div>
+</section>

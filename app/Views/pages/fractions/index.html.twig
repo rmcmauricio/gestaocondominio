@@ -1,0 +1,229 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Frações</h2>
+            <p class="text-muted mb-0">{{ condominium.name }}</p>
+        </div>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/create" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Nova Fração
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if total_permillage %}
+    <div class="alert alert-info mb-3">
+        <strong>Total de Permilagem:</strong> {{ total_permillage }}‰
+        {% if total_permillage != 1000 %}
+            <span class="text-warning">(Atenção: Total deve ser 1000‰)</span>
+        {% else %}
+            <span class="text-success">✓</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if fractions %}
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Identificador</th>
+                            <th>Tipologia</th>
+                            <th>Área (m²)</th>
+                            <th>Permilagem</th>
+                            <th>Condómino</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for fraction in fractions %}
+                        <tr>
+                            <td><strong>{{ fraction.identifier }}</strong></td>
+                            <td>{{ fraction.typology|default('-') }}</td>
+                            <td>{{ fraction.area|default('-') }}</td>
+                            <td>{{ fraction.permillage|default(0) }}‰</td>
+                            <td>
+                                {% if fraction.primary_owner %}
+                                    <div>
+                                        <strong>{{ fraction.primary_owner.name }}</strong><br>
+                                        <small class="text-muted">{{ fraction.primary_owner.email }}</small>
+                                        {% if fraction.owners|length > 1 %}
+                                            <br><small class="text-info">+{{ fraction.owners|length - 1 }} outro(s)</small>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">Não atribuída</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge {% if fraction.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                    {% if fraction.is_active %}Ativa{% else %}Inativa{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/edit" class="btn btn-outline-primary" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    {% if not fraction.primary_owner %}
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/assign-self" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-outline-info" title="Atribuir a mim">
+                                            <i class="bi bi-person-check"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#inviteModal{{ fraction.id }}" title="Convidar Condómino">
+                                        <i class="bi bi-person-plus"></i>
+                                    </button>
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover esta fração?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Remover">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modals for invitations (outside table to avoid conflicts) -->
+    {% for fraction in fractions %}
+    <!-- Invite Modal for Fraction {{ fraction.id }} -->
+    <div class="modal fade" id="inviteModal{{ fraction.id }}" tabindex="-1" aria-labelledby="inviteModalLabel{{ fraction.id }}" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="inviteModalLabel{{ fraction.id }}">Convidar Condómino</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations" id="inviteForm{{ fraction.id }}">
+                    <div class="modal-body">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="fraction_id" value="{{ fraction.id }}">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Fração</label>
+                            <input type="text" class="form-control" value="{{ fraction.identifier }}" readonly>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="name{{ fraction.id }}" class="form-label">Nome <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name{{ fraction.id }}" name="name" required placeholder="Nome completo">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="email{{ fraction.id }}" class="form-label">Email <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" id="email{{ fraction.id }}" name="email" required placeholder="email@exemplo.com">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="role{{ fraction.id }}" class="form-label">Tipo</label>
+                            <select class="form-select" id="role{{ fraction.id }}" name="role">
+                                <option value="proprietario">Proprietário</option>
+                                <option value="condomino">Condómino</option>
+                                <option value="arrendatario">Arrendatário</option>
+                            </select>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <small><i class="bi bi-info-circle"></i> Um email será enviado com um link para criar a conta e aceitar o convite.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-envelope"></i> Enviar Convite
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    
+    {% else %}
+    <div class="card shadow">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-house-door display-1 text-muted"></i>
+            <h4 class="mt-3">Nenhuma fração cadastrada</h4>
+            <p class="text-muted">Comece criando a primeira fração deste condomínio</p>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/create" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Criar Fração
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mt-3">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar ao Condomínio
+        </a>
+    </div>
+</div>
+
+<script>
+// Prevent modal form submission issues
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle modal form submissions
+    {% for fraction in fractions %}
+    const form{{ fraction.id }} = document.getElementById('inviteForm{{ fraction.id }}');
+    if (form{{ fraction.id }}) {
+        form{{ fraction.id }}.addEventListener('submit', function(e) {
+            // Prevent multiple submissions
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enviando...';
+            }
+        });
+    }
+    
+    // Prevent modal from closing unexpectedly
+    const modal{{ fraction.id }} = document.getElementById('inviteModal{{ fraction.id }}');
+    if (modal{{ fraction.id }}) {
+        modal{{ fraction.id }}.addEventListener('show.bs.modal', function() {
+            // Reset form when modal opens
+            const form = document.getElementById('inviteForm{{ fraction.id }}');
+            if (form) {
+                form.reset();
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-envelope"></i> Enviar Convite';
+                }
+            }
+        });
+        
+        // Prevent modal from closing on backdrop click if form has errors
+        modal{{ fraction.id }}.addEventListener('hide.bs.modal', function(e) {
+            const form = document.getElementById('inviteForm{{ fraction.id }}');
+            if (form && form.querySelector('.is-invalid')) {
+                e.preventDefault();
+            }
+        });
+    }
+    {% endfor %}
+});
+</script>
+

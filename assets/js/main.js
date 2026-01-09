@@ -242,6 +242,29 @@
     }
   }
 
+  // Toggle sidebar on mobile
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+      sidebar.classList.toggle('show');
+    }
+  }
+
+  // Make toggleSidebar available globally
+  window.toggleSidebar = toggleSidebar;
+
+  // Close sidebar when clicking outside on mobile
+  document.addEventListener('click', function(event) {
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = event.target.closest('[onclick*="toggleSidebar"]');
+    
+    if (sidebar && window.innerWidth <= 768) {
+      if (!sidebar.contains(event.target) && !toggleBtn) {
+        sidebar.classList.remove('show');
+      }
+    }
+  });
+
   // Start initialization
   init();
 
