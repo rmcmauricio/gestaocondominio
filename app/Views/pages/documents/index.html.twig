@@ -4,9 +4,14 @@
             <h2>Documentos</h2>
             <p class="text-muted mb-0">{{ condominium.name }}</p>
         </div>
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/create" class="btn btn-primary">
-            <i class="bi bi-upload"></i> Upload Documento
-        </a>
+        <div>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/manage-folders" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-folder"></i> Gerir Pastas
+            </a>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/create" class="btn btn-primary">
+                <i class="bi bi-upload"></i> Upload Documento
+            </a>
+        </div>
     </div>
 
     {% if error %}
@@ -23,10 +28,95 @@
     </div>
     {% endif %}
 
+    <!-- Filters and Search -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h6 class="mb-0">Filtros e Busca</h6>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="search" class="form-label">Buscar</label>
+                        <input type="text" class="form-control" id="search" name="search" value="{{ current_search }}" placeholder="Buscar por título ou descrição...">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="folder" class="form-label">Pasta</label>
+                        <select class="form-select" id="folder" name="folder">
+                            <option value="">Todas</option>
+                            {% if folders %}
+                                {% for folder in folders %}
+                                <option value="{{ folder.folder }}" {% if current_folder == folder.folder %}selected{% endif %}>
+                                    {{ folder.folder }} ({{ folder.document_count }})
+                                </option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="document_type" class="form-label">Tipo</label>
+                        <select class="form-select" id="document_type" name="document_type">
+                            <option value="">Todos</option>
+                            {% if document_types %}
+                                {% for type in document_types %}
+                                <option value="{{ type.document_type }}" {% if current_document_type == type.document_type %}selected{% endif %}>
+                                    {{ type.document_type }} ({{ type.count }})
+                                </option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="visibility" class="form-label">Visibilidade</label>
+                        <select class="form-select" id="visibility" name="visibility">
+                            <option value="">Todas</option>
+                            <option value="condominos" {% if current_visibility == 'condominos' %}selected{% endif %}>Condóminos</option>
+                            <option value="admin" {% if current_visibility == 'admin' %}selected{% endif %}>Admin</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="sort_by" class="form-label">Ordenar por</label>
+                        <select class="form-select" id="sort_by" name="sort_by">
+                            <option value="created_at" {% if current_sort_by == 'created_at' %}selected{% endif %}>Data</option>
+                            <option value="title" {% if current_sort_by == 'title' %}selected{% endif %}>Título</option>
+                            <option value="file_size" {% if current_sort_by == 'file_size' %}selected{% endif %}>Tamanho</option>
+                            <option value="document_type" {% if current_sort_by == 'document_type' %}selected{% endif %}>Tipo</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mt-2">
+                    <div class="col-md-3">
+                        <label for="date_from" class="form-label">Data de (desde)</label>
+                        <input type="date" class="form-control" id="date_from" name="date_from" value="{{ current_date_from }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="date_to" class="form-label">Data de (até)</label>
+                        <input type="date" class="form-control" id="date_to" name="date_to" value="{{ current_date_to }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="sort_order" class="form-label">Ordem</label>
+                        <select class="form-select" id="sort_order" name="sort_order">
+                            <option value="DESC" {% if current_sort_order == 'DESC' %}selected{% endif %}>Descendente</option>
+                            <option value="ASC" {% if current_sort_order == 'ASC' %}selected{% endif %}>Ascendente</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="bi bi-search"></i> Filtrar
+                        </button>
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Limpar
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     {% if folders %}
     <div class="card shadow-sm mb-4">
         <div class="card-header">
-            <h6 class="mb-0">Pastas</h6>
+            <h6 class="mb-0">Pastas Rápidas</h6>
         </div>
         <div class="card-body">
             <div class="d-flex flex-wrap gap-2">
@@ -81,12 +171,18 @@
                             <td>{{ document.created_at|date('d/m/Y') }}</td>
                             <td>
                                 <div class="btn-group btn-group-sm">
-                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/download" class="btn btn-outline-primary">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/view" class="btn btn-outline-info" title="Visualizar">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/download" class="btn btn-outline-primary" title="Download">
                                         <i class="bi bi-download"></i>
+                                    </a>
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/edit" class="btn btn-outline-secondary" title="Editar">
+                                        <i class="bi bi-pencil"></i>
                                     </a>
                                     <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover este documento?');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </form>
@@ -104,10 +200,19 @@
         <div class="card-body text-center py-5">
             <i class="bi bi-folder display-1 text-muted"></i>
             <h4 class="mt-3">Nenhum documento encontrado</h4>
-            <p class="text-muted">Comece fazendo upload do primeiro documento</p>
+            <p class="text-muted">
+                {% if current_search or current_folder or current_document_type or current_visibility %}
+                    Nenhum documento corresponde aos filtros aplicados. Tente ajustar os filtros ou 
+                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents">limpar os filtros</a>.
+                {% else %}
+                    Comece fazendo upload do primeiro documento
+                {% endif %}
+            </p>
+            {% if not (current_search or current_folder or current_document_type or current_visibility) %}
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/create" class="btn btn-primary">
                 <i class="bi bi-upload"></i> Upload Documento
             </a>
+            {% endif %}
         </div>
     </div>
     {% endif %}

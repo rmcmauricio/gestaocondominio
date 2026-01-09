@@ -169,6 +169,94 @@
             </div>
             {% endif %}
             
+            <!-- Document Statistics and Recent Documents -->
+            <div class="row mb-4">
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Estatísticas de Documentos</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <h3 class="text-primary">{{ document_stats.total_documents }}</h3>
+                                <p class="text-muted mb-0">Total de Documentos</p>
+                            </div>
+                            {% if document_stats.documents_by_type|length > 0 %}
+                            <hr>
+                            <h6 class="mb-2">Por Tipo:</h6>
+                            <ul class="list-unstyled mb-0">
+                                {% for type in document_stats.documents_by_type %}
+                                <li class="d-flex justify-content-between">
+                                    <span>{{ type.document_type }}</span>
+                                    <span class="badge bg-secondary">{{ type.count }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-8 mb-3">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Documentos Recentes</h5>
+                            {% if condominiums|length > 0 %}
+                            <a href="{{ BASE_URL }}condominiums/{{ condominiums[0].id }}/documents" class="btn btn-sm btn-outline-primary">
+                                Ver Todos
+                            </a>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            {% if recent_documents %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Título</th>
+                                            <th>Pasta</th>
+                                            <th>Tipo</th>
+                                            <th>Upload por</th>
+                                            <th>Data</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for document in recent_documents %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ document.title }}</strong>
+                                                {% if document.description %}
+                                                    <br><small class="text-muted">{{ document.description|slice(0, 40) }}{% if document.description|length > 40 %}...{% endif %}</small>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ document.folder|default('-') }}</td>
+                                            <td><span class="badge bg-secondary">{{ document.document_type|default('Documento') }}</span></td>
+                                            <td>{{ document.uploaded_by_name|default('N/A') }}</td>
+                                            <td>{{ document.created_at|date('d/m/Y') }}</td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm">
+                                                    <a href="{{ BASE_URL }}condominiums/{{ document.condominium_id }}/documents/{{ document.id }}/view" class="btn btn-outline-info" title="Visualizar">
+                                                        <i class="bi bi-eye"></i>
+                                                    </a>
+                                                    <a href="{{ BASE_URL }}condominiums/{{ document.condominium_id }}/documents/{{ document.id }}/download" class="btn btn-outline-primary" title="Download">
+                                                        <i class="bi bi-download"></i>
+                                                    </a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted mb-0">Nenhum documento recente.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Chart.js Script -->
             <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
             <script>

@@ -1,0 +1,97 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Editar Documento</h2>
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">{{ document.title }}</h4>
+                    <small>{{ condominium.name }}</small>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/update">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Título <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="title" name="title" value="{{ document.title }}" required autofocus>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="description" name="description" rows="3">{{ document.description }}</textarea>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="folder" class="form-label">Pasta</label>
+                                <input type="text" class="form-control" id="folder" name="folder" list="folders-list" value="{{ document.folder }}" placeholder="Ex: Assembleias, Contratos, Finanças">
+                                <datalist id="folders-list">
+                                    {% for folder in folders %}
+                                    <option value="{{ folder.folder }}">
+                                    {% endfor %}
+                                </datalist>
+                                <div class="form-text">Deixe vazio para a pasta raiz</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="document_type" class="form-label">Tipo</label>
+                                <select class="form-select" id="document_type" name="document_type">
+                                    <option value="">Selecione...</option>
+                                    <option value="Assembleia" {% if document.document_type == 'Assembleia' %}selected{% endif %}>Assembleia</option>
+                                    <option value="Contrato" {% if document.document_type == 'Contrato' %}selected{% endif %}>Contrato</option>
+                                    <option value="Fatura" {% if document.document_type == 'Fatura' %}selected{% endif %}>Fatura</option>
+                                    <option value="Orçamento" {% if document.document_type == 'Orçamento' %}selected{% endif %}>Orçamento</option>
+                                    <option value="Regulamento" {% if document.document_type == 'Regulamento' %}selected{% endif %}>Regulamento</option>
+                                    <option value="Outro" {% if document.document_type == 'Outro' %}selected{% endif %}>Outro</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="visibility" class="form-label">Visibilidade</label>
+                                <select class="form-select" id="visibility" name="visibility">
+                                    <option value="condominos" {% if document.visibility == 'condominos' %}selected{% endif %}>Condóminos</option>
+                                    <option value="admin" {% if document.visibility == 'admin' %}selected{% endif %}>Apenas Administradores</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="fraction_id" class="form-label">Fração Específica</label>
+                                <select class="form-select" id="fraction_id" name="fraction_id">
+                                    <option value="">Todas as frações</option>
+                                    {% if fractions %}
+                                        {% for fraction in fractions %}
+                                        <option value="{{ fraction.id }}" {% if document.fraction_id == fraction.id %}selected{% endif %}>{{ fraction.identifier }}</option>
+                                        {% endfor %}
+                                    {% endif %}
+                                </select>
+                                <div class="form-text">Deixe vazio se o documento é para todas as frações</div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> <strong>Nota:</strong> O ficheiro não pode ser alterado. Para substituir o ficheiro, elimine este documento e faça upload de um novo.
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">Atualizar Documento</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

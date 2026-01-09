@@ -90,6 +90,58 @@
                 </div>
             </div>
             
+            {% if recent_documents %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Documentos Recentes</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Título</th>
+                                            <th>Pasta</th>
+                                            <th>Tipo</th>
+                                            <th>Data</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for document in recent_documents %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ document.title }}</strong>
+                                                {% if document.description %}
+                                                    <br><small class="text-muted">{{ document.description|slice(0, 50) }}{% if document.description|length > 50 %}...{% endif %}</small>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ document.folder|default('-') }}</td>
+                                            <td><span class="badge bg-secondary">{{ document.document_type|default('Documento') }}</span></td>
+                                            <td>{{ document.created_at|date('d/m/Y') }}</td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm">
+                                                    <a href="{{ BASE_URL }}condominiums/{{ document.condominium_id }}/documents/{{ document.id }}/view" class="btn btn-outline-info" title="Visualizar">
+                                                        <i class="bi bi-eye"></i>
+                                                    </a>
+                                                    <a href="{{ BASE_URL }}condominiums/{{ document.condominium_id }}/documents/{{ document.id }}/download" class="btn btn-outline-primary" title="Download">
+                                                        <i class="bi bi-download"></i>
+                                                    </a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
             {% if user_condominiums %}
             <div class="card">
                 <div class="card-header">

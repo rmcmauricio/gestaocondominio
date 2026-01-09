@@ -1,0 +1,73 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Upload Nova Versão</h4>
+                    <small>{{ document.title }} - {{ condominium.name }}</small>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> <strong>Nota:</strong> Ao fazer upload de uma nova versão, o histórico será mantido e poderá aceder a todas as versões anteriores.
+                    </div>
+
+                    {% if versions|length > 0 %}
+                    <div class="mb-4">
+                        <h6>Versões Existentes:</h6>
+                        <ul class="list-group">
+                            {% for version in versions %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>Versão {{ version.version }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ version.file_name }} - {{ version.created_at|date('d/m/Y H:i') }}</small>
+                                </div>
+                                {% if version.id == document.id %}
+                                <span class="badge bg-primary">Atual</span>
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="parent_document_id" value="{{ document.id }}">
+                        <input type="hidden" name="title" value="{{ document.title }}">
+                        <input type="hidden" name="description" value="{{ document.description }}">
+                        <input type="hidden" name="folder" value="{{ document.folder }}">
+                        <input type="hidden" name="document_type" value="{{ document.document_type }}">
+                        <input type="hidden" name="visibility" value="{{ document.visibility }}">
+                        {% if document.fraction_id %}
+                        <input type="hidden" name="fraction_id" value="{{ document.fraction_id }}">
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="file" class="form-label">Novo Ficheiro <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="file" name="file" required accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt">
+                            <div class="form-text">Formatos aceites: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, TXT (máx. 10MB)</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Descrição da Nova Versão (opcional)</label>
+                            <textarea class="form-control" id="description" name="description" rows="3" placeholder="Descreva as alterações nesta nova versão..."></textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/view" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">Upload Nova Versão</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

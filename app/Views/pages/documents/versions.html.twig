@@ -1,0 +1,88 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Histórico de Versões</h2>
+            <p class="text-muted mb-0">{{ document.title }} - {{ condominium.name }}</p>
+        </div>
+        <div>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/upload-version" class="btn btn-primary">
+                <i class="bi bi-upload"></i> Upload Nova Versão
+            </a>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/view" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+
+    {% if versions|length > 0 %}
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">Versões do Documento</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Versão</th>
+                            <th>Ficheiro</th>
+                            <th>Tamanho</th>
+                            <th>Upload por</th>
+                            <th>Data</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for version in versions %}
+                        <tr {% if version.id == document.id %}class="table-primary"{% endif %}>
+                            <td>
+                                <span class="badge bg-{% if version.id == document.id %}primary{% else %}secondary{% endif %}">
+                                    Versão {{ version.version }}
+                                    {% if version.id == document.id %}(Atual){% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <strong>{{ version.file_name }}</strong>
+                                {% if version.description %}
+                                    <br><small class="text-muted">{{ version.description }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if version.file_size %}
+                                    {{ (version.file_size / 1024)|round(2) }} KB
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>{{ version.uploaded_by_name|default('N/A') }}</td>
+                            <td>{{ version.created_at|date('d/m/Y H:i') }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/view" class="btn btn-outline-info" title="Visualizar">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/download" class="btn btn-outline-primary" title="Download">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card shadow-sm">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-file-earmark display-1 text-muted"></i>
+            <h4 class="mt-3">Nenhuma versão encontrada</h4>
+            <p class="text-muted">Este documento ainda não tem versões</p>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/upload-version" class="btn btn-primary">
+                <i class="bi bi-upload"></i> Upload Primeira Versão
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
