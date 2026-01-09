@@ -90,6 +90,131 @@ class NotificationService
     }
 
     /**
+     * Send email notification for overdue fees
+     */
+    public function sendOverdueFeeEmail(int $userId, array $feeData, int $condominiumId): bool
+    {
+        global $db;
+        
+        if (!$db) {
+            return false;
+        }
+
+        // Get user email
+        $stmt = $db->prepare("SELECT email, name FROM users WHERE id = :user_id LIMIT 1");
+        $stmt->execute([':user_id' => $userId]);
+        $user = $stmt->fetch();
+
+        if (!$user || empty($user['email'])) {
+            return false;
+        }
+
+        // Get condominium info
+        $stmt = $db->prepare("SELECT name FROM condominiums WHERE id = :condominium_id LIMIT 1");
+        $stmt->execute([':condominium_id' => $condominiumId]);
+        $condominium = $stmt->fetch();
+
+        $totalAmount = 0;
+        $feesList = [];
+        foreach ($feeData as $fee) {
+            $totalAmount += (float)$fee['pending_amount'];
+            $feesList[] = [
+                'reference' => $fee['reference'] ?? '',
+                'period' => $fee['period_year'] . '/' . str_pad($fee['period_month'] ?? 0, 2, '0', STR_PAD_LEFT),
+                'amount' => (float)$fee['pending_amount'],
+                'due_date' => $fee['due_date']
+            ];
+        }
+
+        $subject = 'Quotas em Atraso - ' . ($condominium['name'] ?? 'Condomínio');
+        
+        $html = $this->getOverdueFeeEmailTemplate(
+            $user['name'],
+            $condominium['name'] ?? 'Condomínio',
+            $feesList,
+            $totalAmount,
+            $condominiumId
+        );
+
+        return $this->emailService->sendEmail($user['email'], $subject, $html, '');
+    }
+
+    /**
+     * Get overdue fee email template
+     */
+    protected function getOverdueFeeEmailTemplate(string $userName, string $condominiumName, array $feesList, float $totalAmount, int $condominiumId): string
+    {
+        $feesTable = '';
+        foreach ($feesList as $fee) {
+            $feesTable .= '<tr>';
+            $feesTable .= '<td>' . htmlspecialchars($fee['reference']) . '</td>';
+            $feesTable .= '<td>' . htmlspecialchars($fee['period']) . '</td>';
+            $feesTable .= '<td>' . date('d/m/Y', strtotime($fee['due_date'])) . '</td>';
+            $feesTable .= '<td style="text-align: right;">€' . number_format($fee['amount'], 2, ',', '.') . '</td>';
+            $feesTable .= '</tr>';
+        }
+
+        return '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background-color: #dc3545; color: white; padding: 20px; text-align: center; }
+                .content { padding: 20px; background-color: #f9f9f9; }
+                .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
+                table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+                th { background-color: #f2f2f2; }
+                .total { font-size: 18px; font-weight: bold; color: #dc3545; }
+                .button { display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Quotas em Atraso</h1>
+                </div>
+                <div class="content">
+                    <p>Olá <strong>' . htmlspecialchars($userName) . '</strong>,</p>
+                    <p>Informamos que tem quotas em atraso no condomínio <strong>' . htmlspecialchars($condominiumName) . '</strong>.</p>
+                    
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Referência</th>
+                                <th>Período</th>
+                                <th>Vencimento</th>
+                                <th style="text-align: right;">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ' . $feesTable . '
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3" class="total">Total em Atraso:</td>
+                                <td class="total" style="text-align: right;">€' . number_format($totalAmount, 2, ',', '.') . '</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    
+                    <p>Por favor, efetue o pagamento o mais breve possível para evitar juros de mora.</p>
+                    
+                    <a href="' . BASE_URL . 'condominiums/' . $condominiumId . '/fees" class="button">Ver Detalhes das Quotas</a>
+                </div>
+                <div class="footer">
+                    <p>Este é um email automático. Por favor, não responda a este email.</p>
+                    <p>&copy; ' . date('Y') . ' MeuPrédio. Todos os direitos reservados.</p>
+                </div>
+            </div>
+        </body>
+        </html>';
+    }
+
+    /**
      * Notify assembly scheduled
      */
     public function notifyAssemblyScheduled(int $assemblyId, int $condominiumId, array $userIds): void

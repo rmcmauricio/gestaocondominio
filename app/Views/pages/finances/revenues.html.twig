@@ -1,0 +1,118 @@
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Receitas</h1>
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/create" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Registar Receita
+                </a>
+            </div>
+
+            {% if error %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{ error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+
+            {% if success %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ success }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+
+            <!-- Filters -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="year" class="form-label">Ano</label>
+                            <select name="year" id="year" class="form-select">
+                                {% for y in range(current_year - 2, current_year + 1) %}
+                                <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="month" class="form-label">Mês</label>
+                            <select name="month" id="month" class="form-select">
+                                <option value="">Todos</option>
+                                {% for m in 1..12 %}
+                                <option value="{{ m }}" {% if selected_month == m %}selected{% endif %}>{{ m|date('F') }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-secondary me-2">Filtrar</button>
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues" class="btn btn-outline-secondary">Limpar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Summary -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card border-success">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-2">Total de Receitas</h6>
+                            <h4 class="text-success mb-0">€{{ total_revenues|number_format(2, ',', '.') }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Revenues List -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Lista de Receitas</h5>
+                </div>
+                <div class="card-body">
+                    {% if revenues %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Descrição</th>
+                                    <th>Fração</th>
+                                    <th class="text-end">Valor</th>
+                                    <th>Método de Pagamento</th>
+                                    <th>Referência</th>
+                                    <th class="text-end">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for revenue in revenues %}
+                                <tr>
+                                    <td>{{ revenue.revenue_date|date('d/m/Y') }}</td>
+                                    <td>{{ revenue.description }}</td>
+                                    <td>{{ revenue.fraction_identifier|default('-') }}</td>
+                                    <td class="text-end fw-bold text-success">€{{ revenue.amount|number_format(2, ',', '.') }}</td>
+                                    <td>{{ revenue.payment_method|default('-') }}</td>
+                                    <td>{{ revenue.reference|default('-') }}</td>
+                                    <td class="text-end">
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/{{ revenue.id }}/edit" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/{{ revenue.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar esta receita?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center py-4">Nenhuma receita encontrada.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

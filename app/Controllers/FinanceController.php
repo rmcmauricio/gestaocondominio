@@ -12,6 +12,7 @@ use App\Models\Expense;
 use App\Models\Fee;
 use App\Models\FeePayment;
 use App\Models\Condominium;
+use App\Models\Revenue;
 use App\Services\FeeService;
 
 class FinanceController extends Controller
@@ -22,6 +23,7 @@ class FinanceController extends Controller
     protected $feeModel;
     protected $feePaymentModel;
     protected $condominiumModel;
+    protected $revenueModel;
     protected $feeService;
 
     public function __construct()
@@ -33,6 +35,7 @@ class FinanceController extends Controller
         $this->feeModel = new Fee();
         $this->feePaymentModel = new FeePayment();
         $this->condominiumModel = new Condominium();
+        $this->revenueModel = new Revenue();
         $this->feeService = new FeeService();
     }
 
@@ -1022,6 +1025,324 @@ class FinanceController extends Controller
         }
 
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+        exit;
+    }
+
+    /**
+     * Show revenues page
+     */
+    public function revenues(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $currentYear = date('Y');
+        $selectedYear = !empty($_GET['year']) ? (int)$_GET['year'] : $currentYear;
+        $selectedMonth = !empty($_GET['month']) ? (int)$_GET['month'] : null;
+
+        $filters = ['year' => $selectedYear];
+        if ($selectedMonth) {
+            $filters['month'] = $selectedMonth;
+        }
+
+        $revenues = $this->revenueModel->getByCondominium($condominiumId, $filters);
+        
+        // Calculate totals
+        $totalRevenues = array_sum(array_column($revenues, 'amount'));
+        $totalByMonth = [];
+        foreach ($revenues as $revenue) {
+            $month = date('Y-m', strtotime($revenue['revenue_date']));
+            if (!isset($totalByMonth[$month])) {
+                $totalByMonth[$month] = 0;
+            }
+            $totalByMonth[$month] += (float)$revenue['amount'];
+        }
+
+        $this->loadPageTranslations('finances');
+        
+        $this->data += [
+            'viewName' => 'pages/finances/revenues.html.twig',
+            'page' => ['titulo' => 'Receitas'],
+            'condominium' => $condominium,
+            'revenues' => $revenues,
+            'total_revenues' => $totalRevenues,
+            'total_by_month' => $totalByMonth,
+            'current_year' => $currentYear,
+            'selected_year' => $selectedYear,
+            'selected_month' => $selectedMonth,
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $_SESSION['error'] ?? null,
+            'success' => $_SESSION['success'] ?? null,
+            'user' => AuthMiddleware::user()
+        ];
+        
+        unset($_SESSION['error']);
+        unset($_SESSION['success']);
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Show create revenue form
+     */
+    public function createRevenue(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        // Get fractions for dropdown
+        $fractionModel = new \App\Models\Fraction();
+        $fractions = $fractionModel->getByCondominiumId($condominiumId);
+
+        $this->loadPageTranslations('finances');
+        
+        $this->data += [
+            'viewName' => 'pages/finances/create-revenue.html.twig',
+            'page' => ['titulo' => 'Registar Receita'],
+            'condominium' => $condominium,
+            'fractions' => $fractions,
+            'csrf_token' => Security::generateCSRFToken()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Store revenue
+     */
+    public function storeRevenue(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/create');
+            exit;
+        }
+
+        $userId = AuthMiddleware::userId();
+
+        try {
+            $revenueId = $this->revenueModel->create([
+                'condominium_id' => $condominiumId,
+                'fraction_id' => !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null,
+                'description' => Security::sanitize($_POST['description'] ?? ''),
+                'amount' => (float)($_POST['amount'] ?? 0),
+                'revenue_date' => $_POST['revenue_date'] ?? date('Y-m-d'),
+                'payment_method' => Security::sanitize($_POST['payment_method'] ?? ''),
+                'reference' => Security::sanitize($_POST['reference'] ?? ''),
+                'notes' => Security::sanitize($_POST['notes'] ?? ''),
+                'created_by' => $userId
+            ]);
+
+            $_SESSION['success'] = 'Receita registada com sucesso!';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao registar receita: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/create');
+            exit;
+        }
+    }
+
+    /**
+     * Edit revenue
+     */
+    public function editRevenue(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $revenue = $this->revenueModel->findById($id);
+        if (!$revenue || $revenue['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Receita não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+
+        // Get fractions for dropdown
+        $fractionModel = new \App\Models\Fraction();
+        $fractions = $fractionModel->getByCondominiumId($condominiumId);
+
+        $this->loadPageTranslations('finances');
+        
+        $this->data += [
+            'viewName' => 'pages/finances/edit-revenue.html.twig',
+            'page' => ['titulo' => 'Editar Receita'],
+            'condominium' => $condominium,
+            'revenue' => $revenue,
+            'fractions' => $fractions,
+            'csrf_token' => Security::generateCSRFToken()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Update revenue
+     */
+    public function updateRevenue(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/' . $id . '/edit');
+            exit;
+        }
+
+        $revenue = $this->revenueModel->findById($id);
+        if (!$revenue || $revenue['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Receita não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+
+        try {
+            $this->revenueModel->update($id, [
+                'fraction_id' => !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null,
+                'description' => Security::sanitize($_POST['description'] ?? ''),
+                'amount' => (float)($_POST['amount'] ?? 0),
+                'revenue_date' => $_POST['revenue_date'] ?? date('Y-m-d'),
+                'payment_method' => Security::sanitize($_POST['payment_method'] ?? ''),
+                'reference' => Security::sanitize($_POST['reference'] ?? ''),
+                'notes' => Security::sanitize($_POST['notes'] ?? '')
+            ]);
+
+            $_SESSION['success'] = 'Receita atualizada com sucesso!';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao atualizar receita: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/' . $id . '/edit');
+            exit;
+        }
+    }
+
+    /**
+     * Delete revenue
+     */
+    public function deleteRevenue(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+
+        $revenue = $this->revenueModel->findById($id);
+        if (!$revenue || $revenue['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Receita não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+
+        if ($this->revenueModel->delete($id)) {
+            $_SESSION['success'] = 'Receita eliminada com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao eliminar receita.';
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+        exit;
+    }
+
+    /**
+     * Bulk mark fees as paid
+     */
+    public function bulkMarkFeesAsPaid(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $feeIds = $_POST['fee_ids'] ?? [];
+        
+        if (empty($feeIds)) {
+            $_SESSION['error'] = 'Nenhuma quota selecionada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $successCount = 0;
+        $errorCount = 0;
+
+        foreach ($feeIds as $feeId) {
+            $fee = $this->feeModel->findById((int)$feeId);
+            if ($fee && $fee['condominium_id'] == $condominiumId) {
+                if ($this->feeModel->markAsPaid((int)$feeId)) {
+                    $successCount++;
+                } else {
+                    $errorCount++;
+                }
+            } else {
+                $errorCount++;
+            }
+        }
+
+        if ($successCount > 0) {
+            $_SESSION['success'] = "{$successCount} quota(s) marcada(s) como paga(s) com sucesso!";
+        }
+        if ($errorCount > 0) {
+            $_SESSION['error'] = "Erro ao processar {$errorCount} quota(s).";
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
         exit;
     }
 }

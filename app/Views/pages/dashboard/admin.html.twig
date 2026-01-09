@@ -27,6 +27,9 @@
                         <div class="card-body">
                             <h3 class="text-warning">{{ stats.overdue_fees }}</h3>
                             <p class="text-muted mb-0">Quotas em Atraso</p>
+                            {% if stats.overdue_fees_amount > 0 %}
+                            <small class="text-danger">€{{ stats.overdue_fees_amount|number_format(2, ',', '.') }}</small>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -36,6 +39,45 @@
                         <div class="card-body">
                             <h3 class="text-info">{{ stats.open_occurrences }}</h3>
                             <p class="text-muted mb-0">Ocorrências Abertas</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Financial Overview Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3 mb-3">
+                    <div class="card border-success">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-2">Receitas (Ano)</h6>
+                            <h4 class="text-success mb-0">€{{ stats.total_revenue|number_format(2, ',', '.') }}</h4>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="card border-danger">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-2">Despesas (Ano)</h6>
+                            <h4 class="text-danger mb-0">€{{ stats.total_expenses|number_format(2, ',', '.') }}</h4>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="card border-warning">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-2">Quotas Pendentes</h6>
+                            <h4 class="text-warning mb-0">€{{ stats.pending_fees_amount|number_format(2, ',', '.') }}</h4>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="card border-primary">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-2">Saldo Líquido</h6>
+                            <h4 class="text-primary mb-0">€{{ (stats.total_revenue - stats.total_expenses)|number_format(2, ',', '.') }}</h4>
                         </div>
                     </div>
                 </div>
@@ -63,7 +105,20 @@
             {% endif %}
             
             <div class="row">
-                <div class="col-md-6 mb-4">
+                <!-- Financial Chart -->
+                <div class="col-md-8 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Receitas vs Despesas (Últimos 6 Meses)</h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="financialChart" height="100"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Quick Actions -->
+                <div class="col-md-4 mb-4">
                     <div class="card">
                         <div class="card-header">
                             <h5>Ações Rápidas</h5>
@@ -71,21 +126,104 @@
                         <div class="card-body">
                             <a href="{{ BASE_URL }}condominiums/create" class="btn btn-primary mb-2 d-block">Criar Condomínio</a>
                             <a href="{{ BASE_URL }}subscription" class="btn btn-secondary mb-2 d-block">Gerir Subscrição</a>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-6 mb-4">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5>Visão Geral Financeira</h5>
-                        </div>
-                        <div class="card-body">
-                            <p class="text-muted">Estatísticas financeiras serão exibidas aqui.</p>
+                            {% if condominiums|length > 0 %}
+                            <a href="{{ BASE_URL }}condominiums/{{ condominiums[0].id }}/finances" class="btn btn-success mb-2 d-block">Ver Finanças</a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
             </div>
+            
+            <!-- Overdue Fractions -->
+            {% if financial_data.overdue_fractions|length > 0 %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0">Top 5 Frações com Maior Dívida</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Condomínio</th>
+                                            <th>Fração</th>
+                                            <th class="text-end">Valor em Atraso</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for fraction in financial_data.overdue_fractions %}
+                                        <tr>
+                                            <td>{{ fraction.condominium_name }}</td>
+                                            <td>{{ fraction.fraction_identifier }}</td>
+                                            <td class="text-end text-danger fw-bold">€{{ fraction.total_debt|number_format(2, ',', '.') }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Chart.js Script -->
+            <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+            <script>
+                // Financial Chart
+                const ctx = document.getElementById('financialChart');
+                if (ctx) {
+                    const financialChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: {{ financial_data.monthly_revenue|map(f => f.month)|json_encode|raw }},
+                            datasets: [{
+                                label: 'Receitas',
+                                data: {{ financial_data.monthly_revenue|map(f => f.amount)|json_encode|raw }},
+                                borderColor: 'rgb(40, 167, 69)',
+                                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }, {
+                                label: 'Despesas',
+                                data: {{ financial_data.monthly_expenses|map(f => f.amount)|json_encode|raw }},
+                                borderColor: 'rgb(220, 53, 69)',
+                                backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            return context.dataset.label + ': €' + context.parsed.y.toFixed(2).replace('.', ',');
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '€' + value.toFixed(2).replace('.', ',');
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            </script>
         </div>
     </div>
 </div>

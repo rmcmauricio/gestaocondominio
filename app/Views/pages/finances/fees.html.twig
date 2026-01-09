@@ -80,10 +80,26 @@
     {% if fees %}
     <div class="card shadow-sm">
         <div class="card-body">
+            <!-- Bulk Actions -->
+            <div class="mb-3 d-none" id="bulkActions">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted" id="selectedCount">0 selecionadas</span>
+                    <button type="button" class="btn btn-sm btn-success" onclick="bulkMarkAsPaid()">
+                        <i class="bi bi-check-circle"></i> Marcar como Pagas
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+                        <i class="bi bi-x-circle"></i> Limpar Seleção
+                    </button>
+                </div>
+            </div>
+            
             <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>
                         <tr>
+                            <th width="40">
+                                <input type="checkbox" id="selectAll" onchange="toggleAllSelection()">
+                            </th>
                             <th>Tipo</th>
                             <th>Fração</th>
                             <th>Período</th>
@@ -101,6 +117,11 @@
                         {% set pending_amount = fee.pending_amount|default(fee.amount) %}
                         {% set calculated_status = fee.calculated_status|default(fee.status) %}
                         <tr>
+                            <td>
+                                {% if calculated_status == 'pending' or calculated_status == 'overdue' %}
+                                <input type="checkbox" class="fee-checkbox" value="{{ fee.id }}" onchange="updateBulkActions()">
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if fee.is_historical %}
                                     <span class="badge bg-warning text-dark" title="Dívida Histórica">
@@ -480,6 +501,79 @@ document.getElementById('payment_amount')?.addEventListener('input', function() 
         alert(`O valor máximo é €${maxAmount.toFixed(2).replace('.', ',')}`);
     }
 });
+
+// Bulk actions functions
+function toggleAllSelection() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.fee-checkbox');
+    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+    updateBulkActions();
+}
+
+function updateBulkActions() {
+    const checkboxes = document.querySelectorAll('.fee-checkbox:checked');
+    const bulkActions = document.getElementById('bulkActions');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    if (checkboxes.length > 0) {
+        bulkActions.classList.remove('d-none');
+        selectedCount.textContent = checkboxes.length + ' selecionada(s)';
+    } else {
+        bulkActions.classList.add('d-none');
+    }
+    
+    // Update select all checkbox
+    const allCheckboxes = document.querySelectorAll('.fee-checkbox');
+    const allChecked = allCheckboxes.length > 0 && Array.from(allCheckboxes).every(cb => cb.checked);
+    const selectAll = document.getElementById('selectAll');
+    if (selectAll) {
+        selectAll.checked = allChecked;
+    }
+}
+
+function clearSelection() {
+    document.querySelectorAll('.fee-checkbox').forEach(cb => cb.checked = false);
+    const selectAll = document.getElementById('selectAll');
+    if (selectAll) {
+        selectAll.checked = false;
+    }
+    updateBulkActions();
+}
+
+function bulkMarkAsPaid() {
+    const selected = Array.from(document.querySelectorAll('.fee-checkbox:checked')).map(cb => cb.value);
+    
+    if (selected.length === 0) {
+        alert('Selecione pelo menos uma quota.');
+        return;
+    }
+    
+    if (!confirm('Tem certeza que deseja marcar ' + selected.length + ' quota(s) como paga(s)?')) {
+        return;
+    }
+    
+    // Create form and submit
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/bulk-mark-paid';
+    
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrf_token';
+    csrfInput.value = '{{ csrf_token }}';
+    form.appendChild(csrfInput);
+    
+    selected.forEach(id => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'fee_ids[]';
+        input.value = id;
+        form.appendChild(input);
+    });
+    
+    document.body.appendChild(form);
+    form.submit();
+}
 </script>
 
 
