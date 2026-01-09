@@ -1,0 +1,77 @@
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Editar Receita</h1>
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/{{ revenue.id }}/update">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Descrição <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="description" name="description" value="{{ revenue.description }}" required>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="amount" class="form-label">Valor (€) <span class="text-danger">*</span></label>
+                                <input type="number" step="0.01" class="form-control" id="amount" name="amount" value="{{ revenue.amount }}" required min="0.01">
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="revenue_date" class="form-label">Data <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="revenue_date" name="revenue_date" value="{{ revenue.revenue_date }}" required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="fraction_id" class="form-label">Fração (opcional)</label>
+                                <select class="form-select" id="fraction_id" name="fraction_id">
+                                    <option value="">Todas as frações</option>
+                                    {% for fraction in fractions %}
+                                    <option value="{{ fraction.id }}" {% if revenue.fraction_id == fraction.id %}selected{% endif %}>{{ fraction.identifier }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="payment_method" class="form-label">Método de Pagamento</label>
+                                <select class="form-select" id="payment_method" name="payment_method">
+                                    <option value="">Selecione...</option>
+                                    <option value="multibanco" {% if revenue.payment_method == 'multibanco' %}selected{% endif %}>Multibanco</option>
+                                    <option value="mbway" {% if revenue.payment_method == 'mbway' %}selected{% endif %}>MBWay</option>
+                                    <option value="transferencia" {% if revenue.payment_method == 'transferencia' %}selected{% endif %}>Transferência Bancária</option>
+                                    <option value="dinheiro" {% if revenue.payment_method == 'dinheiro' %}selected{% endif %}>Dinheiro</option>
+                                    <option value="cheque" {% if revenue.payment_method == 'cheque' %}selected{% endif %}>Cheque</option>
+                                    <option value="outro" {% if revenue.payment_method == 'outro' %}selected{% endif %}>Outro</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="reference" class="form-label">Referência</label>
+                            <input type="text" class="form-control" id="reference" name="reference" value="{{ revenue.reference }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notas</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3">{{ revenue.notes }}</textarea>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">Atualizar Receita</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

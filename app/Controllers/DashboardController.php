@@ -62,7 +62,18 @@ class DashboardController extends Controller
             'total_condominiums' => count($condominiums),
             'total_fractions' => 0,
             'overdue_fees' => 0,
-            'open_occurrences' => 0
+            'overdue_fees_amount' => 0,
+            'open_occurrences' => 0,
+            'total_revenue' => 0,
+            'total_expenses' => 0,
+            'pending_fees_amount' => 0,
+            'paid_fees_amount' => 0
+        ];
+
+        $financialData = [
+            'monthly_revenue' => [],
+            'monthly_expenses' => [],
+            'overdue_fractions' => []
         ];
 
         global $db;
@@ -76,17 +87,24 @@ class DashboardController extends Controller
             $result = $stmt->fetch();
             $stats['total_fractions'] = $result['count'] ?? 0;
             
-            // Count overdue fees
+            // Count overdue fees and calculate amount
             $stmt = $db->prepare("
-                SELECT COUNT(*) as count 
-                FROM fees 
-                WHERE condominium_id IN ($placeholders) 
-                AND status = 'pending' 
-                AND due_date < CURDATE()
+                SELECT COUNT(*) as count,
+                       COALESCE(SUM(f.amount - COALESCE((
+                           SELECT SUM(fp.amount) 
+                           FROM fee_payments fp 
+                           WHERE fp.fee_id = f.id
+                       ), 0)), 0) as total_amount
+                FROM fees f
+                WHERE f.condominium_id IN ($placeholders) 
+                AND f.status = 'pending' 
+                AND f.due_date < CURDATE()
+                AND COALESCE(f.is_historical, 0) = 0
             ");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['overdue_fees'] = $result['count'] ?? 0;
+            $stats['overdue_fees_amount'] = (float)($result['total_amount'] ?? 0);
             
             // Count open occurrences
             $stmt = $db->prepare("
@@ -98,6 +116,116 @@ class DashboardController extends Controller
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['open_occurrences'] = $result['count'] ?? 0;
+            
+            // Get financial statistics for current year
+            $currentYear = date('Y');
+            $currentMonth = date('m');
+            
+            // Total revenue from fees (paid)
+            $stmt = $db->prepare("
+                SELECT COALESCE(SUM(fp.amount), 0) as total
+                FROM fee_payments fp
+                INNER JOIN fees f ON f.id = fp.fee_id
+                WHERE f.condominium_id IN ($placeholders)
+                AND YEAR(fp.payment_date) = ?
+            ");
+            $stmt->execute(array_merge($condominiumIds, [$currentYear]));
+            $result = $stmt->fetch();
+            $stats['total_revenue'] = (float)($result['total'] ?? 0);
+            
+            // Total expenses for current year
+            $expenseModel = new \App\Models\Expense();
+            $totalExpenses = 0;
+            foreach ($condominiumIds as $condominiumId) {
+                $totalExpenses += $expenseModel->getTotalByPeriod(
+                    $condominiumId,
+                    "{$currentYear}-01-01",
+                    "{$currentYear}-12-31"
+                );
+            }
+            $stats['total_expenses'] = $totalExpenses;
+            
+            // Pending fees amount
+            $stmt = $db->prepare("
+                SELECT COALESCE(SUM(f.amount - COALESCE((
+                    SELECT SUM(fp.amount) 
+                    FROM fee_payments fp 
+                    WHERE fp.fee_id = f.id
+                ), 0)), 0) as total
+                FROM fees f
+                WHERE f.condominium_id IN ($placeholders)
+                AND f.status = 'pending'
+                AND COALESCE(f.is_historical, 0) = 0
+            ");
+            $stmt->execute($condominiumIds);
+            $result = $stmt->fetch();
+            $stats['pending_fees_amount'] = (float)($result['total'] ?? 0);
+            
+            // Paid fees amount
+            $stmt = $db->prepare("
+                SELECT COALESCE(SUM(fp.amount), 0) as total
+                FROM fee_payments fp
+                INNER JOIN fees f ON f.id = fp.fee_id
+                WHERE f.condominium_id IN ($placeholders)
+            ");
+            $stmt->execute($condominiumIds);
+            $result = $stmt->fetch();
+            $stats['paid_fees_amount'] = (float)($result['total'] ?? 0);
+            
+            // Monthly revenue and expenses for last 6 months
+            for ($i = 5; $i >= 0; $i--) {
+                $month = date('m', strtotime("-{$i} months"));
+                $year = date('Y', strtotime("-{$i} months"));
+                $monthStart = "{$year}-{$month}-01";
+                $monthEnd = date('Y-m-t', strtotime($monthStart));
+                
+                // Revenue for month
+                $stmt = $db->prepare("
+                    SELECT COALESCE(SUM(fp.amount), 0) as total
+                    FROM fee_payments fp
+                    INNER JOIN fees f ON f.id = fp.fee_id
+                    WHERE f.condominium_id IN ($placeholders)
+                    AND DATE(fp.payment_date) BETWEEN ? AND ?
+                ");
+                $stmt->execute(array_merge($condominiumIds, [$monthStart, $monthEnd]));
+                $result = $stmt->fetch();
+                $financialData['monthly_revenue'][] = [
+                    'month' => date('M Y', strtotime($monthStart)),
+                    'amount' => (float)($result['total'] ?? 0)
+                ];
+                
+                // Expenses for month
+                $monthExpenses = 0;
+                foreach ($condominiumIds as $condominiumId) {
+                    $monthExpenses += $expenseModel->getTotalByPeriod($condominiumId, $monthStart, $monthEnd);
+                }
+                $financialData['monthly_expenses'][] = [
+                    'month' => date('M Y', strtotime($monthStart)),
+                    'amount' => $monthExpenses
+                ];
+            }
+            
+            // Get top overdue fractions
+            $stmt = $db->prepare("
+                SELECT fr.identifier as fraction_identifier, c.name as condominium_name,
+                       SUM(f.amount - COALESCE((
+                           SELECT SUM(fp.amount) 
+                           FROM fee_payments fp 
+                           WHERE fp.fee_id = f.id
+                       ), 0)) as total_debt
+                FROM fees f
+                INNER JOIN fractions fr ON fr.id = f.fraction_id
+                INNER JOIN condominiums c ON c.id = f.condominium_id
+                WHERE f.condominium_id IN ($placeholders)
+                AND f.status = 'pending'
+                AND f.due_date < CURDATE()
+                AND COALESCE(f.is_historical, 0) = 0
+                GROUP BY fr.id, fr.identifier, c.name
+                ORDER BY total_debt DESC
+                LIMIT 5
+            ");
+            $stmt->execute($condominiumIds);
+            $financialData['overdue_fractions'] = $stmt->fetchAll() ?: [];
         }
 
         $this->loadPageTranslations('dashboard');
@@ -106,6 +234,7 @@ class DashboardController extends Controller
             'viewName' => 'pages/dashboard/admin.html.twig',
             'page' => ['titulo' => 'Painel Administrador'],
             'stats' => $stats,
+            'financial_data' => $financialData,
             'condominiums' => $condominiums,
             'user' => AuthMiddleware::user()
         ];

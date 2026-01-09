@@ -85,7 +85,7 @@ class EmailService
         $html = $this->getWelcomeEmailTemplate($nome, $verificationUrl);
         $text = $this->getWelcomeEmailText($nome, $verificationUrl);
 
-        return $this->sendEmail($email, $subject, $html, $text);
+        return $this->sendEmailInternal($email, $subject, $html, $text);
     }
 
     public function sendApprovalNotification(string $email, string $nome): bool
@@ -95,7 +95,7 @@ class EmailService
         $html = $this->getApprovalEmailTemplate($nome);
         $text = $this->getApprovalEmailText($nome);
 
-        return $this->sendEmail($email, $subject, $html, $text);
+        return $this->sendEmailInternal($email, $subject, $html, $text);
     }
 
     public function sendNewUserNotification(string $userEmail, string $userName, int $userId): bool
@@ -125,7 +125,15 @@ class EmailService
         return $allSent;
     }
 
-    private function sendEmail(string $to, string $subject, string $html, string $text): bool
+    /**
+     * Send generic email
+     */
+    public function sendEmail(string $to, string $subject, string $html, string $text = ''): bool
+    {
+        return $this->sendEmailInternal($to, $subject, $html, $text);
+    }
+
+    private function sendEmailInternal(string $to, string $subject, string $html, string $text): bool
     {
         try {
             $mail = new PHPMailer(true);
@@ -429,7 +437,7 @@ Link: {$verificationUrl}
         $html = $this->getPasswordResetEmailTemplate($nome, $resetUrl);
         $text = $this->getPasswordResetEmailText($nome, $resetUrl);
 
-        return $this->sendEmail($email, $subject, $html, $text);
+        return $this->sendEmailInternal($email, $subject, $html, $text);
     }
 
     /**
@@ -442,7 +450,7 @@ Link: {$verificationUrl}
         $html = $this->getPasswordResetSuccessEmailTemplate($nome);
         $text = $this->getPasswordResetSuccessEmailText($nome);
 
-        return $this->sendEmail($email, $subject, $html, $text);
+        return $this->sendEmailInternal($email, $subject, $html, $text);
     }
 
     private function getPasswordResetEmailTemplate(string $nome, string $resetUrl): string

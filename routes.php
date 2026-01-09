@@ -93,8 +93,17 @@ $router->post('/condominiums/{condominium_id}/expenses', 'App\Controllers\Financ
 $router->get('/condominiums/{condominium_id}/fees', 'App\Controllers\FinanceController@fees');
 $router->post('/condominiums/{condominium_id}/fees/generate', 'App\Controllers\FinanceController@generateFees');
 $router->post('/condominiums/{condominium_id}/fees/{id}/mark-paid', 'App\Controllers\FinanceController@markFeeAsPaid');
+$router->post('/condominiums/{condominium_id}/fees/bulk-mark-paid', 'App\Controllers\FinanceController@bulkMarkFeesAsPaid');
 $router->post('/condominiums/{condominium_id}/fees/{id}/add-payment', 'App\Controllers\FinanceController@addPayment');
 $router->get('/condominiums/{condominium_id}/fees/{id}/details', 'App\Controllers\FinanceController@getFeeDetails');
+
+// Revenue routes
+$router->get('/condominiums/{condominium_id}/finances/revenues', 'App\Controllers\FinanceController@revenues');
+$router->get('/condominiums/{condominium_id}/finances/revenues/create', 'App\Controllers\FinanceController@createRevenue');
+$router->post('/condominiums/{condominium_id}/finances/revenues/store', 'App\Controllers\FinanceController@storeRevenue');
+$router->get('/condominiums/{condominium_id}/finances/revenues/{id}/edit', 'App\Controllers\FinanceController@editRevenue');
+$router->post('/condominiums/{condominium_id}/finances/revenues/{id}/update', 'App\Controllers\FinanceController@updateRevenue');
+$router->post('/condominiums/{condominium_id}/finances/revenues/{id}/delete', 'App\Controllers\FinanceController@deleteRevenue');
 
 // Report routes
 $router->get('/condominiums/{condominium_id}/finances/historical-debts', 'App\Controllers\FinanceController@historicalDebts');
