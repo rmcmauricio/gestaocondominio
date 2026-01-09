@@ -1,0 +1,79 @@
+<div class="container py-5">
+    <div class="text-center mb-5">
+        <h1 class="display-4 fw-bold mb-3">Escolha o seu Plano</h1>
+        <p class="lead text-muted">Todos os planos incluem 14 dias grátis para experimentar</p>
+    </div>
+    
+    <div class="row g-4 justify-content-center">
+        {% for plan in plans %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 border-2 {% if plan.slug == 'pro' %}border-primary shadow{% endif %}">
+                {% if plan.slug == 'pro' %}
+                <div class="card-header bg-primary text-white text-center py-3">
+                    <span class="badge bg-light text-primary mb-2">Mais Popular</span>
+                </div>
+                {% endif %}
+                <div class="card-body text-center p-4">
+                    <h3 class="fw-bold mb-3">{{ plan.name }}</h3>
+                    <div class="mb-4">
+                        <span class="display-3 fw-bold">€{{ plan.price_monthly|number_format(2, ',', '.') }}</span>
+                        <span class="text-muted">/mês</span>
+                    </div>
+                    {% if plan.price_yearly %}
+                    <p class="text-muted small mb-4">
+                        ou €{{ plan.price_yearly|number_format(2, ',', '.') }}/ano<br>
+                        <span class="text-success">Poupe {{ ((plan.price_monthly * 12 - plan.price_yearly) / (plan.price_monthly * 12) * 100)|round }}%</span>
+                    </p>
+                    {% endif %}
+                    
+                    <p class="text-muted mb-4">{{ plan.description }}</p>
+                    
+                    <ul class="list-unstyled text-start mb-4">
+                        {% if plan.limit_condominios %}
+                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> {{ plan.limit_condominios }} condomínio(s)</li>
+                        {% else %}
+                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Condomínios ilimitados</li>
+                        {% endif %}
+                        
+                        {% if plan.limit_fracoes %}
+                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Até {{ plan.limit_fracoes }} frações</li>
+                        {% else %}
+                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Frações ilimitadas</li>
+                        {% endif %}
+                        
+                        {% if plan.features.financas_basicas or plan.features.financas_completas %}
+                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Gestão financeira</li>
+                        {% endif %}
+                        {% if plan.features.votacoes_online %}
+                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Votações online</li>
+                        {% endif %}
+                        {% if plan.features.reservas_espacos %}
+                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Reservas de espaços</li>
+                        {% endif %}
+                        {% if plan.features.api %}
+                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> API e integrações</li>
+                        {% endif %}
+                    </ul>
+                </div>
+                <div class="card-footer bg-white text-center p-4">
+                    <form method="POST" action="{{ BASE_URL }}subscription/start-trial">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="plan_id" value="{{ plan.id }}">
+                        <button type="submit" class="btn {% if plan.slug == 'pro' %}btn-primary{% else %}btn-outline-primary{% endif %} w-100 btn-lg">
+                            Começar Trial Grátis
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="text-center mt-5">
+        <p class="text-muted">
+            <i class="bi bi-shield-check"></i> Cancele a qualquer momento • 
+            <i class="bi bi-credit-card"></i> Sem cartão de crédito necessário
+        </p>
+    </div>
+</div>
+

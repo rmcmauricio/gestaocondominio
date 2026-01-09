@@ -47,6 +47,13 @@ define('BASE_URL', $baseUrl);
 $db = null;
 $dbname = $config['dbname'] ?? '';
 $dbhost = $config['host'] ?? 'localhost';
+// Handle host with port (e.g., localhost:33066)
+if (strpos($dbhost, ':') !== false) {
+    list($dbhost, $dbport) = explode(':', $dbhost, 2);
+    $dsn = "mysql:dbname=" . $dbname . ";host=" . $dbhost . ";port=" . $dbport;
+} else {
+    $dsn = "mysql:dbname=" . $dbname . ";host=" . $dbhost;
+}
 $dbuser = $config['dbuser'] ?? 'root';
 $dbpass = $config['dbpass'] ?? '';
 
@@ -54,7 +61,7 @@ $dbpass = $config['dbpass'] ?? '';
 if (!empty($dbname)) {
     try {
         $db = new PDO(
-            "mysql:dbname=" . $dbname . ";host=" . $dbhost,
+            $dsn,
             $dbuser,
             $dbpass,
             [

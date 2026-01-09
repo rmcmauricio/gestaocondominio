@@ -1,0 +1,99 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-credit-card"></i> Meus Pagamentos</h2>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if payments %}
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Plano</th>
+                            <th>Valor</th>
+                            <th>Método</th>
+                            <th>Status</th>
+                            <th>Referência</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for payment in payments %}
+                        <tr>
+                            <td>{{ payment.created_at|date('d/m/Y H:i') }}</td>
+                            <td>{{ payment.plan_name|default('-') }}</td>
+                            <td><strong>€{{ payment.amount|number_format(2, ',', '.') }}</strong></td>
+                            <td>
+                                {% if payment.payment_method == 'multibanco' %}
+                                    <i class="bi bi-bank"></i> Multibanco
+                                {% elseif payment.payment_method == 'mbway' %}
+                                    <i class="bi bi-phone"></i> MBWay
+                                {% elseif payment.payment_method == 'sepa' %}
+                                    <i class="bi bi-arrow-repeat"></i> SEPA
+                                {% else %}
+                                    {{ payment.payment_method }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if payment.status == 'completed' %}
+                                    <span class="badge bg-success">Pago</span>
+                                {% elseif payment.status == 'pending' %}
+                                    <span class="badge bg-warning">Pendente</span>
+                                {% elseif payment.status == 'processing' %}
+                                    <span class="badge bg-info">Processando</span>
+                                {% elseif payment.status == 'failed' %}
+                                    <span class="badge bg-danger">Falhou</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ payment.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if payment.reference %}
+                                    <code class="small">{{ payment.reference }}</code>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card shadow">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-credit-card-2-front display-1 text-muted"></i>
+            <h4 class="mt-3">Nenhum pagamento encontrado</h4>
+            <p class="text-muted">Os seus pagamentos aparecerão aqui</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mt-3">
+        <a href="{{ BASE_URL }}subscription" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar à Subscrição
+        </a>
+    </div>
+</div>
+
+
+
+
+

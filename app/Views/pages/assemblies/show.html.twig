@@ -1,0 +1,156 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>{{ assembly.title }}</h2>
+        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Informações</h5>
+                        <span class="badge 
+                            {% if assembly.status == 'scheduled' %}bg-primary
+                            {% elseif assembly.status == 'in_progress' %}bg-info
+                            {% elseif assembly.status == 'closed' %}bg-success
+                            {% else %}bg-secondary{% endif %}">
+                            {{ assembly.status|replace({'_': ' '})|title }}
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p><strong>Descrição:</strong></p>
+                    <p>{{ assembly.description }}</p>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Tipo:</strong> {{ assembly.type|title }}<br>
+                            <strong>Data:</strong> {{ assembly.scheduled_date|date('d/m/Y') }}<br>
+                            <strong>Hora:</strong> {{ assembly.scheduled_date|date('H:i') }}
+                        </div>
+                        <div class="col-md-6">
+                            {% if assembly.location %}
+                            <strong>Local:</strong> {{ assembly.location }}<br>
+                            {% endif %}
+                            <strong>Quórum:</strong> {{ assembly.quorum_percentage }}%
+                        </div>
+                    </div>
+
+                    {% if quorum %}
+                    <div class="alert alert-info">
+                        <strong>Quórum Atual:</strong> {{ quorum.percentage }}% 
+                        ({{ quorum.attended_millage }}‰ de {{ quorum.total_millage }}‰)
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">Presenças</h6>
+                </div>
+                <div class="card-body">
+                    {% if attendees %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Fração</th>
+                                    <th>Condómino</th>
+                                    <th>Tipo</th>
+                                    <th>Permilagem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for attendee in attendees %}
+                                <tr>
+                                    <td>{{ attendee.fraction_identifier }}</td>
+                                    <td>{{ attendee.user_name }}</td>
+                                    <td>
+                                        <span class="badge {% if attendee.attendance_type == 'proxy' %}bg-warning{% else %}bg-success{% endif %}">
+                                            {% if attendee.attendance_type == 'proxy' %}Procuração{% else %}Presente{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>{{ attendee.fraction_millage }}‰</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">Nenhuma presença registada ainda.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">Ações</h6>
+                </div>
+                <div class="card-body">
+                    {% if assembly.status == 'scheduled' %}
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/send-convocation" class="mb-3">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-envelope"></i> Enviar Convocatórias
+                        </button>
+                    </form>
+                    {% endif %}
+
+                    {% if assembly.status != 'closed' %}
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/attendance" class="mb-3">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="mb-3">
+                            <label for="fraction_id" class="form-label">Registar Presença</label>
+                            <select class="form-select" id="fraction_id" name="fraction_id" required>
+                                <option value="">Selecione uma fração...</option>
+                                {% for fraction in fractions %}
+                                <option value="{{ fraction.id }}">{{ fraction.identifier }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="attendance_type" class="form-label">Tipo</label>
+                            <select class="form-select" id="attendance_type" name="attendance_type">
+                                <option value="present">Presente</option>
+                                <option value="proxy">Por Procuração</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-outline-primary w-100">Registar</button>
+                    </form>
+                    {% endif %}
+
+                    {% if assembly.status == 'closed' %}
+                    <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes" class="btn btn-outline-success w-100">
+                        <i class="bi bi-file-text"></i> Gerar Atas
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+

@@ -1,0 +1,118 @@
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Painel Condómino</h1>
+            
+            <div class="row mb-4">
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Saldo Total</h5>
+                            <h3 class="text-primary">€{{ total_pending|number_format(2, ',', '.') }}</h3>
+                            <p class="text-muted mb-0">Quotas pendentes</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Quotas Pendentes</h5>
+                            <h3 class="text-warning">{{ pending_fees|length }}</h3>
+                            <p class="text-muted mb-0">Quotas por pagar</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Meus Condomínios</h5>
+                            <h3 class="text-info">{{ user_condominiums|length }}</h3>
+                            <p class="text-muted mb-0">Condomínios associados</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Quotas Pendentes</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if pending_fees %}
+                                <div class="list-group">
+                                    {% for fee in pending_fees %}
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1">Quota {{ fee.period_year }}/{{ fee.period_month|default('N/A') }}</h6>
+                                            <strong>€{{ fee.amount|number_format(2, ',', '.') }}</strong>
+                                        </div>
+                                        <p class="mb-1 text-muted">Vencimento: {{ fee.due_date|date('d/m/Y') }}</p>
+                                        {% if fee.reference %}
+                                        <small class="text-muted">Ref: {{ fee.reference }}</small>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-muted mb-0">Nenhuma quota pendente.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Últimas Despesas</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if recent_expenses %}
+                                <div class="list-group">
+                                    {% for expense in recent_expenses %}
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1">{{ expense.description }}</h6>
+                                            <strong>€{{ expense.amount|number_format(2, ',', '.') }}</strong>
+                                        </div>
+                                        <p class="mb-1 text-muted">{{ expense.category }} - {{ expense.expense_date|date('d/m/Y') }}</p>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-muted mb-0">Nenhuma despesa recente.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {% if user_condominiums %}
+            <div class="card">
+                <div class="card-header">
+                    <h5>Meus Condomínios</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        {% for uc in user_condominiums %}
+                        <a href="{{ BASE_URL }}condominiums/{{ uc.condominium_id }}" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ uc.condominium_name }}</h6>
+                                <span class="badge bg-primary">{{ uc.role }}</span>
+                            </div>
+                            {% if uc.fraction_identifier %}
+                            <p class="mb-1">Fração: {{ uc.fraction_identifier }}</p>
+                            {% endif %}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt">
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
@@ -23,9 +23,15 @@
 <body>
     {% include 'blocks/header.html.twig' %}
 
-    <main>
-        {% include viewName %}
-    </main>
+    <div class="main-wrapper">
+        {% if user %}
+            {% include 'blocks/sidebar.html.twig' %}
+        {% endif %}
+        
+        <main class="main-content">
+            {% include viewName %}
+        </main>
+    </div>
 
     {% include 'blocks/footer.html.twig' %}
 

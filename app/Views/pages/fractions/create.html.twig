@@ -1,0 +1,80 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Criar Nova Fração</h4>
+                    <small>{{ condominium.name }}</small>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="identifier" class="form-label">Identificador <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="identifier" name="identifier" required autofocus placeholder="Ex: A1, 1A, Loja 1">
+                            <div class="form-text">Identificador único da fração (ex: A1, 1A, Loja 1)</div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="permillage" class="form-label">Permilagem (‰) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="permillage" name="permillage" step="0.01" min="0" max="1000" required>
+                                <div class="form-text">Permilagem da fração (ex: 125.5)</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="area" class="form-label">Área (m²)</label>
+                                <input type="number" class="form-control" id="area" name="area" step="0.01" min="0">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="floor" class="form-label">Andar</label>
+                                <input type="text" class="form-control" id="floor" name="floor" placeholder="Ex: 1º, R/C, -1">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="typology" class="form-label">Tipologia</label>
+                                <select class="form-select" id="typology" name="typology">
+                                    <option value="">Selecione...</option>
+                                    <option value="T0">T0</option>
+                                    <option value="T1">T1</option>
+                                    <option value="T2">T2</option>
+                                    <option value="T3">T3</option>
+                                    <option value="T4">T4</option>
+                                    <option value="T5+">T5+</option>
+                                    <option value="Loja">Loja</option>
+                                    <option value="Escritório">Escritório</option>
+                                    <option value="Garagem">Garagem</option>
+                                    <option value="Arrecadação">Arrecadação</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notas</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">Criar Fração</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+

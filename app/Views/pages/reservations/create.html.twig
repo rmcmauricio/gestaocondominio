@@ -1,0 +1,147 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Nova Reserva</h4>
+                    <small>{{ condominium.name }}</small>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations" id="reservationForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="space_id" class="form-label">Espaço <span class="text-danger">*</span></label>
+                            <select class="form-select" id="space_id" name="space_id" required>
+                                <option value="">Selecione um espaço...</option>
+                                {% for space in spaces %}
+                                <option value="{{ space.id }}" data-price-hour="{{ space.price_per_hour }}" data-price-day="{{ space.price_per_day }}" data-deposit="{{ space.deposit_required }}">
+                                    {{ space.name }} 
+                                    {% if space.price_per_hour > 0 %}(€{{ space.price_per_hour }}/hora){% endif %}
+                                    {% if space.price_per_day > 0 %}(€{{ space.price_per_day }}/dia){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="fraction_id" class="form-label">Fração <span class="text-danger">*</span></label>
+                            <select class="form-select" id="fraction_id" name="fraction_id" required>
+                                <option value="">Selecione uma fração...</option>
+                                {% for fraction in user_fractions %}
+                                <option value="{{ fraction.fraction_id }}">{{ fraction.fraction_identifier }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="start_date" class="form-label">Data Início <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="start_date" name="start_date" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="start_time" class="form-label">Hora Início</label>
+                                <input type="time" class="form-control" id="start_time" name="start_time" value="00:00">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="end_date" class="form-label">Data Fim <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="end_date" name="end_date" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="end_time" class="form-label">Hora Fim</label>
+                                <input type="time" class="form-control" id="end_time" name="end_time" value="23:59">
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info" id="priceInfo" style="display: none;">
+                            <strong>Preço estimado:</strong> <span id="estimatedPrice">€0,00</span>
+                            {% if deposit %}
+                            <br><strong>Caução:</strong> <span id="depositAmount">€0,00</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notas</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">Criar Reserva</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const spaceSelect = document.getElementById('space_id');
+    const startDate = document.getElementById('start_date');
+    const endDate = document.getElementById('end_date');
+    const startTime = document.getElementById('start_time');
+    const endTime = document.getElementById('end_time');
+    const priceInfo = document.getElementById('priceInfo');
+    const estimatedPrice = document.getElementById('estimatedPrice');
+    const depositAmount = document.getElementById('depositAmount');
+
+    function calculatePrice() {
+        const selectedOption = spaceSelect.options[spaceSelect.selectedIndex];
+        if (!selectedOption.value) {
+            priceInfo.style.display = 'none';
+            return;
+        }
+
+        const priceHour = parseFloat(selectedOption.dataset.priceHour) || 0;
+        const priceDay = parseFloat(selectedOption.dataset.priceDay) || 0;
+        const deposit = parseFloat(selectedOption.dataset.deposit) || 0;
+
+        if (!startDate.value || !endDate.value) {
+            priceInfo.style.display = 'none';
+            return;
+        }
+
+        const start = new Date(startDate.value + 'T' + startTime.value);
+        const end = new Date(endDate.value + 'T' + endTime.value);
+        const diffMs = end - start;
+        const diffHours = diffMs / (1000 * 60 * 60);
+        const diffDays = Math.ceil(diffHours / 24);
+
+        let price = 0;
+        if (diffHours < 24 && priceHour > 0) {
+            price = diffHours * priceHour;
+        } else if (priceDay > 0) {
+            price = diffDays * priceDay;
+        }
+
+        estimatedPrice.textContent = '€' + price.toFixed(2).replace('.', ',');
+        if (deposit > 0) {
+            depositAmount.textContent = '€' + deposit.toFixed(2).replace('.', ',');
+        }
+        priceInfo.style.display = 'block';
+    }
+
+    spaceSelect.addEventListener('change', calculatePrice);
+    startDate.addEventListener('change', calculatePrice);
+    endDate.addEventListener('change', calculatePrice);
+    startTime.addEventListener('change', calculatePrice);
+    endTime.addEventListener('change', calculatePrice);
+});
+</script>
+
+
+
+
+

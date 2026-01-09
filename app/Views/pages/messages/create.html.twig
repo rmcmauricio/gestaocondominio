@@ -1,0 +1,55 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Nova Mensagem</h4>
+                    <small>{{ condominium.name }}</small>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="recipient_id" class="form-label">Destinatário</label>
+                            <select class="form-select" id="recipient_id" name="recipient_id">
+                                <option value="">Todos os condóminos (Aviso Geral)</option>
+                                {% for user in users %}
+                                <option value="{{ user.id }}">{{ user.name }} ({{ user.email }})</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Deixe vazio para enviar um aviso geral a todos</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="subject" class="form-label">Assunto <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="subject" name="subject" required autofocus>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Mensagem <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="message" name="message" rows="8" required></textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">Enviar Mensagem</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+

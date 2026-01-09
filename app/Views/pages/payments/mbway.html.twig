@@ -1,0 +1,69 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white text-center">
+                    <h4 class="mb-0"><i class="bi bi-phone"></i> Pagamento MBWay</h4>
+                </div>
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <h5>{{ plan.name }}</h5>
+                        <h2 class="text-primary">€{{ payment_data.amount }}</h2>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading"><i class="bi bi-info-circle"></i> Instruções</h6>
+                        <p class="mb-2">Foi enviada uma notificação para o número:</p>
+                        <h5 class="text-center mb-3">+351 {{ payment_data.phone }}</h5>
+                        <ol class="mb-0">
+                            <li>Abra a app MBWay no seu telemóvel</li>
+                            <li>Confirme o pagamento na notificação</li>
+                            <li>Aguarde a confirmação</li>
+                        </ol>
+                    </div>
+
+                    <div class="bg-light p-4 rounded mb-4 text-center">
+                        <div class="mb-3">
+                            <i class="bi bi-phone display-1 text-primary"></i>
+                        </div>
+                        <h6>Pagamento Pendente</h6>
+                        <p class="text-muted mb-0">Aguardando confirmação no MBWay</p>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="bi bi-clock"></i> 
+                        <strong>Validade:</strong> Esta solicitação expira em {{ payment_data.expires_at }}.
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-outline-primary" onclick="checkPaymentStatus()">
+                            <i class="bi bi-arrow-clockwise"></i> Verificar Status
+                        </button>
+                        <a href="{{ BASE_URL }}subscription" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Já confirmei o pagamento
+                        </a>
+                    </div>
+
+                    <div class="mt-4 text-center">
+                        <small class="text-muted">
+                            Após a confirmação no MBWay, a sua subscrição será ativada automaticamente.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function checkPaymentStatus() {
+    // In production, this would check payment status via AJAX
+    alert('A verificar o status do pagamento...');
+    // window.location.reload();
+}
+</script>
+
+
+
+
+

@@ -1,0 +1,137 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>{{ occurrence.title }}</h2>
+        <a href="{{ BASE_URL }}condominiums/{{ occurrence.condominium_id }}/occurrences" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Detalhes</h5>
+                        <span class="badge 
+                            {% if occurrence.status == 'open' %}bg-danger
+                            {% elseif occurrence.status == 'in_analysis' %}bg-warning
+                            {% elseif occurrence.status == 'assigned' %}bg-info
+                            {% elseif occurrence.status == 'completed' %}bg-success
+                            {% else %}bg-secondary{% endif %}">
+                            {{ occurrence.status|replace({'_': ' '})|title }}
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p><strong>Descrição:</strong></p>
+                    <p>{{ occurrence.description }}</p>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Categoria:</strong> {{ occurrence.category|default('Não especificada') }}<br>
+                            <strong>Prioridade:</strong> 
+                            <span class="badge 
+                                {% if occurrence.priority == 'urgent' %}bg-danger
+                                {% elseif occurrence.priority == 'high' %}bg-warning
+                                {% elseif occurrence.priority == 'medium' %}bg-info
+                                {% else %}bg-secondary{% endif %}">
+                                {{ occurrence.priority|title }}
+                            </span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Reportado por:</strong> {{ occurrence.reported_by_name|default('N/A') }}<br>
+                            <strong>Data:</strong> {{ occurrence.created_at|date('d/m/Y H:i') }}
+                        </div>
+                    </div>
+
+                    {% if occurrence.location %}
+                    <p><strong>Localização:</strong> {{ occurrence.location }}</p>
+                    {% endif %}
+
+                    {% if occurrence.fraction_identifier %}
+                    <p><strong>Fração:</strong> {{ occurrence.fraction_identifier }}</p>
+                    {% endif %}
+
+                    {% if occurrence.assigned_to_name %}
+                    <p><strong>Atribuído a:</strong> {{ occurrence.assigned_to_name }}</p>
+                    {% endif %}
+
+                    {% if occurrence.supplier_name %}
+                    <p><strong>Fornecedor:</strong> {{ occurrence.supplier_name }}</p>
+                    {% endif %}
+
+                    {% if occurrence.resolution_notes %}
+                    <div class="alert alert-success">
+                        <strong>Notas de Resolução:</strong><br>
+                        {{ occurrence.resolution_notes }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h6 class="mb-0">Ações</h6>
+                </div>
+                <div class="card-body">
+                    {% if occurrence.status != 'completed' %}
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ occurrence.condominium_id }}/occurrences/{{ occurrence.id }}/status" class="mb-3">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="mb-3">
+                            <label for="status" class="form-label">Alterar Estado</label>
+                            <select class="form-select" id="status" name="status" required>
+                                <option value="open" {% if occurrence.status == 'open' %}selected{% endif %}>Aberta</option>
+                                <option value="in_analysis" {% if occurrence.status == 'in_analysis' %}selected{% endif %}>Em Análise</option>
+                                <option value="assigned" {% if occurrence.status == 'assigned' %}selected{% endif %}>Atribuída</option>
+                                <option value="completed" {% if occurrence.status == 'completed' %}selected{% endif %}>Resolvida</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notas</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Atualizar Estado</button>
+                    </form>
+
+                    {% if suppliers %}
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ occurrence.condominium_id }}/occurrences/{{ occurrence.id }}/assign">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="mb-3">
+                            <label for="supplier_id" class="form-label">Atribuir a Fornecedor</label>
+                            <select class="form-select" id="supplier_id" name="supplier_id">
+                                <option value="">Nenhum</option>
+                                {% for supplier in suppliers %}
+                                <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-outline-primary w-100">Atribuir</button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+

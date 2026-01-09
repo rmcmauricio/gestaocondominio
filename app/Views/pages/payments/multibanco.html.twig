@@ -1,0 +1,97 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white text-center">
+                    <h4 class="mb-0"><i class="bi bi-bank"></i> Referência Multibanco</h4>
+                </div>
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <h5>{{ plan.name }}</h5>
+                        <h2 class="text-primary">€{{ payment_data.amount }}</h2>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading"><i class="bi bi-info-circle"></i> Instruções de Pagamento</h6>
+                        <ol class="mb-0">
+                            <li>Dirija-se a um Multibanco ou utilize o seu homebanking</li>
+                            <li>Selecione a opção "Pagamentos"</li>
+                            <li>Introduza os dados abaixo</li>
+                            <li>Confirme o pagamento</li>
+                        </ol>
+                    </div>
+
+                    <div class="bg-light p-4 rounded mb-4">
+                        <div class="row mb-3">
+                            <div class="col-4">
+                                <strong>Entidade:</strong>
+                            </div>
+                            <div class="col-8">
+                                <span class="h4 text-primary">{{ payment_data.entity }}</span>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-4">
+                                <strong>Referência:</strong>
+                            </div>
+                            <div class="col-8">
+                                <span class="h4 text-primary font-monospace">{{ payment_data.reference }}</span>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-4">
+                                <strong>Valor:</strong>
+                            </div>
+                            <div class="col-8">
+                                <span class="h4 text-primary">€{{ payment_data.amount }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <strong>Validade:</strong> Esta referência expira em {{ payment_data.expires_at }}.
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-outline-primary" onclick="copyReference()">
+                            <i class="bi bi-clipboard"></i> Copiar Referência
+                        </button>
+                        <a href="{{ BASE_URL }}subscription" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Entendi, já efetuei o pagamento
+                        </a>
+                    </div>
+
+                    <div class="mt-4 text-center">
+                        <small class="text-muted">
+                            Após o pagamento, a sua subscrição será ativada automaticamente em até 24 horas.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyReference() {
+    const reference = '{{ payment_data.reference }}';
+    navigator.clipboard.writeText(reference).then(() => {
+        alert('Referência copiada para a área de transferência!');
+    }).catch(() => {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = reference;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('Referência copiada!');
+    });
+}
+</script>
+
+
+
+
+

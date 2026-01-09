@@ -1,0 +1,152 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Documentação da API REST</h2>
+        <a href="{{ BASE_URL }}api-keys" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Autenticação</h5>
+        </div>
+        <div class="card-body">
+            <p>A API utiliza autenticação por API Key. Inclua a sua chave no cabeçalho HTTP <code>X-API-Key</code> em todas as requisições.</p>
+            <pre class="bg-light p-3 rounded"><code>X-API-Key: pk_sua_chave_aqui</code></pre>
+            <p class="text-muted"><small>Nota: A API está disponível apenas para utilizadores com plano BUSINESS.</small></p>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Endpoints</h5>
+        </div>
+        <div class="card-body">
+            <h6>Condomínios</h6>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Método</th>
+                        <th>Endpoint</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="badge bg-success">GET</span></td>
+                        <td><code>/api/condominiums</code></td>
+                        <td>Lista todos os condomínios do utilizador</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge bg-success">GET</span></td>
+                        <td><code>/api/condominiums/{id}</code></td>
+                        <td>Detalhes de um condomínio específico</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h6 class="mt-4">Quotas</h6>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Método</th>
+                        <th>Endpoint</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="badge bg-success">GET</span></td>
+                        <td><code>/api/condominiums/{id}/fees</code></td>
+                        <td>Lista quotas de um condomínio</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge bg-success">GET</span></td>
+                        <td><code>/api/fractions/{id}/fees</code></td>
+                        <td>Lista quotas de uma fração</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h6 class="mt-4">Parâmetros de Query</h6>
+            <ul>
+                <li><code>year</code> - Filtrar por ano (ex: ?year=2024)</li>
+                <li><code>month</code> - Filtrar por mês (ex: ?month=12)</li>
+                <li><code>status</code> - Filtrar por status (pending, paid, overdue)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Exemplos</h5>
+        </div>
+        <div class="card-body">
+            <h6>cURL</h6>
+            <pre class="bg-light p-3 rounded"><code># Listar condomínios
+curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/condominiums
+
+# Listar quotas de um condomínio
+curl -H "X-API-Key: pk_sua_chave_aqui" \
+  "{{ BASE_URL }}api/condominiums/1/fees?year=2024&status=pending"</code></pre>
+
+            <h6 class="mt-4">JavaScript (Fetch)</h6>
+            <pre class="bg-light p-3 rounded"><code>fetch('{{ BASE_URL }}api/condominiums', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+
+            <h6 class="mt-4">PHP</h6>
+            <pre class="bg-light p-3 rounded"><code>$ch = curl_init('{{ BASE_URL }}api/condominiums');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">Respostas</h5>
+        </div>
+        <div class="card-body">
+            <h6>Sucesso</h6>
+            <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "condominiums": [...],
+    "total": 2
+  }
+}</code></pre>
+
+            <h6 class="mt-4">Erro</h6>
+            <pre class="bg-light p-3 rounded"><code>{
+  "success": false,
+  "error": "Invalid API key",
+  "code": 401
+}</code></pre>
+
+            <h6 class="mt-4">Códigos de Status HTTP</h6>
+            <ul>
+                <li><code>200</code> - Sucesso</li>
+                <li><code>401</code> - Não autenticado (API key inválida ou ausente)</li>
+                <li><code>403</code> - Acesso negado (sem plano BUSINESS ou sem permissão)</li>
+                <li><code>404</code> - Recurso não encontrado</li>
+                <li><code>500</code> - Erro interno do servidor</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+
+
+
+

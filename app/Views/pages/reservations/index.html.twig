@@ -1,0 +1,139 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Reservas de Espaços</h2>
+            <p class="text-muted mb-0">{{ condominium.name }}</p>
+        </div>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations/create" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Nova Reserva
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations" class="row g-3">
+                <div class="col-md-3">
+                    <label for="space_id" class="form-label">Espaço</label>
+                    <select class="form-select" id="space_id" name="space_id">
+                        <option value="">Todos</option>
+                        {% for space in spaces %}
+                        <option value="{{ space.id }}" {% if selected_space == space.id %}selected{% endif %}>{{ space.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="start_date" class="form-label">Data Início</label>
+                    <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="end_date" class="form-label">Data Fim</label>
+                    <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date }}">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-outline-primary w-100">Filtrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if reservations %}
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Espaço</th>
+                            <th>Fração</th>
+                            <th>Data/Hora Início</th>
+                            <th>Data/Hora Fim</th>
+                            <th>Utilizador</th>
+                            <th>Valor</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for reservation in reservations %}
+                        <tr>
+                            <td><strong>{{ reservation.space_name }}</strong></td>
+                            <td>{{ reservation.fraction_identifier }}</td>
+                            <td>{{ reservation.start_date|date('d/m/Y H:i') }}</td>
+                            <td>{{ reservation.end_date|date('d/m/Y H:i') }}</td>
+                            <td>{{ reservation.user_name }}</td>
+                            <td>€{{ reservation.price|number_format(2, ',', '.') }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if reservation.status == 'approved' %}bg-success
+                                    {% elseif reservation.status == 'pending' %}bg-warning
+                                    {% elseif reservation.status == 'rejected' %}bg-danger
+                                    {% else %}bg-secondary{% endif %}">
+                                    {% if reservation.status == 'approved' %}Aprovada
+                                    {% elseif reservation.status == 'pending' %}Pendente
+                                    {% elseif reservation.status == 'rejected' %}Rejeitada
+                                    {% else %}{{ reservation.status }}{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                {% if reservation.status == 'pending' %}
+                                <div class="btn-group btn-group-sm">
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations/{{ reservation.id }}/approve" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-outline-success btn-sm">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations/{{ reservation.id }}/reject" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card shadow">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-calendar-check display-1 text-muted"></i>
+            <h4 class="mt-3">Nenhuma reserva encontrada</h4>
+            <p class="text-muted">Comece criando a primeira reserva</p>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations/create" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Nova Reserva
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mt-3">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar ao Condomínio
+        </a>
+    </div>
+</div>
+
+
+
+
+

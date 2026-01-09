@@ -1,0 +1,226 @@
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12 col-xl-10 mx-auto">
+            {% if subscription %}
+            <!-- Current Subscription Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="bi bi-credit-card"></i> Minha Subscrição</h4>
+                </div>
+                <div class="card-body">
+                    {% if subscription.status == 'trial' %}
+                    <div class="alert alert-info mb-3">
+                        <h6 class="alert-heading"><i class="bi bi-info-circle"></i> Período Experimental</h6>
+                        <p class="mb-0 small">
+                            Durante o período experimental, pode utilizar todas as funcionalidades do plano escolhido. 
+                            Para continuar a utilizar o serviço após o término do trial, efetue o pagamento através do botão abaixo. 
+                            A subscrição será ativada automaticamente após a confirmação do pagamento.
+                        </p>
+                    </div>
+                    {% endif %}
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center mb-3">
+                                <h3 class="mb-0 me-3">{{ subscription.plan_name }}</h3>
+                                {% if subscription.status == 'trial' %}
+                                    {% set trialEnds = subscription.trial_ends_at|date('U') %}
+                                    {% set now = 'now'|date('U') %}
+                                    {% set daysLeft = ((trialEnds - now) / 86400)|round %}
+                                    {% if daysLeft <= 0 %}
+                                        <span class="badge bg-danger fs-6">Trial Expirado</span>
+                                    {% elseif daysLeft <= 3 %}
+                                        <span class="badge bg-warning fs-6">Trial Expira em {{ daysLeft }} dia(s)</span>
+                                    {% else %}
+                                        <span class="badge bg-info fs-6">Período Experimental</span>
+                                    {% endif %}
+                                {% elseif subscription.status == 'active' %}
+                                    <span class="badge bg-success fs-6">Ativa</span>
+                                {% elseif subscription.status == 'canceled' %}
+                                    <span class="badge bg-warning fs-6">Cancelada</span>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-calendar-event text-muted me-2"></i>
+                                        <div>
+                                            <small class="text-muted d-block">Expira em</small>
+                                            <strong>
+                                                {% if subscription.status == 'trial' %}
+                                                    {{ subscription.trial_ends_at|date('d/m/Y') }}
+                                                    {% set trialEnds = subscription.trial_ends_at|date('U') %}
+                                                    {% set now = 'now'|date('U') %}
+                                                    {% if trialEnds < now %}
+                                                        <span class="text-danger d-block small">(Expirado)</span>
+                                                    {% endif %}
+                                                {% elseif subscription.status == 'active' and subscription.current_period_end %}
+                                                    {{ subscription.current_period_end|date('d/m/Y') }}
+                                                {% elseif subscription.status == 'canceled' and subscription.current_period_end %}
+                                                    {{ subscription.current_period_end|date('d/m/Y') }}
+                                                {% endif %}
+                                            </strong>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-currency-euro text-muted me-2"></i>
+                                        <div>
+                                            <small class="text-muted d-block">Preço</small>
+                                            <strong>€{{ subscription.price_monthly|number_format(2, ',', '.') }}/mês</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-muted small">
+                                <i class="bi bi-clock-history"></i> Criada em: {{ subscription.created_at|date('d/m/Y') }}
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            {% if subscription.status == 'active' %}
+                            <form method="POST" action="{{ BASE_URL }}subscription/cancel" class="mb-2">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-outline-danger w-100" onclick="return confirm('Tem certeza que deseja cancelar a subscrição?')">
+                                    <i class="bi bi-x-circle"></i> Cancelar Subscrição
+                                </button>
+                            </form>
+                            {% endif %}
+                            
+                            {% if subscription.status == 'trial' %}
+                                {% set trialEnds = subscription.trial_ends_at|date('U') %}
+                                {% set now = 'now'|date('U') %}
+                                {% set daysLeft = ((trialEnds - now) / 86400)|round %}
+                                
+                                {% if daysLeft <= 0 %}
+                                    <div class="alert alert-warning mb-2 p-2">
+                                        <small><i class="bi bi-exclamation-triangle"></i> Trial expirado</small>
+                                    </div>
+                                    <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-primary w-100 mb-2">
+                                        <i class="bi bi-credit-card"></i> Efetuar Pagamento
+                                    </a>
+                                {% elseif daysLeft <= 3 %}
+                                    <div class="alert alert-warning mb-2 p-2">
+                                        <small><i class="bi bi-clock"></i> Trial expira em {{ daysLeft }} dia(s)</small>
+                                    </div>
+                                    <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-primary w-100 mb-2">
+                                        <i class="bi bi-credit-card"></i> Efetuar Pagamento Agora
+                                    </a>
+                                {% else %}
+                                    <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-outline-primary w-100 mb-2">
+                                        <i class="bi bi-credit-card"></i> Efetuar Pagamento
+                                    </a>
+                                    <small class="text-muted d-block text-center">
+                                        Trial expira em {{ daysLeft }} dias
+                                    </small>
+                                {% endif %}
+                            {% endif %}
+                            
+                            {% if subscription.status == 'canceled' %}
+                            <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-primary w-100 mb-2">
+                                <i class="bi bi-credit-card"></i> Efetuar Pagamento
+                            </a>
+                            {% endif %}
+                            
+                            {% if subscription.status == 'canceled' %}
+                            <form method="POST" action="{{ BASE_URL }}subscription/reactivate">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-outline-primary w-100">
+                                    <i class="bi bi-arrow-clockwise"></i> Reativar Subscrição
+                                </button>
+                            </form>
+                            {% endif %}
+                            
+                            <a href="{{ BASE_URL }}payments" class="btn btn-outline-secondary w-100 mt-2">
+                                <i class="bi bi-list"></i> Ver Pagamentos
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <!-- No Subscription -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-credit-card-2-front display-1 text-muted mb-3"></i>
+                    <h4 class="mb-3">Nenhuma subscrição ativa</h4>
+                    <p class="text-muted mb-4">Escolha um plano para começar a usar o MeuPrédio</p>
+                    <a href="{{ BASE_URL }}subscription/choose-plan" class="btn btn-primary btn-lg">
+                        <i class="bi bi-arrow-right-circle"></i> Escolher Plano
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Available Plans -->
+            {% if plans %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h4 class="mb-0"><i class="bi bi-list-check"></i> Planos Disponíveis</h4>
+                </div>
+                <div class="card-body p-2 p-sm-3 p-md-4">
+                    <div class="row g-3 g-md-4 justify-content-center">
+                        {% for plan in plans %}
+                        <div class="col-12 col-md-6">
+                            <div class="card h-100 {% if subscription and subscription.plan_id == plan.id %}border-success border-2{% elseif plan.slug == 'pro' %}border-primary border-2{% else %}border{% endif %} shadow-sm">
+                                {% if subscription and subscription.plan_id == plan.id %}
+                                <div class="card-header bg-success text-white text-center py-2">
+                                    <small><i class="bi bi-check-circle"></i> Plano Atual</small>
+                                </div>
+                                {% elseif plan.slug == 'pro' %}
+                                <div class="card-header bg-primary text-white text-center py-2">
+                                    <small><i class="bi bi-star"></i> Recomendado</small>
+                                </div>
+                                {% endif %}
+                                <div class="card-body text-center d-flex flex-column p-3 p-md-3 p-lg-4">
+                                    <h3 class="mb-2 fs-5 fs-md-4">{{ plan.name }}</h3>
+                                    <div class="mb-3">
+                                        <span class="h4 h-md-3 h-lg-2 text-primary">€{{ plan.price_monthly|number_format(2, ',', '.') }}</span>
+                                        <span class="text-muted small">/mês</span>
+                                    </div>
+                                    <p class="text-muted small mb-3 lh-sm">{{ plan.description }}</p>
+                                    
+                                    {% if plan.features %}
+                                    <div class="text-start mb-3 flex-grow-1">
+                                        <small class="text-muted d-block mb-2 fw-bold">Inclui:</small>
+                                        <ul class="list-unstyled small mb-0 ps-0">
+                                            {% for feature in plan.features %}
+                                            <li class="mb-2 d-flex align-items-start">
+                                                <i class="bi bi-check-circle-fill text-success me-2 flex-shrink-0 mt-1"></i>
+                                                <span class="text-break">{{ feature }}</span>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if not subscription or subscription.plan_id != plan.id %}
+                                    <form method="POST" action="{{ BASE_URL }}subscription/change-plan" class="mt-auto">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <input type="hidden" name="plan_id" value="{{ plan.id }}">
+                                        <button type="submit" class="btn {% if plan.slug == 'pro' %}btn-primary{% else %}btn-outline-primary{% endif %} w-100">
+                                            {% if subscription %}
+                                                <i class="bi bi-arrow-repeat"></i> <span class="d-none d-lg-inline">Alterar para este plano</span><span class="d-lg-none">Alterar plano</span>
+                                            {% else %}
+                                                <i class="bi bi-check-circle"></i> Escolher
+                                            {% endif %}
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <span class="badge bg-success w-100 py-2">
+                                        <i class="bi bi-check-circle"></i> Plano Atual
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+

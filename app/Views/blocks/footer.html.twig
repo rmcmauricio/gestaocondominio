@@ -1,6 +1,30 @@
-<footer id="footer" class="footer">
-  <div class="container text-center">
-    <p style="color: var(--text-primary);">&copy; {{ "now"|date("Y") }} MVC Framework. All Rights Reserved.</p>
-    <p style="color: var(--text-secondary);">Built with PHP MVC Framework</p>
+<footer id="footer" class="footer bg-light py-4 mt-5">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-4 mb-3 mb-md-0">
+        <h5 class="fw-bold">MeuPrédio</h5>
+        <p class="text-muted small">A solução completa para gestão de condomínios em Portugal.</p>
+      </div>
+      <div class="col-md-4 mb-3 mb-md-0">
+        <h6 class="fw-bold">Links Rápidos</h6>
+        <ul class="list-unstyled small">
+          <li><a href="{{ BASE_URL }}" class="text-decoration-none text-muted">Início</a></li>
+          <li><a href="{{ BASE_URL }}register" class="text-decoration-none text-muted">Criar Conta</a></li>
+          <li><a href="{{ BASE_URL }}login" class="text-decoration-none text-muted">Login</a></li>
+        </ul>
+      </div>
+      <div class="col-md-4">
+        <h6 class="fw-bold">Suporte</h6>
+        <ul class="list-unstyled small">
+          <li><a href="#" class="text-decoration-none text-muted">Ajuda</a></li>
+          <li><a href="#" class="text-decoration-none text-muted">Contactos</a></li>
+          <li><a href="#" class="text-decoration-none text-muted">Termos e Condições</a></li>
+        </ul>
+      </div>
+    </div>
+    <hr class="my-3">
+    <div class="text-center">
+      <p class="text-muted small mb-0">&copy; {{ "now"|date("Y") }} MeuPrédio.com. Todos os direitos reservados.</p>
+    </div>
   </div>
 </footer>

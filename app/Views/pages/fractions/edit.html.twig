@@ -1,0 +1,83 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Editar Fração</h4>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ fraction.condominium_id }}/fractions/{{ fraction.id }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="_method" value="PUT">
+
+                        <div class="mb-3">
+                            <label for="identifier" class="form-label">Identificador <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="identifier" name="identifier" value="{{ fraction.identifier }}" required autofocus>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="permillage" class="form-label">Permilagem (‰) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="permillage" name="permillage" value="{{ fraction.permillage|default(0) }}" step="0.01" min="0" max="1000" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="area" class="form-label">Área (m²)</label>
+                                <input type="number" class="form-control" id="area" name="area" value="{{ fraction.area|default('') }}" step="0.01" min="0">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="floor" class="form-label">Andar</label>
+                                <input type="text" class="form-control" id="floor" name="floor" value="{{ fraction.floor|default('') }}" placeholder="Ex: 1º, R/C, -1">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="typology" class="form-label">Tipologia</label>
+                                <select class="form-select" id="typology" name="typology">
+                                    <option value="">Selecione...</option>
+                                    <option value="T0" {% if fraction.typology == 'T0' %}selected{% endif %}>T0</option>
+                                    <option value="T1" {% if fraction.typology == 'T1' %}selected{% endif %}>T1</option>
+                                    <option value="T2" {% if fraction.typology == 'T2' %}selected{% endif %}>T2</option>
+                                    <option value="T3" {% if fraction.typology == 'T3' %}selected{% endif %}>T3</option>
+                                    <option value="T4" {% if fraction.typology == 'T4' %}selected{% endif %}>T4</option>
+                                    <option value="T5+" {% if fraction.typology == 'T5+' %}selected{% endif %}>T5+</option>
+                                    <option value="Loja" {% if fraction.typology == 'Loja' %}selected{% endif %}>Loja</option>
+                                    <option value="Escritório" {% if fraction.typology == 'Escritório' %}selected{% endif %}>Escritório</option>
+                                    <option value="Garagem" {% if fraction.typology == 'Garagem' %}selected{% endif %}>Garagem</option>
+                                    <option value="Arrecadação" {% if fraction.typology == 'Arrecadação' %}selected{% endif %}>Arrecadação</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="is_active" name="is_active" value="1" {% if fraction.is_active %}checked{% endif %}>
+                                <label class="form-check-label" for="is_active">
+                                    Fração Ativa
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notas</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3">{{ fraction.notes|default('') }}</textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ BASE_URL }}condominiums/{{ fraction.condominium_id }}/fractions" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">Guardar Alterações</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

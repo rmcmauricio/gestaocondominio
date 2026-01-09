@@ -1,0 +1,124 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Relatórios Financeiros</h2>
+            <p class="text-muted mb-0">{{ condominium.name }}</p>
+        </div>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-6 col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-file-earmark-text display-4 text-primary mb-3"></i>
+                    <h5>Balancete</h5>
+                    <p class="text-muted">Relatório de receitas e despesas</p>
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/balance-sheet" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="year" value="{{ current_year }}">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="bi bi-download"></i> Gerar PDF
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-receipt display-4 text-success mb-3"></i>
+                    <h5>Quotas</h5>
+                    <p class="text-muted">Relatório de quotas por período</p>
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/fees" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="year" value="{{ current_year }}">
+                        <button type="submit" class="btn btn-outline-success">
+                            <i class="bi bi-download"></i> Gerar PDF
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-graph-up display-4 text-info mb-3"></i>
+                    <h5>Despesas</h5>
+                    <p class="text-muted">Análise de despesas por categoria</p>
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/expenses" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="year" value="{{ current_year }}">
+                        <button type="submit" class="btn btn-outline-info">
+                            <i class="bi bi-download"></i> Gerar PDF
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-file-excel display-4 text-warning mb-3"></i>
+                    <h5>Exportar Excel</h5>
+                    <p class="text-muted">Exportar dados financeiros</p>
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/export-excel" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="year" value="{{ current_year }}">
+                        <button type="submit" class="btn btn-outline-warning">
+                            <i class="bi bi-download"></i> Exportar
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">Relatórios Personalizados</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/custom">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="report_type" class="form-label">Tipo de Relatório</label>
+                        <select class="form-select" id="report_type" name="report_type" required>
+                            <option value="balance">Balancete</option>
+                            <option value="fees">Quotas</option>
+                            <option value="expenses">Despesas</option>
+                            <option value="summary">Resumo Financeiro</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="start_date" class="form-label">Data Início</label>
+                        <input type="date" class="form-control" id="start_date" name="start_date" required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="end_date" class="form-label">Data Fim</label>
+                        <input type="date" class="form-control" id="end_date" name="end_date" required>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="format" class="form-label">Formato</label>
+                    <select class="form-select" id="format" name="format">
+                        <option value="pdf">PDF</option>
+                        <option value="excel">Excel</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Gerar Relatório</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+
+
+

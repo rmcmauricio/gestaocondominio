@@ -1,0 +1,170 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Finanças</h2>
+            <p class="text-muted mb-0">{{ condominium.name }}</p>
+        </div>
+        <div>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Nova Despesa
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Orçamento {{ current_year }}</h6>
+                    <h3 class="mb-0">€{{ budget.total_amount|default(0)|number_format(2, ',', '.') }}</h3>
+                    {% if not budget %}
+                        <small class="text-muted">Nenhum orçamento definido</small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Despesas {{ current_year }}</h6>
+                    <h3 class="mb-0">€{{ total_expenses|default(0)|number_format(2, ',', '.') }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Saldo</h6>
+                    <h3 class="mb-0 {% if (budget.total_amount|default(0) - total_expenses|default(0)) < 0 %}text-danger{% else %}text-success{% endif %}">
+                        €{{ (budget.total_amount|default(0) - total_expenses|default(0))|number_format(2, ',', '.') }}
+                    </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Últimas Despesas</h5>
+                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create" class="btn btn-sm btn-primary">
+                        <i class="bi bi-plus"></i> Adicionar
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if expenses %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Descrição</th>
+                                    <th>Categoria</th>
+                                    <th>Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for expense in expenses %}
+                                <tr>
+                                    <td>{{ expense.expense_date|date('d/m/Y') }}</td>
+                                    <td>{{ expense.description }}</td>
+                                    <td><span class="badge bg-secondary">{{ expense.category }}</span></td>
+                                    <td><strong>€{{ expense.amount|number_format(2, ',', '.') }}</strong></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center py-3">Nenhuma despesa registada este ano.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h6 class="mb-0">Ações</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <h6 class="mb-2">Orçamentos</h6>
+                        {% if not budget %}
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create" class="btn btn-outline-primary">
+                            <i class="bi bi-calendar-check"></i> Criar Orçamento {{ current_year }}
+                        </a>
+                        {% else %}
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}" class="btn btn-outline-primary">
+                            <i class="bi bi-eye"></i> Ver Orçamento {{ current_year }}
+                        </a>
+                        {% if budget.status == 'draft' %}
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}/edit" class="btn btn-outline-warning">
+                            <i class="bi bi-pencil"></i> Editar {{ current_year }}
+                        </a>
+                        {% endif %}
+                        {% endif %}
+                        
+                        {% if not next_year_budget %}
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create?year={{ current_year + 1 }}" class="btn btn-outline-info">
+                            <i class="bi bi-calendar-plus"></i> Criar Orçamento {{ current_year + 1 }}
+                        </a>
+                        {% else %}
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ next_year_budget.id }}" class="btn btn-outline-info">
+                            <i class="bi bi-eye"></i> Ver Orçamento {{ current_year + 1 }}
+                        </a>
+                        {% endif %}
+                        
+                        {% if all_budgets|length > 0 %}
+                        <div class="dropdown mt-2">
+                            <button class="btn btn-outline-secondary btn-sm w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-calendar3"></i> Todos os Orçamentos
+                            </button>
+                            <ul class="dropdown-menu">
+                                {% for budget_item in all_budgets %}
+                                <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget_item.id }}">Orçamento {{ budget_item.year }}</a></li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                        
+                        <hr class="my-2">
+                        
+                        <h6 class="mb-2">Outras Ações</h6>
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="btn btn-outline-primary">
+                            <i class="bi bi-receipt"></i> Gerir Quotas
+                        </a>
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-debts" class="btn btn-outline-warning">
+                            <i class="bi bi-clock-history"></i> Dívidas Históricas
+                        </a>
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports" class="btn btn-outline-secondary">
+                            <i class="bi bi-graph-up"></i> Relatórios
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar ao Condomínio
+        </a>
+    </div>
+</div>
+
