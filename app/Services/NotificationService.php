@@ -215,6 +215,62 @@ class NotificationService
     }
 
     /**
+     * Notify occurrence comment added
+     */
+    public function notifyOccurrenceComment(int $occurrenceId, int $condominiumId, int $commentUserId): void
+    {
+        global $db;
+        if (!$db) {
+            return;
+        }
+
+        // Get occurrence details
+        $stmt = $db->prepare("SELECT reported_by, assigned_to FROM occurrences WHERE id = :occurrence_id LIMIT 1");
+        $stmt->execute([':occurrence_id' => $occurrenceId]);
+        $occurrence = $stmt->fetch();
+
+        if (!$occurrence) {
+            return;
+        }
+
+        // Notify reporter and assigned user (if different from comment author)
+        $usersToNotify = [];
+        if ($occurrence['reported_by'] && $occurrence['reported_by'] != $commentUserId) {
+            $usersToNotify[] = $occurrence['reported_by'];
+        }
+        if ($occurrence['assigned_to'] && $occurrence['assigned_to'] != $commentUserId && !in_array($occurrence['assigned_to'], $usersToNotify)) {
+            $usersToNotify[] = $occurrence['assigned_to'];
+        }
+
+        // Also notify admins
+        $stmt = $db->prepare("
+            SELECT DISTINCT u.id 
+            FROM users u
+            INNER JOIN condominium_users cu ON cu.user_id = u.id
+            WHERE cu.condominium_id = :condominium_id AND u.role IN ('admin', 'super_admin')
+        ");
+        $stmt->execute([':condominium_id' => $condominiumId]);
+        $admins = $stmt->fetchAll();
+
+        foreach ($admins as $admin) {
+            if ($admin['id'] != $commentUserId && !in_array($admin['id'], $usersToNotify)) {
+                $usersToNotify[] = $admin['id'];
+            }
+        }
+
+        foreach ($usersToNotify as $userId) {
+            $this->createNotification(
+                $userId,
+                $condominiumId,
+                'occurrence_comment',
+                'Novo Comentário em Ocorrência',
+                'Um novo comentário foi adicionado a uma ocorrência.',
+                BASE_URL . 'condominiums/' . $condominiumId . '/occurrences/' . $occurrenceId
+            );
+        }
+    }
+
+    /**
      * Notify assembly scheduled
      */
     public function notifyAssemblyScheduled(int $assemblyId, int $condominiumId, array $userIds): void

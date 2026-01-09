@@ -115,6 +115,8 @@ $router->post('/condominiums/{condominium_id}/finances/reports/expenses', 'App\C
 $router->post('/condominiums/{condominium_id}/finances/reports/cash-flow', 'App\Controllers\ReportController@cashFlow');
 $router->post('/condominiums/{condominium_id}/finances/reports/budget-vs-actual', 'App\Controllers\ReportController@budgetVsActual');
 $router->post('/condominiums/{condominium_id}/finances/reports/delinquency', 'App\Controllers\ReportController@delinquencyReport');
+$router->post('/condominiums/{condominium_id}/finances/reports/occurrences', 'App\Controllers\ReportController@occurrenceReport');
+$router->post('/condominiums/{condominium_id}/finances/reports/occurrences-by-supplier', 'App\Controllers\ReportController@occurrenceBySupplierReport');
 
 // Document routes
 $router->get('/condominiums/{condominium_id}/documents', 'App\Controllers\DocumentController@index');
@@ -139,6 +141,9 @@ $router->post('/condominiums/{condominium_id}/occurrences', 'App\Controllers\Occ
 $router->get('/condominiums/{condominium_id}/occurrences/{id}', 'App\Controllers\OccurrenceController@show');
 $router->post('/condominiums/{condominium_id}/occurrences/{id}/status', 'App\Controllers\OccurrenceController@updateStatus');
 $router->post('/condominiums/{condominium_id}/occurrences/{id}/assign', 'App\Controllers\OccurrenceController@assign');
+$router->post('/condominiums/{condominium_id}/occurrences/{id}/comments', 'App\Controllers\OccurrenceController@addComment');
+$router->post('/condominiums/{condominium_id}/occurrences/{id}/comments/{comment_id}/delete', 'App\Controllers\OccurrenceController@deleteComment');
+$router->get('/condominiums/{condominium_id}/occurrences/{id}/attachments/{attachment_path}', 'App\Controllers\OccurrenceController@downloadAttachment');
 
 // Supplier routes
 $router->get('/condominiums/{condominium_id}/suppliers', 'App\Controllers\SupplierController@index');

@@ -256,6 +256,124 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Occurrence Statistics -->
+            <div class="row mb-4">
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Estatísticas de Ocorrências</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <h3 class="text-primary">{{ occurrence_stats.total }}</h3>
+                                <p class="text-muted mb-0">Total de Ocorrências</p>
+                            </div>
+                            {% if occurrence_stats.average_resolution_time > 0 %}
+                            <div class="mb-3">
+                                <h6 class="text-muted">Tempo Médio de Resolução</h6>
+                                <p class="mb-0"><strong>{{ occurrence_stats.average_resolution_time }}</strong> dias</p>
+                            </div>
+                            {% endif %}
+                            {% if occurrence_stats.by_status|length > 0 %}
+                            <hr>
+                            <h6 class="mb-2">Por Estado:</h6>
+                            <ul class="list-unstyled mb-0">
+                                {% for status in occurrence_stats.by_status %}
+                                <li class="d-flex justify-content-between">
+                                    <span>{{ status.status|replace({'_': ' '})|title }}</span>
+                                    <span class="badge bg-secondary">{{ status.count }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                            {% if occurrence_stats.by_priority|length > 0 %}
+                            <hr>
+                            <h6 class="mb-2">Por Prioridade:</h6>
+                            <ul class="list-unstyled mb-0">
+                                {% for priority in occurrence_stats.by_priority %}
+                                <li class="d-flex justify-content-between">
+                                    <span>{{ priority.priority|title }}</span>
+                                    <span class="badge bg-secondary">{{ priority.count }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-8 mb-3">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Ocorrências Recentes</h5>
+                            {% if condominiums|length > 0 %}
+                            <a href="{{ BASE_URL }}condominiums/{{ condominiums[0].id }}/occurrences" class="btn btn-sm btn-outline-primary">
+                                Ver Todas
+                            </a>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            {% if occurrence_stats.recent|length > 0 %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Título</th>
+                                            <th>Categoria</th>
+                                            <th>Prioridade</th>
+                                            <th>Estado</th>
+                                            <th>Data</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for occurrence in occurrence_stats.recent %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ occurrence.title }}</strong>
+                                                {% if occurrence.description %}
+                                                    <br><small class="text-muted">{{ occurrence.description|slice(0, 40) }}{% if occurrence.description|length > 40 %}...{% endif %}</small>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ occurrence.category|default('-') }}</td>
+                                            <td>
+                                                <span class="badge 
+                                                    {% if occurrence.priority == 'urgent' %}bg-danger
+                                                    {% elseif occurrence.priority == 'high' %}bg-warning
+                                                    {% elseif occurrence.priority == 'medium' %}bg-info
+                                                    {% else %}bg-secondary{% endif %}">
+                                                    {{ occurrence.priority|title }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge 
+                                                    {% if occurrence.status == 'open' %}bg-danger
+                                                    {% elseif occurrence.status == 'in_analysis' %}bg-warning
+                                                    {% elseif occurrence.status == 'assigned' %}bg-info
+                                                    {% elseif occurrence.status == 'completed' %}bg-success
+                                                    {% else %}bg-secondary{% endif %}">
+                                                    {{ occurrence.status|replace({'_': ' '})|title }}
+                                                </span>
+                                            </td>
+                                            <td>{{ occurrence.created_at|date('d/m/Y') }}</td>
+                                            <td>
+                                                <a href="{{ BASE_URL }}condominiums/{{ occurrence.condominium_id }}/occurrences/{{ occurrence.id }}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted mb-0">Nenhuma ocorrência recente.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
             
             <!-- Chart.js Script -->
             <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
