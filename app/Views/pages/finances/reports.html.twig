@@ -37,7 +37,7 @@
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <input type="hidden" name="year" value="{{ current_year }}">
                         <button type="submit" class="btn btn-outline-success">
-                            <i class="bi bi-download"></i> Gerar PDF
+                            <i class="bi bi-eye"></i> Ver Relatório
                         </button>
                     </form>
                 </div>
@@ -53,9 +53,17 @@
                     <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/expenses" class="d-inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <input type="hidden" name="year" value="{{ current_year }}">
-                        <button type="submit" class="btn btn-outline-info">
-                            <i class="bi bi-download"></i> Gerar PDF
-                        </button>
+                        <div class="btn-group" role="group">
+                            <button type="submit" name="format" value="html" class="btn btn-outline-info btn-sm">
+                                <i class="bi bi-eye"></i> Ver
+                            </button>
+                            <button type="submit" name="format" value="excel" class="btn btn-outline-success btn-sm">
+                                <i class="bi bi-file-excel"></i> Excel
+                            </button>
+                            <button type="submit" name="format" value="pdf" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-file-pdf"></i> PDF
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -64,15 +72,63 @@
         <div class="col-md-6 col-lg-4">
             <div class="card shadow-sm h-100">
                 <div class="card-body text-center">
-                    <i class="bi bi-file-excel display-4 text-warning mb-3"></i>
-                    <h5>Exportar Excel</h5>
-                    <p class="text-muted">Exportar dados financeiros</p>
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/export-excel" class="d-inline">
+                    <i class="bi bi-arrow-left-right display-4 text-primary mb-3"></i>
+                    <h5>Fluxo de Caixa</h5>
+                    <p class="text-muted">Receitas e despesas mensais</p>
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/cash-flow" class="d-inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <input type="hidden" name="year" value="{{ current_year }}">
-                        <button type="submit" class="btn btn-outline-warning">
-                            <i class="bi bi-download"></i> Exportar
-                        </button>
+                        <div class="btn-group" role="group">
+                            <button type="submit" name="format" value="html" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-eye"></i> Ver
+                            </button>
+                            <button type="submit" name="format" value="excel" class="btn btn-outline-success btn-sm">
+                                <i class="bi bi-file-excel"></i> Excel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-bar-chart display-4 text-info mb-3"></i>
+                    <h5>Orçamento vs Realizado</h5>
+                    <p class="text-muted">Comparativo anual</p>
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/budget-vs-actual" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="year" value="{{ current_year }}">
+                        <div class="btn-group" role="group">
+                            <button type="submit" name="format" value="html" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-eye"></i> Ver
+                            </button>
+                            <button type="submit" name="format" value="excel" class="btn btn-outline-success btn-sm">
+                                <i class="bi bi-file-excel"></i> Excel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-exclamation-triangle display-4 text-danger mb-3"></i>
+                    <h5>Inadimplência</h5>
+                    <p class="text-muted">Relatório de quotas em atraso</p>
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/delinquency" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="btn-group" role="group">
+                            <button type="submit" name="format" value="html" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-eye"></i> Ver
+                            </button>
+                            <button type="submit" name="format" value="excel" class="btn btn-outline-success btn-sm">
+                                <i class="bi bi-file-excel"></i> Excel
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>

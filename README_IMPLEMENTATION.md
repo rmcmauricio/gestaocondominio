@@ -48,28 +48,34 @@
    - Todas as rotas principais configuradas
    - Suporte a parâmetros dinâmicos
 
+## ✅ Módulo de Finanças - COMPLETO
+
+1. **Módulo de Finanças** ✅
+   - ✅ Orçamentos (CRUD completo)
+   - ✅ Despesas (CRUD completo)
+   - ✅ Receitas (CRUD completo)
+   - ✅ Quotas (geração automática e manual)
+   - ✅ Pagamentos de quotas
+   - ✅ Cálculo automático de quotas via CLI
+   - ✅ Notificações automáticas de quotas em atraso
+   - ✅ Relatórios avançados (fluxo de caixa, orçamento vs realizado, inadimplência)
+   - ✅ Exportação para Excel/CSV
+   - ✅ Dashboard financeiro com gráficos
+   - ✅ Ações em lote para quotas
+
 ## 📋 Pendente (Estrutura Criada)
 
 Os seguintes módulos têm a estrutura de base de dados criada, mas precisam de implementação completa:
 
-1. **Sistema de Convites** (invitation-system)
-2. **Módulo de Finanças** (finance-basic)
-   - Orçamentos
-   - Despesas
-   - Receitas
-   - Quotas
-   - Pagamentos
-
-3. **Cálculo Automático de Quotas** (fee-calculation)
-4. **Dashboards** (admin-dashboard, condomino-dashboard)
-5. **Gestão de Documentos** (document-management)
-6. **Sistema de Ocorrências** (occurrence-system)
-7. **Assembleias e Votações** (assembly-system, voting-system)
-8. **Reservas de Espaços** (reservation-system)
-9. **Gestão de Fornecedores** (supplier-management)
-10. **Sistema de Comunicação** (communication-system)
-11. **Relatórios** (reporting-system)
-12. **API REST** (api-rest)
+1. **Sistema de Convites** (invitation-system) - Parcialmente implementado
+2. **Dashboards** (admin-dashboard, condomino-dashboard) - Parcialmente implementado
+3. **Gestão de Documentos** (document-management)
+4. **Sistema de Ocorrências** (occurrence-system)
+5. **Assembleias e Votações** (assembly-system, voting-system)
+6. **Reservas de Espaços** (reservation-system)
+7. **Gestão de Fornecedores** (supplier-management)
+8. **Sistema de Comunicação** (communication-system)
+9. **API REST** (api-rest) - Parcialmente implementado
 
 ## 🚀 Como Usar
 

@@ -226,6 +226,55 @@ class DashboardController extends Controller
             ");
             $stmt->execute($condominiumIds);
             $financialData['overdue_fractions'] = $stmt->fetchAll() ?: [];
+            
+            // Get recent documents (last 10)
+            $documentModel = new \App\Models\Document();
+            $recentDocuments = [];
+            foreach ($condominiumIds as $condominiumId) {
+                $documents = $documentModel->getByCondominium($condominiumId, [
+                    'limit' => 10,
+                    'sort_by' => 'created_at',
+                    'sort_order' => 'DESC'
+                ]);
+                $recentDocuments = array_merge($recentDocuments, $documents);
+            }
+            usort($recentDocuments, function($a, $b) {
+                return strtotime($b['created_at']) - strtotime($a['created_at']);
+            });
+            $recentDocuments = array_slice($recentDocuments, 0, 10);
+            
+            // Document statistics
+            $documentStats = [
+                'total_documents' => 0,
+                'documents_by_type' => [],
+                'recent_uploads' => count($recentDocuments)
+            ];
+            
+            foreach ($condominiumIds as $condominiumId) {
+                $allDocs = $documentModel->getByCondominium($condominiumId);
+                $documentStats['total_documents'] += count($allDocs);
+            }
+            
+            // Get document types from all condominiums
+            $allDocumentTypes = [];
+            foreach ($condominiumIds as $condominiumId) {
+                $types = $documentModel->getDocumentTypes($condominiumId);
+                foreach ($types as $type) {
+                    $key = $type['document_type'];
+                    if (!isset($allDocumentTypes[$key])) {
+                        $allDocumentTypes[$key] = ['document_type' => $key, 'count' => 0];
+                    }
+                    $allDocumentTypes[$key]['count'] += $type['count'];
+                }
+            }
+            $documentStats['documents_by_type'] = array_values($allDocumentTypes);
+        } else {
+            $recentDocuments = [];
+            $documentStats = [
+                'total_documents' => 0,
+                'documents_by_type' => [],
+                'recent_uploads' => 0
+            ];
         }
 
         $this->loadPageTranslations('dashboard');
@@ -236,6 +285,8 @@ class DashboardController extends Controller
             'stats' => $stats,
             'financial_data' => $financialData,
             'condominiums' => $condominiums,
+            'recent_documents' => $recentDocuments,
+            'document_stats' => $documentStats,
             'user' => AuthMiddleware::user()
         ];
 
@@ -280,6 +331,27 @@ class DashboardController extends Controller
             $recentExpenses = array_slice($recentExpenses, 0, 5);
         }
 
+        // Get recent documents (last 5)
+        $documentModel = new \App\Models\Document();
+        $recentDocuments = [];
+        if (!empty($userCondominiums)) {
+            $condominiumIds = array_unique(array_column($userCondominiums, 'condominium_id'));
+            foreach ($condominiumIds as $condominiumId) {
+                // Get documents visible to condominos
+                $documents = $documentModel->getByCondominium($condominiumId, [
+                    'visibility' => 'condominos',
+                    'limit' => 5,
+                    'sort_by' => 'created_at',
+                    'sort_order' => 'DESC'
+                ]);
+                $recentDocuments = array_merge($recentDocuments, $documents);
+            }
+            usort($recentDocuments, function($a, $b) {
+                return strtotime($b['created_at']) - strtotime($a['created_at']);
+            });
+            $recentDocuments = array_slice($recentDocuments, 0, 5);
+        }
+
         $this->loadPageTranslations('dashboard');
         
         $this->data += [
@@ -289,6 +361,7 @@ class DashboardController extends Controller
             'pending_fees' => array_slice($pendingFees, 0, 5),
             'total_pending' => $totalPending,
             'recent_expenses' => $recentExpenses,
+            'recent_documents' => $recentDocuments,
             'user' => AuthMiddleware::user()
         ];
 

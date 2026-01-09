@@ -112,13 +112,25 @@ $router->get('/condominiums/{condominium_id}/finances/reports', 'App\Controllers
 $router->post('/condominiums/{condominium_id}/finances/reports/balance-sheet', 'App\Controllers\ReportController@balanceSheet');
 $router->post('/condominiums/{condominium_id}/finances/reports/fees', 'App\Controllers\ReportController@feesReport');
 $router->post('/condominiums/{condominium_id}/finances/reports/expenses', 'App\Controllers\ReportController@expensesReport');
+$router->post('/condominiums/{condominium_id}/finances/reports/cash-flow', 'App\Controllers\ReportController@cashFlow');
+$router->post('/condominiums/{condominium_id}/finances/reports/budget-vs-actual', 'App\Controllers\ReportController@budgetVsActual');
+$router->post('/condominiums/{condominium_id}/finances/reports/delinquency', 'App\Controllers\ReportController@delinquencyReport');
 
 // Document routes
 $router->get('/condominiums/{condominium_id}/documents', 'App\Controllers\DocumentController@index');
 $router->get('/condominiums/{condominium_id}/documents/create', 'App\Controllers\DocumentController@create');
 $router->post('/condominiums/{condominium_id}/documents', 'App\Controllers\DocumentController@store');
+$router->get('/condominiums/{condominium_id}/documents/{id}/view', 'App\Controllers\DocumentController@view');
+$router->get('/condominiums/{condominium_id}/documents/{id}/edit', 'App\Controllers\DocumentController@edit');
+$router->post('/condominiums/{condominium_id}/documents/{id}/update', 'App\Controllers\DocumentController@update');
+$router->get('/condominiums/{condominium_id}/documents/{id}/versions', 'App\Controllers\DocumentController@versions');
+$router->get('/condominiums/{condominium_id}/documents/{id}/upload-version', 'App\Controllers\DocumentController@uploadVersion');
 $router->get('/condominiums/{condominium_id}/documents/{id}/download', 'App\Controllers\DocumentController@download');
 $router->post('/condominiums/{condominium_id}/documents/{id}/delete', 'App\Controllers\DocumentController@delete');
+$router->get('/condominiums/{condominium_id}/documents/manage-folders', 'App\Controllers\DocumentController@manageFolders');
+$router->post('/condominiums/{condominium_id}/documents/folders/create', 'App\Controllers\DocumentController@createFolder');
+$router->post('/condominiums/{condominium_id}/documents/folders/rename', 'App\Controllers\DocumentController@renameFolder');
+$router->post('/condominiums/{condominium_id}/documents/folders/delete', 'App\Controllers\DocumentController@deleteFolder');
 
 // Occurrence routes
 $router->get('/condominiums/{condominium_id}/occurrences', 'App\Controllers\OccurrenceController@index');
