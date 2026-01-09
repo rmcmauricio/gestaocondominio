@@ -5,18 +5,21 @@ namespace App\Services;
 use App\Models\Budget;
 use App\Models\Expense;
 use App\Models\Fee;
+use App\Models\Occurrence;
 
 class ReportService
 {
     protected $budgetModel;
     protected $expenseModel;
     protected $feeModel;
+    protected $occurrenceModel;
 
     public function __construct()
     {
         $this->budgetModel = new Budget();
         $this->expenseModel = new Expense();
         $this->feeModel = new Fee();
+        $this->occurrenceModel = new Occurrence();
     }
 
     /**
@@ -314,6 +317,146 @@ class ReportService
             'total_debt' => $totalDebt,
             'total_delinquents' => count($delinquents)
         ];
+    }
+
+    /**
+     * Generate occurrence report by period
+     */
+    public function generateOccurrenceReport(int $condominiumId, string $startDate, string $endDate, array $filters = []): array
+    {
+        global $db;
+        if (!$db) {
+            return [];
+        }
+
+        $sql = "SELECT o.*, 
+                       u1.name as reported_by_name, 
+                       u2.name as assigned_to_name,
+                       s.name as supplier_name,
+                       f.identifier as fraction_identifier
+                FROM occurrences o
+                LEFT JOIN users u1 ON u1.id = o.reported_by
+                LEFT JOIN users u2 ON u2.id = o.assigned_to
+                LEFT JOIN suppliers s ON s.id = o.supplier_id
+                LEFT JOIN fractions f ON f.id = o.fraction_id
+                WHERE o.condominium_id = :condominium_id
+                AND DATE(o.created_at) BETWEEN :start_date AND :end_date";
+
+        $params = [
+            ':condominium_id' => $condominiumId,
+            ':start_date' => $startDate,
+            ':end_date' => $endDate
+        ];
+
+        if (isset($filters['status'])) {
+            $sql .= " AND o.status = :status";
+            $params[':status'] = $filters['status'];
+        }
+
+        if (isset($filters['priority'])) {
+            $sql .= " AND o.priority = :priority";
+            $params[':priority'] = $filters['priority'];
+        }
+
+        if (isset($filters['category'])) {
+            $sql .= " AND o.category = :category";
+            $params[':category'] = $filters['category'];
+        }
+
+        $sql .= " ORDER BY o.created_at DESC";
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $occurrences = $stmt->fetchAll() ?: [];
+
+        // Calculate statistics
+        $stats = [
+            'total' => count($occurrences),
+            'by_status' => [],
+            'by_priority' => [],
+            'by_category' => [],
+            'average_resolution_time' => 0
+        ];
+
+        foreach ($occurrences as $occ) {
+            // Count by status
+            if (!isset($stats['by_status'][$occ['status']])) {
+                $stats['by_status'][$occ['status']] = 0;
+            }
+            $stats['by_status'][$occ['status']]++;
+
+            // Count by priority
+            if (!isset($stats['by_priority'][$occ['priority']])) {
+                $stats['by_priority'][$occ['priority']] = 0;
+            }
+            $stats['by_priority'][$occ['priority']]++;
+
+            // Count by category
+            if ($occ['category']) {
+                if (!isset($stats['by_category'][$occ['category']])) {
+                    $stats['by_category'][$occ['category']] = 0;
+                }
+                $stats['by_category'][$occ['category']]++;
+            }
+        }
+
+        // Calculate average resolution time
+        $stmt = $db->prepare("
+            SELECT AVG(DATEDIFF(completed_at, created_at)) as avg_days
+            FROM occurrences
+            WHERE condominium_id = :condominium_id
+            AND DATE(created_at) BETWEEN :start_date AND :end_date
+            AND status = 'completed'
+            AND completed_at IS NOT NULL
+        ");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':start_date' => $startDate,
+            ':end_date' => $endDate
+        ]);
+        $result = $stmt->fetch();
+        $stats['average_resolution_time'] = round($result['avg_days'] ?? 0, 1);
+
+        return [
+            'occurrences' => $occurrences,
+            'stats' => $stats,
+            'start_date' => $startDate,
+            'end_date' => $endDate
+        ];
+    }
+
+    /**
+     * Generate occurrence report by supplier
+     */
+    public function generateOccurrenceBySupplierReport(int $condominiumId, string $startDate, string $endDate): array
+    {
+        global $db;
+        if (!$db) {
+            return [];
+        }
+
+        $sql = "
+            SELECT s.id, s.name,
+                   COUNT(o.id) as total_occurrences,
+                   SUM(CASE WHEN o.status = 'completed' THEN 1 ELSE 0 END) as completed_count,
+                   AVG(CASE WHEN o.status = 'completed' AND o.completed_at IS NOT NULL 
+                       THEN DATEDIFF(o.completed_at, o.created_at) ELSE NULL END) as avg_resolution_days
+            FROM suppliers s
+            INNER JOIN occurrences o ON o.supplier_id = s.id
+            WHERE s.condominium_id = :condominium_id
+            AND DATE(o.created_at) BETWEEN :start_date AND :end_date
+            GROUP BY s.id, s.name
+            ORDER BY total_occurrences DESC
+        ";
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':start_date' => $startDate,
+            ':end_date' => $endDate
+        ]);
+
+        return $stmt->fetchAll() ?: [];
     }
 }
 

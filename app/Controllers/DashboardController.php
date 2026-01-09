@@ -116,6 +116,78 @@ class DashboardController extends Controller
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['open_occurrences'] = $result['count'] ?? 0;
+
+            // Occurrence statistics
+            $occurrenceStats = [
+                'total' => 0,
+                'by_status' => [],
+                'by_priority' => [],
+                'by_category' => [],
+                'recent' => [],
+                'average_resolution_time' => 0
+            ];
+
+            // Total occurrences
+            $stmt = $db->prepare("SELECT COUNT(*) as count FROM occurrences WHERE condominium_id IN ($placeholders)");
+            $stmt->execute($condominiumIds);
+            $result = $stmt->fetch();
+            $occurrenceStats['total'] = $result['count'] ?? 0;
+
+            // By status
+            $stmt = $db->prepare("
+                SELECT status, COUNT(*) as count
+                FROM occurrences
+                WHERE condominium_id IN ($placeholders)
+                GROUP BY status
+            ");
+            $stmt->execute($condominiumIds);
+            $occurrenceStats['by_status'] = $stmt->fetchAll() ?: [];
+
+            // By priority
+            $stmt = $db->prepare("
+                SELECT priority, COUNT(*) as count
+                FROM occurrences
+                WHERE condominium_id IN ($placeholders)
+                GROUP BY priority
+            ");
+            $stmt->execute($condominiumIds);
+            $occurrenceStats['by_priority'] = $stmt->fetchAll() ?: [];
+
+            // By category
+            $stmt = $db->prepare("
+                SELECT category, COUNT(*) as count
+                FROM occurrences
+                WHERE condominium_id IN ($placeholders) AND category IS NOT NULL
+                GROUP BY category
+                ORDER BY count DESC
+                LIMIT 5
+            ");
+            $stmt->execute($condominiumIds);
+            $occurrenceStats['by_category'] = $stmt->fetchAll() ?: [];
+
+            // Recent occurrences (last 5)
+            $occurrenceModel = new \App\Models\Occurrence();
+            $recentOccurrences = [];
+            foreach ($condominiumIds as $condominiumId) {
+                $occurrences = $occurrenceModel->getByCondominium($condominiumId, ['limit' => 5]);
+                $recentOccurrences = array_merge($recentOccurrences, $occurrences);
+            }
+            usort($recentOccurrences, function($a, $b) {
+                return strtotime($b['created_at']) - strtotime($a['created_at']);
+            });
+            $occurrenceStats['recent'] = array_slice($recentOccurrences, 0, 5);
+
+            // Average resolution time (in days)
+            $stmt = $db->prepare("
+                SELECT AVG(DATEDIFF(completed_at, created_at)) as avg_days
+                FROM occurrences
+                WHERE condominium_id IN ($placeholders)
+                AND status = 'completed'
+                AND completed_at IS NOT NULL
+            ");
+            $stmt->execute($condominiumIds);
+            $result = $stmt->fetch();
+            $occurrenceStats['average_resolution_time'] = round($result['avg_days'] ?? 0, 1);
             
             // Get financial statistics for current year
             $currentYear = date('Y');
@@ -287,6 +359,14 @@ class DashboardController extends Controller
             'condominiums' => $condominiums,
             'recent_documents' => $recentDocuments,
             'document_stats' => $documentStats,
+            'occurrence_stats' => $occurrenceStats ?? [
+                'total' => 0,
+                'by_status' => [],
+                'by_priority' => [],
+                'by_category' => [],
+                'recent' => [],
+                'average_resolution_time' => 0
+            ],
             'user' => AuthMiddleware::user()
         ];
 

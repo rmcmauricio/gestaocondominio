@@ -172,6 +172,98 @@
             </form>
         </div>
     </div>
+
+    <!-- Occurrence Reports Section -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">Relatórios de Ocorrências</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="card border-primary">
+                        <div class="card-body">
+                            <h6 class="card-title">Relatório de Ocorrências</h6>
+                            <p class="text-muted small">Relatório detalhado de ocorrências por período</p>
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/occurrences">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label for="occ_start_date" class="form-label small">Data Início</label>
+                                        <input type="date" class="form-control form-control-sm" id="occ_start_date" name="start_date" value="{{ current_year }}-01-01" required>
+                                    </div>
+                                    <div class="col-6">
+                                        <label for="occ_end_date" class="form-label small">Data Fim</label>
+                                        <input type="date" class="form-control form-control-sm" id="occ_end_date" name="end_date" value="{{ current_year }}-12-31" required>
+                                    </div>
+                                </div>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-4">
+                                        <label for="occ_status" class="form-label small">Estado</label>
+                                        <select class="form-select form-select-sm" id="occ_status" name="status">
+                                            <option value="">Todos</option>
+                                            <option value="open">Abertas</option>
+                                            <option value="completed">Resolvidas</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-4">
+                                        <label for="occ_priority" class="form-label small">Prioridade</label>
+                                        <select class="form-select form-select-sm" id="occ_priority" name="priority">
+                                            <option value="">Todas</option>
+                                            <option value="urgent">Urgente</option>
+                                            <option value="high">Alta</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-4">
+                                        <label for="occ_category" class="form-label small">Categoria</label>
+                                        <input type="text" class="form-control form-control-sm" id="occ_category" name="category" placeholder="Opcional">
+                                    </div>
+                                </div>
+                                <div class="btn-group w-100" role="group">
+                                    <button type="submit" name="export" value="html" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-eye"></i> Ver
+                                    </button>
+                                    <button type="submit" name="export" value="excel" class="btn btn-outline-success btn-sm">
+                                        <i class="bi bi-file-excel"></i> Excel
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card border-info">
+                        <div class="card-body">
+                            <h6 class="card-title">Relatório por Fornecedor</h6>
+                            <p class="text-muted small">Análise de ocorrências por fornecedor</p>
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/occurrences-by-supplier">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label for="supp_start_date" class="form-label small">Data Início</label>
+                                        <input type="date" class="form-control form-control-sm" id="supp_start_date" name="start_date" value="{{ current_year }}-01-01" required>
+                                    </div>
+                                    <div class="col-6">
+                                        <label for="supp_end_date" class="form-label small">Data Fim</label>
+                                        <input type="date" class="form-control form-control-sm" id="supp_end_date" name="end_date" value="{{ current_year }}-12-31" required>
+                                    </div>
+                                </div>
+                                <div class="btn-group w-100" role="group">
+                                    <button type="submit" name="export" value="html" class="btn btn-outline-info btn-sm">
+                                        <i class="bi bi-eye"></i> Ver
+                                    </button>
+                                    <button type="submit" name="export" value="excel" class="btn btn-outline-success btn-sm">
+                                        <i class="bi bi-file-excel"></i> Excel
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 

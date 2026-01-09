@@ -693,6 +693,207 @@ class ReportController extends Controller
         
         fclose($output);
     }
+
+    public function occurrenceReport(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports');
+            exit;
+        }
+
+        $startDate = $_POST['start_date'] ?? date('Y-01-01');
+        $endDate = $_POST['end_date'] ?? date('Y-12-31');
+        $status = $_POST['status'] ?? null;
+        $priority = $_POST['priority'] ?? null;
+        $category = $_POST['category'] ?? null;
+        $export = $_POST['export'] ?? 'html';
+
+        $filters = [];
+        if ($status) $filters['status'] = $status;
+        if ($priority) $filters['priority'] = $priority;
+        if ($category) $filters['category'] = $category;
+
+        $report = $this->reportService->generateOccurrenceReport($condominiumId, $startDate, $endDate, $filters);
+
+        if ($export === 'excel') {
+            $this->exportOccurrenceToExcel($report, $startDate, $endDate);
+            exit;
+        }
+
+        header('Content-Type: text/html; charset=utf-8');
+        echo $this->renderOccurrenceReportHtml($condominiumId, $report);
+        exit;
+    }
+
+    public function occurrenceBySupplierReport(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports');
+            exit;
+        }
+
+        $startDate = $_POST['start_date'] ?? date('Y-01-01');
+        $endDate = $_POST['end_date'] ?? date('Y-12-31');
+        $export = $_POST['export'] ?? 'html';
+
+        $report = $this->reportService->generateOccurrenceBySupplierReport($condominiumId, $startDate, $endDate);
+
+        if ($export === 'excel') {
+            $this->exportOccurrenceBySupplierToExcel($report, $startDate, $endDate);
+            exit;
+        }
+
+        header('Content-Type: text/html; charset=utf-8');
+        echo $this->renderOccurrenceBySupplierReportHtml($condominiumId, $report, $startDate, $endDate);
+        exit;
+    }
+
+    protected function renderOccurrenceReportHtml(int $condominiumId, array $report): string
+    {
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        
+        $html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Relatório de Ocorrências</title>';
+        $html .= '<style>body{font-family:Arial,sans-serif;margin:20px;}table{border-collapse:collapse;width:100%;margin-top:20px;}th,td{border:1px solid #ddd;padding:8px;text-align:left;}th{background-color:#f2f2f2;}</style>';
+        $html .= '</head><body>';
+        $html .= '<h1>Relatório de Ocorrências</h1>';
+        $html .= '<p><strong>Condomínio:</strong> ' . htmlspecialchars($condominium['name'] ?? '') . '</p>';
+        $html .= '<p><strong>Período:</strong> ' . date('d/m/Y', strtotime($report['start_date'])) . ' a ' . date('d/m/Y', strtotime($report['end_date'])) . '</p>';
+        
+        $html .= '<h2>Estatísticas</h2>';
+        $html .= '<p><strong>Total:</strong> ' . $report['stats']['total'] . '</p>';
+        $html .= '<p><strong>Tempo Médio de Resolução:</strong> ' . $report['stats']['average_resolution_time'] . ' dias</p>';
+        
+        if (!empty($report['stats']['by_status'])) {
+            $html .= '<h3>Por Estado</h3><ul>';
+            foreach ($report['stats']['by_status'] as $status => $count) {
+                $html .= '<li>' . ucfirst(str_replace('_', ' ', $status)) . ': ' . $count . '</li>';
+            }
+            $html .= '</ul>';
+        }
+        
+        $html .= '<h2>Ocorrências</h2>';
+        $html .= '<table><thead><tr><th>Título</th><th>Categoria</th><th>Prioridade</th><th>Estado</th><th>Reportado por</th><th>Data</th></tr></thead><tbody>';
+        
+        foreach ($report['occurrences'] as $occ) {
+            $html .= '<tr>';
+            $html .= '<td>' . htmlspecialchars($occ['title']) . '</td>';
+            $html .= '<td>' . htmlspecialchars($occ['category'] ?? '-') . '</td>';
+            $html .= '<td>' . ucfirst($occ['priority']) . '</td>';
+            $html .= '<td>' . ucfirst(str_replace('_', ' ', $occ['status'])) . '</td>';
+            $html .= '<td>' . htmlspecialchars($occ['reported_by_name'] ?? '-') . '</td>';
+            $html .= '<td>' . date('d/m/Y', strtotime($occ['created_at'])) . '</td>';
+            $html .= '</tr>';
+        }
+        
+        $html .= '</tbody></table></body></html>';
+        return $html;
+    }
+
+    protected function renderOccurrenceBySupplierReportHtml(int $condominiumId, array $report, string $startDate, string $endDate): string
+    {
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        
+        $html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Relatório de Ocorrências por Fornecedor</title>';
+        $html .= '<style>body{font-family:Arial,sans-serif;margin:20px;}table{border-collapse:collapse;width:100%;margin-top:20px;}th,td{border:1px solid #ddd;padding:8px;text-align:left;}th{background-color:#f2f2f2;}</style>';
+        $html .= '</head><body>';
+        $html .= '<h1>Relatório de Ocorrências por Fornecedor</h1>';
+        $html .= '<p><strong>Condomínio:</strong> ' . htmlspecialchars($condominium['name'] ?? '') . '</p>';
+        $html .= '<p><strong>Período:</strong> ' . date('d/m/Y', strtotime($startDate)) . ' a ' . date('d/m/Y', strtotime($endDate)) . '</p>';
+        
+        $html .= '<table><thead><tr><th>Fornecedor</th><th>Total de Ocorrências</th><th>Resolvidas</th><th>Tempo Médio de Resolução (dias)</th></tr></thead><tbody>';
+        
+        foreach ($report as $supplier) {
+            $html .= '<tr>';
+            $html .= '<td>' . htmlspecialchars($supplier['name']) . '</td>';
+            $html .= '<td>' . $supplier['total_occurrences'] . '</td>';
+            $html .= '<td>' . $supplier['completed_count'] . '</td>';
+            $html .= '<td>' . ($supplier['avg_resolution_days'] ? round($supplier['avg_resolution_days'], 1) : '-') . '</td>';
+            $html .= '</tr>';
+        }
+        
+        $html .= '</tbody></table></body></html>';
+        return $html;
+    }
+
+    protected function exportOccurrenceToExcel(array $report, string $startDate, string $endDate): void
+    {
+        $filename = "relatorio_ocorrencias_" . date('Y-m-d') . ".csv";
+        
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        
+        $output = fopen('php://output', 'w');
+        
+        fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+        
+        fputcsv($output, ['Relatório de Ocorrências'], ';');
+        fputcsv($output, ['Período: ' . date('d/m/Y', strtotime($startDate)) . ' a ' . date('d/m/Y', strtotime($endDate))], ';');
+        fputcsv($output, [], ';');
+        fputcsv($output, ['Título', 'Categoria', 'Prioridade', 'Estado', 'Reportado por', 'Atribuído a', 'Fornecedor', 'Data'], ';');
+        
+        foreach ($report['occurrences'] as $occ) {
+            fputcsv($output, [
+                $occ['title'],
+                $occ['category'] ?? '',
+                ucfirst($occ['priority']),
+                ucfirst(str_replace('_', ' ', $occ['status'])),
+                $occ['reported_by_name'] ?? '',
+                $occ['assigned_to_name'] ?? '',
+                $occ['supplier_name'] ?? '',
+                date('d/m/Y', strtotime($occ['created_at']))
+            ], ';');
+        }
+        
+        fclose($output);
+    }
+
+    protected function exportOccurrenceBySupplierToExcel(array $report, string $startDate, string $endDate): void
+    {
+        $filename = "relatorio_ocorrencias_fornecedores_" . date('Y-m-d') . ".csv";
+        
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        
+        $output = fopen('php://output', 'w');
+        
+        fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+        
+        fputcsv($output, ['Relatório de Ocorrências por Fornecedor'], ';');
+        fputcsv($output, ['Período: ' . date('d/m/Y', strtotime($startDate)) . ' a ' . date('d/m/Y', strtotime($endDate))], ';');
+        fputcsv($output, [], ';');
+        fputcsv($output, ['Fornecedor', 'Total de Ocorrências', 'Resolvidas', 'Tempo Médio de Resolução (dias)'], ';');
+        
+        foreach ($report as $supplier) {
+            fputcsv($output, [
+                $supplier['name'],
+                $supplier['total_occurrences'],
+                $supplier['completed_count'],
+                $supplier['avg_resolution_days'] ? round($supplier['avg_resolution_days'], 1) : ''
+            ], ';');
+        }
+        
+        fclose($output);
+    }
 }
 
 
