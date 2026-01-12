@@ -13,6 +13,8 @@ use App\Models\Fee;
 use App\Models\FeePayment;
 use App\Models\Condominium;
 use App\Models\Revenue;
+use App\Models\BankAccount;
+use App\Models\FinancialTransaction;
 use App\Services\FeeService;
 
 class FinanceController extends Controller
@@ -65,6 +67,24 @@ class FinanceController extends Controller
             "{$currentYear}-12-31"
         );
 
+        // Get bank accounts and balances
+        $bankAccountModel = new BankAccount();
+        $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
+        
+        // Update balances
+        foreach ($bankAccounts as $account) {
+            $bankAccountModel->updateBalance($account['id']);
+        }
+        
+        // Refresh accounts with updated balances
+        $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
+        
+        // Calculate total balance
+        $totalBalance = 0;
+        foreach ($bankAccounts as $account) {
+            $totalBalance += (float)$account['current_balance'];
+        }
+
         $this->loadPageTranslations('finances');
         
         $this->data += [
@@ -77,6 +97,8 @@ class FinanceController extends Controller
             'expenses' => $expenses,
             'total_expenses' => $totalExpenses,
             'current_year' => $currentYear,
+            'bank_accounts' => $bankAccounts,
+            'total_balance' => $totalBalance,
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null,
             'user' => AuthMiddleware::user()
@@ -623,25 +645,108 @@ class FinanceController extends Controller
 
         try {
             $userId = AuthMiddleware::userId();
+            $transactionModel = new FinancialTransaction();
+            $bankAccountModel = new BankAccount();
             
-            // Create payment
-            $this->feePaymentModel->create([
-                'fee_id' => $feeId,
-                'amount' => $amount,
-                'payment_method' => $paymentMethod,
-                'payment_date' => $paymentDate,
-                'reference' => $reference,
-                'notes' => $notes,
-                'created_by' => $userId
-            ]);
-
-            // Check if fee is now fully paid
-            $newTotalPaid = $this->feePaymentModel->getTotalPaid($feeId);
-            if ($newTotalPaid >= (float)$fee['amount']) {
-                $this->feeModel->markAsPaid($feeId);
+            // Start transaction
+            global $db;
+            $db->beginTransaction();
+            
+            try {
+                $financialTransactionId = null;
+                $transactionAction = $_POST['transaction_action'] ?? 'create'; // 'create' or 'associate'
+                
+                if ($transactionAction === 'associate') {
+                    // Associate with existing transaction
+                    $existingTransactionId = (int)($_POST['existing_transaction_id'] ?? 0);
+                    if ($existingTransactionId > 0) {
+                        $existingTransaction = $transactionModel->findById($existingTransactionId);
+                        if ($existingTransaction && $existingTransaction['condominium_id'] == $condominiumId) {
+                            $financialTransactionId = $existingTransactionId;
+                        } else {
+                            throw new \Exception('Movimento financeiro não encontrado ou inválido.');
+                        }
+                    } else {
+                        throw new \Exception('Por favor, selecione um movimento financeiro existente.');
+                    }
+                } else {
+                    // Create new financial transaction
+                    $bankAccountId = (int)($_POST['bank_account_id'] ?? 0);
+                    
+                    if ($bankAccountId <= 0) {
+                        // Get cash account if no account selected
+                        $cashAccount = $bankAccountModel->getCashAccount($condominiumId);
+                        if (!$cashAccount) {
+                            $bankAccountId = $bankAccountModel->createCashAccount($condominiumId);
+                        } else {
+                            $bankAccountId = $cashAccount['id'];
+                        }
+                    } else {
+                        // Verify account belongs to condominium
+                        $account = $bankAccountModel->findById($bankAccountId);
+                        if (!$account || $account['condominium_id'] != $condominiumId) {
+                            throw new \Exception('Conta bancária inválida.');
+                        }
+                    }
+                    
+                    // Create financial transaction first
+                    $description = "Pagamento de quota";
+                    if ($reference) {
+                        $description .= " - Ref: " . $reference;
+                    }
+                    if ($notes) {
+                        $description .= " - " . $notes;
+                    }
+                    
+                    $financialTransactionId = $transactionModel->create([
+                        'condominium_id' => $condominiumId,
+                        'bank_account_id' => $bankAccountId,
+                        'transaction_type' => 'income',
+                        'amount' => $amount,
+                        'transaction_date' => $paymentDate,
+                        'description' => $description,
+                        'category' => 'Quotas',
+                        'reference' => $reference,
+                        'related_type' => 'fee_payment',
+                        'related_id' => null, // Will be set after payment creation
+                        'created_by' => $userId
+                    ]);
+                }
+                
+                // Create payment with transaction ID
+                $paymentId = $this->feePaymentModel->create([
+                    'fee_id' => $feeId,
+                    'financial_transaction_id' => $financialTransactionId,
+                    'amount' => $amount,
+                    'payment_method' => $paymentMethod,
+                    'payment_date' => $paymentDate,
+                    'reference' => $reference,
+                    'notes' => $notes,
+                    'created_by' => $userId
+                ]);
+                
+                // Update transaction with payment ID if it was created new
+                if ($transactionAction === 'create') {
+                    global $db;
+                    $stmt = $db->prepare("UPDATE financial_transactions SET related_id = :related_id WHERE id = :id");
+                    $stmt->execute([
+                        ':related_id' => $paymentId,
+                        ':id' => $financialTransactionId
+                    ]);
+                }
+                
+                // Check if fee is now fully paid
+                $newTotalPaid = $this->feePaymentModel->getTotalPaid($feeId);
+                if ($newTotalPaid >= (float)$fee['amount']) {
+                    $this->feeModel->markAsPaid($feeId);
+                }
+                
+                $db->commit();
+                $_SESSION['success'] = 'Pagamento registado com sucesso!';
+            } catch (\Exception $e) {
+                $db->rollBack();
+                throw $e;
             }
-
-            $_SESSION['success'] = 'Pagamento registado com sucesso!';
         } catch (\Exception $e) {
             $_SESSION['error'] = 'Erro ao registar pagamento: ' . $e->getMessage();
         }
@@ -849,6 +954,17 @@ class FinanceController extends Controller
             }
         }
 
+        // Get bank accounts for payment modal
+        $bankAccountModel = new BankAccount();
+        $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
+
+        // Get available transactions for association
+        $transactionModel = new FinancialTransaction();
+        $availableTransactions = $transactionModel->getByCondominium($condominiumId, [
+            'transaction_type' => 'income',
+            'limit' => 50
+        ]);
+
         $this->loadPageTranslations('finances');
         
         $this->data += [
@@ -863,6 +979,8 @@ class FinanceController extends Controller
             'selected_month' => $selectedMonth,
             'selected_status' => $selectedStatus,
             'show_historical' => $showHistorical,
+            'bank_accounts' => $bankAccounts,
+            'available_transactions' => $availableTransactions,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null,

@@ -4,46 +4,45 @@
       <img src="{{ BASE_URL }}assets/images/logo.svg" alt="MeuPrédio" class="logo-img">
     </a>
 
-    <button class="mobile-nav-toggle" aria-label="Toggle navigation" id="mobileNavToggle">
-      <i class="bi bi-list"></i>
-    </button>
+    <div class="header-actions">
+      {% if user %}
+      <!-- Sidebar toggle button for logged in users -->
+      <button class="btn btn-primary sidebar-toggle-header" onclick="toggleSidebar(); return false;" aria-label="Abrir menu" title="Abrir menu">
+        <i class="bi bi-list"></i>
+      </button>
+      {% else %}
+      <button class="mobile-nav-toggle" aria-label="Toggle navigation" id="mobileNavToggle">
+        <i class="bi bi-list"></i>
+      </button>
 
-    <nav id="navmenu" class="navmenu">
-      <ul>
-        <li><a href="{{ BASE_URL }}">Início</a></li>
-        {% if not user %}
-        <li><a href="{{ BASE_URL }}register" class="btn btn-outline-primary btn-sm">Criar Conta</a></li>
-        <li><a href="{{ BASE_URL }}login">Login</a></li>
-        {% else %}
-        <li>
-          <button class="btn btn-link text-white" onclick="toggleSidebar()" style="padding: 0.25rem 0.5rem;">
-            <i class="bi bi-list"></i>
-          </button>
-        </li>
-        <li><a href="{{ BASE_URL }}dashboard">Dashboard</a></li>
-        <li><a href="{{ BASE_URL }}logout">Sair</a></li>
-        {% endif %}
-        <li class="language-selector">
-          <div class="dropdown">
-            <button class="btn-language" type="button" id="languageDropdown" aria-expanded="false">
-              <i class="bi bi-globe"></i>
-              <span class="lang-code">{{ current_lang|default('pt')|upper }}</span>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="languageDropdown" style="display: none !important; opacity: 0; visibility: hidden;">
-              <li>
-                <a class="dropdown-item {% if (current_lang|default('pt')) == 'pt' %}active{% endif %}" href="{{ BASE_URL }}lang/pt">
-                  <span class="flag-icon">🇵🇹</span> Português
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item {% if (current_lang|default('pt')) == 'en' %}active{% endif %}" href="{{ BASE_URL }}lang/en">
-                  <span class="flag-icon">🇬🇧</span> English
-                </a>
-              </li>
-            </ul>
-          </div>
-        </li>
-      </ul>
-    </nav>
+      <nav id="navmenu" class="navmenu">
+        <ul>
+          <li><a href="{{ BASE_URL }}">Início</a></li>
+          <li><a href="{{ BASE_URL }}register" class="btn btn-outline-primary btn-sm">Criar Conta</a></li>
+          <li><a href="{{ BASE_URL }}login">Login</a></li>
+          <li class="language-selector">
+            <div class="dropdown">
+              <button class="btn-language" type="button" id="languageDropdown" aria-expanded="false">
+                <i class="bi bi-globe"></i>
+                <span class="lang-code">{{ current_lang|default('pt')|upper }}</span>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="languageDropdown" style="display: none !important; opacity: 0; visibility: hidden;">
+                <li>
+                  <a class="dropdown-item {% if (current_lang|default('pt')) == 'pt' %}active{% endif %}" href="{{ BASE_URL }}lang/pt">
+                    <span class="flag-icon">🇵🇹</span> Português
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item {% if (current_lang|default('pt')) == 'en' %}active{% endif %}" href="{{ BASE_URL }}lang/en">
+                    <span class="flag-icon">🇬🇧</span> English
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </li>
+        </ul>
+      </nav>
+      {% endif %}
+    </div>
   </div>
 </header>

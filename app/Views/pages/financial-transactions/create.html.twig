@@ -1,0 +1,136 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Criar Movimento Financeiro</h2>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0">Informações do Movimento</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        
+                        <div class="mb-3">
+                            <label for="bank_account_id" class="form-label">Conta Bancária <span class="text-danger">*</span></label>
+                            <select class="form-select" id="bank_account_id" name="bank_account_id" required>
+                                <option value="">Selecione uma conta...</option>
+                                {% for account in accounts %}
+                                <option value="{{ account.id }}" data-balance="{{ account.current_balance }}">
+                                    {{ account.name }} 
+                                    {% if account.account_type == 'cash' %}(Caixa){% endif %}
+                                    - Saldo: €{{ account.current_balance|number_format(2, ',', '.') }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="transaction_type" class="form-label">Tipo <span class="text-danger">*</span></label>
+                            <select class="form-select" id="transaction_type" name="transaction_type" required>
+                                <option value="">Selecione...</option>
+                                <option value="income">Entrada (Receita)</option>
+                                <option value="expense">Saída (Despesa)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="amount" class="form-label">Valor (€) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">€</span>
+                                <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0.01" required placeholder="0.00">
+                            </div>
+                            <small class="form-text text-muted" id="balance-warning" style="display: none; color: red;">
+                                Atenção: Saldo insuficiente!
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="transaction_date" class="form-label">Data <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="transaction_date" name="transaction_date" value="{{ "now"|date("Y-m-d") }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Descrição <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="description" name="description" rows="3" required placeholder="Descrição do movimento"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="category" class="form-label">Categoria</label>
+                            <input type="text" class="form-control" id="category" name="category" placeholder="Ex: Manutenção, Limpeza, Seguros">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="reference" class="form-label">Referência</label>
+                            <input type="text" class="form-control" id="reference" name="reference" placeholder="Ex: Número de transferência, referência">
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> Criar Movimento
+                            </button>
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" class="btn btn-secondary">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const accountSelect = document.getElementById('bank_account_id');
+    const transactionType = document.getElementById('transaction_type');
+    const amountInput = document.getElementById('amount');
+    const balanceWarning = document.getElementById('balance-warning');
+    const form = document.querySelector('form');
+
+    function checkBalance() {
+        const selectedOption = accountSelect.options[accountSelect.selectedIndex];
+        if (selectedOption.value && transactionType.value === 'expense') {
+            const balance = parseFloat(selectedOption.dataset.balance || 0);
+            const amount = parseFloat(amountInput.value || 0);
+            
+            if (amount > balance) {
+                balanceWarning.style.display = 'block';
+                balanceWarning.textContent = `Atenção: Saldo insuficiente! Saldo atual: €${balance.toFixed(2).replace('.', ',')}`;
+            } else {
+                balanceWarning.style.display = 'none';
+            }
+        } else {
+            balanceWarning.style.display = 'none';
+        }
+    }
+
+    accountSelect.addEventListener('change', checkBalance);
+    transactionType.addEventListener('change', checkBalance);
+    amountInput.addEventListener('input', checkBalance);
+
+    form.addEventListener('submit', function(e) {
+        if (transactionType.value === 'expense') {
+            const selectedOption = accountSelect.options[accountSelect.selectedIndex];
+            const balance = parseFloat(selectedOption.dataset.balance || 0);
+            const amount = parseFloat(amountInput.value || 0);
+            
+            if (amount > balance) {
+                e.preventDefault();
+                alert('Saldo insuficiente para esta operação!');
+                return false;
+            }
+        }
+    });
+});
+</script>

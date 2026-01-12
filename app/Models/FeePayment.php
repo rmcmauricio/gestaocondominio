@@ -18,9 +18,11 @@ class FeePayment extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT fp.*, u.name as created_by_name
+            SELECT fp.*, u.name as created_by_name, ft.id as transaction_id, ba.name as account_name
             FROM fee_payments fp
             LEFT JOIN users u ON u.id = fp.created_by
+            LEFT JOIN financial_transactions ft ON ft.id = fp.financial_transaction_id
+            LEFT JOIN bank_accounts ba ON ba.id = ft.bank_account_id
             WHERE fp.fee_id = :fee_id
             ORDER BY fp.payment_date DESC, fp.created_at DESC
         ");
@@ -60,15 +62,16 @@ class FeePayment extends Model
 
         $stmt = $this->db->prepare("
             INSERT INTO fee_payments (
-                fee_id, amount, payment_method, reference, payment_date, notes, created_by
+                fee_id, financial_transaction_id, amount, payment_method, reference, payment_date, notes, created_by
             )
             VALUES (
-                :fee_id, :amount, :payment_method, :reference, :payment_date, :notes, :created_by
+                :fee_id, :financial_transaction_id, :amount, :payment_method, :reference, :payment_date, :notes, :created_by
             )
         ");
 
         $stmt->execute([
             ':fee_id' => $data['fee_id'],
+            ':financial_transaction_id' => $data['financial_transaction_id'] ?? null,
             ':amount' => $data['amount'],
             ':payment_method' => $data['payment_method'],
             ':reference' => $data['reference'] ?? null,

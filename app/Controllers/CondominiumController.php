@@ -26,21 +26,10 @@ class CondominiumController extends Controller
 
     public function index()
     {
+        // Redirect to dashboard - dashboard now shows condominiums list
         AuthMiddleware::require();
-        RoleMiddleware::requireAnyRole(['admin', 'super_admin']);
-
-        $userId = AuthMiddleware::userId();
-        $condominiums = $this->condominiumModel->getByUserId($userId);
-
-        $this->loadPageTranslations('condominiums');
-        
-        $this->data += [
-            'viewName' => 'pages/condominiums/index.html.twig',
-            'page' => ['titulo' => 'Condomínios'],
-            'condominiums' => $condominiums
-        ];
-
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        header('Location: ' . BASE_URL . 'dashboard');
+        exit;
     }
 
     public function create()
@@ -133,12 +122,153 @@ class CondominiumController extends Controller
             exit;
         }
 
+        global $db;
+        
+        // Get bank accounts information
+        $bankAccountModel = new \App\Models\BankAccount();
+        
+        // Ensure cash account exists
+        $cashAccount = $bankAccountModel->getCashAccount($id);
+        if (!$cashAccount) {
+            $bankAccountModel->createCashAccount($id);
+        }
+        
+        $bankAccountsRaw = $bankAccountModel->getActiveAccounts($id);
+        $totalBankBalance = 0;
+        $currentAccountBalance = 0;
+        $bankAccounts = [];
+        $mainAccountIban = null; // IBAN da conta principal
+        
+        foreach ($bankAccountsRaw as $accountRaw) {
+            $bankAccountModel->updateBalance($accountRaw['id']);
+            $account = $bankAccountModel->findById($accountRaw['id']);
+            if ($account) {
+                $balance = (float)($account['current_balance'] ?? 0);
+                $totalBankBalance += $balance;
+                
+                // Check if it's a current account (conta à ordem)
+                if ($account['account_type'] === 'bank' && 
+                    (stripos($account['name'], 'ordem') !== false || 
+                     stripos($account['name'], 'corrente') !== false ||
+                     stripos($account['name'], 'principal') !== false)) {
+                    $currentAccountBalance += $balance;
+                    // Store IBAN of the first/main current account found
+                    if ($mainAccountIban === null && !empty($account['iban'])) {
+                        $mainAccountIban = $account['iban'];
+                    }
+                }
+                
+                $bankAccounts[] = $account;
+            }
+        }
+        
+        // If no IBAN found in current account, try to get from first bank account
+        if ($mainAccountIban === null) {
+            foreach ($bankAccounts as $account) {
+                if ($account['account_type'] === 'bank' && !empty($account['iban'])) {
+                    $mainAccountIban = $account['iban'];
+                    break;
+                }
+            }
+        }
+        
+        // Get condominium users (condóminos)
+        $stmt = $db->prepare("
+            SELECT 
+                cu.id,
+                cu.fraction_id,
+                cu.role,
+                cu.is_primary,
+                u.id as user_id,
+                u.name,
+                u.email,
+                u.phone,
+                f.identifier as fraction_identifier
+            FROM condominium_users cu
+            INNER JOIN users u ON u.id = cu.user_id
+            LEFT JOIN fractions f ON f.id = cu.fraction_id
+            WHERE cu.condominium_id = :condominium_id
+            AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+            ORDER BY cu.is_primary DESC, f.identifier ASC, u.name ASC
+        ");
+        $stmt->execute([':condominium_id' => $id]);
+        $condominiumUsers = $stmt->fetchAll() ?: [];
+        
+        // Get additional statistics
+        $stats = [
+            'total_residents' => count($condominiumUsers),
+            'total_bank_balance' => $totalBankBalance,
+            'current_account_balance' => $currentAccountBalance,
+            'total_bank_accounts' => count($bankAccounts)
+        ];
+        
+        // Count overdue fees
+        $stmt = $db->prepare("
+            SELECT COUNT(*) as count,
+                   COALESCE(SUM(f.amount - COALESCE((
+                       SELECT SUM(fp.amount) 
+                       FROM fee_payments fp 
+                       WHERE fp.fee_id = f.id
+                   ), 0)), 0) as total_amount
+            FROM fees f
+            WHERE f.condominium_id = :condominium_id
+            AND f.status = 'pending'
+            AND f.due_date < CURDATE()
+            AND COALESCE(f.is_historical, 0) = 0
+        ");
+        $stmt->execute([':condominium_id' => $id]);
+        $overdueResult = $stmt->fetch();
+        $stats['overdue_fees'] = $overdueResult['count'] ?? 0;
+        $stats['overdue_fees_amount'] = (float)($overdueResult['total_amount'] ?? 0);
+        
+        // Count open occurrences
+        $stmt = $db->prepare("
+            SELECT COUNT(*) as count 
+            FROM occurrences 
+            WHERE condominium_id = :condominium_id
+            AND status IN ('open', 'in_analysis', 'assigned')
+        ");
+        $stmt->execute([':condominium_id' => $id]);
+        $occurrenceResult = $stmt->fetch();
+        $stats['open_occurrences'] = $occurrenceResult['count'] ?? 0;
+        
+        // Count pending fees
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(f.amount - COALESCE((
+                SELECT SUM(fp.amount) 
+                FROM fee_payments fp 
+                WHERE fp.fee_id = f.id
+            ), 0)), 0) as total
+            FROM fees f
+            WHERE f.condominium_id = :condominium_id
+            AND f.status = 'pending'
+            AND COALESCE(f.is_historical, 0) = 0
+        ");
+        $stmt->execute([':condominium_id' => $id]);
+        $pendingResult = $stmt->fetch();
+        $stats['pending_fees_amount'] = (float)($pendingResult['total'] ?? 0);
+        
+        // Count paid fees
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(fp.amount), 0) as total
+            FROM fee_payments fp
+            INNER JOIN fees f ON f.id = fp.fee_id
+            WHERE f.condominium_id = :condominium_id
+        ");
+        $stmt->execute([':condominium_id' => $id]);
+        $paidResult = $stmt->fetch();
+        $stats['paid_fees_amount'] = (float)($paidResult['total'] ?? 0);
+
         $this->loadPageTranslations('condominiums');
         
         $this->data += [
             'viewName' => 'pages/condominiums/show.html.twig',
             'page' => ['titulo' => $condominium['name']],
-            'condominium' => $condominium
+            'condominium' => $condominium,
+            'bank_accounts' => $bankAccounts,
+            'condominium_users' => $condominiumUsers,
+            'stats' => $stats,
+            'main_account_iban' => $mainAccountIban
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -216,6 +346,9 @@ class CondominiumController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($id);
+
+        // Prevent deleting demo condominium
+        \App\Middleware\DemoProtectionMiddleware::preventDemoCondominiumDelete($id);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums');
