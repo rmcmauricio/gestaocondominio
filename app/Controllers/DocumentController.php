@@ -299,9 +299,26 @@ class DocumentController extends Controller
             exit;
         }
 
-        header('Content-Type: ' . $document['mime_type']);
-        header('Content-Disposition: attachment; filename="' . $document['file_name'] . '"');
+        // Determine correct MIME type
+        $mimeType = $document['mime_type'] ?? 'application/octet-stream';
+        $extension = pathinfo($document['file_name'] ?? $document['file_path'], PATHINFO_EXTENSION);
+        
+        // Override MIME type based on file extension if needed
+        if ($extension === 'pdf' && $mimeType !== 'application/pdf') {
+            $mimeType = 'application/pdf';
+        } elseif ($extension === 'html' && strpos($mimeType, 'html') === false) {
+            $mimeType = 'text/html';
+        }
+
+        // For PDFs, use inline display; for others, use attachment
+        $disposition = ($mimeType === 'application/pdf') ? 'inline' : 'attachment';
+        
+        header('Content-Type: ' . $mimeType);
+        header('Content-Disposition: ' . $disposition . '; filename="' . htmlspecialchars($document['file_name']) . '"');
         header('Content-Length: ' . filesize($filePath));
+        header('Cache-Control: private, max-age=0, must-revalidate');
+        header('Pragma: public');
+        
         readfile($filePath);
         exit;
     }

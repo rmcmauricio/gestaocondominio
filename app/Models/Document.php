@@ -162,37 +162,111 @@ class Document extends Model
             $version = $this->getNextVersion($parentDocumentId);
         }
 
-        $stmt = $this->db->prepare("
-            INSERT INTO documents (
-                condominium_id, fraction_id, folder, title, description,
-                file_path, file_name, file_size, mime_type, visibility,
-                document_type, version, parent_document_id, uploaded_by
-            )
-            VALUES (
-                :condominium_id, :fraction_id, :folder, :title, :description,
-                :file_path, :file_name, :file_size, :mime_type, :visibility,
-                :document_type, :version, :parent_document_id, :uploaded_by
-            )
-        ");
+        // Check if assembly_id and status columns exist
+        $stmt = $this->db->query("SHOW COLUMNS FROM documents LIKE 'assembly_id'");
+        $hasAssemblyId = $stmt->rowCount() > 0;
+        $stmt = $this->db->query("SHOW COLUMNS FROM documents LIKE 'status'");
+        $hasStatus = $stmt->rowCount() > 0;
 
-        $stmt->execute([
-            ':condominium_id' => $data['condominium_id'],
-            ':fraction_id' => $data['fraction_id'] ?? null,
-            ':folder' => $data['folder'] ?? null,
-            ':title' => $data['title'],
-            ':description' => $data['description'] ?? null,
-            ':file_path' => $data['file_path'],
-            ':file_name' => $data['file_name'],
-            ':file_size' => $data['file_size'] ?? null,
-            ':mime_type' => $data['mime_type'] ?? null,
-            ':visibility' => $data['visibility'] ?? 'condominos',
-            ':document_type' => $data['document_type'] ?? null,
-            ':version' => $version,
-            ':parent_document_id' => $parentDocumentId,
-            ':uploaded_by' => $data['uploaded_by']
-        ]);
+        if ($hasAssemblyId && $hasStatus) {
+            $stmt = $this->db->prepare("
+                INSERT INTO documents (
+                    condominium_id, assembly_id, fraction_id, folder, title, description,
+                    file_path, file_name, file_size, mime_type, visibility,
+                    document_type, status, version, parent_document_id, uploaded_by
+                )
+                VALUES (
+                    :condominium_id, :assembly_id, :fraction_id, :folder, :title, :description,
+                    :file_path, :file_name, :file_size, :mime_type, :visibility,
+                    :document_type, :status, :version, :parent_document_id, :uploaded_by
+                )
+            ");
+
+            $stmt->execute([
+                ':condominium_id' => $data['condominium_id'],
+                ':assembly_id' => $data['assembly_id'] ?? null,
+                ':fraction_id' => $data['fraction_id'] ?? null,
+                ':folder' => $data['folder'] ?? null,
+                ':title' => $data['title'],
+                ':description' => $data['description'] ?? null,
+                ':file_path' => $data['file_path'],
+                ':file_name' => $data['file_name'],
+                ':file_size' => $data['file_size'] ?? null,
+                ':mime_type' => $data['mime_type'] ?? null,
+                ':visibility' => $data['visibility'] ?? 'condominos',
+                ':document_type' => $data['document_type'] ?? null,
+                ':status' => $data['status'] ?? 'draft',
+                ':version' => $version,
+                ':parent_document_id' => $parentDocumentId,
+                ':uploaded_by' => $data['uploaded_by']
+            ]);
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO documents (
+                    condominium_id, fraction_id, folder, title, description,
+                    file_path, file_name, file_size, mime_type, visibility,
+                    document_type, version, parent_document_id, uploaded_by
+                )
+                VALUES (
+                    :condominium_id, :fraction_id, :folder, :title, :description,
+                    :file_path, :file_name, :file_size, :mime_type, :visibility,
+                    :document_type, :version, :parent_document_id, :uploaded_by
+                )
+            ");
+
+            $stmt->execute([
+                ':condominium_id' => $data['condominium_id'],
+                ':fraction_id' => $data['fraction_id'] ?? null,
+                ':folder' => $data['folder'] ?? null,
+                ':title' => $data['title'],
+                ':description' => $data['description'] ?? null,
+                ':file_path' => $data['file_path'],
+                ':file_name' => $data['file_name'],
+                ':file_size' => $data['file_size'] ?? null,
+                ':mime_type' => $data['mime_type'] ?? null,
+                ':visibility' => $data['visibility'] ?? 'condominos',
+                ':document_type' => $data['document_type'] ?? null,
+                ':version' => $version,
+                ':parent_document_id' => $parentDocumentId,
+                ':uploaded_by' => $data['uploaded_by']
+            ]);
+        }
 
         return (int)$this->db->lastInsertId();
+    }
+
+    /**
+     * Get documents by assembly ID
+     */
+    public function getByAssemblyId(int $assemblyId, array $filters = []): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $sql = "SELECT d.*, u.name as uploaded_by_name, f.identifier as fraction_identifier
+                FROM documents d
+                LEFT JOIN users u ON u.id = d.uploaded_by
+                LEFT JOIN fractions f ON f.id = d.fraction_id
+                WHERE d.assembly_id = :assembly_id";
+
+        $params = [':assembly_id' => $assemblyId];
+
+        if (isset($filters['document_type'])) {
+            $sql .= " AND d.document_type = :document_type";
+            $params[':document_type'] = $filters['document_type'];
+        }
+
+        if (isset($filters['status'])) {
+            $sql .= " AND d.status = :status";
+            $params[':status'] = $filters['status'];
+        }
+
+        $sql .= " ORDER BY d.created_at DESC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll() ?: [];
     }
 
     /**
@@ -221,7 +295,14 @@ class Document extends Model
         $fields = [];
         $params = [':id' => $id];
 
+        // Check if status column exists
+        $stmt = $this->db->query("SHOW COLUMNS FROM documents LIKE 'status'");
+        $hasStatus = $stmt->rowCount() > 0;
+
         $allowedFields = ['title', 'description', 'folder', 'document_type', 'visibility', 'fraction_id'];
+        if ($hasStatus) {
+            $allowedFields[] = 'status';
+        }
         
         foreach ($allowedFields as $field) {
             if (isset($data[$field])) {

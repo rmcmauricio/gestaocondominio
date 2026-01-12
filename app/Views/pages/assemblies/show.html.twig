@@ -20,8 +20,159 @@
     </div>
     {% endif %}
 
+    {% if info %}
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        {{ info }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {# Seção de Ações no Topo #}
+    <div class="card shadow-sm mb-4 border-0" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        <div class="card-body text-white">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-lightning-charge-fill"></i> Ações Rápidas
+                </h5>
+                <span class="badge bg-light text-dark">
+                    {% if assembly.status == 'scheduled' %}Agendada
+                    {% elseif assembly.status == 'in_progress' %}Em Andamento
+                    {% elseif assembly.status == 'closed' %}Encerrada
+                    {% elseif assembly.status == 'completed' %}Concluída
+                    {% else %}Cancelada{% endif %}
+                </span>
+            </div>
+            
+            <div class="row g-3">
+                {% if assembly.status == 'scheduled' %}
+                <div class="col-md-6 col-lg-3">
+                    <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/edit" class="btn btn-light w-100">
+                        <i class="bi bi-pencil"></i> Editar
+                    </a>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/send-convocation" class="d-inline w-100">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-light w-100">
+                            <i class="bi bi-envelope"></i> Enviar Convocatórias
+                        </button>
+                    </form>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/start" class="d-inline w-100">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-light w-100" onclick="return confirm('Tem certeza que deseja iniciar esta assembleia?');">
+                            <i class="bi bi-play-circle"></i> Iniciar
+                        </button>
+                    </form>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/cancel" class="d-inline w-100">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-light w-100" onclick="return confirm('Tem certeza que deseja cancelar esta assembleia?');">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </button>
+                    </form>
+                </div>
+                {% elseif assembly.status == 'in_progress' %}
+                <div class="col-12">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/close">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label for="minutes" class="form-label text-white">Resumo/Atas</label>
+                                <textarea class="form-control" id="minutes" name="minutes" rows="3" placeholder="Resumo da assembleia..."></textarea>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-light w-100" onclick="return confirm('Tem certeza que deseja encerrar esta assembleia?');">
+                                    <i class="bi bi-stop-circle"></i> Encerrar Assembleia
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                {% elseif assembly.status == 'closed' or assembly.status == 'completed' %}
+                <div class="col-12">
+                    <div class="row g-2">
+                        {% if minutes_template or approved_minutes %}
+                        <div class="col-md-6 col-lg-3">
+                            <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes/view" class="btn btn-light w-100" target="_blank">
+                                <i class="bi bi-file-text"></i> Ver Ata
+                            </a>
+                        </div>
+                        {% endif %}
+                        
+                        {% if minutes_template %}
+                        <div class="col-md-6 col-lg-3">
+                            <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/edit" class="btn btn-light w-100">
+                                <i class="bi bi-pencil-square"></i> Editar Template
+                            </a>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/signatures" class="btn btn-light w-100">
+                                <i class="bi bi-pen"></i> Gerir Assinaturas
+                            </a>
+                        </div>
+                        {% else %}
+                        <div class="col-md-6 col-lg-3">
+                            <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/generate" class="btn btn-light w-100" onclick="return confirm('Deseja gerar o template de atas para esta assembleia?');">
+                                <i class="bi bi-file-earmark-plus"></i> Gerar Template
+                            </a>
+                        </div>
+                        {% endif %}
+                        
+                        {% if approved_minutes %}
+                        <div class="col-md-6 col-lg-3">
+                            <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/documents/{{ approved_minutes.id }}/download" class="btn btn-light w-100" target="_blank">
+                                <i class="bi bi-download"></i> Descarregar PDF
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    {% if minutes_template %}
+                    <div class="mt-3 pt-3 border-top border-light border-opacity-25">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-6">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge {% if minutes_template.status == 'approved' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                        {% if minutes_template.status == 'approved' %}Aprovado{% else %}Rascunho{% endif %}
+                                    </span>
+                                    {% if signature_stats %}
+                                    <span class="text-white-50">
+                                        <i class="bi bi-pen"></i> 
+                                        Assinaturas: <strong>{{ signature_stats.signed }}/{{ signature_stats.total }}</strong>
+                                        {% if signature_stats.pending > 0 %}
+                                            <span class="badge bg-warning text-dark ms-1">{{ signature_stats.pending }} pendente(s)</span>
+                                        {% else %}
+                                            <span class="badge bg-success ms-1">Todas assinadas</span>
+                                        {% endif %}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% if (not signature_stats or signature_stats.signed == 0) %}
+                            <div class="col-md-6">
+                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/change-status" class="d-inline w-100">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="status" value="in_progress">
+                                    <button type="submit" class="btn btn-outline-light w-100" onclick="return confirm('Tem certeza que deseja reabrir esta assembleia para edição?');">
+                                        <i class="bi bi-arrow-counterclockwise"></i> Reabrir para Edição
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
     <div class="row">
-        <div class="col-lg-8">
+        <div class="col-12">
             <div class="card shadow-sm mb-4">
                 <div class="card-header">
                     <div class="d-flex justify-content-between align-items-center">
@@ -29,7 +180,7 @@
                         <span class="badge 
                             {% if assembly.status == 'scheduled' %}bg-primary
                             {% elseif assembly.status == 'in_progress' %}bg-info
-                            {% elseif assembly.status == 'closed' %}bg-success
+                            {% elseif assembly.status == 'closed' or assembly.status == 'completed' %}bg-success
                             {% else %}bg-secondary{% endif %}">
                             {{ assembly.status|replace({'_': ' '})|title }}
                         </span>
@@ -37,7 +188,7 @@
                 </div>
                 <div class="card-body">
                     <p><strong>Descrição:</strong></p>
-                    <p>{{ assembly.description }}</p>
+                    <p>{{ assembly.description ?? assembly.agenda ?? 'Sem descrição' }}</p>
 
                     <div class="row mb-3">
                         <div class="col-md-6">
@@ -64,91 +215,503 @@
 
             <div class="card shadow-sm mb-4">
                 <div class="card-header">
-                    <h6 class="mb-0">Presenças</h6>
+                    <h6 class="mb-0">Registo de Presenças</h6>
                 </div>
                 <div class="card-body">
-                    {% if attendees %}
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Fração</th>
-                                    <th>Condómino</th>
-                                    <th>Tipo</th>
-                                    <th>Permilagem</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for attendee in attendees %}
-                                <tr>
-                                    <td>{{ attendee.fraction_identifier }}</td>
-                                    <td>{{ attendee.user_name }}</td>
-                                    <td>
-                                        <span class="badge {% if attendee.attendance_type == 'proxy' %}bg-warning{% else %}bg-success{% endif %}">
-                                            {% if attendee.attendance_type == 'proxy' %}Procuração{% else %}Presente{% endif %}
-                                        </span>
-                                    </td>
-                                    <td>{{ attendee.fraction_millage }}‰</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+                    {% if assembly.status != 'closed' and assembly.status != 'completed' %}
+                    <form id="attendance-form" method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/attendance">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 50px;">Presente</th>
+                                        <th>Fração</th>
+                                        <th>Permilagem</th>
+                                        <th>Tipo</th>
+                                        <th>Condómino</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for fraction in fractions %}
+                                    {% set status = attendance_status[fraction.id] ?? null %}
+                                    {% set isPresent = status and (status.type == 'present' or status.type == 'proxy') %}
+                                    {% set currentType = status ? status.type : 'absent' %}
+                                    <tr class="{% if isPresent %}table-success{% endif %}">
+                                        <td>
+                                            <div class="form-check">
+                                                <input class="form-check-input attendance-checkbox" 
+                                                       type="checkbox" 
+                                                       id="attendance_{{ fraction.id }}"
+                                                       {% if isPresent %}checked{% endif %}
+                                                       onchange="toggleAttendanceType({{ fraction.id }})">
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <label for="attendance_{{ fraction.id }}" class="form-label mb-0 cursor-pointer">
+                                                <strong>{{ fraction.identifier }}</strong>
+                                            </label>
+                                        </td>
+                                        <td>{{ fraction.permillage }}‰</td>
+                                        <td>
+                                            {# Hidden input to ensure value is always sent, even when select is disabled #}
+                                            <input type="hidden" 
+                                                   name="bulk_attendances[{{ fraction.id }}][type]" 
+                                                   id="hidden_type_{{ fraction.id }}"
+                                                   value="{{ currentType }}">
+                                            <select class="form-select form-select-sm attendance-type" 
+                                                    id="type_{{ fraction.id }}"
+                                                    {% if not isPresent %}disabled{% endif %}
+                                                    required>
+                                                <option value="absent" {% if currentType == 'absent' %}selected{% endif %}>Ausente</option>
+                                                <option value="present" {% if currentType == 'present' %}selected{% endif %}>Presente</option>
+                                                <option value="proxy" {% if currentType == 'proxy' %}selected{% endif %}>Por Procuração</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            {% if status %}
+                                                <small class="text-muted">{{ status.user_name }}</small>
+                                            {% else %}
+                                                <small class="text-muted">-</small>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i> 
+                                Marque as frações que estiveram presentes. Apenas frações presentes podem votar.
+                            </small>
+                        </div>
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Guardar Presenças
+                            </button>
+                        </div>
+                    </form>
                     {% else %}
-                    <p class="text-muted">Nenhuma presença registada ainda.</p>
+                        {# Show read-only list when assembly is closed #}
+                        {% if attendees %}
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Fração</th>
+                                        <th>Condómino</th>
+                                        <th>Tipo</th>
+                                        <th>Permilagem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for attendee in attendees %}
+                                    <tr>
+                                        <td>{{ attendee.fraction_identifier }}</td>
+                                        <td>{{ attendee.user_name }}</td>
+                                        <td>
+                                            <span class="badge {% if attendee.attendance_type == 'proxy' %}bg-warning{% else %}bg-success{% endif %}">
+                                                {% if attendee.attendance_type == 'proxy' %}Procuração{% else %}Presente{% endif %}
+                                            </span>
+                                        </td>
+                                        <td>{{ attendee.fraction_millage }}‰</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-muted">Nenhuma presença registada.</p>
+                        {% endif %}
                     {% endif %}
                 </div>
             </div>
-        </div>
 
-        <div class="col-lg-4">
+            {# Vote Topics Section #}
             <div class="card shadow-sm mb-4">
-                <div class="card-header">
-                    <h6 class="mb-0">Ações</h6>
-                </div>
-                <div class="card-body">
-                    {% if assembly.status == 'scheduled' %}
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/send-convocation" class="mb-3">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="bi bi-envelope"></i> Enviar Convocatórias
-                        </button>
-                    </form>
-                    {% endif %}
-
-                    {% if assembly.status != 'closed' %}
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/attendance" class="mb-3">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <div class="mb-3">
-                            <label for="fraction_id" class="form-label">Registar Presença</label>
-                            <select class="form-select" id="fraction_id" name="fraction_id" required>
-                                <option value="">Selecione uma fração...</option>
-                                {% for fraction in fractions %}
-                                <option value="{{ fraction.id }}">{{ fraction.identifier }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="attendance_type" class="form-label">Tipo</label>
-                            <select class="form-select" id="attendance_type" name="attendance_type">
-                                <option value="present">Presente</option>
-                                <option value="proxy">Por Procuração</option>
-                            </select>
-                        </div>
-                        <button type="submit" class="btn btn-outline-primary w-100">Registar</button>
-                    </form>
-                    {% endif %}
-
-                    {% if assembly.status == 'closed' %}
-                    <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes" class="btn btn-outline-success w-100">
-                        <i class="bi bi-file-text"></i> Gerar Atas
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">Tópicos de Votação</h6>
+                    {% if assembly.status != 'closed' and assembly.status != 'completed' %}
+                    <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/create-topic" class="btn btn-sm btn-primary">
+                        <i class="bi bi-plus-circle"></i> Novo Tópico
                     </a>
                     {% endif %}
                 </div>
+                <div class="card-body">
+                    {% if topics %}
+                        {% for item in topics %}
+                        {% set topic = item.topic %}
+                        {% set results = item.results %}
+                        {% set votes = item.votes %}
+                        {% set votedFractions = item.voted_fractions %}
+                        {% set availableFractions = item.available_fractions %}
+                        
+                        <div class="card mb-3 {% if not topic.is_active %}bg-light{% endif %}">
+                            <div class="card-header">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">{{ topic.title }}</h6>
+                                        {% if topic.description %}
+                                        <small class="text-muted">{{ topic.description }}</small>
+                                        {% endif %}
+                                    </div>
+                                    <div class="text-end">
+                                        {% if topic.voting_started_at %}
+                                            {% if topic.voting_ended_at %}
+                                                <span class="badge bg-secondary">Encerrada</span>
+                                            {% else %}
+                                                <span class="badge bg-success">Em Votação</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="badge bg-warning">Aguardando</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                {% if topic.voting_started_at and not topic.voting_ended_at %}
+                                    {# Bulk Voting Form #}
+                                    {% if item.present_fractions|length > 0 %}
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/bulk" class="mb-3" id="vote-form-{{ topic.id }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-hover">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Fração</th>
+                                                        <th>Permilagem</th>
+                                                        <th>Voto</th>
+                                                        <th>Observações</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for fraction in item.present_fractions %}
+                                                    {% set existingVote = item.fraction_votes[fraction.id] ?? null %}
+                                                    {% set currentVote = existingVote ? existingVote.vote_option : '' %}
+                                                    <tr class="{% if existingVote %}table-info{% endif %}">
+                                                        <td>
+                                                            <strong>{{ fraction.identifier }}</strong>
+                                                            {% if existingVote %}
+                                                            <br><small class="text-muted">
+                                                                <i class="bi bi-check-circle"></i> Voto registado
+                                                            </small>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>{{ fraction.permillage }}‰</td>
+                                                        <td>
+                                                            <select class="form-select form-select-sm vote-select" 
+                                                                    name="bulk_votes[{{ fraction.id }}][vote_option]" 
+                                                                    id="vote_{{ topic.id }}_{{ fraction.id }}">
+                                                                <option value="">-- Selecionar --</option>
+                                                                {% for option in topic.options %}
+                                                                <option value="{{ option }}" {% if currentVote == option %}selected{% endif %}>{{ option }}</option>
+                                                                {% endfor %}
+                                                            </select>
+                                                        </td>
+                                                        <td>
+                                                            <textarea class="form-control form-control-sm" 
+                                                                      name="bulk_votes[{{ fraction.id }}][notes]" 
+                                                                      rows="1" 
+                                                                      placeholder="Opcional">{{ existingVote ? existingVote.notes : '' }}</textarea>
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div class="mt-3">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="bi bi-save"></i> Guardar Votos
+                                            </button>
+                                            <small class="text-muted ms-3">
+                                                <i class="bi bi-info-circle"></i> 
+                                                Pode alterar os votos a qualquer momento antes do encerramento da votação.
+                                            </small>
+                                        </div>
+                                    </form>
+                                    {% else %}
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle"></i> 
+                                        Nenhuma fração presente disponível para votar. Apenas frações que estiveram presentes podem votar.
+                                    </div>
+                                    {% endif %}
+                                {% endif %}
+
+                                {# Results #}
+                                {% if results.total_votes > 0 %}
+                                <div class="mt-3">
+                                    <h6>Resultados:</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Opção</th>
+                                                    <th>Votos</th>
+                                                    <th>Permilagem</th>
+                                                    <th>% Permilagem</th>
+                                                    <th>% Condomínio</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for option, data in results.options %}
+                                                <tr>
+                                                    <td>{{ option }}</td>
+                                                    <td>{{ data.count }}</td>
+                                                    <td>{{ data.millage }}‰</td>
+                                                    <td>{{ data.percentage_by_millage }}%</td>
+                                                    <td>{{ data.percentage_by_condominium }}%</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                            <tfoot>
+                                                <tr class="table-secondary">
+                                                    <th>Total</th>
+                                                    <th>{{ results.total_votes }}</th>
+                                                    <th>{{ results.total_millage }}‰</th>
+                                                    <th>100%</th>
+                                                    <th>{{ results.total_condominium_millage > 0 ? ((results.total_millage / results.total_condominium_millage) * 100)|round(2) : 0 }}%</th>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                    
+                                    {# Chart #}
+                                    <div class="mt-3">
+                                        <canvas id="chart_{{ topic.id }}" height="100"></canvas>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted mb-0">Ainda não há votos registados.</p>
+                                {% endif %}
+
+                                {# Actions #}
+                                {% if assembly.status != 'closed' and assembly.status != 'completed' %}
+                                <div class="mt-3 d-flex gap-2">
+                                    {% if not topic.voting_started_at %}
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/start" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-sm btn-success">Iniciar Votação</button>
+                                    </form>
+                                    <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/edit" class="btn btn-sm btn-outline-primary">Editar</a>
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar este tópico?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                                    </form>
+                                    {% elseif topic.voting_started_at and not topic.voting_ended_at %}
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/end" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-sm btn-warning">Encerrar Votação</button>
+                                    </form>
+                                    {% endif %}
+                                    {% if results.total_votes > 0 %}
+                                    <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/results" class="btn btn-sm btn-outline-info">Ver Detalhes</a>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted mb-0">Nenhum tópico de votação criado ainda.</p>
+                    {% endif %}
+                </div>
             </div>
+        </div>
+
         </div>
     </div>
 </div>
+
+{# Chart.js for vote results #}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% for item in topics %}
+    {% set topic = item.topic %}
+    {% set results = item.results %}
+    {% if results.total_votes > 0 %}
+    const ctx{{ topic.id }} = document.getElementById('chart_{{ topic.id }}');
+    if (ctx{{ topic.id }}) {
+        new Chart(ctx{{ topic.id }}, {
+            type: 'bar',
+            data: {
+                labels: [{% for option, data in results.options %}'{{ option }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+                datasets: [{
+                    label: 'Votos',
+                    data: [{% for option, data in results.options %}{{ data.count }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }, {
+                    label: 'Permilagem (‰)',
+                    data: [{% for option, data in results.options %}{{ data.millage }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1,
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Número de Votos'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Permilagem (‰)'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+    {% endfor %}
+});
+
+// Toggle attendance type select when checkbox changes
+function toggleAttendanceType(fractionId, preserveValue = false) {
+    const checkbox = document.getElementById('attendance_' + fractionId);
+    const select = document.getElementById('type_' + fractionId);
+    const hiddenInput = document.getElementById('hidden_type_' + fractionId);
+    
+    if (checkbox && select && hiddenInput) {
+        if (checkbox.checked) {
+            select.disabled = false;
+            if (preserveValue) {
+                // On initialization: preserve the existing values from server
+                // Hidden input has the correct value, sync select to match
+                if (hiddenInput.value && hiddenInput.value !== 'absent') {
+                    select.value = hiddenInput.value;
+                } else if (select.value === 'absent' || !select.value) {
+                    // Only change to 'present' if both are empty/absent
+                    select.value = 'present';
+                    hiddenInput.value = 'present';
+                } else {
+                    // Preserve the current select value
+                    hiddenInput.value = select.value;
+                }
+            } else {
+                // On user interaction: only change to 'present' if select is 'absent'
+                if (select.value === 'absent' || !select.value) {
+                    select.value = 'present';
+                }
+                // Always sync hidden input with select
+                hiddenInput.value = select.value;
+            }
+            checkbox.closest('tr').classList.add('table-success');
+        } else {
+            select.disabled = true;
+            if (!preserveValue) {
+                // Only change to 'absent' if user is unchecking
+                select.value = 'absent';
+                hiddenInput.value = 'absent';
+            }
+            checkbox.closest('tr').classList.remove('table-success');
+        }
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize checkboxes and sync hidden inputs
+    document.querySelectorAll('.attendance-checkbox').forEach(function(checkbox) {
+        const fractionId = checkbox.id.replace('attendance_', '');
+        const select = document.getElementById('type_' + fractionId);
+        const hiddenInput = document.getElementById('hidden_type_' + fractionId);
+        
+        // Sync hidden input with select value on page load (preserve existing values)
+        if (select && hiddenInput) {
+            // Don't overwrite if hidden input already has a value from server
+            if (!hiddenInput.value || hiddenInput.value === '') {
+                hiddenInput.value = select.value;
+            } else {
+                // If hidden input has a value, sync select to match
+                select.value = hiddenInput.value;
+            }
+        }
+        
+        // Initialize with preserveValue=true to keep existing values
+        toggleAttendanceType(fractionId, true);
+        
+        // Add change listener
+        checkbox.addEventListener('change', function() {
+            toggleAttendanceType(fractionId, false);
+        });
+    });
+    
+    // Update checkbox and hidden input when select changes
+    document.querySelectorAll('.attendance-type').forEach(function(select) {
+        const fractionId = select.id.replace('type_', '');
+        const checkbox = document.getElementById('attendance_' + fractionId);
+        const hiddenInput = document.getElementById('hidden_type_' + fractionId);
+        
+        // On page load: sync select with hidden input (which has the server value)
+        if (hiddenInput && select) {
+            // Hidden input has the correct value from server, sync select to match
+            if (hiddenInput.value && hiddenInput.value !== '') {
+                select.value = hiddenInput.value;
+            } else {
+                // If hidden input is empty, sync it with select
+                hiddenInput.value = select.value;
+            }
+        }
+        
+        select.addEventListener('change', function() {
+            // Always update hidden input to match select value
+            if (hiddenInput) {
+                hiddenInput.value = this.value;
+            }
+            
+            if (this.value === 'absent') {
+                checkbox.checked = false;
+                this.disabled = true;
+                checkbox.closest('tr').classList.remove('table-success');
+            } else {
+                checkbox.checked = true;
+                this.disabled = false;
+                checkbox.closest('tr').classList.add('table-success');
+            }
+        });
+    });
+    
+    // Ensure all selects are submitted even if disabled
+    const attendanceForm = document.getElementById('attendance-form');
+    if (attendanceForm) {
+        attendanceForm.addEventListener('submit', function(e) {
+            // Enable all disabled selects before submit to ensure values are sent
+            document.querySelectorAll('.attendance-type').forEach(function(select) {
+                if (select.disabled) {
+                    select.disabled = false;
+                    // Ensure value is set to 'absent' if it was disabled
+                    if (select.value === '' || select.value === null) {
+                        select.value = 'absent';
+                    }
+                }
+            });
+        });
+    }
+});
+</script>
+
+<style>
+.cursor-pointer {
+    cursor: pointer;
+}
+</style>
 
 
 

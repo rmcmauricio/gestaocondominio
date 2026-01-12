@@ -49,29 +49,49 @@ class Assembly extends Model
             throw new \Exception("Database connection not available");
         }
 
-        $stmt = $this->db->prepare("
-            INSERT INTO assemblies (
-                condominium_id, title, description, type, scheduled_date,
-                location, quorum_percentage, convocation_sent_at, status, created_by
-            )
-            VALUES (
-                :condominium_id, :title, :description, :type, :scheduled_date,
-                :location, :quorum_percentage, :convocation_sent_at, :status, :created_by
-            )
-        ");
-
-        $stmt->execute([
+        // Check which columns exist
+        $stmt = $this->db->query("SHOW COLUMNS FROM assemblies");
+        $columns = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+        
+        // Map type to database enum values if needed
+        $type = $data['type'] ?? 'ordinaria';
+        if ($type === 'ordinary') {
+            $type = 'ordinaria';
+        } elseif ($type === 'extraordinary') {
+            $type = 'extraordinaria';
+        }
+        
+        $fields = ['condominium_id', 'title', 'type', 'scheduled_date', 'location', 'quorum_percentage', 'status', 'created_by'];
+        $values = [
             ':condominium_id' => $data['condominium_id'],
             ':title' => $data['title'],
-            ':description' => $data['description'] ?? null,
-            ':type' => $data['type'] ?? 'ordinary',
+            ':type' => $type,
             ':scheduled_date' => $data['scheduled_date'],
             ':location' => $data['location'] ?? null,
             ':quorum_percentage' => $data['quorum_percentage'] ?? 50,
-            ':convocation_sent_at' => $data['convocation_sent_at'] ?? null,
             ':status' => $data['status'] ?? 'scheduled',
             ':created_by' => $data['created_by']
-        ]);
+        ];
+        
+        // Add description if column exists
+        if (in_array('description', $columns)) {
+            $fields[] = 'description';
+            $values[':description'] = $data['description'] ?? null;
+        } elseif (in_array('agenda', $columns)) {
+            // Use agenda if description doesn't exist
+            $fields[] = 'agenda';
+            $values[':agenda'] = $data['description'] ?? null;
+        }
+        
+        // Add convocation_sent_at if column exists
+        if (in_array('convocation_sent_at', $columns)) {
+            $fields[] = 'convocation_sent_at';
+            $values[':convocation_sent_at'] = $data['convocation_sent_at'] ?? null;
+        }
+
+        $sql = "INSERT INTO assemblies (" . implode(', ', $fields) . ") VALUES (:" . implode(', :', $fields) . ")";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($values);
 
         return (int)$this->db->lastInsertId();
     }
@@ -133,10 +153,17 @@ class Assembly extends Model
      */
     public function start(int $id): bool
     {
-        return $this->update($id, [
-            'status' => 'in_progress',
-            'started_at' => date('Y-m-d H:i:s')
-        ]);
+        // Check if started_at column exists
+        global $db;
+        $stmt = $db->query("SHOW COLUMNS FROM assemblies LIKE 'started_at'");
+        $hasStartedAt = $stmt->rowCount() > 0;
+
+        $data = ['status' => 'in_progress'];
+        if ($hasStartedAt) {
+            $data['started_at'] = date('Y-m-d H:i:s');
+        }
+
+        return $this->update($id, $data);
     }
 
     /**
@@ -144,10 +171,15 @@ class Assembly extends Model
      */
     public function close(int $id, string $minutes = null): bool
     {
-        $data = [
-            'status' => 'closed',
-            'closed_at' => date('Y-m-d H:i:s')
-        ];
+        // Check if closed_at column exists
+        global $db;
+        $stmt = $db->query("SHOW COLUMNS FROM assemblies LIKE 'closed_at'");
+        $hasClosedAt = $stmt->rowCount() > 0;
+
+        $data = ['status' => 'completed'];
+        if ($hasClosedAt) {
+            $data['closed_at'] = date('Y-m-d H:i:s');
+        }
 
         if ($minutes) {
             $data['minutes'] = $minutes;

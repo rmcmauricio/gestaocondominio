@@ -173,14 +173,33 @@ $router->get('/condominiums/{condominium_id}/assemblies', 'App\Controllers\Assem
 $router->get('/condominiums/{condominium_id}/assemblies/create', 'App\Controllers\AssemblyController@create');
 $router->post('/condominiums/{condominium_id}/assemblies', 'App\Controllers\AssemblyController@store');
 $router->get('/condominiums/{condominium_id}/assemblies/{id}', 'App\Controllers\AssemblyController@show');
+$router->get('/condominiums/{condominium_id}/assemblies/{id}/edit', 'App\Controllers\AssemblyController@edit');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/update', 'App\Controllers\AssemblyController@update');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/start', 'App\Controllers\AssemblyController@start');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/close', 'App\Controllers\AssemblyController@close');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/cancel', 'App\Controllers\AssemblyController@cancel');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/send-convocation', 'App\Controllers\AssemblyController@sendConvocation');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/attendance', 'App\Controllers\AssemblyController@registerAttendance');
 $router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes', 'App\Controllers\AssemblyController@generateMinutes');
+$router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes/view', 'App\Controllers\AssemblyController@viewMinutes');
+$router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/generate', 'App\Controllers\AssemblyController@generateMinutesTemplatePage');
+$router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/edit', 'App\Controllers\AssemblyController@editMinutesTemplate');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/update', 'App\Controllers\AssemblyController@updateMinutesTemplate');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/approve', 'App\Controllers\AssemblyController@approveMinutes');
+$router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/signatures', 'App\Controllers\AssemblyController@manageSignatures');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/signatures/mark', 'App\Controllers\AssemblyController@markSignature');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/change-status', 'App\Controllers\AssemblyController@changeStatus');
 
 // Vote routes
 $router->get('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/create-topic', 'App\Controllers\VoteController@createTopic');
 $router->post('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/topics', 'App\Controllers\VoteController@storeTopic');
+$router->get('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/{topic_id}/edit', 'App\Controllers\VoteController@editTopic');
+$router->post('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/{topic_id}/update', 'App\Controllers\VoteController@updateTopic');
+$router->post('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/{topic_id}/delete', 'App\Controllers\VoteController@deleteTopic');
+$router->post('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/{topic_id}/start', 'App\Controllers\VoteController@startVoting');
+$router->post('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/{topic_id}/end', 'App\Controllers\VoteController@endVoting');
 $router->post('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/{topic_id}', 'App\Controllers\VoteController@vote');
+$router->post('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/{topic_id}/bulk', 'App\Controllers\VoteController@voteBulk');
 $router->get('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/{topic_id}/results', 'App\Controllers\VoteController@results');
 
 // Message routes
