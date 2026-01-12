@@ -28,7 +28,7 @@
                             <select class="form-select" id="bank_account_id" name="bank_account_id" required>
                                 <option value="">Selecione uma conta...</option>
                                 {% for account in accounts %}
-                                <option value="{{ account.id }}" data-balance="{{ account.current_balance }}">
+                                <option value="{{ account.id }}" data-balance="{{ account.current_balance }}" {% if preselected_account_id == account.id %}selected{% endif %}>
                                     {{ account.name }} 
                                     {% if account.account_type == 'cash' %}(Caixa){% endif %}
                                     - Saldo: €{{ account.current_balance|number_format(2, ',', '.') }}
@@ -43,7 +43,23 @@
                                 <option value="">Selecione...</option>
                                 <option value="income">Entrada (Receita)</option>
                                 <option value="expense">Saída (Despesa)</option>
+                                <option value="transfer">Transferência entre Contas</option>
                             </select>
+                        </div>
+
+                        <div class="mb-3" id="transfer_to_account_group" style="display: none;">
+                            <label for="transfer_to_account_id" class="form-label">Conta de Destino <span class="text-danger">*</span></label>
+                            <select class="form-select" id="transfer_to_account_id" name="transfer_to_account_id">
+                                <option value="">Selecione a conta de destino...</option>
+                                {% for account in accounts %}
+                                <option value="{{ account.id }}" data-balance="{{ account.current_balance }}">
+                                    {{ account.name }} 
+                                    {% if account.account_type == 'cash' %}(Caixa){% endif %}
+                                    - Saldo: €{{ account.current_balance|number_format(2, ',', '.') }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">O valor será transferido da conta selecionada acima para esta conta.</small>
                         </div>
 
                         <div class="mb-3">
@@ -94,15 +110,30 @@
 document.addEventListener('DOMContentLoaded', function() {
     const accountSelect = document.getElementById('bank_account_id');
     const transactionType = document.getElementById('transaction_type');
+    const transferToAccountSelect = document.getElementById('transfer_to_account_id');
+    const transferToAccountGroup = document.getElementById('transfer_to_account_group');
     const amountInput = document.getElementById('amount');
     const balanceWarning = document.getElementById('balance-warning');
     const form = document.querySelector('form');
 
+    function toggleTransferFields() {
+        if (transactionType.value === 'transfer') {
+            transferToAccountGroup.style.display = 'block';
+            transferToAccountSelect.setAttribute('required', 'required');
+        } else {
+            transferToAccountGroup.style.display = 'none';
+            transferToAccountSelect.removeAttribute('required');
+            transferToAccountSelect.value = '';
+        }
+    }
+
     function checkBalance() {
         const selectedOption = accountSelect.options[accountSelect.selectedIndex];
-        if (selectedOption.value && transactionType.value === 'expense') {
+        const transactionTypeValue = transactionType.value;
+        const amount = parseFloat(amountInput.value || 0);
+        
+        if (selectedOption.value && (transactionTypeValue === 'expense' || transactionTypeValue === 'transfer')) {
             const balance = parseFloat(selectedOption.dataset.balance || 0);
-            const amount = parseFloat(amountInput.value || 0);
             
             if (amount > balance) {
                 balanceWarning.style.display = 'block';
@@ -115,12 +146,57 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    accountSelect.addEventListener('change', checkBalance);
-    transactionType.addEventListener('change', checkBalance);
+    function validateTransferAccounts() {
+        if (transactionType.value === 'transfer') {
+            const fromAccount = accountSelect.value;
+            const toAccount = transferToAccountSelect.value;
+            
+            if (fromAccount === toAccount) {
+                alert('A conta de origem e destino não podem ser a mesma!');
+                return false;
+            }
+        }
+        return true;
+    }
+
+    transactionType.addEventListener('change', function() {
+        toggleTransferFields();
+        checkBalance();
+    });
+
+    accountSelect.addEventListener('change', function() {
+        checkBalance();
+        // Update transfer destination options to exclude selected account
+        if (transactionType.value === 'transfer') {
+            const selectedAccountId = accountSelect.value;
+            Array.from(transferToAccountSelect.options).forEach(option => {
+                if (option.value === selectedAccountId && option.value !== '') {
+                    option.style.display = 'none';
+                } else {
+                    option.style.display = 'block';
+                }
+            });
+        }
+    });
+
+    transferToAccountSelect.addEventListener('change', function() {
+        // Ensure destination is different from source
+        if (transferToAccountSelect.value === accountSelect.value) {
+            alert('A conta de destino deve ser diferente da conta de origem!');
+            transferToAccountSelect.value = '';
+        }
+    });
+
     amountInput.addEventListener('input', checkBalance);
 
     form.addEventListener('submit', function(e) {
-        if (transactionType.value === 'expense') {
+        if (!validateTransferAccounts()) {
+            e.preventDefault();
+            return false;
+        }
+
+        const transactionTypeValue = transactionType.value;
+        if (transactionTypeValue === 'expense' || transactionTypeValue === 'transfer') {
             const selectedOption = accountSelect.options[accountSelect.selectedIndex];
             const balance = parseFloat(selectedOption.dataset.balance || 0);
             const amount = parseFloat(amountInput.value || 0);
@@ -131,6 +207,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 return false;
             }
         }
+
+        if (transactionTypeValue === 'transfer' && !transferToAccountSelect.value) {
+            e.preventDefault();
+            alert('Por favor, selecione a conta de destino!');
+            return false;
+        }
     });
+
+    // Initialize
+    toggleTransferFields();
 });
 </script>

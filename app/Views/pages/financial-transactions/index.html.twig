@@ -1,13 +1,15 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Movimentos Financeiros</h2>
-        <div>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary me-2">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+        <h2 class="mb-2 mb-md-0">Movimentos Financeiros</h2>
+        <div class="d-flex flex-column flex-sm-row gap-2 w-100 w-md-auto">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Voltar
             </a>
+            {% if is_admin %}
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/create" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> Novo Movimento
             </a>
+            {% endif %}
         </div>
     </div>
 
@@ -33,7 +35,7 @@
         </div>
         <div class="card-body">
             <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" class="row g-3">
-                <div class="col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                     <label for="bank_account_id" class="form-label">Conta</label>
                     <select class="form-select" id="bank_account_id" name="bank_account_id">
                         <option value="">Todas</option>
@@ -44,7 +46,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                     <label for="transaction_type" class="form-label">Tipo</label>
                     <select class="form-select" id="transaction_type" name="transaction_type">
                         <option value="">Todos</option>
@@ -52,21 +54,23 @@
                         <option value="expense" {% if filters.transaction_type == 'expense' %}selected{% endif %}>Saída</option>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                     <label for="from_date" class="form-label">Data Inicial</label>
                     <input type="date" class="form-control" id="from_date" name="from_date" value="{{ filters.from_date }}">
                 </div>
-                <div class="col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                     <label for="to_date" class="form-label">Data Final</label>
                     <input type="date" class="form-control" id="to_date" name="to_date" value="{{ filters.to_date }}">
                 </div>
                 <div class="col-12">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-search"></i> Filtrar
-                    </button>
-                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" class="btn btn-outline-secondary">
-                        <i class="bi bi-x-circle"></i> Limpar
-                    </a>
+                    <div class="d-flex flex-column flex-sm-row gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-search"></i> Filtrar
+                        </button>
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Limpar
+                        </a>
+                    </div>
                 </div>
             </form>
         </div>
@@ -80,7 +84,8 @@
         </div>
         <div class="card-body">
             {% if transactions %}
-            <div class="table-responsive">
+            <!-- Desktop Table View -->
+            <div class="table-responsive d-none d-lg-block">
                 <table class="table table-hover">
                     <thead>
                         <tr>
@@ -106,13 +111,30 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if transaction.transaction_type == 'income' %}
+                                {% if transaction.related_type == 'transfer' %}
+                                    {% if transaction.transaction_type == 'income' %}
+                                    <span class="badge bg-info">Transferência Recebida</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">Transferência Enviada</span>
+                                    {% endif %}
+                                {% elseif transaction.transaction_type == 'income' %}
                                 <span class="badge bg-success">Entrada</span>
                                 {% else %}
                                 <span class="badge bg-danger">Saída</span>
                                 {% endif %}
                             </td>
-                            <td>{{ transaction.description|slice(0, 50) }}{% if transaction.description|length > 50 %}...{% endif %}</td>
+                            <td>
+                                {{ transaction.description|slice(0, 50) }}{% if transaction.description|length > 50 %}...{% endif %}
+                                {% if transaction.related_type == 'transfer' and transaction.transfer_to_account_name %}
+                                    <br><small class="text-muted">
+                                        {% if transaction.transaction_type == 'expense' %}
+                                        → Para: {{ transaction.transfer_to_account_name }}
+                                        {% else %}
+                                        ← De: {{ transaction.account_name }}
+                                        {% endif %}
+                                    </small>
+                                {% endif %}
+                            </td>
                             <td>{{ transaction.category ?: '-' }}</td>
                             <td>{{ transaction.reference ?: '-' }}</td>
                             <td class="text-end">
@@ -126,26 +148,142 @@
                                 </strong>
                             </td>
                             <td>
-                                {% if not transaction.related_id or transaction.related_type != 'fee_payment' %}
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/edit" class="btn btn-outline-primary" title="Editar">
-                                        <i class="bi bi-pencil"></i>
-                                    </a>
-                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar este movimento?');">
+                                {% if is_admin %}
+                                    {% if transaction.related_type == 'fee_payment' %}
+                                    <span class="text-muted small">Associado</span>
+                                    {% elseif transaction.related_type == 'transfer' %}
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar esta transferência? Ambas as transações serão eliminadas.');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="submit" class="btn btn-outline-danger" title="Eliminar">
-                                            <i class="bi bi-trash"></i>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar Transferência">
+                                            <i class="bi bi-trash"></i> Eliminar
                                         </button>
                                     </form>
-                                </div>
+                                    {% else %}
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/edit" class="btn btn-outline-primary" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar este movimento?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button type="submit" class="btn btn-outline-danger" title="Eliminar">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                    {% endif %}
                                 {% else %}
-                                <span class="text-muted small">Associado</span>
+                                    {% if transaction.related_type == 'fee_payment' %}
+                                    <span class="text-muted small">Associado</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
                                 {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Mobile/Tablet Card View -->
+            <div class="d-lg-none">
+                <div class="row g-3">
+                    {% for transaction in transactions %}
+                    <div class="col-12">
+                        <div class="card shadow-sm {% if transaction.transaction_type == 'income' %}border-success border-2{% else %}border-danger border-2{% endif %}">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex align-items-center gap-2 mb-2">
+                                            <strong class="text-muted">{{ transaction.transaction_date|date('d/m/Y') }}</strong>
+                                            {% if transaction.related_type == 'transfer' %}
+                                                {% if transaction.transaction_type == 'income' %}
+                                                <span class="badge bg-info">Transferência Recebida</span>
+                                                {% else %}
+                                                <span class="badge bg-warning text-dark">Transferência Enviada</span>
+                                                {% endif %}
+                                            {% elseif transaction.transaction_type == 'income' %}
+                                            <span class="badge bg-success">Entrada</span>
+                                            {% else %}
+                                            <span class="badge bg-danger">Saída</span>
+                                            {% endif %}
+                                        </div>
+                                        <h6 class="mb-1 fw-bold">{{ transaction.account_name }}</h6>
+                                        {% if transaction.account_type == 'cash' %}
+                                        <span class="badge bg-info">Caixa</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="text-end">
+                                        <strong class="h5 mb-0 {% if transaction.transaction_type == 'income' %}text-success{% else %}text-danger{% endif %}">
+                                            {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}€{{ transaction.amount|number_format(2, ',', '.') }}
+                                        </strong>
+                                    </div>
+                                </div>
+
+                                <div class="mb-2">
+                                    <strong>Descrição:</strong>
+                                    <p class="mb-1">{{ transaction.description }}</p>
+                                    {% if transaction.related_type == 'transfer' and transaction.transfer_to_account_name %}
+                                    <small class="text-muted d-block">
+                                        {% if transaction.transaction_type == 'expense' %}
+                                        <i class="bi bi-arrow-right"></i> Para: {{ transaction.transfer_to_account_name }}
+                                        {% else %}
+                                        <i class="bi bi-arrow-left"></i> De: {{ transaction.account_name }}
+                                        {% endif %}
+                                    </small>
+                                    {% endif %}
+                                </div>
+
+                                <div class="row g-2 mb-3">
+                                    {% if transaction.category %}
+                                    <div class="col-6">
+                                        <small class="text-muted d-block"><strong>Categoria:</strong></small>
+                                        <span>{{ transaction.category }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if transaction.reference %}
+                                    <div class="col-6">
+                                        <small class="text-muted d-block"><strong>Referência:</strong></small>
+                                        <span>{{ transaction.reference }}</span>
+                                    </div>
+                                    {% endif %}
+                                    <div class="col-12">
+                                        <small class="text-muted d-block"><strong>Saldo Acumulado:</strong></small>
+                                        <strong class="{% if runningBalance[transaction.id] >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            €{{ runningBalance[transaction.id]|number_format(2, ',', '.') }}
+                                        </strong>
+                                    </div>
+                                </div>
+
+                                {% if is_admin %}
+                                <div class="d-flex gap-2 pt-3 border-top">
+                                    {% if transaction.related_type == 'fee_payment' %}
+                                    <span class="text-muted small align-self-center">Movimento associado a pagamento de quota</span>
+                                    {% elseif transaction.related_type == 'transfer' %}
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/delete" class="flex-fill" onsubmit="return confirm('Tem certeza que deseja eliminar esta transferência? Ambas as transações serão eliminadas.');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger w-100">
+                                            <i class="bi bi-trash"></i> Eliminar Transferência
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/edit" class="btn btn-sm btn-outline-primary flex-fill">
+                                        <i class="bi bi-pencil"></i> Editar
+                                    </a>
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/delete" class="flex-fill" onsubmit="return confirm('Tem certeza que deseja eliminar este movimento?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger w-100">
+                                            <i class="bi bi-trash"></i> Eliminar
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
             {% else %}
             <div class="alert alert-info">

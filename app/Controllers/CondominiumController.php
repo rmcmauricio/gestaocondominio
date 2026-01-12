@@ -259,6 +259,33 @@ class CondominiumController extends Controller
         $paidResult = $stmt->fetch();
         $stats['paid_fees_amount'] = (float)($paidResult['total'] ?? 0);
 
+        // Get fees map data
+        $feeModel = new \App\Models\Fee();
+        $fractionModel = new \App\Models\Fraction();
+        
+        // Get available years
+        $availableYears = $feeModel->getAvailableYears($id);
+        if (empty($availableYears)) {
+            $availableYears = [date('Y')];
+        }
+        
+        // Get selected year (default to current year or most recent year with fees)
+        $selectedYear = $_GET['fees_year'] ?? $availableYears[0];
+        $selectedYear = (int)$selectedYear;
+        
+        // Get fractions for the condominium
+        $fractions = $fractionModel->getByCondominiumId($id);
+        
+        // Get fees map for selected year
+        $feesMap = $feeModel->getFeesMapByYear($id, $selectedYear);
+        
+        // Month names in Portuguese
+        $monthNames = [
+            1 => 'Janeiro', 2 => 'Fevereiro', 3 => 'Março', 4 => 'Abril',
+            5 => 'Maio', 6 => 'Junho', 7 => 'Julho', 8 => 'Agosto',
+            9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro'
+        ];
+
         $this->loadPageTranslations('condominiums');
         
         $this->data += [
@@ -268,7 +295,12 @@ class CondominiumController extends Controller
             'bank_accounts' => $bankAccounts,
             'condominium_users' => $condominiumUsers,
             'stats' => $stats,
-            'main_account_iban' => $mainAccountIban
+            'main_account_iban' => $mainAccountIban,
+            'fees_map' => $feesMap,
+            'fractions' => $fractions,
+            'available_years' => $availableYears,
+            'selected_fees_year' => $selectedYear,
+            'month_names' => $monthNames
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

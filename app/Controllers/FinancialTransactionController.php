@@ -57,28 +57,88 @@ class FinancialTransactionController extends Controller
         $accounts = $this->bankAccountModel->getActiveAccounts($condominiumId);
 
         // Calculate running balance for each transaction
+        // We need to calculate balance chronologically for each account
         $runningBalance = [];
-        $accountBalances = [];
-        foreach ($accounts as $account) {
-            $accountBalances[$account['id']] = $account['initial_balance'];
-        }
-
+        
+        // Group transactions by account and calculate running balance for each account
+        $transactionsByAccount = [];
         foreach ($transactions as $transaction) {
             $accountId = $transaction['bank_account_id'];
-            if (!isset($accountBalances[$accountId])) {
-                $accountBalances[$accountId] = 0;
+            if (!isset($transactionsByAccount[$accountId])) {
+                $transactionsByAccount[$accountId] = [];
+            }
+            $transactionsByAccount[$accountId][] = $transaction;
+        }
+        
+        // For each account, get all transactions and calculate running balance
+        foreach ($transactionsByAccount as $accountId => $accountTransactions) {
+            // Get account initial balance
+            $account = null;
+            foreach ($accounts as $acc) {
+                if ($acc['id'] == $accountId) {
+                    $account = $acc;
+                    break;
+                }
             }
             
-            if ($transaction['transaction_type'] === 'income') {
-                $accountBalances[$accountId] += (float)$transaction['amount'];
-            } else {
-                $accountBalances[$accountId] -= (float)$transaction['amount'];
+            if (!$account) {
+                continue;
             }
             
-            $runningBalance[$transaction['id']] = $accountBalances[$accountId];
+            $initialBalance = (float)($account['initial_balance'] ?? 0);
+            
+            // Get ALL transactions for this account (not filtered) to calculate correct running balance
+            // We need them in chronological order (oldest first) for correct balance calculation
+            $allAccountTransactions = $this->transactionModel->getByAccount($accountId, []);
+            
+            // Sort by date and time (chronological order - oldest first)
+            // Reverse the DESC order from SQL to ASC for balance calculation
+            usort($allAccountTransactions, function($a, $b) {
+                // Compare dates (ASC - oldest first)
+                $dateA = strtotime($a['transaction_date']);
+                $dateB = strtotime($b['transaction_date']);
+                if ($dateA != $dateB) {
+                    return $dateA <=> $dateB;
+                }
+                // If same date, compare by created_at (ASC - oldest first)
+                $timeA = strtotime($a['created_at'] ?? $a['transaction_date'] . ' 00:00:00');
+                $timeB = strtotime($b['created_at'] ?? $b['transaction_date'] . ' 00:00:00');
+                return $timeA <=> $timeB;
+            });
+            
+            // Calculate running balance chronologically
+            $currentBalance = $initialBalance;
+            foreach ($allAccountTransactions as $trans) {
+                if ($trans['transaction_type'] === 'income') {
+                    $currentBalance += (float)$trans['amount'];
+                } else {
+                    $currentBalance -= (float)$trans['amount'];
+                }
+                
+                // Store balance for this transaction if it's in the filtered results
+                $runningBalance[$trans['id']] = $currentBalance;
+            }
+        }
+        
+        // For any transactions that weren't processed (shouldn't happen, but safety)
+        foreach ($transactions as $transaction) {
+            if (!isset($runningBalance[$transaction['id']])) {
+                // Fallback: use account's current balance
+                $accountId = $transaction['bank_account_id'];
+                $account = $this->bankAccountModel->findById($accountId);
+                if ($account) {
+                    $this->bankAccountModel->updateBalance($accountId);
+                    $account = $this->bankAccountModel->findById($accountId);
+                    $runningBalance[$transaction['id']] = (float)($account['current_balance'] ?? 0);
+                } else {
+                    $runningBalance[$transaction['id']] = 0;
+                }
+            }
         }
 
         $this->loadPageTranslations('finances');
+        
+        $isAdmin = RoleMiddleware::isAdmin();
         
         $this->data += [
             'viewName' => 'pages/financial-transactions/index.html.twig',
@@ -88,6 +148,7 @@ class FinancialTransactionController extends Controller
             'accounts' => $accounts,
             'runningBalance' => $runningBalance,
             'filters' => $filters,
+            'is_admin' => $isAdmin,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
@@ -101,6 +162,7 @@ class FinancialTransactionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -111,6 +173,9 @@ class FinancialTransactionController extends Controller
 
         $accounts = $this->bankAccountModel->getActiveAccounts($condominiumId);
         $pendingFees = $this->feeModel->getByCondominium($condominiumId, ['status' => 'pending']);
+        
+        // Get preselected account from query parameter
+        $preselectedAccountId = !empty($_GET['bank_account_id']) ? (int)$_GET['bank_account_id'] : null;
 
         $this->loadPageTranslations('finances');
         
@@ -120,6 +185,7 @@ class FinancialTransactionController extends Controller
             'condominium' => $condominium,
             'accounts' => $accounts,
             'pendingFees' => $pendingFees,
+            'preselected_account_id' => $preselectedAccountId,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
@@ -133,6 +199,7 @@ class FinancialTransactionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
@@ -175,10 +242,35 @@ class FinancialTransactionController extends Controller
             exit;
         }
 
-        if (!in_array($transactionType, ['income', 'expense'])) {
+        if (!in_array($transactionType, ['income', 'expense', 'transfer'])) {
             $_SESSION['error'] = 'Tipo de transação inválido.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create');
             exit;
+        }
+
+        // Handle transfer
+        $transferToAccountId = null;
+        if ($transactionType === 'transfer') {
+            $transferToAccountId = (int)($_POST['transfer_to_account_id'] ?? 0);
+            
+            if ($transferToAccountId <= 0) {
+                $_SESSION['error'] = 'Por favor, selecione a conta de destino.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create');
+                exit;
+            }
+
+            if ($transferToAccountId === $bankAccountId) {
+                $_SESSION['error'] = 'A conta de origem e destino não podem ser a mesma.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create');
+                exit;
+            }
+
+            $toAccount = $this->bankAccountModel->findById($transferToAccountId);
+            if (!$toAccount || $toAccount['condominium_id'] != $condominiumId) {
+                $_SESSION['error'] = 'Conta de destino inválida.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create');
+                exit;
+            }
         }
 
         if ($amount <= 0) {
@@ -193,8 +285,8 @@ class FinancialTransactionController extends Controller
             exit;
         }
 
-        // Check balance for expenses
-        if ($transactionType === 'expense') {
+        // Check balance for expenses and transfers
+        if ($transactionType === 'expense' || $transactionType === 'transfer') {
             $currentBalance = $this->transactionModel->calculateAccountBalance($bankAccountId);
             if ($amount > $currentBalance) {
                 $_SESSION['error'] = 'Saldo insuficiente. Saldo atual: €' . number_format($currentBalance, 2, ',', '.');
@@ -204,26 +296,77 @@ class FinancialTransactionController extends Controller
         }
 
         try {
+            global $db;
+            $db->beginTransaction();
+            
             $userId = AuthMiddleware::userId();
             
-            $this->transactionModel->create([
-                'condominium_id' => $condominiumId,
-                'bank_account_id' => $bankAccountId,
-                'transaction_type' => $transactionType,
-                'amount' => $amount,
-                'transaction_date' => $transactionDate,
-                'description' => $description,
-                'category' => $category,
-                'reference' => $reference,
-                'related_type' => 'manual',
-                'related_id' => null,
-                'created_by' => $userId
-            ]);
+            if ($transactionType === 'transfer') {
+                // Create expense transaction (from account)
+                $fromTransactionId = $this->transactionModel->create([
+                    'condominium_id' => $condominiumId,
+                    'bank_account_id' => $bankAccountId,
+                    'transaction_type' => 'expense',
+                    'amount' => $amount,
+                    'transaction_date' => $transactionDate,
+                    'description' => 'Transferência: ' . $description,
+                    'category' => $category ?: 'Transferência',
+                    'reference' => $reference,
+                    'related_type' => 'transfer',
+                    'related_id' => $transferToAccountId,
+                    'transfer_to_account_id' => $transferToAccountId,
+                    'created_by' => $userId
+                ]);
 
-            $_SESSION['success'] = 'Movimento financeiro criado com sucesso!';
+                // Create income transaction (to account)
+                $toAccount = $this->bankAccountModel->findById($transferToAccountId);
+                $toAccountName = $toAccount['name'] ?? 'Conta';
+                $fromAccountName = $account['name'] ?? 'Conta';
+                
+                $this->transactionModel->create([
+                    'condominium_id' => $condominiumId,
+                    'bank_account_id' => $transferToAccountId,
+                    'transaction_type' => 'income',
+                    'amount' => $amount,
+                    'transaction_date' => $transactionDate,
+                    'description' => 'Transferência recebida de ' . $fromAccountName . ': ' . $description,
+                    'category' => $category ?: 'Transferência',
+                    'reference' => $reference,
+                    'related_type' => 'transfer',
+                    'related_id' => $fromTransactionId,
+                    'transfer_to_account_id' => null,
+                    'created_by' => $userId
+                ]);
+
+                $db->commit();
+                $_SESSION['success'] = 'Transferência realizada com sucesso!';
+            } else {
+                // Regular transaction
+                $this->transactionModel->create([
+                    'condominium_id' => $condominiumId,
+                    'bank_account_id' => $bankAccountId,
+                    'transaction_type' => $transactionType,
+                    'amount' => $amount,
+                    'transaction_date' => $transactionDate,
+                    'description' => $description,
+                    'category' => $category,
+                    'reference' => $reference,
+                    'related_type' => 'manual',
+                    'related_id' => null,
+                    'transfer_to_account_id' => null,
+                    'created_by' => $userId
+                ]);
+
+                $db->commit();
+                $_SESSION['success'] = 'Movimento financeiro criado com sucesso!';
+            }
+            
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
             exit;
         } catch (\Exception $e) {
+            if (isset($db)) {
+                $db->rollBack();
+            }
             $_SESSION['error'] = 'Erro ao criar movimento: ' . $e->getMessage();
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create');
             exit;
@@ -234,6 +377,7 @@ class FinancialTransactionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -279,6 +423,7 @@ class FinancialTransactionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
@@ -371,6 +516,7 @@ class FinancialTransactionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
@@ -399,9 +545,43 @@ class FinancialTransactionController extends Controller
         }
 
         try {
-            $this->transactionModel->delete($id);
-            $_SESSION['success'] = 'Movimento financeiro eliminado com sucesso!';
+            global $db;
+            $db->beginTransaction();
+            
+            // If it's a transfer, delete both transactions
+            if ($transaction['related_type'] === 'transfer') {
+                $relatedId = $transaction['related_id'];
+                $transferToAccountId = $transaction['transfer_to_account_id'];
+                
+                // Find the paired transaction
+                if ($transaction['transaction_type'] === 'expense' && $relatedId) {
+                    // This is the "from" transaction, find the "to" transaction
+                    $pairedTransaction = $this->transactionModel->findById($relatedId);
+                } else {
+                    // This is the "to" transaction, find the "from" transaction
+                    $stmt = $db->prepare("SELECT id FROM financial_transactions WHERE related_id = :id AND related_type = 'transfer' AND transaction_type = 'expense' LIMIT 1");
+                    $stmt->execute([':id' => $id]);
+                    $pairedTransaction = $stmt->fetch();
+                }
+                
+                // Delete both transactions
+                $this->transactionModel->delete($id);
+                if ($pairedTransaction) {
+                    $this->transactionModel->delete($pairedTransaction['id']);
+                }
+                
+                $db->commit();
+                $_SESSION['success'] = 'Transferência eliminada com sucesso!';
+            } else {
+                // Regular transaction
+                $this->transactionModel->delete($id);
+                $db->commit();
+                $_SESSION['success'] = 'Movimento financeiro eliminado com sucesso!';
+            }
         } catch (\Exception $e) {
+            if (isset($db)) {
+                $db->rollBack();
+            }
             $_SESSION['error'] = 'Erro ao eliminar movimento: ' . $e->getMessage();
         }
 

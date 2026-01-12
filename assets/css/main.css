@@ -927,6 +927,38 @@ a:hover .card-hover .text-primary {
   }
 }
 
+/* Tablets and smaller */
+@media (max-width: 991px) {
+  /* Prevent horizontal scroll */
+  body {
+    overflow-x: hidden;
+  }
+  
+  .container {
+    overflow-x: hidden;
+  }
+  
+  /* Force table-responsive to show cards instead */
+  .table-responsive {
+    overflow-x: visible !important;
+  }
+  
+  /* Ensure cards take full width on tablets */
+  .col-md-3,
+  .col-md-4,
+  .col-md-6 {
+    flex: 0 0 100%;
+    max-width: 100%;
+    margin-bottom: 1rem;
+  }
+  
+  /* Ensure code elements break properly */
+  code {
+    word-break: break-all;
+    white-space: normal;
+  }
+}
+
 /* Mobile phones */
 @media (max-width: 767px) {
   .col-md-3,
@@ -937,6 +969,27 @@ a:hover .card-hover .text-primary {
     flex: 0 0 100%;
     max-width: 100%;
     margin-bottom: 1rem;
+  }
+  
+  /* Prevent horizontal scroll on mobile */
+  .table-responsive {
+    overflow-x: visible !important;
+  }
+  
+  /* Ensure all text breaks properly */
+  code {
+    word-break: break-all;
+    white-space: normal;
+    font-size: 0.7rem;
+  }
+  
+  /* Prevent any element from causing overflow */
+  * {
+    max-width: 100%;
+  }
+  
+  .card-body {
+    overflow-x: hidden;
   }
 
   .row.g-4 > * {
@@ -1017,6 +1070,20 @@ a:hover .card-hover .text-primary {
   .table td {
     padding: 0.5rem 0.25rem;
   }
+}
+
+/* Account cards styling */
+.account-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.account-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md) !important;
+}
+
+.account-card .card-body {
+  padding: 1.25rem;
 }
 
 /* Additional responsive utilities */

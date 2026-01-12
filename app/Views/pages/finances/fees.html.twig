@@ -4,11 +4,13 @@
             <h2>Quotas</h2>
             <p class="text-muted mb-0">{{ condominium.name }}</p>
         </div>
+        {% if is_admin %}
         <div>
             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateFeesModal">
                 <i class="bi bi-calculator"></i> Gerar Quotas
             </button>
         </div>
+        {% endif %}
     </div>
 
     {% if error %}
@@ -97,9 +99,11 @@
                 <table class="table table-hover">
                     <thead>
                         <tr>
+                            {% if is_admin %}
                             <th width="40">
                                 <input type="checkbox" id="selectAll" onchange="toggleAllSelection()">
                             </th>
+                            {% endif %}
                             <th>Tipo</th>
                             <th>Fração</th>
                             <th>Período</th>
@@ -117,11 +121,13 @@
                         {% set pending_amount = fee.pending_amount|default(fee.amount) %}
                         {% set calculated_status = fee.calculated_status|default(fee.status) %}
                         <tr>
+                            {% if is_admin %}
                             <td>
                                 {% if calculated_status == 'pending' or calculated_status == 'overdue' %}
                                 <input type="checkbox" class="fee-checkbox" value="{{ fee.id }}" onchange="updateBulkActions()">
                                 {% endif %}
                             </td>
+                            {% endif %}
                             <td>
                                 {% if fee.is_historical %}
                                     <span class="badge bg-warning text-dark" title="Dívida Histórica">
@@ -168,6 +174,7 @@
                                 </span>
                             </td>
                             <td>
+                                {% if is_admin %}
                                 <div class="btn-group btn-group-sm">
                                     {% if calculated_status != 'paid' %}
                                     <button type="button" class="btn btn-outline-primary" 
@@ -185,6 +192,13 @@
                                     <span class="text-success"><i class="bi bi-check-circle"></i></span>
                                     {% endif %}
                                 </div>
+                                {% else %}
+                                <button type="button" class="btn btn-sm btn-outline-info" 
+                                        onclick="showFeeDetails({{ fee.id }})" 
+                                        title="Ver Detalhes">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -508,6 +522,7 @@ function showFeeDetails(feeId) {
                                     <th>Valor</th>
                                     <th>Método</th>
                                     <th>Referência</th>
+                                    <th>Movimento Financeiro</th>
                                     <th>Registado por</th>
                                 </tr>
                             </thead>
@@ -518,6 +533,16 @@ function showFeeDetails(feeId) {
                                         <td><strong>€${parseFloat(p.amount).toFixed(2).replace('.', ',')}</strong></td>
                                         <td>${p.payment_method}</td>
                                         <td>${p.reference || '-'}</td>
+                                        <td>
+                                            ${p.transaction_id ? `
+                                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" 
+                                                   class="text-decoration-none" 
+                                                   title="Ver movimento financeiro #${p.transaction_id}">
+                                                    <i class="bi bi-link-45deg"></i> 
+                                                    ${p.account_name ? p.account_name + ' (#' + p.transaction_id + ')' : 'Movimento #' + p.transaction_id}
+                                                </a>
+                                            ` : '<span class="text-muted">-</span>'}
+                                        </td>
                                         <td>${p.created_by_name || '-'}</td>
                                     </tr>
                                 `).join('')}
