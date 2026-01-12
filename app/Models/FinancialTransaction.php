@@ -17,7 +17,10 @@ class FinancialTransaction extends Model
             return [];
         }
 
-        $sql = "SELECT * FROM financial_transactions WHERE bank_account_id = :account_id";
+        $sql = "SELECT ft.*, ba.name as account_name, ba.account_type 
+                FROM financial_transactions ft
+                LEFT JOIN bank_accounts ba ON ba.id = ft.bank_account_id
+                WHERE ft.bank_account_id = :account_id";
         $params = [':account_id' => $accountId];
 
         if (isset($filters['transaction_type'])) {
@@ -55,9 +58,12 @@ class FinancialTransaction extends Model
             return [];
         }
 
-        $sql = "SELECT ft.*, ba.name as account_name, ba.account_type, u.name as created_by_name
+        $sql = "SELECT ft.*, ba.name as account_name, ba.account_type, 
+                       ba2.name as transfer_to_account_name, ba2.account_type as transfer_to_account_type,
+                       u.name as created_by_name
                 FROM financial_transactions ft
                 LEFT JOIN bank_accounts ba ON ba.id = ft.bank_account_id
+                LEFT JOIN bank_accounts ba2 ON ba2.id = ft.transfer_to_account_id
                 LEFT JOIN users u ON u.id = ft.created_by
                 WHERE ft.condominium_id = :condominium_id";
         $params = [':condominium_id' => $condominiumId];
@@ -200,11 +206,11 @@ class FinancialTransaction extends Model
 
         $stmt = $this->db->prepare("
             INSERT INTO financial_transactions (
-                condominium_id, bank_account_id, transaction_type, amount, transaction_date,
+                condominium_id, bank_account_id, transfer_to_account_id, transaction_type, amount, transaction_date,
                 description, category, reference, related_type, related_id, created_by
             )
             VALUES (
-                :condominium_id, :bank_account_id, :transaction_type, :amount, :transaction_date,
+                :condominium_id, :bank_account_id, :transfer_to_account_id, :transaction_type, :amount, :transaction_date,
                 :description, :category, :reference, :related_type, :related_id, :created_by
             )
         ");
@@ -212,6 +218,7 @@ class FinancialTransaction extends Model
         $stmt->execute([
             ':condominium_id' => $data['condominium_id'],
             ':bank_account_id' => $data['bank_account_id'],
+            ':transfer_to_account_id' => $data['transfer_to_account_id'] ?? null,
             ':transaction_type' => $data['transaction_type'],
             ':amount' => $data['amount'],
             ':transaction_date' => $data['transaction_date'],
@@ -228,6 +235,11 @@ class FinancialTransaction extends Model
         // Update account balance
         $bankAccountModel = new BankAccount();
         $bankAccountModel->updateBalance($data['bank_account_id']);
+        
+        // If it's a transfer, also update the destination account balance
+        if (!empty($data['transfer_to_account_id'])) {
+            $bankAccountModel->updateBalance($data['transfer_to_account_id']);
+        }
 
         return $transactionId;
     }
@@ -295,6 +307,8 @@ class FinancialTransaction extends Model
             return false;
         }
 
+        $transferToAccountId = $transaction['transfer_to_account_id'] ?? null;
+        
         $stmt = $this->db->prepare("DELETE FROM financial_transactions WHERE id = :id");
         $result = $stmt->execute([':id' => $id]);
 
@@ -302,6 +316,11 @@ class FinancialTransaction extends Model
             // Update account balance
             $bankAccountModel = new BankAccount();
             $bankAccountModel->updateBalance($transaction['bank_account_id']);
+            
+            // If it was a transfer, also update the destination account balance
+            if ($transferToAccountId) {
+                $bankAccountModel->updateBalance($transferToAccountId);
+            }
         }
 
         return $result;

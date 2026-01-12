@@ -1,13 +1,15 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Contas Bancárias</h2>
-        <div>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary me-2">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+        <h2 class="mb-2 mb-md-0">Contas Bancárias</h2>
+        <div class="d-flex flex-column flex-sm-row gap-2 w-100 w-md-auto">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Voltar
             </a>
+            {% if is_admin %}
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts/create" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> Nova Conta
             </a>
+            {% endif %}
         </div>
     </div>
 
@@ -26,14 +28,25 @@
     {% endif %}
 
     <div class="card shadow-sm">
-        <div class="card-header">
-            <h5 class="mb-0">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+            <h5 class="mb-2 mb-md-0">
                 <i class="bi bi-bank"></i> Contas do Condomínio
             </h5>
+            <div class="d-flex flex-column flex-sm-row gap-2">
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-list-ul"></i> Ver Todos os Movimentos
+                </a>
+                {% if is_admin %}
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/create" class="btn btn-sm btn-success">
+                    <i class="bi bi-plus-circle"></i> Novo Movimento
+                </a>
+                {% endif %}
+            </div>
         </div>
         <div class="card-body">
             {% if accounts %}
-            <div class="table-responsive">
+            <!-- Desktop Table View -->
+            <div class="table-responsive d-none d-lg-block">
                 <table class="table table-hover">
                     <thead>
                         <tr>
@@ -44,7 +57,7 @@
                             <th>SWIFT</th>
                             <th class="text-end">Saldo Atual</th>
                             <th>Estado</th>
-                            <th style="width: 120px;">Ações</th>
+                            <th style="width: 200px;">Ações</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -91,7 +104,14 @@
                                 {% endif %}
                             </td>
                             <td>
+                                {% if is_admin %}
                                 <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions?bank_account_id={{ account.id }}" class="btn btn-outline-info" title="Ver Movimentos">
+                                        <i class="bi bi-list-ul"></i>
+                                    </a>
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/create?bank_account_id={{ account.id }}" class="btn btn-outline-success" title="Novo Movimento">
+                                        <i class="bi bi-plus-circle"></i>
+                                    </a>
                                     <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts/{{ account.id }}/edit" class="btn btn-outline-primary" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </a>
@@ -104,6 +124,11 @@
                                     </form>
                                     {% endif %}
                                 </div>
+                                {% else %}
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions?bank_account_id={{ account.id }}" class="btn btn-sm btn-outline-info" title="Ver Movimentos">
+                                    <i class="bi bi-list-ul"></i>
+                                </a>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -124,6 +149,105 @@
                         </tr>
                     </tfoot>
                 </table>
+            </div>
+
+            <!-- Mobile/Tablet Card View -->
+            <div class="d-lg-none">
+                <div class="row g-3">
+                    {% for account in accounts %}
+                    <div class="col-12">
+                        <div class="card {% if account.account_type == 'cash' %}border-info border-2{% else %}border-primary border-2{% endif %} shadow-sm">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <h6 class="mb-1 fw-bold">{{ account.name }}</h6>
+                                        <div class="mb-2">
+                                            {% if account.account_type == 'bank' %}
+                                            <span class="badge bg-primary">Bancária</span>
+                                            {% else %}
+                                            <span class="badge bg-info">Caixa</span>
+                                            {% endif %}
+                                            {% if account.is_active %}
+                                            <span class="badge bg-success ms-1">Ativa</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary ms-1">Inativa</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="text-end">
+                                        <strong class="h5 mb-0 {% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            €{{ account.current_balance|number_format(2, ',', '.') }}
+                                        </strong>
+                                    </div>
+                                </div>
+
+                                {% if account.account_type == 'bank' %}
+                                {% if account.bank_name %}
+                                <div class="mb-2">
+                                    <small class="text-muted d-block"><strong>Banco:</strong> {{ account.bank_name }}</small>
+                                </div>
+                                {% endif %}
+                                {% if account.iban %}
+                                <div class="mb-2">
+                                    <small class="text-muted d-block"><strong>IBAN:</strong></small>
+                                    <code class="d-block text-break" style="font-size: 0.7rem; word-break: break-all;">{{ account.iban }}</code>
+                                </div>
+                                {% endif %}
+                                {% if account.swift %}
+                                <div class="mb-2">
+                                    <small class="text-muted d-block"><strong>SWIFT:</strong> <code style="font-size: 0.75rem;">{{ account.swift }}</code></small>
+                                </div>
+                                {% endif %}
+                                {% endif %}
+
+                                <div class="d-flex flex-column gap-2 mt-3 pt-3 border-top">
+                                    <div class="d-flex gap-2">
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions?bank_account_id={{ account.id }}" class="btn btn-sm btn-outline-info flex-fill">
+                                            <i class="bi bi-list-ul"></i> Movimentos
+                                        </a>
+                                        {% if is_admin %}
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/create?bank_account_id={{ account.id }}" class="btn btn-sm btn-outline-success flex-fill">
+                                            <i class="bi bi-plus-circle"></i> Novo Movimento
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                    {% if is_admin %}
+                                    <div class="d-flex gap-2">
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts/{{ account.id }}/edit" class="btn btn-sm btn-outline-primary flex-fill">
+                                            <i class="bi bi-pencil"></i> Editar
+                                        </a>
+                                        {% if not account.has_transactions %}
+                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts/{{ account.id }}/delete" class="flex-fill" onsubmit="return confirm('Tem certeza que deseja eliminar esta conta?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger w-100">
+                                                <i class="bi bi-trash"></i> Eliminar
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Total Mobile -->
+                <div class="card bg-light mt-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong>Total:</strong>
+                            {% set total = 0 %}
+                            {% for account in accounts %}
+                                {% set total = total + account.current_balance %}
+                            {% endfor %}
+                            <strong class="h5 mb-0 {% if total >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                €{{ total|number_format(2, ',', '.') }}
+                            </strong>
+                        </div>
+                    </div>
+                </div>
             </div>
             {% else %}
             <div class="alert alert-info">

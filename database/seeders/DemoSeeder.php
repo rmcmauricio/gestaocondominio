@@ -390,7 +390,7 @@ class DemoSeeder
                 // Create user
                 $userId = $userModel->create([
                     'email' => $userData['email'],
-                    'password' => 'Demo@2024',
+                    'password' => 'demo',
                     'name' => $userData['name'],
                     'role' => 'condomino',
                     'phone' => $userData['phone'],

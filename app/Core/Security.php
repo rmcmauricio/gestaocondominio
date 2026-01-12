@@ -67,6 +67,39 @@ class Security
     }
 
     /**
+     * Validate IBAN format (basic structure validation)
+     * IBAN format: 2 letters (country code) + 2 digits (check digits) + up to 30 alphanumeric characters
+     */
+    public static function validateIban(string $iban): bool
+    {
+        // Remove spaces and convert to uppercase
+        $iban = strtoupper(str_replace(' ', '', trim($iban)));
+        
+        // Basic structure: 2 letters + 2 digits + 15-30 alphanumeric characters
+        // Total length: 15-34 characters
+        if (strlen($iban) < 15 || strlen($iban) > 34) {
+            return false;
+        }
+        
+        // Must start with 2 letters (country code)
+        if (!preg_match('/^[A-Z]{2}/', $iban)) {
+            return false;
+        }
+        
+        // After country code, must have 2 digits (check digits)
+        if (!preg_match('/^[A-Z]{2}[0-9]{2}/', $iban)) {
+            return false;
+        }
+        
+        // Rest should be alphanumeric
+        if (!preg_match('/^[A-Z]{2}[0-9]{2}[A-Z0-9]+$/', $iban)) {
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
      * Generate CSRF token
      */
     public static function generateCSRFToken(): string

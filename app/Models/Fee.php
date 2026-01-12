@@ -176,5 +176,97 @@ class Fee extends Model
         $stmt->execute([':id' => $id]);
         return $stmt->fetch() ?: null;
     }
+
+    /**
+     * Get fees map by year (organized by month and fraction)
+     * Returns array: [month => [fraction_id => fee_data]]
+     */
+    public function getFeesMapByYear(int $condominiumId, int $year): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT 
+                f.id,
+                f.fraction_id,
+                f.period_month,
+                f.amount,
+                f.status,
+                f.due_date,
+                f.paid_at,
+                fr.identifier as fraction_identifier,
+                COALESCE((
+                    SELECT SUM(fp.amount) 
+                    FROM fee_payments fp 
+                    WHERE fp.fee_id = f.id
+                ), 0) as paid_amount
+            FROM fees f
+            INNER JOIN fractions fr ON fr.id = f.fraction_id
+            WHERE f.condominium_id = :condominium_id
+            AND f.period_year = :year
+            AND f.period_month IS NOT NULL
+            AND COALESCE(f.is_historical, 0) = 0
+            ORDER BY f.period_month ASC, fr.identifier ASC
+        ");
+
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':year' => $year
+        ]);
+
+        $fees = $stmt->fetchAll() ?: [];
+        
+        // Organize by month and fraction
+        $map = [];
+        foreach ($fees as $fee) {
+            $month = (int)$fee['period_month'];
+            $fractionId = (int)$fee['fraction_id'];
+            
+            if (!isset($map[$month])) {
+                $map[$month] = [];
+            }
+            
+            $map[$month][$fractionId] = [
+                'id' => (int)$fee['id'],
+                'fraction_id' => $fractionId,
+                'fraction_identifier' => $fee['fraction_identifier'],
+                'amount' => (float)$fee['amount'],
+                'paid_amount' => (float)$fee['paid_amount'],
+                'remaining_amount' => (float)$fee['amount'] - (float)$fee['paid_amount'],
+                'status' => $fee['status'],
+                'due_date' => $fee['due_date'],
+                'paid_at' => $fee['paid_at']
+            ];
+        }
+
+        return $map;
+    }
+
+    /**
+     * Get available years for fees in a condominium
+     */
+    public function getAvailableYears(int $condominiumId): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT DISTINCT period_year as year
+            FROM fees
+            WHERE condominium_id = :condominium_id
+            AND period_year IS NOT NULL
+            ORDER BY period_year DESC
+        ");
+
+        $stmt->execute([':condominium_id' => $condominiumId]);
+        $results = $stmt->fetchAll() ?: [];
+        
+        return array_map(function($row) {
+            return (int)$row['year'];
+        }, $results);
+    }
 }
 

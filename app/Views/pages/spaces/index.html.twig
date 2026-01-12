@@ -1,12 +1,14 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
         <div>
             <h2>Espaços Comuns</h2>
             <p class="text-muted mb-0">{{ condominium.name }}</p>
         </div>
+        {% if is_admin %}
         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces/create" class="btn btn-primary">
             <i class="bi bi-plus-circle"></i> Novo Espaço
         </a>
+        {% endif %}
     </div>
 
     {% if error %}
@@ -27,9 +29,14 @@
     <div class="row g-4">
         {% for space in spaces %}
         <div class="col-md-6 col-lg-4">
-            <div class="card h-100 shadow-sm">
+            <div class="card h-100 shadow-sm {% if not space.is_active %}border-secondary opacity-75{% endif %} {% if space.is_active %}space-card-clickable{% endif %}" {% if space.is_active %}data-space-id="{{ space.id }}" data-fraction-id="{{ user_first_fraction_id }}"{% endif %} style="{% if space.is_active %}cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;{% endif %}">
                 <div class="card-body">
-                    <h5 class="card-title">{{ space.name }}</h5>
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title mb-0">{{ space.name }}</h5>
+                        {% if not space.is_active %}
+                        <span class="badge bg-secondary">Inativo</span>
+                        {% endif %}
+                    </div>
                     <p class="card-text text-muted">{{ space.description|default('Sem descrição') }}</p>
                     <div class="mb-2">
                         <small class="text-muted">
@@ -64,13 +71,29 @@
                         </span>
                     </div>
                 </div>
-                <div class="card-footer bg-white">
+                {% if is_admin %}
+                <div class="card-footer bg-white" onclick="event.stopPropagation();">
                     <div class="btn-group w-100">
                         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces/{{ space.id }}/edit" class="btn btn-outline-primary btn-sm">
                             <i class="bi bi-pencil"></i> Editar
                         </a>
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces/{{ space.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar este espaço?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-trash"></i> Eliminar
+                            </button>
+                        </form>
                     </div>
                 </div>
+                {% else %}
+                {% if space.is_active %}
+                <div class="card-footer bg-light text-center">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle"></i> Clique no card para reservar este espaço
+                    </small>
+                </div>
+                {% endif %}
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -81,9 +104,11 @@
             <i class="bi bi-building display-1 text-muted"></i>
             <h4 class="mt-3">Nenhum espaço cadastrado</h4>
             <p class="text-muted">Comece criando o primeiro espaço comum</p>
+            {% if is_admin %}
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces/create" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> Criar Espaço
             </a>
+            {% endif %}
         </div>
     </div>
     {% endif %}
@@ -95,7 +120,46 @@
     </div>
 </div>
 
-
-
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Make space cards clickable (only active spaces)
+    const spaceCards = document.querySelectorAll('.space-card-clickable');
+    
+    spaceCards.forEach(function(card) {
+        card.addEventListener('click', function(e) {
+            // Don't trigger if clicking on buttons or links
+            if (e.target.closest('a, button, form')) {
+                return;
+            }
+            
+            const spaceId = this.getAttribute('data-space-id');
+            const fractionId = this.getAttribute('data-fraction-id');
+            
+            if (spaceId) {
+                let url = '{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations/create?space_id=' + spaceId;
+                if (fractionId) {
+                    url += '&fraction_id=' + fractionId;
+                }
+                window.location.href = url;
+            }
+        });
+        
+        // Add hover effect
+        card.addEventListener('mouseenter', function() {
+            if (this.getAttribute('data-space-id')) {
+                this.style.transform = 'translateY(-5px)';
+                this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+            }
+        });
+        
+        card.addEventListener('mouseleave', function() {
+            if (this.getAttribute('data-space-id')) {
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = '';
+            }
+        });
+    });
+});
+</script>
 
 

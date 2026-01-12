@@ -9,7 +9,7 @@ class SeederRunner
     public function __construct($db)
     {
         $this->db = $db;
-        
+
         if (!$this->db) {
             throw new \Exception("Database connection not available");
         }

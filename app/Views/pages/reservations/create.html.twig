@@ -22,7 +22,7 @@
                             <select class="form-select" id="space_id" name="space_id" required>
                                 <option value="">Selecione um espaço...</option>
                                 {% for space in spaces %}
-                                <option value="{{ space.id }}" data-price-hour="{{ space.price_per_hour }}" data-price-day="{{ space.price_per_day }}" data-deposit="{{ space.deposit_required }}">
+                                <option value="{{ space.id }}" data-price-hour="{{ space.price_per_hour }}" data-price-day="{{ space.price_per_day }}" data-deposit="{{ space.deposit_required }}" {% if selected_space_id == space.id %}selected{% endif %}>
                                     {{ space.name }} 
                                     {% if space.price_per_hour > 0 %}(€{{ space.price_per_hour }}/hora){% endif %}
                                     {% if space.price_per_day > 0 %}(€{{ space.price_per_day }}/dia){% endif %}
@@ -35,10 +35,19 @@
                             <label for="fraction_id" class="form-label">Fração <span class="text-danger">*</span></label>
                             <select class="form-select" id="fraction_id" name="fraction_id" required>
                                 <option value="">Selecione uma fração...</option>
-                                {% for fraction in user_fractions %}
-                                <option value="{{ fraction.fraction_id }}">{{ fraction.fraction_identifier }}</option>
-                                {% endfor %}
+                                {% if user_fractions %}
+                                    {% for fraction in user_fractions %}
+                                    <option value="{{ fraction.fraction_id }}" {% if selected_fraction_id == fraction.fraction_id %}selected{% endif %}>{{ fraction.fraction_identifier }}</option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="" disabled>Nenhuma fração disponível</option>
+                                {% endif %}
                             </select>
+                            {% if is_admin %}
+                            <small class="form-text text-muted">Como administrador, pode reservar em nome de qualquer fração do condomínio.</small>
+                            {% else %}
+                            <small class="form-text text-muted">Pode reservar apenas em nome das suas frações.</small>
+                            {% endif %}
                         </div>
 
                         <div class="row">
@@ -47,8 +56,8 @@
                                 <input type="date" class="form-control" id="start_date" name="start_date" required>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="start_time" class="form-label">Hora Início</label>
-                                <input type="time" class="form-control" id="start_time" name="start_time" value="00:00">
+                                <label for="start_time" class="form-label">Hora Início <span class="text-danger">*</span></label>
+                                <input type="time" class="form-control" id="start_time" name="start_time" required>
                             </div>
                         </div>
 
@@ -58,9 +67,13 @@
                                 <input type="date" class="form-control" id="end_date" name="end_date" required>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="end_time" class="form-label">Hora Fim</label>
-                                <input type="time" class="form-control" id="end_time" name="end_time" value="23:59">
+                                <label for="end_time" class="form-label">Hora Fim <span class="text-danger">*</span></label>
+                                <input type="time" class="form-control" id="end_time" name="end_time" required>
                             </div>
+                        </div>
+                        
+                        <div class="alert alert-warning" id="conflictWarning" style="display: none;">
+                            <i class="bi bi-exclamation-triangle"></i> <strong>Atenção:</strong> Este espaço pode já estar reservado neste período. Verifique antes de confirmar.
                         </div>
 
                         <div class="alert alert-info" id="priceInfo" style="display: none;">
@@ -96,6 +109,30 @@ document.addEventListener('DOMContentLoaded', function() {
     const priceInfo = document.getElementById('priceInfo');
     const estimatedPrice = document.getElementById('estimatedPrice');
     const depositAmount = document.getElementById('depositAmount');
+    const conflictWarning = document.getElementById('conflictWarning');
+    const form = document.getElementById('reservationForm');
+
+    function validateDateTime() {
+        // Hide warnings initially
+        conflictWarning.style.display = 'none';
+        
+        if (!startDate.value || !endDate.value || !startTime.value || !endTime.value) {
+            return true; // Let HTML5 validation handle empty fields
+        }
+
+        const start = new Date(startDate.value + 'T' + startTime.value);
+        const end = new Date(endDate.value + 'T' + endTime.value);
+
+        // Validate that start is before end
+        if (start >= end) {
+            conflictWarning.innerHTML = '<i class="bi bi-exclamation-triangle"></i> <strong>Erro:</strong> A data/hora de início deve ser anterior à data/hora de fim.';
+            conflictWarning.className = 'alert alert-danger';
+            conflictWarning.style.display = 'block';
+            return false;
+        }
+
+        return true;
+    }
 
     function calculatePrice() {
         const selectedOption = spaceSelect.options[spaceSelect.selectedIndex];
@@ -108,13 +145,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const priceDay = parseFloat(selectedOption.dataset.priceDay) || 0;
         const deposit = parseFloat(selectedOption.dataset.deposit) || 0;
 
-        if (!startDate.value || !endDate.value) {
+        if (!startDate.value || !endDate.value || !startTime.value || !endTime.value) {
             priceInfo.style.display = 'none';
             return;
         }
 
         const start = new Date(startDate.value + 'T' + startTime.value);
         const end = new Date(endDate.value + 'T' + endTime.value);
+        
+        if (start >= end) {
+            priceInfo.style.display = 'none';
+            return;
+        }
+        
         const diffMs = end - start;
         const diffHours = diffMs / (1000 * 60 * 60);
         const diffDays = Math.ceil(diffHours / 24);
@@ -133,11 +176,39 @@ document.addEventListener('DOMContentLoaded', function() {
         priceInfo.style.display = 'block';
     }
 
-    spaceSelect.addEventListener('change', calculatePrice);
-    startDate.addEventListener('change', calculatePrice);
-    endDate.addEventListener('change', calculatePrice);
-    startTime.addEventListener('change', calculatePrice);
-    endTime.addEventListener('change', calculatePrice);
+    // Validate on form submit
+    form.addEventListener('submit', function(e) {
+        if (!validateDateTime()) {
+            e.preventDefault();
+            return false;
+        }
+    });
+
+    // Validate and calculate on change
+    spaceSelect.addEventListener('change', function() {
+        validateDateTime();
+        calculatePrice();
+    });
+    
+    startDate.addEventListener('change', function() {
+        validateDateTime();
+        calculatePrice();
+    });
+    
+    endDate.addEventListener('change', function() {
+        validateDateTime();
+        calculatePrice();
+    });
+    
+    startTime.addEventListener('change', function() {
+        validateDateTime();
+        calculatePrice();
+    });
+    
+    endTime.addEventListener('change', function() {
+        validateDateTime();
+        calculatePrice();
+    });
 });
 </script>
 

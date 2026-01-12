@@ -4,11 +4,13 @@
             <h2>Finanças</h2>
             <p class="text-muted mb-0">{{ condominium.name }}</p>
         </div>
+        {% if is_admin %}
         <div class="w-100 w-md-auto">
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create" class="btn btn-primary w-100 w-md-auto">
                 <i class="bi bi-plus-circle"></i> Nova Despesa
             </a>
         </div>
+        {% endif %}
     </div>
 
     {% if error %}
@@ -79,9 +81,11 @@
                 <i class="bi bi-bank"></i> Saldos das Contas
             </h5>
             <div class="d-flex flex-column flex-sm-row gap-2 w-100 w-md-auto">
+                {% if is_admin %}
                 <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts" class="btn btn-sm btn-outline-primary">
                     <i class="bi bi-gear"></i> Gerir Contas
                 </a>
+                {% endif %}
                 <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" class="btn btn-sm btn-primary">
                     <i class="bi bi-list-ul"></i> Ver Movimentos
                 </a>
@@ -90,29 +94,36 @@
         <div class="card-body">
             <div class="row g-3">
                 {% for account in bank_accounts %}
-                <div class="col-12 col-sm-6 col-md-4">
-                    <div class="card {% if account.account_type == 'cash' %}border-info{% endif %} h-100">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start flex-wrap">
-                                <div class="mb-2">
-                                    <h6 class="mb-1">
+                <div class="col-12 col-sm-6 col-lg-4">
+                    <div class="card account-card {% if account.account_type == 'cash' %}border-info border-2{% else %}border-primary border-2{% endif %} h-100 shadow-sm">
+                        <div class="card-body d-flex flex-column">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-2 fw-bold">
                                         {{ account.name }}
+                                    </h6>
+                                    <div class="mb-2">
                                         {% if account.account_type == 'cash' %}
                                         <span class="badge bg-info">Caixa</span>
                                         {% else %}
                                         <span class="badge bg-primary">Bancária</span>
                                         {% endif %}
-                                    </h6>
-                                    {% if account.account_type == 'bank' %}
-                                    <small class="text-muted d-block">
-                                        {% if account.iban %}
-                                        <code>{{ account.iban|slice(0, 20) }}...</code>
-                                        {% endif %}
-                                    </small>
-                                    {% endif %}
+                                    </div>
                                 </div>
-                                <div class="text-end w-100 w-sm-auto">
-                                    <h4 class="mb-0 {% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            </div>
+                            
+                            {% if account.account_type == 'bank' and account.iban %}
+                            <div class="mb-3">
+                                <small class="text-muted d-block">
+                                    <code class="text-muted" style="font-size: 0.75rem;">{{ account.iban|slice(0, 20) }}...</code>
+                                </small>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="mt-auto">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">Saldo</small>
+                                    <h4 class="mb-0 fw-bold {% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
                                         €{{ account.current_balance|number_format(2, ',', '.') }}
                                     </h4>
                                 </div>
@@ -131,9 +142,11 @@
             <div class="card shadow-sm mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
                     <h5 class="mb-2 mb-md-0">Últimas Despesas</h5>
+                    {% if is_admin %}
                     <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create" class="btn btn-sm btn-primary">
                         <i class="bi bi-plus"></i> Adicionar
                     </a>
+                    {% endif %}
                 </div>
                 <div class="card-body">
                     {% if expenses %}
@@ -175,14 +188,18 @@
                     <div class="d-grid gap-2">
                         <h6 class="mb-2">Orçamentos</h6>
                         {% if not budget %}
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create" class="btn btn-outline-primary">
-                            <i class="bi bi-calendar-check"></i> Criar Orçamento {{ current_year }}
-                        </a>
+                            {% if is_admin %}
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create" class="btn btn-outline-primary">
+                                <i class="bi bi-calendar-check"></i> Criar Orçamento {{ current_year }}
+                            </a>
+                            {% else %}
+                            <span class="text-muted">Nenhum orçamento definido</span>
+                            {% endif %}
                         {% else %}
                         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}" class="btn btn-outline-primary">
                             <i class="bi bi-eye"></i> Ver Orçamento {{ current_year }}
                         </a>
-                        {% if budget.status == 'draft' %}
+                        {% if budget.status == 'draft' and is_admin %}
                         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}/edit" class="btn btn-outline-warning">
                             <i class="bi bi-pencil"></i> Editar {{ current_year }}
                         </a>
@@ -190,9 +207,11 @@
                         {% endif %}
                         
                         {% if not next_year_budget %}
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create?year={{ current_year + 1 }}" class="btn btn-outline-info">
-                            <i class="bi bi-calendar-plus"></i> Criar Orçamento {{ current_year + 1 }}
-                        </a>
+                            {% if is_admin %}
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create?year={{ current_year + 1 }}" class="btn btn-outline-info">
+                                <i class="bi bi-calendar-plus"></i> Criar Orçamento {{ current_year + 1 }}
+                            </a>
+                            {% endif %}
                         {% else %}
                         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ next_year_budget.id }}" class="btn btn-outline-info">
                             <i class="bi bi-eye"></i> Ver Orçamento {{ current_year + 1 }}
@@ -216,14 +235,16 @@
                         
                         <h6 class="mb-2">Outras Ações</h6>
                         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="btn btn-outline-primary">
-                            <i class="bi bi-receipt"></i> Gerir Quotas
+                            <i class="bi bi-receipt"></i> {% if is_admin %}Gerir{% else %}Ver{% endif %} Quotas
                         </a>
+                        {% if is_admin %}
                         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues" class="btn btn-outline-success">
                             <i class="bi bi-cash-stack"></i> Receitas
                         </a>
                         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-debts" class="btn btn-outline-warning">
                             <i class="bi bi-clock-history"></i> Dívidas Históricas
                         </a>
+                        {% endif %}
                         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports" class="btn btn-outline-secondary">
                             <i class="bi bi-graph-up"></i> Relatórios
                         </a>

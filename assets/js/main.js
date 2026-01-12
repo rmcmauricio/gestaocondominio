@@ -245,8 +245,7 @@
   // Toggle sidebar on mobile
   function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
-    const toggleFixed = document.querySelector('.sidebar-toggle-fixed');
-    const toggleBtn = document.querySelector('.sidebar-toggle-btn');
+    const toggleHeader = document.querySelector('.sidebar-toggle-header');
     const overlay = document.querySelector('.sidebar-overlay');
     
     if (sidebar) {
@@ -262,23 +261,9 @@
         }
       }
       
-      // Update icon on fixed button
-      if (toggleFixed) {
-        const icon = toggleFixed.querySelector('i');
-        if (icon) {
-          if (isShowing) {
-            icon.classList.remove('bi-x-lg');
-            icon.classList.add('bi-list');
-          } else {
-            icon.classList.remove('bi-list');
-            icon.classList.add('bi-x-lg');
-          }
-        }
-      }
-      
       // Update icon on header button
-      if (toggleBtn) {
-        const icon = toggleBtn.querySelector('i');
+      if (toggleHeader) {
+        const icon = toggleHeader.querySelector('i');
         if (icon) {
           if (isShowing) {
             icon.classList.remove('bi-x-lg');
@@ -308,10 +293,8 @@
   document.addEventListener('click', function(event) {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.querySelector('.sidebar-overlay');
-    const toggleFixed = document.querySelector('.sidebar-toggle-fixed');
-    const toggleBtn = document.querySelector('.sidebar-toggle-btn');
-    const isToggleButton = event.target.closest('.sidebar-toggle-fixed') || 
-                          event.target.closest('.sidebar-toggle-btn') ||
+    const toggleHeader = document.querySelector('.sidebar-toggle-header');
+    const isToggleButton = event.target.closest('.sidebar-toggle-header') ||
                           event.target.closest('[onclick*="toggleSidebar"]');
     
     if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= 991) {
@@ -322,16 +305,9 @@
         }
         document.body.style.overflow = '';
         
-        // Reset icons
-        if (toggleFixed) {
-          const icon = toggleFixed.querySelector('i');
-          if (icon) {
-            icon.classList.remove('bi-x-lg');
-            icon.classList.add('bi-list');
-          }
-        }
-        if (toggleBtn) {
-          const icon = toggleBtn.querySelector('i');
+        // Reset icon
+        if (toggleHeader) {
+          const icon = toggleHeader.querySelector('i');
           if (icon) {
             icon.classList.remove('bi-x-lg');
             icon.classList.add('bi-list');
@@ -345,6 +321,7 @@
   document.addEventListener('click', function(event) {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.querySelector('.sidebar-overlay');
+    const toggleHeader = document.querySelector('.sidebar-toggle-header');
     if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= 991) {
       const link = event.target.closest('.sidebar-nav a');
       if (link) {
@@ -355,18 +332,9 @@
           }
           document.body.style.overflow = '';
           
-          // Reset icons
-          const toggleFixed = document.querySelector('.sidebar-toggle-fixed');
-          const toggleBtn = document.querySelector('.sidebar-toggle-btn');
-          if (toggleFixed) {
-            const icon = toggleFixed.querySelector('i');
-            if (icon) {
-              icon.classList.remove('bi-x-lg');
-              icon.classList.add('bi-list');
-            }
-          }
-          if (toggleBtn) {
-            const icon = toggleBtn.querySelector('i');
+          // Reset icon
+          if (toggleHeader) {
+            const icon = toggleHeader.querySelector('i');
             if (icon) {
               icon.classList.remove('bi-x-lg');
               icon.classList.add('bi-list');

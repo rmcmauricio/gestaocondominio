@@ -31,6 +31,7 @@ class VoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $assembly = $this->assemblyModel->findById($assemblyId);
         if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
@@ -55,6 +56,7 @@ class VoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
@@ -317,6 +319,7 @@ class VoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $assembly = $this->assemblyModel->findById($assemblyId);
         if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
@@ -354,6 +357,7 @@ class VoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
@@ -416,6 +420,8 @@ class VoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);

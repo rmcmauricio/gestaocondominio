@@ -17,7 +17,10 @@ class Reservation extends Model
             return [];
         }
 
-        $sql = "SELECT r.*, s.name as space_name, f.identifier as fraction_identifier,
+        $sql = "SELECT r.*, 
+                       DATE_FORMAT(r.start_date, '%Y-%m-%d %H:%i:%s') as start_date_formatted,
+                       DATE_FORMAT(r.end_date, '%Y-%m-%d %H:%i:%s') as end_date_formatted,
+                       s.name as space_name, f.identifier as fraction_identifier,
                        u.name as user_name
                 FROM reservations r
                 INNER JOIN spaces s ON s.id = r.space_id
@@ -55,7 +58,7 @@ class Reservation extends Model
     }
 
     /**
-     * Check if space is available
+     * Check if space is available (no overlapping reservations)
      */
     public function isSpaceAvailable(int $spaceId, string $startDate, string $endDate, int $excludeReservationId = null): bool
     {
@@ -63,14 +66,25 @@ class Reservation extends Model
             return false;
         }
 
+        // Validate that start_date is before end_date
+        $start = new \DateTime($startDate);
+        $end = new \DateTime($endDate);
+        if ($start >= $end) {
+            return false;
+        }
+
+        // Check for overlapping reservations
+        // Two reservations overlap if:
+        // - New start is between existing start and end, OR
+        // - New end is between existing start and end, OR
+        // - New reservation completely contains existing reservation, OR
+        // - Existing reservation completely contains new reservation
         $sql = "SELECT COUNT(*) as count 
                 FROM reservations 
                 WHERE space_id = :space_id 
                 AND status IN ('pending', 'approved')
                 AND (
-                    (start_date <= :start_date AND end_date >= :start_date) OR
-                    (start_date <= :end_date AND end_date >= :end_date) OR
-                    (start_date >= :start_date AND end_date <= :end_date)
+                    (:start_date < end_date AND :end_date > start_date)
                 )";
 
         $params = [

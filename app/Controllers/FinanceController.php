@@ -87,6 +87,8 @@ class FinanceController extends Controller
 
         $this->loadPageTranslations('finances');
         
+        $isAdmin = RoleMiddleware::isAdmin();
+        
         $this->data += [
             'viewName' => 'pages/finances/index.html.twig',
             'page' => ['titulo' => 'Finanças'],
@@ -99,6 +101,7 @@ class FinanceController extends Controller
             'current_year' => $currentYear,
             'bank_accounts' => $bankAccounts,
             'total_balance' => $totalBalance,
+            'is_admin' => $isAdmin,
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null,
             'user' => AuthMiddleware::user()
@@ -114,6 +117,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -148,6 +152,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances');
@@ -249,6 +254,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -288,6 +294,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances');
@@ -389,6 +396,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -430,6 +438,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/budgets/' . $id);
@@ -601,6 +610,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
@@ -967,6 +977,8 @@ class FinanceController extends Controller
 
         $this->loadPageTranslations('finances');
         
+        $isAdmin = RoleMiddleware::isAdmin();
+        
         $this->data += [
             'viewName' => 'pages/finances/fees.html.twig',
             'page' => ['titulo' => 'Quotas'],
@@ -981,6 +993,7 @@ class FinanceController extends Controller
             'show_historical' => $showHistorical,
             'bank_accounts' => $bankAccounts,
             'available_transactions' => $availableTransactions,
+            'is_admin' => $isAdmin,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null,
@@ -997,6 +1010,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
@@ -1085,6 +1099,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
@@ -1185,6 +1200,8 @@ class FinanceController extends Controller
 
         $this->loadPageTranslations('finances');
         
+        $isAdmin = RoleMiddleware::isAdmin();
+        
         $this->data += [
             'viewName' => 'pages/finances/revenues.html.twig',
             'page' => ['titulo' => 'Receitas'],
@@ -1195,6 +1212,7 @@ class FinanceController extends Controller
             'current_year' => $currentYear,
             'selected_year' => $selectedYear,
             'selected_month' => $selectedMonth,
+            'is_admin' => $isAdmin,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null,
@@ -1214,6 +1232,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -1246,6 +1265,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
@@ -1291,6 +1311,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -1331,6 +1352,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
@@ -1379,6 +1401,7 @@ class FinanceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');

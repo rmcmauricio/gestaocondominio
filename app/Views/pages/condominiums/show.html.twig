@@ -183,6 +183,107 @@
                 </div>
             </div>
             {% endif %}
+            
+            <!-- Mapa de Quotas -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Mapa de Quotas</h5>
+                        <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="d-inline">
+                            <select name="fees_year" id="fees_year" class="form-select form-select-sm" onchange="this.form.submit()" style="width: auto; display: inline-block;">
+                                {% for year in available_years %}
+                                <option value="{{ year }}" {% if selected_fees_year == year %}selected{% endif %}>{{ year }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if fractions %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center" style="min-width: 100px;">Mês</th>
+                                    {% for fraction in fractions %}
+                                    <th class="text-center" style="min-width: 80px;">{{ fraction.identifier }}</th>
+                                    {% endfor %}
+                                    <th class="text-center" style="min-width: 100px;">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for month in 1..12 %}
+                                <tr>
+                                    <td class="fw-bold">{{ month_names[month] }}</td>
+                                    {% set month_total = 0 %}
+                                    {% set month_data = fees_map[month]|default({}) %}
+                                    {% for fraction in fractions %}
+                                    {% set fee = month_data[fraction.id]|default(null) %}
+                                    <td class="text-center">
+                                        {% if fee %}
+                                            {% set month_total = month_total + fee.amount %}
+                                            <div class="d-flex flex-column">
+                                                <span class="{% if fee.status == 'paid' %}text-success{% elseif fee.status == 'pending' %}text-warning{% else %}text-muted{% endif %}" title="Status: {{ fee.status|title }}">
+                                                    €{{ fee.amount|number_format(2, ',', '.') }}
+                                                </span>
+                                                {% if fee.paid_amount > 0 and fee.paid_amount < fee.amount %}
+                                                <small class="text-info">(€{{ fee.paid_amount|number_format(2, ',', '.') }} pago)</small>
+                                                {% elseif fee.status == 'paid' %}
+                                                <small class="text-success"><i class="bi bi-check-circle"></i></small>
+                                                {% endif %}
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    {% endfor %}
+                                    <td class="text-center fw-bold">
+                                        {% if month_total > 0 %}
+                                        €{{ month_total|number_format(2, ',', '.') }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td class="fw-bold">Total Anual</td>
+                                    {% set grand_total = 0 %}
+                                    {% for fraction in fractions %}
+                                        {% set fraction_total = 0 %}
+                                        {% for month in 1..12 %}
+                                            {% set month_data = fees_map[month]|default({}) %}
+                                            {% if month_data[fraction.id]|default(null) %}
+                                                {% set fraction_total = fraction_total + month_data[fraction.id].amount %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        {% set grand_total = grand_total + fraction_total %}
+                                    <td class="text-center fw-bold">
+                                        {% if fraction_total > 0 %}
+                                        €{{ fraction_total|number_format(2, ',', '.') }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    {% endfor %}
+                                    <td class="text-center fw-bold">
+                                        {% if grand_total > 0 %}
+                                        €{{ grand_total|number_format(2, ',', '.') }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">Nenhuma fração cadastrada.</p>
+                    {% endif %}
+                </div>
+            </div>
         </div>
 
         <div class="col-12 col-lg-4">
@@ -257,6 +358,12 @@
                         </a>
                         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts" class="btn btn-outline-info btn-sm">
                             <i class="bi bi-bank"></i> Contas Bancárias
+                        </a>
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-building"></i> Espaços Comuns
+                        </a>
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-calendar-check"></i> Reservas
                         </a>
                         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents" class="btn btn-outline-primary btn-sm">
                             <i class="bi bi-folder"></i> Documentos

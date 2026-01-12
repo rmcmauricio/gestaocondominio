@@ -89,13 +89,52 @@ class ReservationController extends Controller
 
         $spaces = $this->spaceModel->getByCondominium($condominiumId);
         
-        // Get user's fractions
+        // Get fractions based on user role
         $userId = AuthMiddleware::userId();
-        $condominiumUserModel = new \App\Models\CondominiumUser();
-        $userCondominiums = $condominiumUserModel->getUserCondominiums($userId);
-        $userFractions = array_filter($userCondominiums, function($uc) use ($condominiumId) {
-            return $uc['condominium_id'] == $condominiumId && $uc['fraction_id'];
-        });
+        $user = AuthMiddleware::user();
+        $isAdmin = ($user['role'] === 'admin' || $user['role'] === 'super_admin');
+        
+        $fractions = [];
+        
+        if ($isAdmin) {
+            // Admin can see all fractions in the condominium
+            $fractionModel = new \App\Models\Fraction();
+            $allFractions = $fractionModel->getByCondominiumId($condominiumId);
+            
+            // Format for view (getByCondominiumId already filters is_active = TRUE)
+            foreach ($allFractions as $fraction) {
+                $fractions[] = [
+                    'fraction_id' => $fraction['id'],
+                    'fraction_identifier' => $fraction['identifier'],
+                    'condominium_id' => $condominiumId
+                ];
+            }
+        } else {
+            // Condomino can only see their own fractions
+            $condominiumUserModel = new \App\Models\CondominiumUser();
+            $userCondominiums = $condominiumUserModel->getUserCondominiums($userId);
+            $userFractions = array_filter($userCondominiums, function($uc) use ($condominiumId) {
+                return $uc['condominium_id'] == $condominiumId && !empty($uc['fraction_id']);
+            });
+            
+            // Format for view
+            foreach ($userFractions as $uc) {
+                $fractions[] = [
+                    'fraction_id' => $uc['fraction_id'],
+                    'fraction_identifier' => $uc['fraction_identifier'] ?? 'N/A',
+                    'condominium_id' => $condominiumId
+                ];
+            }
+        }
+
+        // Get pre-selected values from URL parameters
+        $selectedSpaceId = $_GET['space_id'] ?? null;
+        $selectedFractionId = $_GET['fraction_id'] ?? null;
+        
+        // If fraction_id not provided and user is not admin, use first available fraction
+        if (!$selectedFractionId && !$isAdmin && !empty($fractions)) {
+            $selectedFractionId = $fractions[0]['fraction_id'];
+        }
 
         $this->loadPageTranslations('reservations');
         
@@ -104,7 +143,10 @@ class ReservationController extends Controller
             'page' => ['titulo' => 'Nova Reserva'],
             'condominium' => $condominium,
             'spaces' => $spaces,
-            'user_fractions' => $userFractions,
+            'user_fractions' => $fractions,
+            'is_admin' => $isAdmin,
+            'selected_space_id' => $selectedSpaceId,
+            'selected_fraction_id' => $selectedFractionId,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
@@ -134,14 +176,80 @@ class ReservationController extends Controller
         }
 
         $userId = AuthMiddleware::userId();
+        $user = AuthMiddleware::user();
+        $isAdmin = ($user['role'] === 'admin' || $user['role'] === 'super_admin');
         $spaceId = (int)$_POST['space_id'];
         $fractionId = (int)$_POST['fraction_id'];
-        $startDate = $_POST['start_date'] . ' ' . ($_POST['start_time'] ?? '00:00');
-        $endDate = $_POST['end_date'] . ' ' . ($_POST['end_time'] ?? '23:59');
+        
+        // Validate fraction access
+        if (!$isAdmin) {
+            // Condomino can only reserve for their own fractions
+            $condominiumUserModel = new \App\Models\CondominiumUser();
+            $userCondominiums = $condominiumUserModel->getUserCondominiums($userId);
+            $hasAccess = false;
+            
+            foreach ($userCondominiums as $uc) {
+                if ($uc['condominium_id'] == $condominiumId && $uc['fraction_id'] == $fractionId) {
+                    $hasAccess = true;
+                    break;
+                }
+            }
+            
+            if (!$hasAccess) {
+                $_SESSION['error'] = 'Não tem permissão para reservar em nome desta fração.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/reservations/create');
+                exit;
+            }
+        }
+        
+        // Validate that fraction belongs to condominium
+        $fractionModel = new \App\Models\Fraction();
+        $fraction = $fractionModel->findById($fractionId);
+        if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Fração inválida.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/reservations/create');
+            exit;
+        }
+        
+        // Validate time fields
+        $startTime = $_POST['start_time'] ?? '';
+        $endTime = $_POST['end_time'] ?? '';
+        
+        if (empty($startTime)) {
+            $_SESSION['error'] = 'Por favor, selecione a hora de início.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/reservations/create');
+            exit;
+        }
+        
+        if (empty($endTime)) {
+            $_SESSION['error'] = 'Por favor, selecione a hora de fim.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/reservations/create');
+            exit;
+        }
+        
+        $startDate = $_POST['start_date'] . ' ' . $startTime . ':00';
+        $endDate = $_POST['end_date'] . ' ' . $endTime . ':00';
+        
+        // Validate that start is before end
+        $startDateTime = new \DateTime($startDate);
+        $endDateTime = new \DateTime($endDate);
+        
+        if ($startDateTime >= $endDateTime) {
+            $_SESSION['error'] = 'A data/hora de início deve ser anterior à data/hora de fim.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/reservations/create');
+            exit;
+        }
+        
+        // If same day, validate that start time is before end time
+        if ($_POST['start_date'] === $_POST['end_date'] && $startTime >= $endTime) {
+            $_SESSION['error'] = 'A hora de início deve ser anterior à hora de fim.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/reservations/create');
+            exit;
+        }
 
-        // Check availability
+        // Check availability - verify no overlapping reservations
         if (!$this->reservationModel->isSpaceAvailable($spaceId, $startDate, $endDate)) {
-            $_SESSION['error'] = 'Espaço não disponível no período selecionado.';
+            $_SESSION['error'] = 'Espaço não disponível no período selecionado. Já existe uma reserva aprovada ou pendente que conflita com este horário.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/reservations/create');
             exit;
         }
@@ -154,12 +262,15 @@ class ReservationController extends Controller
         // Calculate price based on duration
         $start = new \DateTime($startDate);
         $end = new \DateTime($endDate);
-        $hours = $end->diff($start)->h + ($end->diff($start)->days * 24);
+        $diff = $end->diff($start);
         
-        if ($hours < 24 && $space['price_per_hour'] > 0) {
-            $price = $hours * $space['price_per_hour'];
+        // Calculate total hours (including days)
+        $totalHours = ($diff->days * 24) + $diff->h + ($diff->i / 60);
+        
+        if ($totalHours < 24 && $space['price_per_hour'] > 0) {
+            $price = $totalHours * $space['price_per_hour'];
         } elseif ($space['price_per_day'] > 0) {
-            $days = max(1, ceil($hours / 24));
+            $days = max(1, ceil($totalHours / 24));
             $price = $days * $space['price_per_day'];
         }
 

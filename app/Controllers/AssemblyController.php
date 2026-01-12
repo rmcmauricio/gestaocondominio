@@ -57,12 +57,15 @@ class AssemblyController extends Controller
 
         $this->loadPageTranslations('assemblies');
         
+        $isAdmin = RoleMiddleware::isAdmin();
+        
         $this->data += [
             'viewName' => 'pages/assemblies/index.html.twig',
             'page' => ['titulo' => 'Assembleias'],
             'condominium' => $condominium,
             'assemblies' => $assemblies,
             'current_status' => $status,
+            'is_admin' => $isAdmin,
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
         ];
@@ -77,6 +80,7 @@ class AssemblyController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -106,6 +110,7 @@ class AssemblyController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
@@ -301,6 +306,8 @@ class AssemblyController extends Controller
 
         $this->loadPageTranslations('assemblies');
         
+        $isAdmin = RoleMiddleware::isAdmin();
+        
         $this->data += [
             'viewName' => 'pages/assemblies/show.html.twig',
             'page' => ['titulo' => $assembly['title']],
@@ -313,6 +320,7 @@ class AssemblyController extends Controller
             'minutes_template' => !empty($minutesTemplate) ? $minutesTemplate[0] : null,
             'approved_minutes' => !empty($approvedMinutes) ? $approvedMinutes[0] : null,
             'signature_stats' => $signatureStats,
+            'is_admin' => $isAdmin,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null,
@@ -676,6 +684,7 @@ class AssemblyController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $assembly = $this->assemblyModel->findById($id);
         if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
@@ -741,6 +750,7 @@ class AssemblyController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
@@ -1220,6 +1230,7 @@ class AssemblyController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $assembly = $this->assemblyModel->findById($id);
         if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
@@ -1259,6 +1270,7 @@ class AssemblyController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);

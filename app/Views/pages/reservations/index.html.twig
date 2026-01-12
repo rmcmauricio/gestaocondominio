@@ -72,8 +72,28 @@
                         <tr>
                             <td><strong>{{ reservation.space_name }}</strong></td>
                             <td>{{ reservation.fraction_identifier }}</td>
-                            <td>{{ reservation.start_date|date('d/m/Y H:i') }}</td>
-                            <td>{{ reservation.end_date|date('d/m/Y H:i') }}</td>
+                            <td>
+                                {% if reservation.start_date_formatted %}
+                                    <div>{{ reservation.start_date_formatted|date('d/m/Y') }}</div>
+                                    <small class="text-muted"><i class="bi bi-clock"></i> {{ reservation.start_date_formatted|date('H:i') }}</small>
+                                {% elseif reservation.start_date %}
+                                    <div>{{ reservation.start_date|date('d/m/Y') }}</div>
+                                    <small class="text-muted"><i class="bi bi-clock"></i> {{ reservation.start_date|date('H:i') }}</small>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if reservation.end_date_formatted %}
+                                    <div>{{ reservation.end_date_formatted|date('d/m/Y') }}</div>
+                                    <small class="text-muted"><i class="bi bi-clock"></i> {{ reservation.end_date_formatted|date('H:i') }}</small>
+                                {% elseif reservation.end_date %}
+                                    <div>{{ reservation.end_date|date('d/m/Y') }}</div>
+                                    <small class="text-muted"><i class="bi bi-clock"></i> {{ reservation.end_date|date('H:i') }}</small>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
                             <td>{{ reservation.user_name }}</td>
                             <td>€{{ reservation.price|number_format(2, ',', '.') }}</td>
                             <td>

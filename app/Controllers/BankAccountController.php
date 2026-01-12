@@ -51,11 +51,14 @@ class BankAccountController extends Controller
 
         $this->loadPageTranslations('finances');
         
+        $isAdmin = RoleMiddleware::isAdmin();
+        
         $this->data += [
             'viewName' => 'pages/bank-accounts/index.html.twig',
             'page' => ['titulo' => 'Contas Bancárias'],
             'condominium' => $condominium,
             'accounts' => $accounts,
+            'is_admin' => $isAdmin,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
@@ -69,6 +72,7 @@ class BankAccountController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -96,6 +100,7 @@ class BankAccountController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/bank-accounts');
@@ -136,6 +141,13 @@ class BankAccountController extends Controller
                 header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/bank-accounts/create');
                 exit;
             }
+
+            // Validate IBAN format
+            if (!Security::validateIban($iban)) {
+                $_SESSION['error'] = 'Formato de IBAN inválido. O IBAN deve ter entre 15 e 34 caracteres, começar com 2 letras (código do país), seguido de 2 dígitos e caracteres alfanuméricos.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/bank-accounts/create');
+                exit;
+            }
         } else {
             // For cash accounts, ignore bank fields
             $iban = null;
@@ -170,6 +182,7 @@ class BankAccountController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -205,6 +218,7 @@ class BankAccountController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/bank-accounts');
@@ -250,6 +264,13 @@ class BankAccountController extends Controller
                 exit;
             }
 
+            // Validate IBAN format
+            if (!Security::validateIban($iban)) {
+                $_SESSION['error'] = 'Formato de IBAN inválido. O IBAN deve ter entre 15 e 34 caracteres, começar com 2 letras (código do país), seguido de 2 dígitos e caracteres alfanuméricos.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/bank-accounts/' . $id . '/edit');
+                exit;
+            }
+
             $updateData['iban'] = $iban;
             $updateData['swift'] = $swift;
             $updateData['bank_name'] = Security::sanitize($_POST['bank_name'] ?? '');
@@ -288,6 +309,7 @@ class BankAccountController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/bank-accounts');

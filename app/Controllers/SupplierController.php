@@ -40,11 +40,14 @@ class SupplierController extends Controller
 
         $this->loadPageTranslations('suppliers');
         
+        $isAdmin = RoleMiddleware::isAdmin();
+        
         $this->data += [
             'viewName' => 'pages/suppliers/index.html.twig',
             'page' => ['titulo' => 'Fornecedores'],
             'condominium' => $condominium,
             'suppliers' => $suppliers,
+            'is_admin' => $isAdmin,
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
         ];
@@ -59,6 +62,7 @@ class SupplierController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -88,6 +92,7 @@ class SupplierController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/suppliers');
@@ -141,12 +146,15 @@ class SupplierController extends Controller
 
         $this->loadPageTranslations('suppliers');
         
+        $isAdmin = RoleMiddleware::isAdmin();
+        
         $this->data += [
             'viewName' => 'pages/suppliers/contracts.html.twig',
             'page' => ['titulo' => 'Contratos'],
             'condominium' => $condominium,
             'contracts' => $contracts,
             'expiring_soon' => $expiringSoon,
+            'is_admin' => $isAdmin,
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
         ];
@@ -161,6 +169,7 @@ class SupplierController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -193,6 +202,7 @@ class SupplierController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/suppliers/contracts');

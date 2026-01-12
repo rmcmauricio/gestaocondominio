@@ -21,6 +21,7 @@ class Fraction extends Model
             SELECT f.*
             FROM fractions f
             WHERE f.condominium_id = :condominium_id
+            AND f.is_active = TRUE
             ORDER BY f.identifier ASC
         ");
 
