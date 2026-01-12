@@ -1,6 +1,14 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>{{ assembly.title }}</h2>
+        <div>
+            <h2 class="mb-1">{{ assembly.title }}</h2>
+            <p class="text-muted mb-0">
+                <i class="bi bi-calendar"></i> {{ assembly.scheduled_date|date('d/m/Y H:i') }}
+                {% if assembly.location %}
+                | <i class="bi bi-geo-alt"></i> {{ assembly.location }}
+                {% endif %}
+            </p>
+        </div>
         <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Voltar
         </a>
@@ -27,13 +35,11 @@
     </div>
     {% endif %}
 
-    {# Seção de Ações no Topo #}
-    <div class="card shadow-sm mb-4 border-0" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-        <div class="card-body text-white">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">
-                    <i class="bi bi-lightning-charge-fill"></i> Ações Rápidas
-                </h5>
+    {# Card Unificado: Ações e Informações #}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0 d-inline-flex align-items-center gap-2">
+                Informações
                 <span class="badge bg-light text-dark">
                     {% if assembly.status == 'scheduled' %}Agendada
                     {% elseif assembly.status == 'in_progress' %}Em Andamento
@@ -41,186 +47,176 @@
                     {% elseif assembly.status == 'completed' %}Concluída
                     {% else %}Cancelada{% endif %}
                 </span>
-            </div>
-            
+            </h5>
+        </div>
+        <div class="card-body">
+            {# Ações Rápidas - Apenas para Admin #}
             {% if is_admin %}
-            <div class="row g-3">
+            <div class="mb-4 pb-4 border-bottom">
+                <h6 class="mb-3">
+                    <i class="bi bi-lightning-charge-fill"></i> Ações Rápidas
+                </h6>
                 {% if assembly.status == 'scheduled' %}
-                <div class="col-md-6 col-lg-3">
-                    <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/edit" class="btn btn-light w-100">
-                        <i class="bi bi-pencil"></i> Editar
-                    </a>
-                </div>
-                <div class="col-md-6 col-lg-3">
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/send-convocation" class="d-inline w-100">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button type="submit" class="btn btn-light w-100">
-                            <i class="bi bi-envelope"></i> Enviar Convocatórias
-                        </button>
-                    </form>
-                </div>
-                <div class="col-md-6 col-lg-3">
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/start" class="d-inline w-100">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button type="submit" class="btn btn-light w-100" onclick="return confirm('Tem certeza que deseja iniciar esta assembleia?');">
-                            <i class="bi bi-play-circle"></i> Iniciar
-                        </button>
-                    </form>
-                </div>
-                <div class="col-md-6 col-lg-3">
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/cancel" class="d-inline w-100">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button type="submit" class="btn btn-light w-100" onclick="return confirm('Tem certeza que deseja cancelar esta assembleia?');">
-                            <i class="bi bi-x-circle"></i> Cancelar
-                        </button>
-                    </form>
+                <div class="row g-3">
+                    <div class="col-md-6 col-lg-3">
+                        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/edit" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-pencil"></i> Editar
+                        </a>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/send-convocation" class="d-inline w-100">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-outline-primary w-100">
+                                <i class="bi bi-envelope"></i> Enviar Convocatórias
+                            </button>
+                        </form>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/start" class="d-inline w-100">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-success w-100" onclick="return confirm('Tem certeza que deseja iniciar esta assembleia?');">
+                                <i class="bi bi-play-circle"></i> Iniciar
+                            </button>
+                        </form>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/cancel" class="d-inline w-100">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-outline-danger w-100" onclick="return confirm('Tem certeza que deseja cancelar esta assembleia?');">
+                                <i class="bi bi-x-circle"></i> Cancelar
+                            </button>
+                        </form>
+                    </div>
                 </div>
                 {% elseif assembly.status == 'in_progress' %}
-                <div class="col-12">
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/close">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <div class="row g-3">
-                            <div class="col-md-8">
-                                <label for="minutes" class="form-label text-white">Resumo/Atas</label>
-                                <textarea class="form-control" id="minutes" name="minutes" rows="3" placeholder="Resumo da assembleia..."></textarea>
-                            </div>
-                            <div class="col-md-4 d-flex align-items-end">
-                                <button type="submit" class="btn btn-light w-100" onclick="return confirm('Tem certeza que deseja encerrar esta assembleia?');">
-                                    <i class="bi bi-stop-circle"></i> Encerrar Assembleia
-                                </button>
-                            </div>
+                <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/close">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label for="minutes" class="form-label">Resumo/Atas</label>
+                            <textarea class="form-control" id="minutes" name="minutes" rows="3" placeholder="Resumo da assembleia..."></textarea>
                         </div>
-                    </form>
-                </div>
-                {% endif %}
-            </div>
-            {% endif %}
-            
-            {% if assembly.status == 'closed' or assembly.status == 'completed' %}
-                <div class="col-12">
-                    <div class="row g-2">
-                        {% if minutes_template or approved_minutes %}
-                        <div class="col-md-6 col-lg-3">
-                            <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes/view" class="btn btn-light w-100" target="_blank">
-                                <i class="bi bi-file-text"></i> Ver Ata
-                            </a>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-warning w-100" onclick="return confirm('Tem certeza que deseja encerrar esta assembleia?');">
+                                <i class="bi bi-stop-circle"></i> Encerrar Assembleia
+                            </button>
                         </div>
-                        {% endif %}
-                        
-                        {% if minutes_template %}
-                        <div class="col-md-6 col-lg-3">
-                            <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/edit" class="btn btn-light w-100">
-                                <i class="bi bi-pencil-square"></i> Editar Template
-                            </a>
-                        </div>
-                        <div class="col-md-6 col-lg-3">
-                            <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/signatures" class="btn btn-light w-100">
-                                <i class="bi bi-pen"></i> Gerir Assinaturas
-                            </a>
-                        </div>
-                        {% else %}
-                        <div class="col-md-6 col-lg-3">
-                            <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/generate" class="btn btn-light w-100" onclick="return confirm('Deseja gerar o template de atas para esta assembleia?');">
-                                <i class="bi bi-file-earmark-plus"></i> Gerar Template
-                            </a>
-                        </div>
-                        {% endif %}
-                        
-                        {% if approved_minutes %}
-                        <div class="col-md-6 col-lg-3">
-                            <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/documents/{{ approved_minutes.id }}/download" class="btn btn-light w-100" target="_blank">
-                                <i class="bi bi-download"></i> Descarregar PDF
-                            </a>
-                        </div>
-                        {% endif %}
                     </div>
+                </form>
+                {% elseif assembly.status == 'closed' or assembly.status == 'completed' %}
+                <div class="row g-2">
+                    {% if minutes_template or approved_minutes %}
+                    <div class="col-md-6 col-lg-3">
+                        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes/view" class="btn btn-outline-primary w-100" target="_blank">
+                            <i class="bi bi-file-text"></i> Ver Ata
+                        </a>
+                    </div>
+                    {% endif %}
                     
                     {% if minutes_template %}
-                    <div class="mt-3 pt-3 border-top border-light border-opacity-25">
-                        <div class="row g-2 align-items-center">
-                            <div class="col-md-6">
-                                <div class="d-flex align-items-center gap-2">
-                                    <span class="badge {% if minutes_template.status == 'approved' %}bg-success{% else %}bg-warning text-dark{% endif %}">
-                                        {% if minutes_template.status == 'approved' %}Aprovado{% else %}Rascunho{% endif %}
-                                    </span>
-                                    {% if signature_stats %}
-                                    <span class="text-white-50">
-                                        <i class="bi bi-pen"></i> 
-                                        Assinaturas: <strong>{{ signature_stats.signed }}/{{ signature_stats.total }}</strong>
-                                        {% if signature_stats.pending > 0 %}
-                                            <span class="badge bg-warning text-dark ms-1">{{ signature_stats.pending }} pendente(s)</span>
-                                        {% else %}
-                                            <span class="badge bg-success ms-1">Todas assinadas</span>
-                                        {% endif %}
-                                    </span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            {% if (not signature_stats or signature_stats.signed == 0) %}
-                            <div class="col-md-6">
-                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/change-status" class="d-inline w-100">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <input type="hidden" name="status" value="in_progress">
-                                    <button type="submit" class="btn btn-outline-light w-100" onclick="return confirm('Tem certeza que deseja reabrir esta assembleia para edição?');">
-                                        <i class="bi bi-arrow-counterclockwise"></i> Reabrir para Edição
-                                    </button>
-                                </form>
-                            </div>
-                            {% endif %}
-                        </div>
+                    <div class="col-md-6 col-lg-3">
+                        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/edit" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-pencil-square"></i> Editar Template
+                        </a>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/signatures" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-pen"></i> Gerir Assinaturas
+                        </a>
+                    </div>
+                    {% else %}
+                    <div class="col-md-6 col-lg-3">
+                        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/generate" class="btn btn-outline-primary w-100" onclick="return confirm('Deseja gerar o template de atas para esta assembleia?');">
+                            <i class="bi bi-file-earmark-plus"></i> Gerar Template
+                        </a>
+                    </div>
+                    {% endif %}
+                    
+                    {% if approved_minutes %}
+                    <div class="col-md-6 col-lg-3">
+                        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/documents/{{ approved_minutes.id }}/download" class="btn btn-outline-success w-100" target="_blank">
+                            <i class="bi bi-download"></i> Descarregar PDF
+                        </a>
                     </div>
                     {% endif %}
                 </div>
+                
+                {% if minutes_template %}
+                <div class="mt-3 pt-3 border-top">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <span class="badge {% if minutes_template.status == 'approved' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                    {% if minutes_template.status == 'approved' %}Aprovado{% else %}Rascunho{% endif %}
+                                </span>
+                                {% if signature_stats %}
+                                <span class="text-muted">
+                                    <i class="bi bi-pen"></i> 
+                                    Assinaturas: <strong>{{ signature_stats.signed }}/{{ signature_stats.total }}</strong>
+                                    {% if signature_stats.pending > 0 %}
+                                        <span class="badge bg-warning text-dark ms-1">{{ signature_stats.pending }} pendente(s)</span>
+                                    {% else %}
+                                        <span class="badge bg-success ms-1">Todas assinadas</span>
+                                    {% endif %}
+                                </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if (not signature_stats or signature_stats.signed == 0) %}
+                        <div class="col-md-6">
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/change-status" class="d-inline w-100">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="status" value="in_progress">
+                                <button type="submit" class="btn btn-outline-secondary w-100" onclick="return confirm('Tem certeza que deseja reabrir esta assembleia para edição?');">
+                                    <i class="bi bi-arrow-counterclockwise"></i> Reabrir para Edição
+                                </button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
                 {% endif %}
             </div>
+            {% endif %}
+
+            {# Informações da Assembleia #}
+            {% if assembly.description or assembly.agenda %}
+            <div class="mb-3">
+                <h6>Descrição</h6>
+                <p class="text-muted">{{ assembly.description ?? assembly.agenda }}</p>
+            </div>
+            {% endif %}
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <strong>Tipo:</strong> {{ assembly.type|title }}<br>
+                    <strong>Data:</strong> {{ assembly.scheduled_date|date('d/m/Y') }}<br>
+                    <strong>Hora:</strong> {{ assembly.scheduled_date|date('H:i') }}
+                </div>
+                <div class="col-md-6 mb-3">
+                    {% if assembly.location %}
+                    <strong>Local:</strong> {{ assembly.location }}<br>
+                    {% endif %}
+                    <strong>Quórum:</strong> {{ assembly.quorum_percentage }}%
+                </div>
+            </div>
+
+            {% if quorum %}
+            <div class="alert alert-info mb-0">
+                <strong>Quórum Atual:</strong> {{ quorum.percentage }}% 
+                ({{ quorum.attended_millage }}‰ de {{ quorum.total_millage }}‰)
+            </div>
+            {% endif %}
         </div>
     </div>
 
     <div class="row">
         <div class="col-12">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Informações</h5>
-                        <span class="badge 
-                            {% if assembly.status == 'scheduled' %}bg-primary
-                            {% elseif assembly.status == 'in_progress' %}bg-info
-                            {% elseif assembly.status == 'closed' or assembly.status == 'completed' %}bg-success
-                            {% else %}bg-secondary{% endif %}">
-                            {{ assembly.status|replace({'_': ' '})|title }}
-                        </span>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <p><strong>Descrição:</strong></p>
-                    <p>{{ assembly.description ?? assembly.agenda ?? 'Sem descrição' }}</p>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <strong>Tipo:</strong> {{ assembly.type|title }}<br>
-                            <strong>Data:</strong> {{ assembly.scheduled_date|date('d/m/Y') }}<br>
-                            <strong>Hora:</strong> {{ assembly.scheduled_date|date('H:i') }}
-                        </div>
-                        <div class="col-md-6">
-                            {% if assembly.location %}
-                            <strong>Local:</strong> {{ assembly.location }}<br>
-                            {% endif %}
-                            <strong>Quórum:</strong> {{ assembly.quorum_percentage }}%
-                        </div>
-                    </div>
-
-                    {% if quorum %}
-                    <div class="alert alert-info">
-                        <strong>Quórum Atual:</strong> {{ quorum.percentage }}% 
-                        ({{ quorum.attended_millage }}‰ de {{ quorum.total_millage }}‰)
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
 
             <div class="card shadow-sm mb-4">
                 <div class="card-header">
-                    <h6 class="mb-0">Registo de Presenças</h6>
+                    <h5 class="mb-0">Registo de Presenças</h5>
                 </div>
                 <div class="card-body">
                     {% if assembly.status != 'closed' and assembly.status != 'completed' %}
@@ -336,8 +332,8 @@
             {# Vote Topics Section #}
             <div class="card shadow-sm mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">Tópicos de Votação</h6>
-                    {% if assembly.status != 'closed' and assembly.status != 'completed' %}
+                    <h5 class="mb-0">Tópicos de Votação</h5>
+                    {% if assembly.status != 'closed' and assembly.status != 'completed' and is_admin %}
                     <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/create-topic" class="btn btn-sm btn-primary">
                         <i class="bi bi-plus-circle"></i> Novo Tópico
                     </a>
@@ -517,12 +513,12 @@
                         </div>
                         {% endfor %}
                     {% else %}
-                        <p class="text-muted mb-0">Nenhum tópico de votação criado ainda.</p>
+                        <div class="card-body">
+                            <p class="text-muted mb-0">Nenhum tópico de votação criado ainda.</p>
+                        </div>
                     {% endif %}
                 </div>
             </div>
-        </div>
-
         </div>
     </div>
 </div>

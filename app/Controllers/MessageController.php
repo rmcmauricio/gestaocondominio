@@ -170,11 +170,20 @@ class MessageController extends Controller
             $this->messageModel->markAsRead($id);
         }
 
+        // Get condominium for sidebar
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
         $this->loadPageTranslations('messages');
         
         $this->data += [
             'viewName' => 'pages/messages/show.html.twig',
             'page' => ['titulo' => $message['subject']],
+            'condominium' => $condominium,
             'message' => $message
         ];
 

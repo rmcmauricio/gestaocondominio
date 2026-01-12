@@ -24,11 +24,21 @@ class InvitationController extends Controller
         RoleMiddleware::requireCondominiumAccess($condominiumId);
         RoleMiddleware::requireAdmin();
 
+        // Get condominium for sidebar
+        $condominiumModel = new \App\Models\Condominium();
+        $condominium = $condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
         $this->loadPageTranslations('invitations');
         
         $this->data += [
             'viewName' => 'pages/invitations/create.html.twig',
             'page' => ['titulo' => 'Convidar Condómino'],
+            'condominium' => $condominium,
             'condominium_id' => $condominiumId,
             'fraction_id' => $fractionId,
             'csrf_token' => Security::generateCSRFToken()

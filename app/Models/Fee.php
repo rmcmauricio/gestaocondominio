@@ -228,6 +228,14 @@ class Fee extends Model
                 $map[$month] = [];
             }
             
+            // Check if fee is overdue
+            $isOverdue = false;
+            if ($fee['status'] === 'pending' && !empty($fee['due_date'])) {
+                $dueDate = new \DateTime($fee['due_date']);
+                $today = new \DateTime();
+                $isOverdue = $dueDate < $today;
+            }
+            
             $map[$month][$fractionId] = [
                 'id' => (int)$fee['id'],
                 'fraction_id' => $fractionId,
@@ -237,7 +245,8 @@ class Fee extends Model
                 'remaining_amount' => (float)$fee['amount'] - (float)$fee['paid_amount'],
                 'status' => $fee['status'],
                 'due_date' => $fee['due_date'],
-                'paid_at' => $fee['paid_at']
+                'paid_at' => $fee['paid_at'],
+                'is_overdue' => $isOverdue
             ];
         }
 

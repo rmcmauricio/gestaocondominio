@@ -46,6 +46,11 @@ $router->post('/subscription/reactivate', 'App\Controllers\SubscriptionControlle
 $router->get('/dashboard', 'App\Controllers\DashboardController@index');
 $router->get('/admin', 'App\Controllers\DashboardController@admin');
 
+// Profile routes
+$router->get('/profile', 'App\Controllers\ProfileController@show');
+$router->post('/profile/update', 'App\Controllers\ProfileController@update');
+$router->post('/profile/password', 'App\Controllers\ProfileController@updatePassword');
+
 // Condominium routes - redirect to dashboard (dashboard now shows condominiums list)
 // $router->get('/condominiums', 'App\Controllers\CondominiumController@index'); // Removed - dashboard replaces this
 $router->get('/condominiums/create', 'App\Controllers\CondominiumController@create');
@@ -150,6 +155,9 @@ $router->get('/condominiums/{condominium_id}/occurrences/{id}/attachments/{attac
 $router->get('/condominiums/{condominium_id}/suppliers', 'App\Controllers\SupplierController@index');
 $router->get('/condominiums/{condominium_id}/suppliers/create', 'App\Controllers\SupplierController@create');
 $router->post('/condominiums/{condominium_id}/suppliers', 'App\Controllers\SupplierController@store');
+$router->get('/condominiums/{condominium_id}/suppliers/{id}/edit', 'App\Controllers\SupplierController@edit');
+$router->post('/condominiums/{condominium_id}/suppliers/{id}', 'App\Controllers\SupplierController@update');
+$router->post('/condominiums/{condominium_id}/suppliers/{id}/delete', 'App\Controllers\SupplierController@delete');
 $router->get('/condominiums/{condominium_id}/suppliers/contracts', 'App\Controllers\SupplierController@contracts');
 $router->get('/condominiums/{condominium_id}/suppliers/contracts/create', 'App\Controllers\SupplierController@createContract');
 $router->post('/condominiums/{condominium_id}/suppliers/contracts', 'App\Controllers\SupplierController@storeContract');
