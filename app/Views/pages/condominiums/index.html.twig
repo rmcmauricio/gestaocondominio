@@ -1,10 +1,31 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Meus Condomínios</h2>
-        <a href="{{ BASE_URL }}condominiums/create" class="btn btn-primary">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+        <h2 class="mb-2 mb-md-0">Dashboard</h2>
+        <a href="{{ BASE_URL }}condominiums/create" class="btn btn-primary w-100 w-md-auto">
             <i class="bi bi-plus-circle"></i> Novo Condomínio
         </a>
     </div>
+    
+    {% if stats %}
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-sm-6">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <h3 class="text-primary">{{ stats.total_condominiums }}</h3>
+                    <p class="text-muted mb-0">Condomínios</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <h3 class="text-success">{{ stats.total_fractions }}</h3>
+                    <p class="text-muted mb-0">Frações Totais</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     {% if error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -24,23 +45,25 @@
     <div class="row g-4">
         {% for condominium in condominiums %}
         <div class="col-md-6 col-lg-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body">
-                    <h5 class="card-title">{{ condominium.name }}</h5>
-                    <p class="card-text text-muted">
-                        <i class="bi bi-geo-alt"></i> {{ condominium.city }}, {{ condominium.district }}
-                    </p>
-                    <p class="card-text small">{{ condominium.address }}</p>
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <span class="badge {% if condominium.is_active %}bg-success{% else %}bg-secondary{% endif %}">
-                            {% if condominium.is_active %}Ativo{% else %}Inativo{% endif %}
-                        </span>
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="btn btn-sm btn-outline-primary">
-                            Ver Detalhes
-                        </a>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="text-decoration-none">
+                <div class="card h-100 shadow-sm card-hover">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ condominium.name }}</h5>
+                        <p class="card-text text-muted">
+                            <i class="bi bi-geo-alt"></i> {{ condominium.city }}{% if condominium.district %}, {{ condominium.district }}{% endif %}
+                        </p>
+                        <p class="card-text small text-muted">{{ condominium.address }}</p>
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <span class="badge {% if condominium.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                {% if condominium.is_active %}Ativo{% else %}Inativo{% endif %}
+                            </span>
+                            <span class="text-primary">
+                                <i class="bi bi-arrow-right"></i> Ver Detalhes
+                            </span>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
         {% endfor %}
     </div>

@@ -11,31 +11,31 @@
   --color-primary: #6366f1;
   --color-primary-dark: #4f46e5;
   --color-primary-light: #818cf8;
-  
+
   /* Accent Colors */
   --color-accent: #f59e0b;
   --color-success: #10b981;
   --color-danger: #ef4444;
   --color-warning: #f59e0b;
   --color-info: #3b82f6;
-  
+
   /* Text Colors */
   --color-text: #1f2937;
   --color-text-light: #6b7280;
   --color-text-muted: #9ca3af;
-  
+
   /* Background Colors */
   --color-bg: #ffffff;
   --color-bg-light: #f9fafb;
   --color-bg-dark: #111827;
-  
+
   /* Border Colors */
   --color-border: #e5e7eb;
   --color-border-dark: #d1d5db;
-  
+
   /* Sidebar */
   --sidebar-width: 250px;
-  
+
   /* Typography */
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-size-base: 1rem;
@@ -45,15 +45,15 @@
   --font-size-2xl: 1.5rem;
   --font-size-3xl: 1.875rem;
   --font-size-4xl: 2.25rem;
-  
+
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
-  
+
   --line-height: 1.5;
   --line-height-tight: 1.25;
-  
+
   /* Spacing */
   --space-xs: 0.25rem;
   --space-sm: 0.5rem;
@@ -62,24 +62,24 @@
   --space-xl: 2rem;
   --space-2xl: 3rem;
   --space-3xl: 4rem;
-  
+
   /* Border Radius */
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
   --radius-full: 9999px;
-  
+
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  
+
   /* Transitions */
   --transition: 150ms ease-in-out;
   --transition-slow: 300ms ease-in-out;
-  
+
   /* Layout */
   --header-height: 64px;
   --container-max: 1200px;
@@ -189,6 +189,23 @@ code {
   justify-content: space-between;
   padding: 0 var(--container-padding);
   position: relative;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.sidebar-toggle-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: var(--radius-md);
+  font-size: 1.25rem;
 }
 
 .logo {
@@ -342,20 +359,9 @@ code {
 
 /* Mobile Navigation */
 @media (max-width: 991px) {
-  .mobile-nav-toggle {
-    display: block;
-  }
-  
-  .language-selector {
-    margin-left: 0;
-    margin-top: var(--space-md);
-  }
-  
-  .btn-language {
-    width: 100%;
-    justify-content: center;
-  }
-  
+  /* Header navigation menu is only shown when user is not logged in */
+  /* When user is logged in, all navigation is in the sidebar */
+
   .navmenu {
     position: fixed;
     top: var(--header-height);
@@ -368,22 +374,22 @@ code {
     overflow: hidden;
     transition: max-height var(--transition-slow);
   }
-  
+
   .navmenu.active {
     max-height: 500px;
   }
-  
+
   .navmenu ul {
     flex-direction: column;
     gap: 0;
     padding: var(--space-md);
     align-items: stretch;
   }
-  
+
   .navmenu ul li {
     width: 100%;
   }
-  
+
   .navmenu ul li a {
     width: 100%;
     padding: var(--space-md);
@@ -503,6 +509,25 @@ main {
   padding: var(--space-xl);
   box-shadow: var(--shadow-sm);
   transition: all var(--transition-slow);
+}
+
+/* Card hover effect for clickable cards */
+a .card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+a:hover .card-hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+a .card-hover .text-primary {
+  transition: transform 0.2s ease;
+}
+
+a:hover .card-hover .text-primary {
+  transform: translateX(4px);
 }
 
 .card:hover {
@@ -681,7 +706,6 @@ main {
   border-right: 1px solid var(--color-border);
   padding: 1.5rem 0;
   position: sticky;
-  top: 80px;
   height: calc(100vh - 80px);
   overflow-y: auto;
 }
@@ -721,6 +745,52 @@ main {
   text-align: center;
 }
 
+/* Sidebar language selector */
+.sidebar-language-selector {
+  position: relative;
+}
+
+.sidebar-lang-btn {
+  cursor: pointer;
+}
+
+.sidebar-lang-menu {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 0.5rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 0.5rem 0;
+  z-index: 1001;
+}
+
+.sidebar-language-selector.active .sidebar-lang-menu {
+  display: block;
+}
+
+.sidebar-lang-menu .dropdown-item {
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.sidebar-lang-menu .dropdown-item:hover {
+  background: var(--color-bg-light);
+}
+
+.sidebar-lang-menu .dropdown-item.active {
+  background: var(--color-primary-light);
+  color: white;
+}
+
 .nav-section {
   padding: 0.5rem 1rem;
   margin-top: 1rem;
@@ -736,43 +806,266 @@ main {
 
 .main-content {
   flex: 1;
-  padding: 2rem;
-}
 
-@media (max-width: 768px) {
-  .sidebar {
-    position: fixed;
-    left: -100%;
-    top: 80px;
-    z-index: 1000;
-    transition: left 0.3s;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-  }
-  
-  .sidebar.show {
-    left: 0;
-  }
-  
-  .main-content {
-    width: 100%;
-    padding: 1rem;
-  }
 }
 
 /* ============================================
    Responsive Breakpoints
    ============================================ */
+
+/* Header sidebar toggle button */
+.sidebar-toggle-header {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile and small tablets */
+@media (max-width: 991px) {
+  .main-wrapper {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    position: fixed;
+    left: -100%;
+    top: 80px;
+    z-index: 1000;
+    transition: left 0.3s ease;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+    width: 280px;
+    height: calc(100vh - 80px);
+    background: var(--color-bg);
+  }
+
+  .sidebar.show {
+    left: 0;
+  }
+
+  /* Overlay when sidebar is open */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 80px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 998;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    cursor: pointer;
+  }
+
+  .sidebar.show ~ .sidebar-overlay {
+    display: block;
+    opacity: 1;
+  }
+
+  .main-content {
+    width: 100%;
+    padding: 1rem;
+    padding-top: 100px !important;
+  }
+
+  /* Header sidebar toggle button remains visible */
+  .sidebar-toggle-header {
+    display: flex !important;
+  }
+}
+
+  /* Fix header layouts on mobile */
+  .d-flex.justify-content-between {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start !important;
+  }
+
+  .d-flex.justify-content-between > div:last-child {
+    width: 100%;
+  }
+
+  .d-flex.justify-content-between > div:last-child .btn {
+    width: 100%;
+  }
+
+  /* Card headers with buttons */
+  .card-header.d-flex {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-start !important;
+  }
+
+  .card-header.d-flex > div:last-child {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .card-header.d-flex > div:last-child .btn {
+    width: 100%;
+  }
+}
+
+/* Tablets */
+@media (min-width: 768px) and (max-width: 991px) {
+  .col-md-3 {
+    flex: 0 0 50%;
+    max-width: 50%;
+    margin-bottom: 1rem;
+  }
+
+  .col-md-4 {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
+
+  .col-md-6 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+}
+
+/* Mobile phones */
+@media (max-width: 767px) {
+  .col-md-3,
+  .col-md-4,
+  .col-md-6,
+  .col-lg-4,
+  .col-lg-8 {
+    flex: 0 0 100%;
+    max-width: 100%;
+    margin-bottom: 1rem;
+  }
+
+  .row.g-4 > * {
+    margin-bottom: 1rem;
+  }
+
+  .card-body {
+    padding: 1rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+  }
+
+  h3 {
+    font-size: 1.25rem;
+  }
+
+  h4 {
+    font-size: 1.125rem;
+  }
+
+  h5 {
+    font-size: 1rem;
+  }
+
+  h6 {
+    font-size: 0.875rem;
+  }
+}
+
 @media (max-width: 575px) {
   :root {
     --font-size-4xl: 1.875rem;
     --font-size-3xl: 1.5rem;
     --font-size-2xl: 1.25rem;
-    --container-padding: 1rem;
+    --container-padding: 0.75rem;
   }
-  
+
+  .container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
   .card {
-    padding: var(--space-lg);
+    padding: var(--space-md);
+    margin-bottom: 1rem;
   }
+
+  .card-body {
+    padding: 0.75rem;
+  }
+
+  .card-header {
+    padding: 0.75rem;
+  }
+
+  .table-responsive {
+    font-size: 0.875rem;
+  }
+
+  .btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  /* Ensure tables don't overflow */
+  .table {
+    font-size: 0.875rem;
+  }
+
+  .table th,
+  .table td {
+    padding: 0.5rem 0.25rem;
+  }
+}
+
+/* Additional responsive utilities */
+@media (max-width: 991px) {
+  /* Improve spacing in cards */
+  .card-body .row {
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+  }
+
+  .card-body .row > * {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  /* Better button spacing */
+  .btn-group {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btn-group .btn {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+
+  .btn-group .btn:last-child {
+    margin-bottom: 0;
+  }
+}
+
+/* Fix for flex-wrap issues */
+.flex-wrap {
+  flex-wrap: wrap !important;
+}
+
+/* Ensure proper spacing with gap utility */
+.row.g-3 > * {
+  padding-left: calc(var(--bs-gutter-x, 0.75rem) * 0.5);
+  padding-right: calc(var(--bs-gutter-x, 0.75rem) * 0.5);
+  margin-top: calc(var(--bs-gutter-y, 1rem) * 0.5);
+}
+
+.row.g-3 {
+  --bs-gutter-x: 1rem;
+  --bs-gutter-y: 1rem;
+  margin-left: calc(var(--bs-gutter-x) * -0.5);
+  margin-right: calc(var(--bs-gutter-x) * -0.5);
+  margin-top: calc(var(--bs-gutter-y) * -0.5);
 }
 
 @media (min-width: 576px) {
@@ -815,7 +1108,7 @@ main {
   .navmenu {
     display: none;
   }
-  
+
   main {
     padding-top: 0;
   }

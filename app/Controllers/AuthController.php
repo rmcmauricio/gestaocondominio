@@ -46,6 +46,49 @@ class AuthController extends Controller
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
     }
 
+    public function demoAccess()
+    {
+        // Auto-login demo user
+        $demoUser = $this->userModel->findByEmail('demo@predio.pt');
+        
+        if (!$demoUser) {
+            $_SESSION['login_error'] = 'Conta demo não encontrada. Contacte o administrador.';
+            header('Location: ' . BASE_URL . 'login');
+            exit;
+        }
+
+        // Check if user is active
+        if ($demoUser['status'] !== 'active') {
+            $_SESSION['login_error'] = 'Conta demo não está ativa.';
+            header('Location: ' . BASE_URL . 'login');
+            exit;
+        }
+
+        // Start session if not started
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        // Set user session
+        $_SESSION['user'] = [
+            'id' => $demoUser['id'],
+            'email' => $demoUser['email'],
+            'name' => $demoUser['name'],
+            'role' => $demoUser['role']
+        ];
+
+        // Update last login
+        $this->userModel->updateLastLogin($demoUser['id']);
+
+        // Log audit
+        $this->logAudit($demoUser['id'], 'login', 'Demo access - auto login');
+
+        // Redirect to dashboard
+        $_SESSION['login_success'] = 'Bem-vindo à demo! Explore todas as funcionalidades. Todas as alterações serão repostas automaticamente.';
+        header('Location: ' . BASE_URL . 'dashboard');
+        exit;
+    }
+
     public function processLogin()
     {
         // Only accept POST requests

@@ -1,0 +1,136 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Contas Bancárias</h2>
+        <div>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary me-2">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts/create" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Nova Conta
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="bi bi-bank"></i> Contas do Condomínio
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if accounts %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Tipo</th>
+                            <th>Banco</th>
+                            <th>IBAN</th>
+                            <th>SWIFT</th>
+                            <th class="text-end">Saldo Atual</th>
+                            <th>Estado</th>
+                            <th style="width: 120px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for account in accounts %}
+                        <tr>
+                            <td>
+                                <strong>{{ account.name }}</strong>
+                                {% if account.account_type == 'cash' %}
+                                <span class="badge bg-info ms-2">Caixa</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if account.account_type == 'bank' %}
+                                <span class="badge bg-primary">Bancária</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Caixa</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ account.bank_name ?: '-' }}</td>
+                            <td>
+                                {% if account.iban %}
+                                <code>{{ account.iban }}</code>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if account.swift %}
+                                <code>{{ account.swift }}</code>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <strong class="{% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    €{{ account.current_balance|number_format(2, ',', '.') }}
+                                </strong>
+                            </td>
+                            <td>
+                                {% if account.is_active %}
+                                <span class="badge bg-success">Ativa</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inativa</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts/{{ account.id }}/edit" class="btn btn-outline-primary" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    {% if not account.has_transactions %}
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts/{{ account.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar esta conta?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-outline-danger" title="Eliminar">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-secondary">
+                            <th colspan="5" class="text-end">Total:</th>
+                            <th class="text-end">
+                                {% set total = 0 %}
+                                {% for account in accounts %}
+                                    {% set total = total + account.current_balance %}
+                                {% endfor %}
+                                <strong class="{% if total >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    €{{ total|number_format(2, ',', '.') }}
+                                </strong>
+                            </th>
+                            <th colspan="2"></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Nenhuma conta bancária registada. 
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts/create" class="alert-link">Criar primeira conta</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

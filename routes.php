@@ -14,6 +14,7 @@ $router->get('/', 'App\Controllers\HomeController@index');
 
 // Demo route
 $router->get('/demo', 'App\Controllers\DemoController@index');
+$router->get('/demo/access', 'App\Controllers\AuthController@demoAccess');
 
 // About route
 $router->get('/about', 'App\Controllers\AboutController@index');
@@ -45,8 +46,8 @@ $router->post('/subscription/reactivate', 'App\Controllers\SubscriptionControlle
 $router->get('/dashboard', 'App\Controllers\DashboardController@index');
 $router->get('/admin', 'App\Controllers\DashboardController@admin');
 
-// Condominium routes
-$router->get('/condominiums', 'App\Controllers\CondominiumController@index');
+// Condominium routes - redirect to dashboard (dashboard now shows condominiums list)
+// $router->get('/condominiums', 'App\Controllers\CondominiumController@index'); // Removed - dashboard replaces this
 $router->get('/condominiums/create', 'App\Controllers\CondominiumController@create');
 $router->post('/condominiums', 'App\Controllers\CondominiumController@store');
 $router->get('/condominiums/{id}', 'App\Controllers\CondominiumController@show');
@@ -189,6 +190,23 @@ $router->post('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/a
 $router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/signatures', 'App\Controllers\AssemblyController@manageSignatures');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/signatures/mark', 'App\Controllers\AssemblyController@markSignature');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/change-status', 'App\Controllers\AssemblyController@changeStatus');
+
+// Bank Accounts routes
+$router->get('/condominiums/{condominium_id}/bank-accounts', 'App\Controllers\BankAccountController@index');
+$router->get('/condominiums/{condominium_id}/bank-accounts/create', 'App\Controllers\BankAccountController@create');
+$router->post('/condominiums/{condominium_id}/bank-accounts', 'App\Controllers\BankAccountController@store');
+$router->get('/condominiums/{condominium_id}/bank-accounts/{id}/edit', 'App\Controllers\BankAccountController@edit');
+$router->post('/condominiums/{condominium_id}/bank-accounts/{id}/update', 'App\Controllers\BankAccountController@update');
+$router->post('/condominiums/{condominium_id}/bank-accounts/{id}/delete', 'App\Controllers\BankAccountController@delete');
+
+// Financial Transactions routes
+$router->get('/condominiums/{condominium_id}/financial-transactions', 'App\Controllers\FinancialTransactionController@index');
+$router->get('/condominiums/{condominium_id}/financial-transactions/create', 'App\Controllers\FinancialTransactionController@create');
+$router->post('/condominiums/{condominium_id}/financial-transactions', 'App\Controllers\FinancialTransactionController@store');
+$router->get('/condominiums/{condominium_id}/financial-transactions/{id}/edit', 'App\Controllers\FinancialTransactionController@edit');
+$router->post('/condominiums/{condominium_id}/financial-transactions/{id}/update', 'App\Controllers\FinancialTransactionController@update');
+$router->post('/condominiums/{condominium_id}/financial-transactions/{id}/delete', 'App\Controllers\FinancialTransactionController@delete');
+$router->get('/condominiums/{condominium_id}/financial-transactions/balance/{account_id}', 'App\Controllers\FinancialTransactionController@getAccountBalance');
 
 // Vote routes
 $router->get('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/create-topic', 'App\Controllers\VoteController@createTopic');

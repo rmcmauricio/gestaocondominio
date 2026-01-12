@@ -336,6 +336,61 @@
                         <textarea class="form-control" id="payment_notes" name="notes" rows="2" 
                                   placeholder="Informações adicionais sobre o pagamento"></textarea>
                     </div>
+
+                    <hr>
+
+                    <div class="mb-3">
+                        <label class="form-label">Movimento Financeiro <span class="text-danger">*</span></label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="transaction_action" id="transaction_create" value="create" checked onchange="toggleTransactionFields()">
+                            <label class="form-check-label" for="transaction_create">
+                                Criar novo movimento financeiro
+                            </label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="transaction_action" id="transaction_associate" value="associate" onchange="toggleTransactionFields()">
+                            <label class="form-check-label" for="transaction_associate">
+                                Associar a movimento existente
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="create-transaction-fields">
+                        <div class="mb-3">
+                            <label for="bank_account_id" class="form-label">Conta Bancária</label>
+                            <select class="form-select" id="bank_account_id" name="bank_account_id">
+                                <option value="">Usar Caixa (padrão)</option>
+                                {% if bank_accounts %}
+                                {% for account in bank_accounts %}
+                                <option value="{{ account.id }}">{{ account.name }} {% if account.account_type == 'cash' %}(Caixa){% endif %}</option>
+                                {% endfor %}
+                                {% endif %}
+                            </select>
+                            <small class="form-text text-muted">Se não selecionar, será usado o caixa por padrão</small>
+                        </div>
+                    </div>
+
+                    <div id="associate-transaction-fields" style="display: none;">
+                        <div class="mb-3">
+                            <label for="existing_transaction_id" class="form-label">Movimento Existente <span class="text-danger">*</span></label>
+                            <select class="form-select" id="existing_transaction_id" name="existing_transaction_id">
+                                <option value="">Selecione um movimento...</option>
+                                {% if available_transactions %}
+                                {% for transaction in available_transactions %}
+                                {% if transaction.transaction_type == 'income' and not transaction.related_id %}
+                                <option value="{{ transaction.id }}">
+                                    {{ transaction.transaction_date|date('d/m/Y') }} - 
+                                    {{ transaction.description|slice(0, 50) }}{% if transaction.description|length > 50 %}...{% endif %} - 
+                                    €{{ transaction.amount|number_format(2, ',', '.') }} 
+                                    ({{ transaction.account_name }})
+                                </option>
+                                {% endif %}
+                                {% endfor %}
+                                {% endif %}
+                            </select>
+                            <small class="form-text text-muted">Apenas movimentos de entrada (receitas) não associados podem ser usados</small>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -371,9 +426,35 @@
 <script>
 let currentFeeId = null;
 
+function toggleTransactionFields() {
+    const createRadio = document.getElementById('transaction_create');
+    const createFields = document.getElementById('create-transaction-fields');
+    const associateFields = document.getElementById('associate-transaction-fields');
+    const bankAccountSelect = document.getElementById('bank_account_id');
+    const transactionSelect = document.getElementById('existing_transaction_id');
+    
+    if (createRadio.checked) {
+        createFields.style.display = 'block';
+        associateFields.style.display = 'none';
+        bankAccountSelect.removeAttribute('required');
+        transactionSelect.removeAttribute('required');
+        transactionSelect.value = '';
+    } else {
+        createFields.style.display = 'none';
+        associateFields.style.display = 'block';
+        bankAccountSelect.removeAttribute('required');
+        bankAccountSelect.value = '';
+        transactionSelect.setAttribute('required', 'required');
+    }
+}
+
 function showPaymentModal(feeId) {
     currentFeeId = feeId;
     const modal = new bootstrap.Modal(document.getElementById('paymentModal'));
+    
+    // Reset form
+    document.getElementById('transaction_create').checked = true;
+    toggleTransactionFields();
     
     // Load fee info
     fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)

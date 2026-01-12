@@ -50,18 +50,35 @@ class Condominium extends Model
             throw new \Exception("Database connection not available");
         }
 
-        $stmt = $this->db->prepare("
-            INSERT INTO condominiums (
-                user_id, name, address, postal_code, city, country,
-                nif, iban, phone, email, type, total_fractions, rules, settings
-            )
-            VALUES (
-                :user_id, :name, :address, :postal_code, :city, :country,
-                :nif, :iban, :phone, :email, :type, :total_fractions, :rules, :settings
-            )
-        ");
+        // Check if is_demo column exists
+        $stmt = $this->db->query("SHOW COLUMNS FROM condominiums LIKE 'is_demo'");
+        $hasIsDemo = $stmt->rowCount() > 0;
+        
+        if ($hasIsDemo) {
+            $stmt = $this->db->prepare("
+                INSERT INTO condominiums (
+                    user_id, name, address, postal_code, city, country,
+                    nif, iban, phone, email, type, total_fractions, rules, settings, is_demo, is_active
+                )
+                VALUES (
+                    :user_id, :name, :address, :postal_code, :city, :country,
+                    :nif, :iban, :phone, :email, :type, :total_fractions, :rules, :settings, :is_demo, :is_active
+                )
+            ");
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO condominiums (
+                    user_id, name, address, postal_code, city, country,
+                    nif, iban, phone, email, type, total_fractions, rules, settings, is_active
+                )
+                VALUES (
+                    :user_id, :name, :address, :postal_code, :city, :country,
+                    :nif, :iban, :phone, :email, :type, :total_fractions, :rules, :settings, :is_active
+                )
+            ");
+        }
 
-        $stmt->execute([
+        $params = [
             ':user_id' => $data['user_id'],
             ':name' => $data['name'],
             ':address' => $data['address'],
@@ -76,9 +93,25 @@ class Condominium extends Model
             ':total_fractions' => $data['total_fractions'] ?? 0,
             ':rules' => $data['rules'] ?? null,
             ':settings' => json_encode($data['settings'] ?? [])
-        ]);
+        ];
+        
+        if ($hasIsDemo) {
+            $params[':is_demo'] = $data['is_demo'] ?? false;
+            $params[':is_active'] = $data['is_active'] ?? true;
+        } else {
+            $params[':is_active'] = $data['is_active'] ?? true;
+        }
+        
+        $stmt->execute($params);
 
-        return (int)$this->db->lastInsertId();
+        $condominiumId = (int)$this->db->lastInsertId();
+        
+        // If is_demo was provided but column doesn't exist, update via SQL
+        if (!$hasIsDemo && isset($data['is_demo']) && $data['is_demo']) {
+            $this->db->exec("UPDATE condominiums SET is_demo = TRUE WHERE id = {$condominiumId}");
+        }
+        
+        return $condominiumId;
     }
 
     /**

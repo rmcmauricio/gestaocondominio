@@ -119,6 +119,13 @@ class Controller
     protected function mergeGlobalData(array $data): array
     {
         $currentLang = $_SESSION['lang'] ?? 'pt';
+        
+        // Check for demo banner message
+        $demoBannerMessage = null;
+        if (!empty($_SESSION['user'])) {
+            $demoBannerMessage = \App\Middleware\DemoProtectionMiddleware::getDemoBannerMessage();
+        }
+        
         $mergedData = array_merge([
             't' => new \App\Core\Translator($currentLang),
             'user' => $_SESSION['user'] ?? null,
@@ -126,6 +133,7 @@ class Controller
             'BASE_URL' => BASE_URL,
             'APP_ENV' => APP_ENV,
             'current_lang' => $currentLang,
+            'demo_banner_message' => $demoBannerMessage,
         ], $data);
 
         // Add optional constants only if they are defined

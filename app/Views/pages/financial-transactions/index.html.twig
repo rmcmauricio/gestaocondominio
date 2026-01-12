@@ -1,0 +1,157 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Movimentos Financeiros</h2>
+        <div>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary me-2">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/create" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Novo Movimento
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="bi bi-funnel"></i> Filtros
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" class="row g-3">
+                <div class="col-md-3">
+                    <label for="bank_account_id" class="form-label">Conta</label>
+                    <select class="form-select" id="bank_account_id" name="bank_account_id">
+                        <option value="">Todas</option>
+                        {% for account in accounts %}
+                        <option value="{{ account.id }}" {% if filters.bank_account_id == account.id %}selected{% endif %}>
+                            {{ account.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="transaction_type" class="form-label">Tipo</label>
+                    <select class="form-select" id="transaction_type" name="transaction_type">
+                        <option value="">Todos</option>
+                        <option value="income" {% if filters.transaction_type == 'income' %}selected{% endif %}>Entrada</option>
+                        <option value="expense" {% if filters.transaction_type == 'expense' %}selected{% endif %}>Saída</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="from_date" class="form-label">Data Inicial</label>
+                    <input type="date" class="form-control" id="from_date" name="from_date" value="{{ filters.from_date }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="to_date" class="form-label">Data Final</label>
+                    <input type="date" class="form-control" id="to_date" name="to_date" value="{{ filters.to_date }}">
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Filtrar
+                    </button>
+                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Limpar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="bi bi-list-ul"></i> Movimentos
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if transactions %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Conta</th>
+                            <th>Tipo</th>
+                            <th>Descrição</th>
+                            <th>Categoria</th>
+                            <th>Referência</th>
+                            <th class="text-end">Valor</th>
+                            <th class="text-end">Saldo Acumulado</th>
+                            <th style="width: 100px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction in transactions %}
+                        <tr>
+                            <td>{{ transaction.transaction_date|date('d/m/Y') }}</td>
+                            <td>
+                                <strong>{{ transaction.account_name }}</strong>
+                                {% if transaction.account_type == 'cash' %}
+                                <span class="badge bg-info ms-1">Caixa</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if transaction.transaction_type == 'income' %}
+                                <span class="badge bg-success">Entrada</span>
+                                {% else %}
+                                <span class="badge bg-danger">Saída</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ transaction.description|slice(0, 50) }}{% if transaction.description|length > 50 %}...{% endif %}</td>
+                            <td>{{ transaction.category ?: '-' }}</td>
+                            <td>{{ transaction.reference ?: '-' }}</td>
+                            <td class="text-end">
+                                <strong class="{% if transaction.transaction_type == 'income' %}text-success{% else %}text-danger{% endif %}">
+                                    {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}€{{ transaction.amount|number_format(2, ',', '.') }}
+                                </strong>
+                            </td>
+                            <td class="text-end">
+                                <strong class="{% if runningBalance[transaction.id] >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    €{{ runningBalance[transaction.id]|number_format(2, ',', '.') }}
+                                </strong>
+                            </td>
+                            <td>
+                                {% if not transaction.related_id or transaction.related_type != 'fee_payment' %}
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/edit" class="btn btn-outline-primary" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar este movimento?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-outline-danger" title="Eliminar">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                                {% else %}
+                                <span class="text-muted small">Associado</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Nenhum movimento financeiro encontrado.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

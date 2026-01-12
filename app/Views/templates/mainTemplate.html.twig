@@ -26,9 +26,19 @@
     <div class="main-wrapper">
         {% if user %}
             {% include 'blocks/sidebar.html.twig' %}
+            <!-- Overlay when sidebar is open -->
+            <div class="sidebar-overlay" onclick="toggleSidebar(); return false;"></div>
         {% endif %}
         
         <main class="main-content">
+            {% if demo_banner_message %}
+            <div class="alert alert-warning alert-dismissible fade show mb-0" role="alert" style="border-radius: 0; border-left: 4px solid #ffc107;">
+                <div class="container">
+                    <i class="bi bi-info-circle"></i> <strong>Conta Demo:</strong> {{ demo_banner_message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            </div>
+            {% endif %}
             {% include viewName %}
         </main>
     </div>

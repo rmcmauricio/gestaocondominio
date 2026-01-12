@@ -65,10 +65,56 @@
                 </div>
                 
                 <div class="col-md-3 mb-3">
+                    <div class="card border-info">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-2">Conta à Ordem</h6>
+                            <h4 class="text-info mb-0">€{{ stats.current_account_balance|number_format(2, ',', '.') }}</h4>
+                            {% if stats.total_bank_accounts > 0 %}
+                            <small class="text-muted">{{ stats.total_bank_accounts }} conta(s)</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="card border-primary">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-2">Saldo Total Bancário</h6>
+                            <h4 class="text-primary mb-0">€{{ stats.total_bank_balance|number_format(2, ',', '.') }}</h4>
+                            {% if stats.total_bank_accounts > 0 %}
+                            <small class="text-muted">Saldo consolidado</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Additional Statistics Row -->
+            <div class="row mb-4">
+                <div class="col-md-3 mb-3">
                     <div class="card border-warning">
                         <div class="card-body">
                             <h6 class="text-muted mb-2">Quotas Pendentes</h6>
                             <h4 class="text-warning mb-0">€{{ stats.pending_fees_amount|number_format(2, ',', '.') }}</h4>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="card border-success">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-2">Quotas Pagas</h6>
+                            <h4 class="text-success mb-0">€{{ stats.paid_fees_amount|number_format(2, ',', '.') }}</h4>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="card border-secondary">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-2">Total Condóminos</h6>
+                            <h4 class="text-secondary mb-0">{{ stats.total_residents }}</h4>
+                            <small class="text-muted">Residentes ativos</small>
                         </div>
                     </div>
                 </div>
@@ -84,21 +130,146 @@
             </div>
             
             {% if condominiums %}
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5>Meus Condomínios</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group">
-                        {% for condominium in condominiums %}
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="list-group-item list-group-item-action">
-                            <div class="d-flex w-100 justify-content-between">
-                                <h6 class="mb-1">{{ condominium.name }}</h6>
-                                <small>{{ condominium.city }}</small>
+            <div class="row mb-4">
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Meus Condomínios</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="list-group">
+                                {% for condominium in condominiums %}
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="list-group-item list-group-item-action">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">{{ condominium.name }}</h6>
+                                        <small>{{ condominium.city }}</small>
+                                    </div>
+                                    <p class="mb-1">{{ condominium.address }}</p>
+                                </a>
+                                {% endfor %}
                             </div>
-                            <p class="mb-1">{{ condominium.address }}</p>
-                        </a>
-                        {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Contas Bancárias</h5>
+                            {% if condominiums|length > 0 %}
+                            <a href="{{ BASE_URL }}condominiums/{{ condominiums[0].id }}/bank-accounts" class="btn btn-sm btn-outline-primary">
+                                Ver Todas
+                            </a>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            {% if bank_accounts %}
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Condomínio</th>
+                                            <th>Conta</th>
+                                            <th class="text-end">Saldo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for account in bank_accounts %}
+                                        <tr>
+                                            <td><small>{{ account.condominium_name }}</small></td>
+                                            <td>
+                                                <strong>{{ account.name }}</strong>
+                                                {% if account.bank_name %}
+                                                <br><small class="text-muted">{{ account.bank_name }}</small>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-end">
+                                                <strong class="{% if account.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                                    €{{ account.balance|number_format(2, ',', '.') }}
+                                                </strong>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colspan="2" class="text-end"><strong>Total:</strong></td>
+                                            <td class="text-end">
+                                                <strong class="{% if stats.total_bank_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                                    €{{ stats.total_bank_balance|number_format(2, ',', '.') }}
+                                                </strong>
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted mb-0">Nenhuma conta bancária encontrada.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Condóminos Section -->
+            {% if condominium_users %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Condóminos ({{ stats.total_residents }})</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Condomínio</th>
+                                            <th>Fração</th>
+                                            <th>Nome</th>
+                                            <th>Email</th>
+                                            <th>Telefone</th>
+                                            <th>Tipo</th>
+                                            <th>Principal</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for resident in condominium_users %}
+                                        <tr>
+                                            <td><strong>{{ resident.condominium_name }}</strong></td>
+                                            <td>
+                                                {% if resident.fraction_identifier %}
+                                                <span class="badge bg-secondary">{{ resident.fraction_identifier }}</span>
+                                                {% else %}
+                                                <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td><strong>{{ resident.name }}</strong></td>
+                                            <td>{{ resident.email }}</td>
+                                            <td>{{ resident.phone|default('-') }}</td>
+                                            <td>
+                                                <span class="badge 
+                                                    {% if resident.role == 'admin' %}bg-danger
+                                                    {% elseif resident.role == 'proprietario' %}bg-primary
+                                                    {% elseif resident.role == 'arrendatario' %}bg-info
+                                                    {% else %}bg-secondary{% endif %}">
+                                                    {{ resident.role|title }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {% if resident.is_primary %}
+                                                <span class="badge bg-success">Sim</span>
+                                                {% else %}
+                                                <span class="text-muted">Não</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

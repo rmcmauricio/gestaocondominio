@@ -1,0 +1,120 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Criar Conta Bancária</h2>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0">Informações da Conta</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts" id="account-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        
+                        <div class="mb-3">
+                            <label for="account_type" class="form-label">Tipo de Conta <span class="text-danger">*</span></label>
+                            <select class="form-select" id="account_type" name="account_type" required>
+                                <option value="bank">Conta Bancária</option>
+                                <option value="cash">Caixa (Dinheiro Físico)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Nome de Identificação <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" required placeholder="Ex: Conta Principal, Caixa Principal">
+                        </div>
+
+                        <div id="bank-fields">
+                            <div class="mb-3">
+                                <label for="bank_name" class="form-label">Nome do Banco</label>
+                                <input type="text" class="form-control" id="bank_name" name="bank_name" placeholder="Ex: Banco BPI">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="account_number" class="form-label">Número de Conta</label>
+                                <input type="text" class="form-control" id="account_number" name="account_number" placeholder="Ex: 123456789">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="iban" class="form-label">IBAN <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="iban" name="iban" placeholder="PT50 0000 0000 0000 0000 0000 0" maxlength="34">
+                                <small class="form-text text-muted">Formato: PT50 0000 0000 0000 0000 0000 0</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="swift" class="form-label">SWIFT/BIC <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="swift" name="swift" placeholder="Ex: BBPIPTPL" maxlength="11">
+                                <small class="form-text text-muted">Código SWIFT do banco</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="initial_balance" class="form-label">Saldo Inicial</label>
+                            <div class="input-group">
+                                <span class="input-group-text">€</span>
+                                <input type="number" class="form-control" id="initial_balance" name="initial_balance" step="0.01" value="0.00" min="0">
+                            </div>
+                            <small class="form-text text-muted">Saldo inicial da conta ao ser criada</small>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> Criar Conta
+                            </button>
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts" class="btn btn-secondary">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const accountType = document.getElementById('account_type');
+    const bankFields = document.getElementById('bank-fields');
+    const ibanField = document.getElementById('iban');
+    const swiftField = document.getElementById('swift');
+    const form = document.getElementById('account-form');
+
+    function toggleBankFields() {
+        if (accountType.value === 'cash') {
+            bankFields.style.display = 'none';
+            ibanField.removeAttribute('required');
+            swiftField.removeAttribute('required');
+            ibanField.value = '';
+            swiftField.value = '';
+        } else {
+            bankFields.style.display = 'block';
+            ibanField.setAttribute('required', 'required');
+            swiftField.setAttribute('required', 'required');
+        }
+    }
+
+    accountType.addEventListener('change', toggleBankFields);
+    toggleBankFields(); // Initial call
+
+    form.addEventListener('submit', function(e) {
+        if (accountType.value === 'bank') {
+            if (!ibanField.value.trim() || !swiftField.value.trim()) {
+                e.preventDefault();
+                alert('Para contas bancárias, IBAN e SWIFT são obrigatórios.');
+                return false;
+            }
+        }
+    });
+});
+</script>

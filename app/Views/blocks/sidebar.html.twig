@@ -6,18 +6,16 @@
     <nav class="sidebar-nav">
         <ul class="nav flex-column">
             <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}">
+                    <i class="bi bi-house"></i> Início
+                </a>
+            </li>
+            
+            <li class="nav-item">
                 <a class="nav-link" href="{{ BASE_URL }}dashboard">
                     <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
             </li>
-            
-            {% if user.role == 'admin' or user.role == 'super_admin' %}
-            <li class="nav-item">
-                <a class="nav-link" href="{{ BASE_URL }}condominiums">
-                    <i class="bi bi-building"></i> Condomínios
-                </a>
-            </li>
-            {% endif %}
             
             {% if condominium %}
             <li class="nav-section">
@@ -104,6 +102,40 @@
             </li>
             {% endif %}
             {% endif %}
+            
+            <li class="nav-section">
+                <span class="nav-section-title">Geral</span>
+            </li>
+            
+            <li class="nav-item">
+                <div class="nav-link sidebar-language-selector" style="padding: 0.75rem 1rem;">
+                    <div class="dropdown">
+                        <button class="btn btn-link text-decoration-none p-0 w-100 text-start d-flex align-items-center gap-2 sidebar-lang-btn" type="button" id="sidebarLanguageDropdown" aria-expanded="false" style="color: inherit; border: none; background: none;">
+                            <i class="bi bi-globe"></i>
+                            <span>Idioma</span>
+                            <span class="ms-auto badge bg-secondary">{{ current_lang|default('pt')|upper }}</span>
+                        </button>
+                        <ul class="dropdown-menu sidebar-lang-menu" aria-labelledby="sidebarLanguageDropdown" style="position: absolute; left: 0; right: 0; margin-left: 1rem; margin-right: 1rem;">
+                            <li>
+                                <a class="dropdown-item {% if (current_lang|default('pt')) == 'pt' %}active{% endif %}" href="{{ BASE_URL }}lang/pt">
+                                    <span class="flag-icon">🇵🇹</span> Português
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if (current_lang|default('pt')) == 'en' %}active{% endif %}" href="{{ BASE_URL }}lang/en">
+                                    <span class="flag-icon">🇬🇧</span> English
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link text-danger" href="{{ BASE_URL }}logout">
+                    <i class="bi bi-box-arrow-right"></i> Sair
+                </a>
+            </li>
         </ul>
     </nav>
 </div>

@@ -245,8 +245,59 @@
   // Toggle sidebar on mobile
   function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
+    const toggleFixed = document.querySelector('.sidebar-toggle-fixed');
+    const toggleBtn = document.querySelector('.sidebar-toggle-btn');
+    const overlay = document.querySelector('.sidebar-overlay');
+    
     if (sidebar) {
+      const isShowing = sidebar.classList.contains('show');
       sidebar.classList.toggle('show');
+      
+      // Toggle overlay
+      if (overlay) {
+        if (isShowing) {
+          overlay.classList.remove('show');
+        } else {
+          overlay.classList.add('show');
+        }
+      }
+      
+      // Update icon on fixed button
+      if (toggleFixed) {
+        const icon = toggleFixed.querySelector('i');
+        if (icon) {
+          if (isShowing) {
+            icon.classList.remove('bi-x-lg');
+            icon.classList.add('bi-list');
+          } else {
+            icon.classList.remove('bi-list');
+            icon.classList.add('bi-x-lg');
+          }
+        }
+      }
+      
+      // Update icon on header button
+      if (toggleBtn) {
+        const icon = toggleBtn.querySelector('i');
+        if (icon) {
+          if (isShowing) {
+            icon.classList.remove('bi-x-lg');
+            icon.classList.add('bi-list');
+          } else {
+            icon.classList.remove('bi-list');
+            icon.classList.add('bi-x-lg');
+          }
+        }
+      }
+      
+      // Prevent body scroll when sidebar is open on mobile
+      if (window.innerWidth <= 991) {
+        if (!isShowing) {
+          document.body.style.overflow = 'hidden';
+        } else {
+          document.body.style.overflow = '';
+        }
+      }
     }
   }
 
@@ -256,16 +307,114 @@
   // Close sidebar when clicking outside on mobile
   document.addEventListener('click', function(event) {
     const sidebar = document.getElementById('sidebar');
-    const toggleBtn = event.target.closest('[onclick*="toggleSidebar"]');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const toggleFixed = document.querySelector('.sidebar-toggle-fixed');
+    const toggleBtn = document.querySelector('.sidebar-toggle-btn');
+    const isToggleButton = event.target.closest('.sidebar-toggle-fixed') || 
+                          event.target.closest('.sidebar-toggle-btn') ||
+                          event.target.closest('[onclick*="toggleSidebar"]');
     
-    if (sidebar && window.innerWidth <= 768) {
-      if (!sidebar.contains(event.target) && !toggleBtn) {
+    if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= 991) {
+      if (!sidebar.contains(event.target) && !isToggleButton && event.target !== overlay) {
         sidebar.classList.remove('show');
+        if (overlay) {
+          overlay.classList.remove('show');
+        }
+        document.body.style.overflow = '';
+        
+        // Reset icons
+        if (toggleFixed) {
+          const icon = toggleFixed.querySelector('i');
+          if (icon) {
+            icon.classList.remove('bi-x-lg');
+            icon.classList.add('bi-list');
+          }
+        }
+        if (toggleBtn) {
+          const icon = toggleBtn.querySelector('i');
+          if (icon) {
+            icon.classList.remove('bi-x-lg');
+            icon.classList.add('bi-list');
+          }
+        }
       }
     }
   });
 
+  // Close sidebar when clicking a link inside it
+  document.addEventListener('click', function(event) {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= 991) {
+      const link = event.target.closest('.sidebar-nav a');
+      if (link) {
+        setTimeout(function() {
+          sidebar.classList.remove('show');
+          if (overlay) {
+            overlay.classList.remove('show');
+          }
+          document.body.style.overflow = '';
+          
+          // Reset icons
+          const toggleFixed = document.querySelector('.sidebar-toggle-fixed');
+          const toggleBtn = document.querySelector('.sidebar-toggle-btn');
+          if (toggleFixed) {
+            const icon = toggleFixed.querySelector('i');
+            if (icon) {
+              icon.classList.remove('bi-x-lg');
+              icon.classList.add('bi-list');
+            }
+          }
+          if (toggleBtn) {
+            const icon = toggleBtn.querySelector('i');
+            if (icon) {
+              icon.classList.remove('bi-x-lg');
+              icon.classList.add('bi-list');
+            }
+          }
+        }, 300);
+      }
+    }
+  });
+
+  // Sidebar language selector toggle
+  function initSidebarLanguageSelector() {
+    const langBtn = document.querySelector('.sidebar-lang-btn');
+    const langMenu = document.querySelector('.sidebar-lang-menu');
+    const langSelector = document.querySelector('.sidebar-language-selector');
+    
+    if (langBtn && langMenu && langSelector) {
+      langBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        langSelector.classList.toggle('active');
+      });
+      
+      // Close when clicking outside
+      document.addEventListener('click', function(event) {
+        if (!langSelector.contains(event.target)) {
+          langSelector.classList.remove('active');
+        }
+      });
+      
+      // Close when selecting a language
+      const langLinks = langMenu.querySelectorAll('a');
+      langLinks.forEach(link => {
+        link.addEventListener('click', function() {
+          langSelector.classList.remove('active');
+        });
+      });
+    }
+  }
+
   // Start initialization
   init();
+  
+  // Initialize sidebar language selector
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSidebarLanguageSelector);
+  } else {
+    initSidebarLanguageSelector();
+  }
 
 })();
