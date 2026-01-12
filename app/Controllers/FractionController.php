@@ -163,11 +163,20 @@ class FractionController extends Controller
             exit;
         }
 
+        // Get condominium for sidebar
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
         $this->loadPageTranslations('fractions');
         
         $this->data += [
             'viewName' => 'pages/fractions/edit.html.twig',
             'page' => ['titulo' => 'Editar Fração'],
+            'condominium' => $condominium,
             'fraction' => $fraction,
             'csrf_token' => Security::generateCSRFToken()
         ];

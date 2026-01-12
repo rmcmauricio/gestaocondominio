@@ -40,11 +40,21 @@ class VoteController extends Controller
             exit;
         }
 
+        // Get condominium for sidebar
+        $condominiumModel = new \App\Models\Condominium();
+        $condominium = $condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
         $this->loadPageTranslations('votes');
         
         $this->data += [
             'viewName' => 'pages/votes/create-topic.html.twig',
             'page' => ['titulo' => 'Criar Tópico de Votação'],
+            'condominium' => $condominium,
             'assembly' => $assembly,
             'csrf_token' => Security::generateCSRFToken()
         ];
@@ -300,11 +310,21 @@ class VoteController extends Controller
         $results = $this->voteModel->calculateResults($topicId);
         $votes = $this->voteModel->getByTopic($topicId);
 
+        // Get condominium for sidebar
+        $condominiumModel = new \App\Models\Condominium();
+        $condominium = $condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
         $this->loadPageTranslations('votes');
         
         $this->data += [
             'viewName' => 'pages/votes/results.html.twig',
             'page' => ['titulo' => 'Resultados da Votação'],
+            'condominium' => $condominium,
             'assembly' => $assembly,
             'topic' => $topic,
             'results' => $results,
@@ -335,11 +355,21 @@ class VoteController extends Controller
             exit;
         }
 
+        // Get condominium for sidebar
+        $condominiumModel = new \App\Models\Condominium();
+        $condominium = $condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
         $this->loadPageTranslations('votes');
         
         $this->data += [
             'viewName' => 'pages/votes/edit-topic.html.twig',
             'page' => ['titulo' => 'Editar Tópico de Votação'],
+            'condominium' => $condominium,
             'assembly' => $assembly,
             'topic' => $topic,
             'csrf_token' => Security::generateCSRFToken(),

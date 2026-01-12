@@ -148,6 +148,60 @@ class DashboardController extends Controller
             $recentDocuments = array_slice($recentDocuments, 0, 5);
         }
 
+        // Get user's reservations (last 5)
+        $reservationModel = new \App\Models\Reservation();
+        $userReservations = [];
+        if (!empty($userCondominiums)) {
+            $condominiumIds = array_unique(array_column($userCondominiums, 'condominium_id'));
+            global $db;
+            if ($db && !empty($condominiumIds)) {
+                $placeholders = implode(',', array_fill(0, count($condominiumIds), '?'));
+                $stmt = $db->prepare("
+                    SELECT r.*, 
+                           s.name as space_name, 
+                           f.identifier as fraction_identifier,
+                           c.name as condominium_name
+                    FROM reservations r
+                    INNER JOIN spaces s ON s.id = r.space_id
+                    INNER JOIN fractions f ON f.id = r.fraction_id
+                    INNER JOIN condominiums c ON c.id = r.condominium_id
+                    WHERE r.user_id = ? 
+                    AND r.condominium_id IN ($placeholders)
+                    ORDER BY r.start_date DESC
+                    LIMIT 5
+                ");
+                $params = array_merge([$userId], $condominiumIds);
+                $stmt->execute($params);
+                $userReservations = $stmt->fetchAll() ?: [];
+            }
+        }
+
+        // Get user's occurrences (last 5)
+        $occurrenceModel = new \App\Models\Occurrence();
+        $userOccurrences = [];
+        if (!empty($userCondominiums)) {
+            $condominiumIds = array_unique(array_column($userCondominiums, 'condominium_id'));
+            global $db;
+            if ($db && !empty($condominiumIds)) {
+                $placeholders = implode(',', array_fill(0, count($condominiumIds), '?'));
+                $stmt = $db->prepare("
+                    SELECT o.*, 
+                           f.identifier as fraction_identifier,
+                           c.name as condominium_name
+                    FROM occurrences o
+                    LEFT JOIN fractions f ON f.id = o.fraction_id
+                    INNER JOIN condominiums c ON c.id = o.condominium_id
+                    WHERE o.reported_by = ? 
+                    AND o.condominium_id IN ($placeholders)
+                    ORDER BY o.created_at DESC
+                    LIMIT 5
+                ");
+                $params = array_merge([$userId], $condominiumIds);
+                $stmt->execute($params);
+                $userOccurrences = $stmt->fetchAll() ?: [];
+            }
+        }
+
         $this->loadPageTranslations('dashboard');
         
         $this->data += [
@@ -158,6 +212,8 @@ class DashboardController extends Controller
             'total_pending' => $totalPending,
             'recent_expenses' => $recentExpenses,
             'recent_documents' => $recentDocuments,
+            'user_reservations' => $userReservations,
+            'user_occurrences' => $userOccurrences,
             'user' => AuthMiddleware::user()
         ];
 

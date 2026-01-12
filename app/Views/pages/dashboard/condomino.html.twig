@@ -1,7 +1,55 @@
 <div class="container mt-4">
     <div class="row">
         <div class="col-12">
+            <div class="alert alert-info border-0 shadow-sm mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <i class="bi bi-person-circle" style="font-size: 2.5rem;"></i>
+                    </div>
+                    <div>
+                        <h4 class="mb-1" style="color: white;">Bem-vindo, {{ user.name }}!</h4>
+                        <p class="mb-0" style="color: rgba(255, 255, 255, 0.9);">Está a visualizar o seu painel de condómino.</p>
+                    </div>
+                </div>
+            </div>
+            
             <h1 class="mb-4">Painel Condómino</h1>
+            
+            {% if user_condominiums %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-building"></i> Meus Condomínios</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% for uc in user_condominiums %}
+                        <div class="col-md-6 col-lg-4">
+                            <a href="{{ BASE_URL }}condominiums/{{ uc.condominium_id }}" class="text-decoration-none">
+                                <div class="card h-100 shadow-sm card-hover border-primary">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h5 class="card-title mb-0">{{ uc.condominium_name }}</h5>
+                                            <span class="badge bg-primary">{{ uc.role|title }}</span>
+                                        </div>
+                                        {% if uc.fraction_identifier %}
+                                        <p class="text-muted mb-2">
+                                            <i class="bi bi-house-door"></i> Fração: {{ uc.fraction_identifier }}
+                                        </p>
+                                        {% endif %}
+                                        <div class="mt-auto">
+                                            <span class="text-primary">
+                                                Aceder <i class="bi bi-arrow-right"></i>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
             
             <div class="row mb-4">
                 <div class="col-md-4 mb-3">
@@ -90,6 +138,101 @@
                 </div>
             </div>
             
+            <div class="row mb-4">
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="bi bi-calendar-check"></i> As Minhas Reservas</h5>
+                            {% if user_condominiums|length > 0 %}
+                            {% set first_condominium_id = user_condominiums[0].condominium_id %}
+                            <a href="{{ BASE_URL }}condominiums/{{ first_condominium_id }}/reservations" class="btn btn-sm btn-outline-primary">
+                                Ver Todas <i class="bi bi-arrow-right"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            {% if user_reservations %}
+                                <div class="list-group">
+                                    {% for reservation in user_reservations %}
+                                    <a href="{{ BASE_URL }}condominiums/{{ reservation.condominium_id }}/reservations" class="list-group-item list-group-item-action">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1">{{ reservation.space_name }}</h6>
+                                            <span class="badge {% if reservation.status == 'approved' %}bg-success{% elseif reservation.status == 'pending' %}bg-warning{% elseif reservation.status == 'rejected' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                                {{ reservation.status|title }}
+                                            </span>
+                                        </div>
+                                        <p class="mb-1 text-muted">
+                                            <i class="bi bi-calendar"></i> {{ reservation.start_date|date('d/m/Y H:i') }} - {{ reservation.end_date|date('H:i') }}
+                                        </p>
+                                        <small class="text-muted">
+                                            <i class="bi bi-building"></i> {{ reservation.condominium_name }}
+                                            {% if reservation.fraction_identifier %}
+                                            | <i class="bi bi-house-door"></i> {{ reservation.fraction_identifier }}
+                                            {% endif %}
+                                        </small>
+                                    </a>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-muted mb-0">Nenhuma reserva encontrada.</p>
+                                {% if user_condominiums|length > 0 %}
+                                <a href="{{ BASE_URL }}condominiums/{{ user_condominiums[0].condominium_id }}/reservations/create" class="btn btn-sm btn-primary mt-2">
+                                    <i class="bi bi-plus-circle"></i> Criar Reserva
+                                </a>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> As Minhas Ocorrências</h5>
+                            {% if user_condominiums|length > 0 %}
+                            {% set first_condominium_id = user_condominiums[0].condominium_id %}
+                            <a href="{{ BASE_URL }}condominiums/{{ first_condominium_id }}/occurrences" class="btn btn-sm btn-outline-primary">
+                                Ver Todas <i class="bi bi-arrow-right"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            {% if user_occurrences %}
+                                <div class="list-group">
+                                    {% for occurrence in user_occurrences %}
+                                    <a href="{{ BASE_URL }}condominiums/{{ occurrence.condominium_id }}/occurrences/{{ occurrence.id }}" class="list-group-item list-group-item-action">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1">{{ occurrence.title }}</h6>
+                                            <span class="badge {% if occurrence.status == 'resolved' %}bg-success{% elseif occurrence.status == 'in_progress' %}bg-info{% elseif occurrence.priority == 'high' %}bg-danger{% elseif occurrence.priority == 'medium' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                                {{ occurrence.status|title }}
+                                            </span>
+                                        </div>
+                                        <p class="mb-1 text-muted">
+                                            {{ occurrence.description|slice(0, 80) }}{% if occurrence.description|length > 80 %}...{% endif %}
+                                        </p>
+                                        <small class="text-muted">
+                                            <i class="bi bi-building"></i> {{ occurrence.condominium_name }}
+                                            {% if occurrence.fraction_identifier %}
+                                            | <i class="bi bi-house-door"></i> {{ occurrence.fraction_identifier }}
+                                            {% endif %}
+                                            | <i class="bi bi-clock"></i> {{ occurrence.created_at|date('d/m/Y') }}
+                                        </small>
+                                    </a>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-muted mb-0">Nenhuma ocorrência encontrada.</p>
+                                {% if user_condominiums|length > 0 %}
+                                <a href="{{ BASE_URL }}condominiums/{{ user_condominiums[0].condominium_id }}/occurrences/create" class="btn btn-sm btn-primary mt-2">
+                                    <i class="bi bi-plus-circle"></i> Criar Ocorrência
+                                </a>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             {% if recent_documents %}
             <div class="row mb-4">
                 <div class="col-12">
@@ -137,29 +280,6 @@
                                 </table>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-            
-            {% if user_condominiums %}
-            <div class="card">
-                <div class="card-header">
-                    <h5>Meus Condomínios</h5>
-                </div>
-                <div class="card-body">
-                    <div class="list-group">
-                        {% for uc in user_condominiums %}
-                        <a href="{{ BASE_URL }}condominiums/{{ uc.condominium_id }}" class="list-group-item list-group-item-action">
-                            <div class="d-flex w-100 justify-content-between">
-                                <h6 class="mb-1">{{ uc.condominium_name }}</h6>
-                                <span class="badge bg-primary">{{ uc.role }}</span>
-                            </div>
-                            {% if uc.fraction_identifier %}
-                            <p class="mb-1">Fração: {{ uc.fraction_identifier }}</p>
-                            {% endif %}
-                        </a>
-                        {% endfor %}
                     </div>
                 </div>
             </div>

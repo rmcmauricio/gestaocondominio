@@ -1,0 +1,233 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+        <h2 class="mb-2 mb-md-0">Meu Perfil</h2>
+        <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if is_demo %}
+    <div class="alert alert-warning mb-4">
+        <i class="bi bi-exclamation-triangle"></i> 
+        <strong>Atenção:</strong> Esta é uma conta de demonstração. Não é possível editar os dados pessoais ou alterar a palavra-passe.
+    </div>
+    {% endif %}
+
+    <div class="row g-4">
+        <!-- Informações Pessoais -->
+        <div class="col-12 col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-person"></i> Informações Pessoais</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ BASE_URL }}profile/update" id="profileForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}" {% if is_demo %}disabled{% endif %} required>
+                            <small class="form-text text-muted">Pode alterar o seu email, mas não pode usar um email já registado.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Nome <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" value="{{ user.name }}" {% if is_demo %}disabled{% endif %} required>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="phone" class="form-label">Telefone</label>
+                                <input type="tel" class="form-control" id="phone" name="phone" value="{{ user.phone|default('') }}" {% if is_demo %}disabled{% endif %} placeholder="Ex: +351 912 345 678">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="nif" class="form-label">NIF</label>
+                                <input type="text" class="form-control" id="nif" name="nif" value="{{ user.nif|default('') }}" {% if is_demo %}disabled{% endif %} placeholder="9 dígitos" maxlength="9" pattern="[0-9]{9}">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Função</label>
+                            <input type="text" class="form-control" value="{{ user.role|title }}" disabled>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Estado</label>
+                            <div>
+                                {% if user.status == 'active' %}
+                                <span class="badge bg-success">Ativo</span>
+                                {% elseif user.status == 'suspended' %}
+                                <span class="badge bg-danger">Suspenso</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inativo</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if user.last_login_at %}
+                        <div class="mb-3">
+                            <label class="form-label">Último Acesso</label>
+                            <input type="text" class="form-control" value="{{ user.last_login_at|date('d/m/Y H:i') }}" disabled>
+                        </div>
+                        {% endif %}
+
+                        {% if not is_demo %}
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Guardar Alterações
+                            </button>
+                        </div>
+                        {% endif %}
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alterar Palavra-passe -->
+        <div class="col-12 col-lg-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-shield-lock"></i> Segurança</h5>
+                </div>
+                <div class="card-body">
+                    {% if is_demo %}
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle"></i> 
+                        Não é possível alterar a palavra-passe de uma conta demo.
+                    </div>
+                    {% else %}
+                    <form method="POST" action="{{ BASE_URL }}profile/password" id="passwordForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="current_password" class="form-label">Palavra-passe Atual <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control" id="current_password" name="current_password" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">Nova Palavra-passe <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control" id="new_password" name="new_password" required>
+                            <small class="form-text text-muted">
+                                Mínimo 8 caracteres, incluindo maiúsculas, minúsculas e números.
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Confirmar Nova Palavra-passe <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-key"></i> Alterar Palavra-passe
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Informações Adicionais -->
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-info-circle"></i> Informações</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <small class="text-muted">Conta criada em:</small><br>
+                        <strong>{{ user.created_at|date('d/m/Y') }}</strong>
+                    </div>
+                    {% if user.updated_at and user.updated_at != user.created_at %}
+                    <div class="mb-2">
+                        <small class="text-muted">Última atualização:</small><br>
+                        <strong>{{ user.updated_at|date('d/m/Y H:i') }}</strong>
+                    </div>
+                    {% endif %}
+                    {% if user.email_verified_at %}
+                    <div class="mb-2">
+                        <small class="text-muted">Email verificado:</small><br>
+                        <span class="badge bg-success">
+                            <i class="bi bi-check-circle"></i> {{ user.email_verified_at|date('d/m/Y') }}
+                        </span>
+                    </div>
+                    {% else %}
+                    <div class="mb-2">
+                        <small class="text-muted">Email verificado:</small><br>
+                        <span class="badge bg-warning">
+                            <i class="bi bi-exclamation-circle"></i> Não verificado
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Password form validation
+    const passwordForm = document.getElementById('passwordForm');
+    if (passwordForm) {
+        passwordForm.addEventListener('submit', function(e) {
+            const newPassword = document.getElementById('new_password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+
+            // Check if passwords match
+            if (newPassword !== confirmPassword) {
+                e.preventDefault();
+                alert('As palavras-passe não coincidem.');
+                return false;
+            }
+
+            // Check password strength
+            if (newPassword.length < 8) {
+                e.preventDefault();
+                alert('A palavra-passe deve ter pelo menos 8 caracteres.');
+                return false;
+            }
+
+            if (!/[A-Z]/.test(newPassword)) {
+                e.preventDefault();
+                alert('A palavra-passe deve conter pelo menos uma letra maiúscula.');
+                return false;
+            }
+
+            if (!/[a-z]/.test(newPassword)) {
+                e.preventDefault();
+                alert('A palavra-passe deve conter pelo menos uma letra minúscula.');
+                return false;
+            }
+
+            if (!/[0-9]/.test(newPassword)) {
+                e.preventDefault();
+                alert('A palavra-passe deve conter pelo menos um número.');
+                return false;
+            }
+        });
+    }
+
+    // NIF input formatting
+    const nifInput = document.getElementById('nif');
+    if (nifInput) {
+        nifInput.addEventListener('input', function(e) {
+            // Remove non-numeric characters
+            this.value = this.value.replace(/\D/g, '');
+        });
+    }
+});
+</script>

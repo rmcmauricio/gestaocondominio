@@ -304,6 +304,14 @@ class AssemblyController extends Controller
             $signatureStats = $signatureModel->getSignatureStats($minutesTemplate[0]['id'], $id);
         }
 
+        // Get condominium for sidebar
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
         $this->loadPageTranslations('assemblies');
         
         $isAdmin = RoleMiddleware::isAdmin();
@@ -311,6 +319,7 @@ class AssemblyController extends Controller
         $this->data += [
             'viewName' => 'pages/assemblies/show.html.twig',
             'page' => ['titulo' => $assembly['title']],
+            'condominium' => $condominium,
             'assembly' => $assembly,
             'attendees' => $attendees,
             'quorum' => $quorum,
@@ -728,11 +737,20 @@ class AssemblyController extends Controller
             'status' => 'approved'
         ]);
 
+        // Get condominium for sidebar
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
         $this->loadPageTranslations('assemblies');
         
         $this->data += [
             'viewName' => 'pages/assemblies/edit-minutes-template.html.twig',
             'page' => ['titulo' => 'Editar Template de Atas'],
+            'condominium' => $condominium,
             'assembly' => $assembly,
             'template' => $template,
             'template_content' => $templateContent,
@@ -1056,11 +1074,20 @@ class AssemblyController extends Controller
             ];
         }
 
+        // Get condominium for sidebar
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
         $this->loadPageTranslations('assemblies');
         
         $this->data += [
             'viewName' => 'pages/assemblies/manage-signatures.html.twig',
             'page' => ['titulo' => 'Gerir Assinaturas de Atas'],
+            'condominium' => $condominium,
             'assembly' => $assembly,
             'template' => $template,
             'fractions' => $fractionsWithUsers,

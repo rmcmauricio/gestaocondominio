@@ -129,6 +129,127 @@ class SupplierController extends Controller
         }
     }
 
+    public function edit(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $supplier = $this->supplierModel->findById($id);
+        if (!$supplier || $supplier['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Fornecedor não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/suppliers');
+            exit;
+        }
+
+        $this->loadPageTranslations('suppliers');
+        
+        $this->data += [
+            'viewName' => 'pages/suppliers/edit.html.twig',
+            'page' => ['titulo' => 'Editar Fornecedor'],
+            'condominium' => $condominium,
+            'supplier' => $supplier,
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $_SESSION['error'] ?? null,
+            'success' => $_SESSION['success'] ?? null
+        ];
+        
+        unset($_SESSION['error']);
+        unset($_SESSION['success']);
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    public function update(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/suppliers');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/suppliers/' . $id . '/edit');
+            exit;
+        }
+
+        $supplier = $this->supplierModel->findById($id);
+        if (!$supplier || $supplier['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Fornecedor não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/suppliers');
+            exit;
+        }
+
+        try {
+            $this->supplierModel->update($id, [
+                'name' => Security::sanitize($_POST['name'] ?? ''),
+                'nif' => Security::sanitize($_POST['nif'] ?? ''),
+                'address' => Security::sanitize($_POST['address'] ?? ''),
+                'phone' => Security::sanitize($_POST['phone'] ?? ''),
+                'email' => Security::sanitize($_POST['email'] ?? ''),
+                'website' => Security::sanitize($_POST['website'] ?? ''),
+                'area' => Security::sanitize($_POST['area'] ?? ''),
+                'notes' => Security::sanitize($_POST['notes'] ?? '')
+            ]);
+
+            $_SESSION['success'] = 'Fornecedor atualizado com sucesso!';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/suppliers');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao atualizar fornecedor: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/suppliers/' . $id . '/edit');
+            exit;
+        }
+    }
+
+    public function delete(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/suppliers');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/suppliers');
+            exit;
+        }
+
+        $supplier = $this->supplierModel->findById($id);
+        if (!$supplier || $supplier['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Fornecedor não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/suppliers');
+            exit;
+        }
+
+        try {
+            $this->supplierModel->delete($id);
+            $_SESSION['success'] = 'Fornecedor removido com sucesso!';
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao remover fornecedor: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/suppliers');
+        exit;
+    }
+
     public function contracts(int $condominiumId)
     {
         AuthMiddleware::require();

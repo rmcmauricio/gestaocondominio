@@ -279,11 +279,15 @@ class OccurrenceController extends Controller
             }
         }
 
+        // Get condominium for sidebar
+        $condominium = $this->condominiumModel->findById($condominiumId);
+
         $this->loadPageTranslations('occurrences');
         
         $this->data += [
             'viewName' => 'pages/occurrences/show.html.twig',
             'page' => ['titulo' => $occurrence['title']],
+            'condominium' => $condominium,
             'occurrence' => $occurrence,
             'suppliers' => $suppliers,
             'comments' => $comments,
