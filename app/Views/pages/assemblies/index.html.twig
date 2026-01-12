@@ -64,7 +64,7 @@
                         <i class="bi bi-geo-alt"></i> {{ assembly.location }}
                     </p>
                     {% endif %}
-                    <p class="card-text">{{ assembly.description|slice(0, 100) }}{% if assembly.description|length > 100 %}...{% endif %}</p>
+                    <p class="card-text">{{ (assembly.description ?? assembly.agenda ?? '')|slice(0, 100) }}{% if (assembly.description ?? assembly.agenda ?? '')|length > 100 %}...{% endif %}</p>
                     <div class="d-flex justify-content-between align-items-center mt-auto">
                         <small class="text-muted">
                             <i class="bi bi-people"></i> {{ assembly.attendees_count|default(0) }} presentes

@@ -1,0 +1,76 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Editar Assembleia</h4>
+                    <small>{{ condominium.name }}</small>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    {% if success %}
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        {{ success }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies/{{ assembly.id }}/update">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Título <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="title" name="title" value="{{ assembly.title }}" required autofocus>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Descrição <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="description" name="description" rows="5" required>{{ assembly.description ?? assembly.agenda ?? '' }}</textarea>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="type" class="form-label">Tipo <span class="text-danger">*</span></label>
+                                <select class="form-select" id="type" name="type" required>
+                                    <option value="ordinary" {% if assembly.type == 'ordinary' or assembly.type == 'ordinaria' %}selected{% endif %}>Ordinária</option>
+                                    <option value="extraordinary" {% if assembly.type == 'extraordinary' or assembly.type == 'extraordinaria' %}selected{% endif %}>Extraordinária</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="quorum_percentage" class="form-label">Quórum (%)</label>
+                                <input type="number" class="form-control" id="quorum_percentage" name="quorum_percentage" value="{{ assembly.quorum_percentage }}" min="0" max="100" step="0.01">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="scheduled_date" class="form-label">Data <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="scheduled_date" name="scheduled_date" value="{{ assembly.scheduled_date|date('Y-m-d') }}" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="scheduled_time" class="form-label">Hora <span class="text-danger">*</span></label>
+                                <input type="time" class="form-control" id="scheduled_time" name="scheduled_time" value="{{ assembly.scheduled_date|date('H:i') }}" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="location" class="form-label">Local</label>
+                            <input type="text" class="form-control" id="location" name="location" value="{{ assembly.location }}" placeholder="Ex: Salão de Festas, Online">
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies/{{ assembly.id }}" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">Atualizar Assembleia</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

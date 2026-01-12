@@ -1,0 +1,189 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Resultados da Votação</h2>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium_id }}/assemblies/{{ assembly.id }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-10">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{{ topic.title }}</h5>
+                </div>
+                <div class="card-body">
+                    {% if topic.description %}
+                    <p class="text-muted">{{ topic.description }}</p>
+                    {% endif %}
+
+                    {% if results.total_votes > 0 %}
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h3 class="mb-0">{{ results.total_votes }}</h3>
+                                    <small class="text-muted">Total de Votos</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h3 class="mb-0">{{ results.total_millage }}‰</h3>
+                                    <small class="text-muted">Permilagem Total</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h3 class="mb-0">{{ results.total_condominium_millage > 0 ? ((results.total_millage / results.total_condominium_millage) * 100)|round(2) : 0 }}%</h3>
+                                    <small class="text-muted">% do Condomínio</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive mb-4">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Opção</th>
+                                    <th class="text-center">Votos</th>
+                                    <th class="text-center">Permilagem</th>
+                                    <th class="text-center">% Permilagem</th>
+                                    <th class="text-center">% Condomínio</th>
+                                    <th class="text-center">% Votos</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for option, data in results.options %}
+                                <tr>
+                                    <td><strong>{{ option }}</strong></td>
+                                    <td class="text-center">{{ data.count }}</td>
+                                    <td class="text-center">{{ data.millage }}‰</td>
+                                    <td class="text-center">{{ data.percentage_by_millage }}%</td>
+                                    <td class="text-center">{{ data.percentage_by_condominium }}%</td>
+                                    <td class="text-center">{{ data.percentage_by_votes }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-secondary">
+                                <tr>
+                                    <th>Total</th>
+                                    <th class="text-center">{{ results.total_votes }}</th>
+                                    <th class="text-center">{{ results.total_millage }}‰</th>
+                                    <th class="text-center">100%</th>
+                                    <th class="text-center">{{ results.total_condominium_millage > 0 ? ((results.total_millage / results.total_condominium_millage) * 100)|round(2) : 0 }}%</th>
+                                    <th class="text-center">100%</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    {# Charts #}
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <h6>Distribuição por Votos</h6>
+                            <canvas id="chartVotes" height="200"></canvas>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <h6>Distribuição por Permilagem</h6>
+                            <canvas id="chartMillage" height="200"></canvas>
+                        </div>
+                    </div>
+
+                    {# Individual Votes #}
+                    <h6 class="mt-4">Votos Individuais</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Fração</th>
+                                    <th>Condómino</th>
+                                    <th>Voto</th>
+                                    <th>Permilagem</th>
+                                    <th>Data</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for vote in votes %}
+                                <tr>
+                                    <td>{{ vote.fraction_identifier }}</td>
+                                    <td>{{ vote.user_name }}</td>
+                                    <td><strong>{{ vote.vote_option }}</strong></td>
+                                    <td>{{ vote.fraction_millage }}‰</td>
+                                    <td>{{ vote.created_at|date('d/m/Y H:i') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Ainda não há votos registados para este tópico.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if results.total_votes > 0 %}
+    // Votes Chart
+    const ctxVotes = document.getElementById('chartVotes');
+    if (ctxVotes) {
+        new Chart(ctxVotes, {
+            type: 'pie',
+            data: {
+                labels: [{% for option, data in results.options %}'{{ option }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+                datasets: [{
+                    data: [{% for option, data in results.options %}{{ data.count }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                    backgroundColor: [
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(255, 206, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(153, 102, 255, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true
+            }
+        });
+    }
+
+    // Millage Chart
+    const ctxMillage = document.getElementById('chartMillage');
+    if (ctxMillage) {
+        new Chart(ctxMillage, {
+            type: 'pie',
+            data: {
+                labels: [{% for option, data in results.options %}'{{ option }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+                datasets: [{
+                    data: [{% for option, data in results.options %}{{ data.millage }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                    backgroundColor: [
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(255, 206, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(153, 102, 255, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true
+            }
+        });
+    }
+    {% endif %}
+});
+</script>

@@ -10,6 +10,8 @@ use App\Models\Assembly;
 use App\Models\AssemblyAttendee;
 use App\Models\Condominium;
 use App\Models\Fraction;
+use App\Models\VoteTopic;
+use App\Models\Vote;
 use App\Services\NotificationService;
 use App\Services\PdfService;
 use App\Core\EmailService;
@@ -19,6 +21,8 @@ class AssemblyController extends Controller
     protected $assemblyModel;
     protected $attendeeModel;
     protected $condominiumModel;
+    protected $topicModel;
+    protected $voteModel;
     protected $notificationService;
     protected $pdfService;
     protected $emailService;
@@ -29,6 +33,8 @@ class AssemblyController extends Controller
         $this->assemblyModel = new Assembly();
         $this->attendeeModel = new AssemblyAttendee();
         $this->condominiumModel = new Condominium();
+        $this->topicModel = new VoteTopic();
+        $this->voteModel = new Vote();
         $this->notificationService = new NotificationService();
         $this->pdfService = new PdfService();
         $this->emailService = new EmailService();
@@ -116,11 +122,19 @@ class AssemblyController extends Controller
         $userId = AuthMiddleware::userId();
 
         try {
+            // Map type to database enum values
+            $type = Security::sanitize($_POST['type'] ?? 'ordinary');
+            if ($type === 'ordinary') {
+                $type = 'ordinaria';
+            } elseif ($type === 'extraordinary') {
+                $type = 'extraordinaria';
+            }
+            
             $assemblyId = $this->assemblyModel->create([
                 'condominium_id' => $condominiumId,
                 'title' => Security::sanitize($_POST['title'] ?? ''),
                 'description' => Security::sanitize($_POST['description'] ?? ''),
-                'type' => Security::sanitize($_POST['type'] ?? 'ordinary'),
+                'type' => $type,
                 'scheduled_date' => $_POST['scheduled_date'] . ' ' . ($_POST['scheduled_time'] ?? '20:00'),
                 'location' => Security::sanitize($_POST['location'] ?? ''),
                 'quorum_percentage' => (float)($_POST['quorum_percentage'] ?? 50),
@@ -156,7 +170,134 @@ class AssemblyController extends Controller
 
         // Get fractions for attendance registration
         $fractionModel = new Fraction();
-        $fractions = $fractionModel->getByCondominiumId($condominiumId);
+        $allFractions = $fractionModel->getByCondominiumId($condominiumId);
+        
+        // Get user's fractions in this condominium
+        $userId = AuthMiddleware::userId();
+        global $db;
+        $stmt = $db->prepare("
+            SELECT DISTINCT f.*
+            FROM fractions f
+            INNER JOIN condominium_users cu ON cu.fraction_id = f.id
+            WHERE cu.condominium_id = :condominium_id
+            AND cu.user_id = :user_id
+            AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+            AND f.is_active = TRUE
+            ORDER BY f.identifier ASC
+        ");
+        $stmt->execute([':condominium_id' => $condominiumId, ':user_id' => $userId]);
+        $userFractions = $stmt->fetchAll() ?: [];
+        
+        // Use user's fractions if available, otherwise use all fractions (for admin)
+        $fractions = !empty($userFractions) ? $userFractions : $allFractions;
+        
+        // Get attendance status for each fraction
+        $attendanceStatus = [];
+        foreach ($attendees as $attendee) {
+            $attendanceStatus[$attendee['fraction_id']] = [
+                'type' => $attendee['attendance_type'],
+                'user_id' => $attendee['user_id'],
+                'user_name' => $attendee['user_name']
+            ];
+        }
+        
+        // Get present fractions for voting
+        $presentFractionIds = $this->attendeeModel->getPresentFractions($id);
+
+        // Get vote topics
+        $topics = $this->topicModel->getByAssembly($id);
+        
+        // Get vote results for each topic
+        $topicsWithResults = [];
+        foreach ($topics as $topic) {
+            $results = $this->voteModel->calculateResults($topic['id']);
+            $votes = $this->voteModel->getByTopic($topic['id']);
+            
+            // Get present fractions for this topic
+            $presentFractionsForTopic = array_filter($fractions, function($fraction) use ($presentFractionIds) {
+                return in_array($fraction['id'], $presentFractionIds);
+            });
+            
+            // Get vote status for each present fraction
+            $fractionVotes = [];
+            foreach ($presentFractionsForTopic as $fraction) {
+                $vote = $this->voteModel->getVoteByTopicAndFraction($topic['id'], $fraction['id']);
+                $fractionVotes[$fraction['id']] = $vote;
+            }
+            
+            $topicsWithResults[] = [
+                'topic' => $topic,
+                'results' => $results,
+                'votes' => $votes,
+                'present_fractions' => array_values($presentFractionsForTopic),
+                'fraction_votes' => $fractionVotes
+            ];
+        }
+
+        // Get template and approved minutes documents
+        $documentModel = new \App\Models\Document();
+        
+        // First, try to get template with correct document_type
+        $minutesTemplate = $documentModel->getByAssemblyId($id, [
+            'document_type' => 'minutes_template'
+        ]);
+        
+        // If no template found, check if there's any document for this assembly that might be a template
+        if (empty($minutesTemplate)) {
+            // Get all documents for this assembly to check
+            $allAssemblyDocs = $documentModel->getByAssemblyId($id);
+            foreach ($allAssemblyDocs as $doc) {
+                // Check if it looks like a template (has minutes_template in filename or is HTML)
+                if (($doc['document_type'] === 'minutes_template' || 
+                     strpos($doc['file_name'] ?? '', 'minutes_template') !== false ||
+                     strpos($doc['file_path'] ?? '', 'minutes_template') !== false) &&
+                    ($doc['mime_type'] === 'text/html' || pathinfo($doc['file_name'] ?? '', PATHINFO_EXTENSION) === 'html')) {
+                    $minutesTemplate = [$doc];
+                    break;
+                }
+            }
+        }
+        
+        // If still no template found, check condominium documents that might be templates
+        if (empty($minutesTemplate)) {
+            $condominiumDocs = $documentModel->getByCondominium($condominiumId, [
+                'document_type' => 'minutes_template'
+            ]);
+            // Filter by assembly_id if column exists, or check filename
+            foreach ($condominiumDocs as $doc) {
+                if (isset($doc['assembly_id']) && $doc['assembly_id'] == $id) {
+                    $minutesTemplate = [$doc];
+                    break;
+                } elseif (strpos($doc['file_name'] ?? '', '_' . $id . '_') !== false || 
+                         strpos($doc['file_path'] ?? '', '_' . $id . '_') !== false) {
+                    $minutesTemplate = [$doc];
+                    break;
+                }
+            }
+        }
+        
+        // Get approved minutes
+        $approvedMinutes = $documentModel->getByAssemblyId($id, [
+            'document_type' => 'minutes',
+            'status' => 'approved'
+        ]);
+        
+        // If no approved minutes found, check for any minutes document
+        if (empty($approvedMinutes)) {
+            $allMinutes = $documentModel->getByAssemblyId($id, [
+                'document_type' => 'minutes'
+            ]);
+            if (!empty($allMinutes)) {
+                $approvedMinutes = [$allMinutes[0]]; // Use the first one found
+            }
+        }
+        
+        // Get signature stats if template exists
+        $signatureStats = null;
+        if (!empty($minutesTemplate)) {
+            $signatureModel = new \App\Models\MinutesSignature();
+            $signatureStats = $signatureModel->getSignatureStats($minutesTemplate[0]['id'], $id);
+        }
 
         $this->loadPageTranslations('assemblies');
         
@@ -167,13 +308,20 @@ class AssemblyController extends Controller
             'attendees' => $attendees,
             'quorum' => $quorum,
             'fractions' => $fractions,
+            'attendance_status' => $attendanceStatus,
+            'topics' => $topicsWithResults,
+            'minutes_template' => !empty($minutesTemplate) ? $minutesTemplate[0] : null,
+            'approved_minutes' => !empty($approvedMinutes) ? $approvedMinutes[0] : null,
+            'signature_stats' => $signatureStats,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
-            'success' => $_SESSION['success'] ?? null
+            'success' => $_SESSION['success'] ?? null,
+            'info' => $_SESSION['info'] ?? null
         ];
         
         unset($_SESSION['error']);
         unset($_SESSION['success']);
+        unset($_SESSION['info']);
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
     }
@@ -271,27 +419,77 @@ class AssemblyController extends Controller
         }
 
         $userId = AuthMiddleware::userId();
-        $fractionId = (int)$_POST['fraction_id'];
-        $attendanceType = Security::sanitize($_POST['attendance_type'] ?? 'present');
-        $proxyUserId = !empty($_POST['proxy_user_id']) ? (int)$_POST['proxy_user_id'] : null;
+        
+        // Check if bulk registration
+        if (isset($_POST['bulk_attendances']) && is_array($_POST['bulk_attendances'])) {
+            // Bulk registration
+            $attendances = [];
+            foreach ($_POST['bulk_attendances'] as $fractionId => $data) {
+                $fractionId = (int)$fractionId;
+                
+                // Get type from POST data, default to 'absent' if not set or empty
+                $attendanceType = 'absent';
+                if (isset($data['type']) && !empty(trim($data['type']))) {
+                    $attendanceType = trim($data['type']);
+                }
+                
+                // Validate attendance type
+                if (!in_array($attendanceType, ['present', 'proxy', 'absent'])) {
+                    $attendanceType = 'absent';
+                }
+                
+                if ($attendanceType !== 'absent') {
+                    $attendances[] = [
+                        'fraction_id' => $fractionId,
+                        'user_id' => $userId,
+                        'attendance_type' => Security::sanitize($attendanceType),
+                        'proxy_user_id' => !empty($data['proxy_user_id']) ? (int)$data['proxy_user_id'] : null,
+                        'notes' => Security::sanitizeNullable($data['notes'] ?? null)
+                    ];
+                } else {
+                    // Mark as absent (will be removed)
+                    $attendances[] = [
+                        'fraction_id' => $fractionId,
+                        'attendance_type' => 'absent'
+                    ];
+                }
+            }
 
-        try {
-            $this->attendeeModel->register([
-                'assembly_id' => $id,
-                'fraction_id' => $fractionId,
-                'user_id' => $userId,
-                'attendance_type' => $attendanceType,
-                'proxy_user_id' => $proxyUserId,
-                'notes' => Security::sanitize($_POST['notes'] ?? '')
-            ]);
+            try {
+                $registered = $this->attendeeModel->registerBulk($id, $attendances);
+                $_SESSION['success'] = "Presenças registadas com sucesso! ({$registered} frações)";
+                // Add timestamp to force page reload and avoid cache issues
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '?t=' . time());
+                exit;
+            } catch (\Exception $e) {
+                $_SESSION['error'] = 'Erro ao registar presenças: ' . $e->getMessage();
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+                exit;
+            }
+        } else {
+            // Single registration (backward compatibility)
+            $fractionId = (int)$_POST['fraction_id'];
+            $attendanceType = Security::sanitize($_POST['attendance_type'] ?? 'present');
+            $proxyUserId = !empty($_POST['proxy_user_id']) ? (int)$_POST['proxy_user_id'] : null;
 
-            $_SESSION['success'] = 'Presença registada com sucesso!';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
-            exit;
-        } catch (\Exception $e) {
-            $_SESSION['error'] = 'Erro ao registar presença: ' . $e->getMessage();
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
-            exit;
+            try {
+                $this->attendeeModel->register([
+                    'assembly_id' => $id,
+                    'fraction_id' => $fractionId,
+                    'user_id' => $userId,
+                    'attendance_type' => $attendanceType,
+                    'proxy_user_id' => $proxyUserId,
+                    'notes' => Security::sanitizeNullable($_POST['notes'] ?? null)
+                ]);
+
+                $_SESSION['success'] = 'Presença registada com sucesso!';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+                exit;
+            } catch (\Exception $e) {
+                $_SESSION['error'] = 'Erro ao registar presença: ' . $e->getMessage();
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+                exit;
+            }
         }
     }
 
@@ -307,25 +505,65 @@ class AssemblyController extends Controller
             exit;
         }
 
-        $attendees = $this->attendeeModel->getByAssembly($id);
-        
-        // Get votes if any
-        $voteModel = new \App\Models\Vote();
-        $votes = $voteModel->getByAssembly($id);
+        // Check if approved minutes already exist
+        $documentModel = new \App\Models\Document();
+        $approvedMinutes = $documentModel->getByAssemblyId($id, [
+            'document_type' => 'minutes',
+            'status' => 'approved'
+        ]);
 
-        $minutesFilename = $this->pdfService->generateMinutes($id, $assembly, $attendees, $votes);
+        if (!empty($approvedMinutes)) {
+            $_SESSION['info'] = 'Atas aprovadas já existem para esta assembleia.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        // Check if template exists
+        $templates = $documentModel->getByAssemblyId($id, [
+            'document_type' => 'minutes_template'
+        ]);
+
+        $htmlContent = '';
+        if (!empty($templates)) {
+            // Use template content
+            $template = $templates[0];
+            $templatePath = __DIR__ . '/../../storage/documents/' . $template['file_path'];
+            
+            if (file_exists($templatePath)) {
+                $htmlContent = file_get_contents($templatePath);
+            }
+        }
+
+        // If no template or template file doesn't exist, use automatic generation
+        if (empty($htmlContent)) {
+            $attendees = $this->attendeeModel->getByAssembly($id);
+            $topics = $this->topicModel->getByAssembly($id);
+            $allVotes = [];
+            foreach ($topics as $topic) {
+                $votes = $this->voteModel->getByTopic($topic['id']);
+                $allVotes = array_merge($allVotes, $votes);
+            }
+            $htmlContent = $this->pdfService->getMinutesHtml($assembly, $attendees, $allVotes);
+        }
+
+        // Generate minutes file
+        $minutesFilename = $this->pdfService->generateMinutes($id, $assembly, [], []);
+        
+        // Overwrite with correct content
+        $filepath = __DIR__ . '/../../storage/documents/' . $minutesFilename;
+        file_put_contents($filepath, $htmlContent);
 
         // Save to documents
-        $documentModel = new \App\Models\Document();
         $userId = AuthMiddleware::userId();
         
         $documentModel->create([
             'condominium_id' => $condominiumId,
+            'assembly_id' => $id,
             'title' => 'Atas da Assembleia: ' . $assembly['title'],
             'description' => 'Atas geradas automaticamente',
             'file_path' => $minutesFilename,
             'file_name' => 'atas_' . $id . '.html',
-            'file_size' => filesize(__DIR__ . '/../../storage/documents/' . $minutesFilename),
+            'file_size' => filesize($filepath),
             'mime_type' => 'text/html',
             'visibility' => 'condominos',
             'document_type' => 'minutes',
@@ -337,21 +575,1016 @@ class AssemblyController extends Controller
         exit;
     }
 
+    public function generateMinutesTemplatePage(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        if ($assembly['status'] !== 'closed' && $assembly['status'] !== 'completed') {
+            $_SESSION['error'] = 'Apenas assembleias encerradas podem ter templates gerados.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        try {
+            $templateId = $this->generateMinutesTemplate($condominiumId, $id);
+            if ($templateId) {
+                $_SESSION['success'] = 'Template de atas gerado com sucesso!';
+            } else {
+                $_SESSION['error'] = 'Erro ao gerar template de atas.';
+            }
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao gerar template: ' . $e->getMessage();
+            error_log("Error generating minutes template: " . $e->getMessage());
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+        exit;
+    }
+
+    public function generateMinutesTemplate(int $condominiumId, int $id): ?int
+    {
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            return null;
+        }
+
+        // Check if template already exists
+        $documentModel = new \App\Models\Document();
+        $existingTemplates = $documentModel->getByAssemblyId($id, [
+            'document_type' => 'minutes_template'
+        ]);
+        
+        if (!empty($existingTemplates)) {
+            // Template already exists, return its ID
+            return (int)$existingTemplates[0]['id'];
+        }
+
+        // Get assembly data
+        $attendees = $this->attendeeModel->getByAssembly($id);
+        $topics = $this->topicModel->getByAssembly($id);
+        
+        // Get vote results for each topic
+        $voteResults = [];
+        foreach ($topics as $topic) {
+            $voteResults[$topic['id']] = $this->voteModel->calculateResults($topic['id']);
+        }
+
+        // Populate template
+        $populatedHtml = $this->pdfService->populateMinutesTemplate($assembly, $attendees, $topics, $voteResults);
+
+        // Save template file
+        $filename = 'minutes_template_' . $id . '_' . time() . '.html';
+        $filepath = __DIR__ . '/../../storage/documents/' . $filename;
+        
+        $dir = dirname($filepath);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        
+        file_put_contents($filepath, $populatedHtml);
+
+        // Create document record
+        $userId = AuthMiddleware::userId();
+        
+        $documentId = $documentModel->create([
+            'condominium_id' => $condominiumId,
+            'assembly_id' => $id,
+            'title' => 'Template de Atas: ' . $assembly['title'],
+            'description' => 'Template de atas gerado automaticamente',
+            'file_path' => $filename,
+            'file_name' => 'minutes_template_' . $id . '.html',
+            'file_size' => filesize($filepath),
+            'mime_type' => 'text/html',
+            'visibility' => 'admin',
+            'document_type' => 'minutes_template',
+            'status' => 'draft',
+            'uploaded_by' => $userId
+        ]);
+
+        return $documentId;
+    }
+
+    public function editMinutesTemplate(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        if ($assembly['status'] !== 'closed' && $assembly['status'] !== 'completed') {
+            $_SESSION['error'] = 'Apenas assembleias encerradas podem ter templates editados.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        // Get template document
+        $documentModel = new \App\Models\Document();
+        $templates = $documentModel->getByAssemblyId($id, [
+            'document_type' => 'minutes_template'
+        ]);
+
+        if (empty($templates)) {
+            $_SESSION['error'] = 'Template de atas não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $template = $templates[0];
+        $templatePath = __DIR__ . '/../../storage/documents/' . $template['file_path'];
+        
+        if (!file_exists($templatePath)) {
+            $_SESSION['error'] = 'Ficheiro do template não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $templateContent = file_get_contents($templatePath);
+
+        // Get approved minutes if exists
+        $approvedMinutes = $documentModel->getByAssemblyId($id, [
+            'document_type' => 'minutes',
+            'status' => 'approved'
+        ]);
+
+        $this->loadPageTranslations('assemblies');
+        
+        $this->data += [
+            'viewName' => 'pages/assemblies/edit-minutes-template.html.twig',
+            'page' => ['titulo' => 'Editar Template de Atas'],
+            'assembly' => $assembly,
+            'template' => $template,
+            'template_content' => $templateContent,
+            'approved_minutes' => !empty($approvedMinutes) ? $approvedMinutes[0] : null,
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $_SESSION['error'] ?? null,
+            'success' => $_SESSION['success'] ?? null
+        ];
+
+        unset($_SESSION['error'], $_SESSION['success']);
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    public function updateMinutesTemplate(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/minutes-template/edit');
+            exit;
+        }
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        // Get template document
+        $documentModel = new \App\Models\Document();
+        $templates = $documentModel->getByAssemblyId($id, [
+            'document_type' => 'minutes_template'
+        ]);
+
+        if (empty($templates)) {
+            $_SESSION['error'] = 'Template de atas não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $template = $templates[0];
+
+        // Check if template is in draft status
+        if ($template['status'] !== 'draft') {
+            $_SESSION['error'] = 'Não é possível editar um template já aprovado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        // Get updated content
+        $templateContent = $_POST['template_content'] ?? '';
+        
+        // Basic HTML sanitization (can be enhanced with HTMLPurifier)
+        // For now, allow HTML but escape dangerous content
+        $templateContent = htmlspecialchars_decode($templateContent, ENT_QUOTES);
+
+        // Update file
+        $templatePath = __DIR__ . '/../../storage/documents/' . $template['file_path'];
+        
+        // Check if content has changed
+        $currentContent = file_exists($templatePath) ? file_get_contents($templatePath) : '';
+        $contentChanged = ($currentContent !== $templateContent);
+        
+        file_put_contents($templatePath, $templateContent);
+        
+        // If content changed, invalidate all signatures and notify signers
+        if ($contentChanged) {
+            $signatureModel = new \App\Models\MinutesSignature();
+            $signedUsers = $signatureModel->getByDocument($template['id']);
+            
+            // Invalidate all signatures
+            $signatureModel->invalidateAllSignatures($template['id'], 'Template editado');
+            
+            // Notify users who had signed
+            if (!empty($signedUsers)) {
+                foreach ($signedUsers as $signature) {
+                    if (!empty($signature['user_id'])) {
+                        $this->notificationService->createNotification(
+                            $signature['user_id'],
+                            $condominiumId,
+                            'minutes_edited',
+                            'Ata Editada - Assinatura Necessária',
+                            'A ata da assembleia foi editada. Por favor, reveja e assine novamente.',
+                            BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/minutes-template/signatures'
+                        );
+                    }
+                }
+            }
+            
+            $_SESSION['success'] = 'Template de atas atualizado com sucesso! As assinaturas anteriores foram invalidadas e os condóminos foram notificados.';
+        } else {
+            $_SESSION['success'] = 'Template de atas atualizado com sucesso!';
+        }
+
+        // Update file size
+        $documentModel->update($template['id'], [
+            'file_size' => filesize($templatePath)
+        ]);
+
+        // Check if content has changed
+        $currentContent = file_get_contents($templatePath);
+        $contentChanged = ($currentContent !== $templateContent);
+        
+        // If content changed, invalidate all signatures and notify signers
+        if ($contentChanged) {
+            $signatureModel = new \App\Models\MinutesSignature();
+            $signedUsers = $signatureModel->getByDocument($template['id']);
+            
+            // Invalidate all signatures
+            $signatureModel->invalidateAllSignatures($template['id'], 'Template editado');
+            
+            // Notify users who had signed
+            if (!empty($signedUsers)) {
+                foreach ($signedUsers as $signature) {
+                    if (!empty($signature['user_id'])) {
+                        $this->notificationService->createNotification(
+                            $signature['user_id'],
+                            $condominiumId,
+                            'minutes_edited',
+                            'Ata Editada - Assinatura Necessária',
+                            'A ata da assembleia foi editada. Por favor, reveja e assine novamente.',
+                            BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/minutes-template/sign'
+                        );
+                    }
+                }
+            }
+            
+            $_SESSION['success'] = 'Template de atas atualizado com sucesso! As assinaturas anteriores foram invalidadas e os condóminos foram notificados.';
+        } else {
+            $_SESSION['success'] = 'Template de atas atualizado com sucesso!';
+        }
+        
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/minutes-template/edit');
+        exit;
+    }
+
+    public function approveMinutes(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        // Get template document
+        $documentModel = new \App\Models\Document();
+        $templates = $documentModel->getByAssemblyId($id, [
+            'document_type' => 'minutes_template',
+            'status' => 'draft'
+        ]);
+
+        if (empty($templates)) {
+            $_SESSION['error'] = 'Template de atas em rascunho não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $template = $templates[0];
+        
+        // Check if all present fractions have signed
+        $signatureModel = new \App\Models\MinutesSignature();
+        $allSigned = $signatureModel->allPresentFractionsSigned($template['id'], $id);
+        
+        if (!$allSigned) {
+            $stats = $signatureModel->getSignatureStats($template['id'], $id);
+            $_SESSION['error'] = 'Não é possível aprovar a ata. Ainda faltam ' . $stats['pending'] . ' frações por assinar de um total de ' . $stats['total'] . '. Por favor, registe todas as assinaturas antes de aprovar.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/minutes-template/signatures');
+            exit;
+        }
+        
+        $templatePath = __DIR__ . '/../../storage/documents/' . $template['file_path'];
+        
+        if (!file_exists($templatePath)) {
+            $_SESSION['error'] = 'Ficheiro do template não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        // Load template content
+        $htmlContent = file_get_contents($templatePath);
+
+        // Generate PDF
+        $pdfFilename = $this->pdfService->generateMinutesPdf($htmlContent, $id);
+
+        // Save approved minutes to documents
+        $userId = AuthMiddleware::userId();
+        
+        $filePath = __DIR__ . '/../../storage/documents/' . $pdfFilename;
+        $isPdf = pathinfo($pdfFilename, PATHINFO_EXTENSION) === 'pdf';
+        
+        $documentModel->create([
+            'condominium_id' => $condominiumId,
+            'assembly_id' => $id,
+            'title' => 'Atas Aprovadas: ' . $assembly['title'],
+            'description' => 'Atas aprovadas e geradas em PDF',
+            'file_path' => $pdfFilename,
+            'file_name' => 'atas_aprovadas_' . $id . ($isPdf ? '.pdf' : '.html'),
+            'file_size' => file_exists($filePath) ? filesize($filePath) : 0,
+            'mime_type' => $isPdf ? 'application/pdf' : 'text/html',
+            'visibility' => 'condominos',
+            'document_type' => 'minutes',
+            'status' => 'approved',
+            'uploaded_by' => $userId
+        ]);
+
+        // Update template status to approved
+        $documentModel->update($template['id'], [
+            'status' => 'approved'
+        ]);
+
+        $_SESSION['success'] = 'Atas aprovadas e PDF gerado com sucesso!';
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+        exit;
+    }
+
+    public function manageSignatures(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        if ($assembly['status'] !== 'closed' && $assembly['status'] !== 'completed') {
+            $_SESSION['error'] = 'Apenas assembleias encerradas podem ter assinaturas geridas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        // Get template document
+        $documentModel = new \App\Models\Document();
+        $templates = $documentModel->getByAssemblyId($id, [
+            'document_type' => 'minutes_template'
+        ]);
+
+        if (empty($templates)) {
+            $_SESSION['error'] = 'Template de atas não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $template = $templates[0];
+        $signatureModel = new \App\Models\MinutesSignature();
+        
+        // Get present fractions
+        $presentFractions = $this->attendeeModel->getPresentFractions($id);
+        $fractionModel = new Fraction();
+        $allFractions = $fractionModel->getByCondominiumId($condominiumId);
+        $presentFractionsData = array_filter($allFractions, function($fraction) use ($presentFractions) {
+            return in_array($fraction['id'], $presentFractions);
+        });
+
+        // Get signatures
+        $signatures = $signatureModel->getByDocument($template['id']);
+        $signedFractionIds = array_column($signatures, 'fraction_id');
+        
+        // Get unsigned fractions
+        $unsignedFractions = array_filter($presentFractionsData, function($fraction) use ($signedFractionIds) {
+            return !in_array($fraction['id'], $signedFractionIds);
+        });
+
+        // Get signature stats
+        $stats = $signatureModel->getSignatureStats($template['id'], $id);
+
+        // Get users for fractions
+        global $db;
+        $fractionsWithUsers = [];
+        foreach ($presentFractionsData as $fraction) {
+            $stmt = $db->prepare("
+                SELECT u.id, u.name, u.email
+                FROM condominium_users cu
+                INNER JOIN users u ON u.id = cu.user_id
+                WHERE cu.fraction_id = :fraction_id
+                AND cu.condominium_id = :condominium_id
+                AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+                LIMIT 1
+            ");
+            $stmt->execute([
+                ':fraction_id' => $fraction['id'],
+                ':condominium_id' => $condominiumId
+            ]);
+            $user = $stmt->fetch();
+            
+            $fractionsWithUsers[] = [
+                'fraction' => $fraction,
+                'user' => $user,
+                'signed' => in_array($fraction['id'], $signedFractionIds),
+                'signature' => array_filter($signatures, function($s) use ($fraction) {
+                    return $s['fraction_id'] == $fraction['id'];
+                })[0] ?? null
+            ];
+        }
+
+        $this->loadPageTranslations('assemblies');
+        
+        $this->data += [
+            'viewName' => 'pages/assemblies/manage-signatures.html.twig',
+            'page' => ['titulo' => 'Gerir Assinaturas de Atas'],
+            'assembly' => $assembly,
+            'template' => $template,
+            'fractions' => $fractionsWithUsers,
+            'signatures' => $signatures,
+            'stats' => $stats,
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $_SESSION['error'] ?? null,
+            'success' => $_SESSION['success'] ?? null
+        ];
+
+        unset($_SESSION['error'], $_SESSION['success']);
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    public function markSignature(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/minutes-template/signatures');
+            exit;
+        }
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        // Get template document
+        $documentModel = new \App\Models\Document();
+        $templates = $documentModel->getByAssemblyId($id, [
+            'document_type' => 'minutes_template'
+        ]);
+
+        if (empty($templates)) {
+            $_SESSION['error'] = 'Template de atas não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $template = $templates[0];
+        $fractionId = (int)($_POST['fraction_id'] ?? 0);
+        $userId = (int)($_POST['user_id'] ?? 0);
+        $action = $_POST['action'] ?? 'sign';
+
+        if ($fractionId <= 0) {
+            $_SESSION['error'] = 'Fração inválida.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/minutes-template/signatures');
+            exit;
+        }
+
+        // Verify fraction was present
+        $presentFractions = $this->attendeeModel->getPresentFractions($id);
+        if (!in_array($fractionId, $presentFractions)) {
+            $_SESSION['error'] = 'Esta fração não esteve presente na assembleia.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/minutes-template/signatures');
+            exit;
+        }
+
+        $signatureModel = new \App\Models\MinutesSignature();
+
+        if ($action === 'sign') {
+            // Get user for fraction if not provided
+            if ($userId <= 0) {
+                global $db;
+                $stmt = $db->prepare("
+                    SELECT cu.user_id
+                    FROM condominium_users cu
+                    WHERE cu.fraction_id = :fraction_id
+                    AND cu.condominium_id = :condominium_id
+                    AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+                    LIMIT 1
+                ");
+                $stmt->execute([
+                    ':fraction_id' => $fractionId,
+                    ':condominium_id' => $condominiumId
+                ]);
+                $user = $stmt->fetch();
+                $userId = $user['user_id'] ?? AuthMiddleware::userId();
+            }
+
+            // Create signature
+            $signatureModel->create([
+                'document_id' => $template['id'],
+                'assembly_id' => $id,
+                'user_id' => $userId,
+                'fraction_id' => $fractionId,
+                'signature_type' => 'manual',
+                'signature_data' => 'Assinatura manual registada pelo administrador'
+            ]);
+
+            $_SESSION['success'] = 'Assinatura registada com sucesso!';
+        } elseif ($action === 'unsign') {
+            // Remove signature
+            $signatureModel->invalidateSignatures($template['id'], $fractionId, 'Removida pelo administrador');
+            $_SESSION['success'] = 'Assinatura removida com sucesso!';
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/minutes-template/signatures');
+        exit;
+    }
+
+    public function viewMinutes(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        // Get template document (prefer approved, fallback to draft)
+        $documentModel = new \App\Models\Document();
+        $approvedMinutes = $documentModel->getByAssemblyId($id, [
+            'document_type' => 'minutes',
+            'status' => 'approved'
+        ]);
+        
+        $minutesTemplate = null;
+        if (!empty($approvedMinutes)) {
+            $minutesTemplate = $approvedMinutes[0];
+        } else {
+            $templates = $documentModel->getByAssemblyId($id, [
+                'document_type' => 'minutes_template'
+            ]);
+            if (!empty($templates)) {
+                $minutesTemplate = $templates[0];
+            }
+        }
+
+        if (!$minutesTemplate) {
+            $_SESSION['error'] = 'Ata não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $templatePath = __DIR__ . '/../../storage/documents/' . $minutesTemplate['file_path'];
+        
+        if (!file_exists($templatePath)) {
+            $_SESSION['error'] = 'Ficheiro da ata não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $templateContent = file_get_contents($templatePath);
+
+        // Output HTML directly
+        header('Content-Type: text/html; charset=UTF-8');
+        echo $templateContent;
+        exit;
+    }
+
+    public function edit(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        // Can only edit if not started or closed
+        if ($assembly['status'] === 'in_progress' || $assembly['status'] === 'closed' || $assembly['status'] === 'completed') {
+            $_SESSION['error'] = 'Não é possível editar uma assembleia em andamento ou encerrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+
+        $this->loadPageTranslations('assemblies');
+        
+        $this->data += [
+            'viewName' => 'pages/assemblies/edit.html.twig',
+            'page' => ['titulo' => 'Editar Assembleia'],
+            'assembly' => $assembly,
+            'condominium' => $condominium,
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $_SESSION['error'] ?? null,
+            'success' => $_SESSION['success'] ?? null
+        ];
+        
+        unset($_SESSION['error']);
+        unset($_SESSION['success']);
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    public function update(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/edit');
+            exit;
+        }
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        // Can only edit if not started or closed
+        if ($assembly['status'] === 'in_progress' || $assembly['status'] === 'closed' || $assembly['status'] === 'completed') {
+            $_SESSION['error'] = 'Não é possível editar uma assembleia em andamento ou encerrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        try {
+            // Map type to database enum values
+            $type = Security::sanitize($_POST['type'] ?? 'ordinary');
+            if ($type === 'ordinary') {
+                $type = 'ordinaria';
+            } elseif ($type === 'extraordinary') {
+                $type = 'extraordinaria';
+            }
+            
+            $this->assemblyModel->update($id, [
+                'title' => Security::sanitize($_POST['title'] ?? ''),
+                'description' => Security::sanitize($_POST['description'] ?? ''),
+                'type' => $type,
+                'scheduled_date' => $_POST['scheduled_date'] . ' ' . ($_POST['scheduled_time'] ?? '20:00'),
+                'location' => Security::sanitize($_POST['location'] ?? ''),
+                'quorum_percentage' => (float)($_POST['quorum_percentage'] ?? 50)
+            ]);
+
+            $_SESSION['success'] = 'Assembleia atualizada com sucesso!';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao atualizar assembleia: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/edit');
+            exit;
+        }
+    }
+
+    public function start(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        if ($assembly['status'] !== 'scheduled') {
+            $_SESSION['error'] = 'Apenas assembleias agendadas podem ser iniciadas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        if ($this->assemblyModel->start($id)) {
+            $_SESSION['success'] = 'Assembleia iniciada!';
+        } else {
+            $_SESSION['error'] = 'Erro ao iniciar assembleia.';
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+        exit;
+    }
+
+    public function close(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        if ($assembly['status'] !== 'in_progress') {
+            $_SESSION['error'] = 'Apenas assembleias em andamento podem ser encerradas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $minutes = Security::sanitize($_POST['minutes'] ?? '');
+
+        if ($this->assemblyModel->close($id, $minutes)) {
+            // Generate minutes template automatically
+            try {
+                $templateId = $this->generateMinutesTemplate($condominiumId, $id);
+                if ($templateId) {
+                    $_SESSION['success'] = 'Assembleia encerrada com sucesso! Template de atas gerado automaticamente.';
+                } else {
+                    $_SESSION['success'] = 'Assembleia encerrada com sucesso!';
+                    $_SESSION['info'] = 'Não foi possível gerar o template automaticamente. Pode gerar manualmente usando o botão abaixo.';
+                }
+            } catch (\Exception $e) {
+                // Log error but don't fail the close operation
+                error_log("Error generating minutes template: " . $e->getMessage());
+                $_SESSION['success'] = 'Assembleia encerrada com sucesso!';
+                $_SESSION['info'] = 'Não foi possível gerar o template automaticamente. Pode gerar manualmente usando o botão abaixo.';
+            }
+        } else {
+            $_SESSION['error'] = 'Erro ao encerrar assembleia.';
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+        exit;
+    }
+
+    public function cancel(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        if ($assembly['status'] === 'closed' || $assembly['status'] === 'completed') {
+            $_SESSION['error'] = 'Não é possível cancelar uma assembleia já encerrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        if ($this->assemblyModel->update($id, ['status' => 'canceled'])) {
+            $_SESSION['success'] = 'Assembleia cancelada com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao cancelar assembleia.';
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+        exit;
+    }
+
     protected function getConvocationEmailBody(array $assembly): string
     {
+        $condominium = $this->condominiumModel->findById($assembly['condominium_id']);
         $date = date('d/m/Y', strtotime($assembly['scheduled_date']));
         $time = date('H:i', strtotime($assembly['scheduled_date']));
+        // Map type for display
+        $type = ($assembly['type'] === 'extraordinary' || $assembly['type'] === 'extraordinaria') ? 'Extraordinária' : 'Ordinária';
+        $quorum = $assembly['quorum_percentage'] ?? 50;
+        $condominiumName = $condominium['name'] ?? 'Condomínio';
         
         return "
-        <h2>Convocatória de Assembleia</h2>
-        <p><strong>Título:</strong> {$assembly['title']}</p>
-        <p><strong>Data:</strong> {$date}</p>
-        <p><strong>Hora:</strong> {$time}</p>
-        <p><strong>Local:</strong> " . ($assembly['location'] ?? 'A definir') . "</p>
-        <p><strong>Descrição:</strong></p>
-        <p>" . nl2br($assembly['description'] ?? '') . "</p>
-        <p>Por favor, confirme a sua presença através do sistema.</p>
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background-color: #007bff; color: white; padding: 20px; text-align: center; }
+                .content { padding: 20px; background-color: #f9f9f9; }
+                .info-box { background-color: white; padding: 15px; margin: 15px 0; border-left: 4px solid #007bff; }
+                .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+                .button { display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <div class='header'>
+                    <h2>Convocatória de Assembleia</h2>
+                </div>
+                <div class='content'>
+                    <p>Prezado(a) Condómino(a),</p>
+                    
+                    <p>Informamos que foi agendada uma assembleia para o condomínio <strong>{$condominiumName}</strong>.</p>
+                    
+                    <div class='info-box'>
+                        <h3 style='margin-top: 0;'>{$assembly['title']}</h3>
+                        <p><strong>Tipo:</strong> {$type}</p>
+                        <p><strong>Data:</strong> {$date}</p>
+                        <p><strong>Hora:</strong> {$time}</p>
+                        <p><strong>Local:</strong> " . ($assembly['location'] ?? 'A definir') . "</p>
+                        <p><strong>Quórum necessário:</strong> {$quorum}%</p>
+                    </div>
+                    
+                    <p><strong>Ordem de Trabalhos:</strong></p>
+                    <p>" . nl2br(htmlspecialchars($assembly['description'] ?? $assembly['agenda'] ?? 'A definir na assembleia')) . "</p>
+                    
+                    <p><strong>Importante:</strong></p>
+                    <ul>
+                        <li>Por favor, confirme a sua presença através do sistema</li>
+                        <li>Em caso de impossibilidade, pode nomear um representante mediante procuração</li>
+                        <li>A assembleia iniciará pontualmente no horário indicado</li>
+                    </ul>
+                    
+                    <div style='text-align: center;'>
+                        <a href='" . BASE_URL . "condominiums/{$assembly['condominium_id']}/assemblies/{$assembly['id']}' class='button'>Ver Detalhes da Assembleia</a>
+                    </div>
+                </div>
+                <div class='footer'>
+                    <p>Esta convocatória foi gerada automaticamente pelo sistema de gestão de condomínios.</p>
+                    <p>Em anexo encontra-se o documento PDF da convocatória.</p>
+                </div>
+            </div>
+        </body>
+        </html>
         ";
+    }
+
+    public function changeStatus(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        $newStatus = $_POST['status'] ?? '';
+        $validStatuses = ['scheduled', 'in_progress', 'closed', 'completed', 'cancelled'];
+        
+        if (!in_array($newStatus, $validStatuses)) {
+            $_SESSION['error'] = 'Status inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        // If changing from closed/completed to an editable status, check for signatures
+        if (($assembly['status'] === 'closed' || $assembly['status'] === 'completed') && 
+            ($newStatus === 'scheduled' || $newStatus === 'in_progress')) {
+            
+            // Check if there's a minutes template with signatures
+            $documentModel = new \App\Models\Document();
+            $templates = $documentModel->getByAssemblyId($id, [
+                'document_type' => 'minutes_template'
+            ]);
+
+            if (!empty($templates)) {
+                $signatureModel = new \App\Models\MinutesSignature();
+                $signatures = $signatureModel->getByDocument($templates[0]['id']);
+                
+                if (!empty($signatures)) {
+                    $_SESSION['error'] = 'Não é possível reabrir a assembleia. A ata já possui assinaturas registadas.';
+                    header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+                    exit;
+                }
+            }
+        }
+
+        // Update status
+        $this->assemblyModel->update($id, ['status' => $newStatus]);
+
+        $statusNames = [
+            'scheduled' => 'Agendada',
+            'in_progress' => 'Em Andamento',
+            'closed' => 'Encerrada',
+            'completed' => 'Concluída',
+            'cancelled' => 'Cancelada'
+        ];
+
+        $_SESSION['success'] = 'Status da assembleia alterado para "' . ($statusNames[$newStatus] ?? $newStatus) . '" com sucesso!';
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+        exit;
     }
 }
 

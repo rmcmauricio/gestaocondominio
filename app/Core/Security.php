@@ -41,6 +41,20 @@ class Security
      */
     public static function sanitize(string $input): string
     {
+        if ($input === null) {
+            return '';
+        }
+        return htmlspecialchars(strip_tags(trim($input)), ENT_QUOTES, 'UTF-8');
+    }
+    
+    /**
+     * Sanitize input (nullable)
+     */
+    public static function sanitizeNullable(?string $input): ?string
+    {
+        if ($input === null || $input === '') {
+            return null;
+        }
         return htmlspecialchars(strip_tags(trim($input)), ENT_QUOTES, 'UTF-8');
     }
 
