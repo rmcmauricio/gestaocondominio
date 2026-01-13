@@ -23,6 +23,7 @@ jobs:
       - name: Deploy via rsync (PROD)
         run: |
           rsync -az --delete \
+            --chown=cantiflas:cantiflas \
             --filter='protect .env' \
             --exclude=".env" \
             --exclude=".env.*" \
@@ -35,17 +36,23 @@ jobs:
             ./ \
             root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html
 
-      - name: Composer + migrate (PROD, sem testes)
-        run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
-            set -e
-            cd /home/cantiflas/web/omeupredio.com/public_html
+            - name: Composer + migrate (PROD, sem testes)
+            run: |
+              ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
+                set -e
+                WEBROOT="/home/cantiflas/web/omeupredio.com/public_html"
 
-            # sem deps de dev em produção
-            sudo -u cantiflas -H composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+                # Preflight: garantir que cantiflas pode escrever (criar vendor, etc.)
+                chown -R cantiflas:cantiflas "$WEBROOT"
+                chmod 755 "$WEBROOT"
+                find "$WEBROOT" -type d -exec chmod 755 {} \;
+                find "$WEBROOT" -type f -exec chmod 644 {} \;
 
-            # migrations em prod (se quiseres manter)
-            sudo -u cantiflas -H php cli/migrate.php
+                cd "$WEBROOT"
 
-            chown -R cantiflas:cantiflas /home/cantiflas/web/omeupredio.com/public_html
-          EOF
+                sudo -u cantiflas -H composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+                sudo -u cantiflas -H php cli/migrate.php
+
+                chown -R cantiflas:cantiflas "$WEBROOT"
+              EOF
+
