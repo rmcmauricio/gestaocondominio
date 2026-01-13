@@ -23,7 +23,6 @@ jobs:
       - name: Deploy via rsync (TEST)
         run: |
           rsync -az --delete \
-            --chown=cantiflas:cantiflas \
             --filter='protect .env' \
             --exclude=".env" \
             --exclude=".env.*" \
@@ -36,23 +35,20 @@ jobs:
             ./ \
             root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html/test
 
-      - name: Composer + migrate (PROD, sem testes)
+      - name: Composer + migrate + seed + demo + tests (TEST)
         run: |
-            ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
             set -e
-            WEBROOT="/home/cantiflas/web/omeupredio.com/public_html/test"
+            cd /home/cantiflas/web/omeupredio.com/public_html/test
 
-            # Preflight: garantir que cantiflas pode escrever (criar vendor, etc.)
-            chown -R cantiflas:cantiflas "$WEBROOT"
-            chmod 755 "$WEBROOT"
-            find "$WEBROOT" -type d -exec chmod 755 {} \;
-            find "$WEBROOT" -type f -exec chmod 644 {} \;
+            # DEV deps para phpunit
+            sudo -u cantiflas -H composer install --no-interaction --prefer-dist --optimize-autoloader
 
-            cd "$WEBROOT"
-
-            sudo -u cantiflas -H composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
             sudo -u cantiflas -H php cli/migrate.php
+            sudo -u cantiflas -H php cli/seed.php
+            sudo -u cantiflas -H php cli/restore-demo.php
 
-            chown -R cantiflas:cantiflas "$WEBROOT"
-            EOF
+            sudo -u cantiflas -H composer test
 
+            chown -R cantiflas:cantiflas /home/cantiflas/web/omeupredio.com/public_html/test
+          EOF
