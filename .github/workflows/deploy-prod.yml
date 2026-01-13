@@ -25,27 +25,18 @@ jobs:
         run: |
           composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
-      - name: Prepare SSH known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          ssh-keyscan -H cifrajam.com >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
-
-      # IMPORTANT: use SFTP to avoid remote tar extraction (scp-action can fail with restricted shells)
-      - name: Upload via SFTP
-        uses: appleboy/sftp-action@v0.1.7
+      # Deploy via SFTP (no remote shell needed)
+      - name: Deploy via SFTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          host: cifrajam.com
+          server: cifrajam.com
+          protocol: sftp
           username: rmcm
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SFTP_PASSWORD }}
           port: 22
-          source: "./"
-          target: "/home/cantiflas/web/omeupredio.com/public_html/test"
-          overwrite: true
-          rm: false
-          # avoid uploading repo metadata
-          ignore: |
+          local-dir: ./
+          server-dir: /home/cantiflas/web/omeupredio.com/public_html/test/
+          exclude: |
             **/.git/**
             **/.github/**
             **/node_modules/**
