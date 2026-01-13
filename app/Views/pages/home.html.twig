@@ -1,27 +1,76 @@
 <!-- Hero Section -->
-<section class="hero-section bg-primary text-white py-5">
+<section class="hero-section">
+    <div class="hero-background"></div>
     <div class="container">
-        <div class="row align-items-center">
-            <div class="col-lg-6">
-                <h1 class="display-4 fw-bold mb-4">Gerir o seu condomínio nunca foi tão fácil</h1>
-                <p class="lead mb-4">A solução completa para gestão de condomínios em Portugal. Automatize quotas, assembleias, documentos e muito mais.</p>
-                <div class="d-flex gap-3 flex-wrap">
-                    <a href="{{ BASE_URL }}register" class="btn btn-light btn-lg">Começar Grátis</a>
-                    <a href="{{ BASE_URL }}login" class="btn btn-outline-light btn-lg">Já tenho conta</a>
-                    <a href="{{ BASE_URL }}demo/access" class="btn btn-warning btn-lg">
-                        <i class="bi bi-play-circle"></i> Testar Demo
+        <div class="row align-items-center min-vh-75">
+            <div class="col-lg-6 hero-content">
+                <div class="hero-badge mb-3">
+                    <span class="badge-text">✨ Nova Plataforma</span>
+                </div>
+                <h1 class="hero-title">Gerir o seu condomínio nunca foi tão fácil</h1>
+                <p class="hero-subtitle">A solução completa para gestão de condomínios em Portugal. Automatize quotas, assembleias, documentos e muito mais.</p>
+                <div class="hero-buttons d-flex gap-3 flex-wrap">
+                    <a href="{{ BASE_URL }}register" class="btn btn-hero-primary">
+                        <span>Começar Grátis</span>
+                        <i class="bi bi-arrow-right"></i>
+                    </a>
+                    <a href="{{ BASE_URL }}login" class="btn btn-hero-secondary">
+                        Já tenho conta
+                    </a>
+                    <a href="{{ BASE_URL }}demo/access" class="btn btn-hero-demo">
+                        <i class="bi bi-play-circle-fill"></i>
+                        <span>Testar Demo</span>
                     </a>
                 </div>
-                <p class="mt-3 mb-0">
-                    <i class="bi bi-check-circle"></i> 14 dias grátis •
-                    <i class="bi bi-check-circle"></i> Sem cartão de crédito •
-                    <i class="bi bi-check-circle"></i> Cancele quando quiser
-                </p>
+                <div class="hero-features mt-4">
+                    <div class="feature-item">
+                        <i class="bi bi-check-circle-fill"></i>
+                        <span>14 dias grátis</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="bi bi-check-circle-fill"></i>
+                        <span>Sem cartão de crédito</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="bi bi-check-circle-fill"></i>
+                        <span>Cancele quando quiser</span>
+                    </div>
+                </div>
             </div>
-            <div class="col-lg-6 text-center mt-4 mt-lg-0">
-                <div class="hero-image-placeholder bg-white bg-opacity-10 rounded p-5">
-                    <i class="bi bi-building display-1"></i>
-                    <p class="mt-3">Dashboard Interativo</p>
+            <div class="col-lg-6 hero-visual mt-5 mt-lg-0">
+                <div class="hero-card">
+                    <div class="hero-card-header">
+                        <div class="card-dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                    </div>
+                    <div class="hero-card-content">
+                        <div class="dashboard-preview">
+                            <div class="preview-item">
+                                <div class="preview-icon bg-primary"></div>
+                                <div class="preview-text">
+                                    <div class="preview-line"></div>
+                                    <div class="preview-line short"></div>
+                                </div>
+                            </div>
+                            <div class="preview-item">
+                                <div class="preview-icon bg-success"></div>
+                                <div class="preview-text">
+                                    <div class="preview-line"></div>
+                                    <div class="preview-line short"></div>
+                                </div>
+                            </div>
+                            <div class="preview-item">
+                                <div class="preview-icon bg-warning"></div>
+                                <div class="preview-text">
+                                    <div class="preview-line"></div>
+                                    <div class="preview-line short"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -29,144 +78,167 @@
 </section>
 
 <!-- Demo Section -->
-<section class="py-5 bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+<section class="demo-section">
+    <div class="demo-background"></div>
     <div class="container">
         <div class="row align-items-center">
-            <div class="col-lg-8 mx-auto text-center text-white">
-                <div class="mb-4">
-                    <i class="bi bi-rocket-takeoff display-1 mb-3"></i>
-                    <h2 class="display-5 fw-bold mb-3">Experimente a Demo Interativa</h2>
-                    <p class="lead mb-4">
-                        Explore todas as funcionalidades da plataforma sem criar conta!
-                        Acesso instantâneo com dados pré-preenchidos para testar.
-                    </p>
-                </div>
+            <div class="col-lg-10 mx-auto">
+                <div class="demo-card">
+                    <div class="demo-header">
+                        <div class="demo-icon-wrapper">
+                            <i class="bi bi-rocket-takeoff"></i>
+                        </div>
+                        <h2 class="demo-title">Experimente a Demo Interativa</h2>
+                        <p class="demo-description">
+                            Explore todas as funcionalidades da plataforma sem criar conta!
+                            Acesso instantâneo com dados pré-preenchidos para testar.
+                        </p>
+                    </div>
 
-                <div class="row g-3 mb-4">
-                    <div class="col-md-4">
-                        <div class="bg-white bg-opacity-10 rounded p-3">
-                            <i class="bi bi-building fs-2 d-block mb-2"></i>
-                            <strong>10 Frações</strong>
-                            <p class="small mb-0">Dados realistas</p>
+                    <div class="demo-stats">
+                        <div class="demo-stat-item">
+                            <div class="stat-icon">
+                                <i class="bi bi-building"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-number">10</div>
+                                <div class="stat-label">Frações</div>
+                                <div class="stat-subtitle">Dados realistas</div>
+                            </div>
+                        </div>
+                        <div class="demo-stat-item">
+                            <div class="stat-icon">
+                                <i class="bi bi-bank"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-number">2</div>
+                                <div class="stat-label">Contas</div>
+                                <div class="stat-subtitle">Bancárias + Caixa</div>
+                            </div>
+                        </div>
+                        <div class="demo-stat-item">
+                            <div class="stat-icon">
+                                <i class="bi bi-calendar-check"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-number">2025</div>
+                                <div class="stat-label">Ano Completo</div>
+                                <div class="stat-subtitle">Dados atualizados</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="bg-white bg-opacity-10 rounded p-3">
-                            <i class="bi bi-bank fs-2 d-block mb-2"></i>
-                            <strong>2 Contas</strong>
-                            <p class="small mb-0">Bancárias + Caixa</p>
+
+                    <div class="demo-features">
+                        <div class="demo-features-title">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>O que pode testar:</strong>
+                        </div>
+                        <div class="demo-features-grid">
+                            <div class="demo-feature-item">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span>Gestão financeira completa</span>
+                            </div>
+                            <div class="demo-feature-item">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span>Assembleias com votações online</span>
+                            </div>
+                            <div class="demo-feature-item">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span>Reservas de espaços comuns</span>
+                            </div>
+                            <div class="demo-feature-item">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span>Ocorrências e fornecedores</span>
+                            </div>
+                            <div class="demo-feature-item">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span>Documentos e relatórios</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="bg-white bg-opacity-10 rounded p-3">
-                            <i class="bi bi-calendar-check fs-2 d-block mb-2"></i>
-                            <strong>Ano 2025</strong>
-                            <p class="small mb-0">Completo</p>
-                        </div>
+
+                    <div class="demo-cta">
+                        <a href="{{ BASE_URL }}demo/access" class="btn btn-demo-primary">
+                            <i class="bi bi-play-circle-fill"></i>
+                            <span>Aceder à Demo Agora</span>
+                        </a>
+                        <p class="demo-note">
+                            <i class="bi bi-shield-check"></i>
+                            Login automático • Sem registo necessário • Dados resetados automaticamente
+                        </p>
                     </div>
                 </div>
-
-                <div class="alert alert-light alert-dismissible fade show mb-4" role="alert" style="max-width: 600px; margin: 0 auto;">
-                    <strong><i class="bi bi-info-circle"></i> O que pode testar:</strong>
-                    <ul class="text-start mb-0 mt-2">
-                        <li>Gestão financeira completa (orçamentos, despesas, quotas)</li>
-                        <li>Assembleias com votações online</li>
-                        <li>Reservas de espaços comuns</li>
-                        <li>Ocorrências e gestão de fornecedores</li>
-                        <li>Documentos e relatórios</li>
-                    </ul>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-
-                <a href="{{ BASE_URL }}demo/access" class="btn btn-light btn-lg px-5 py-3">
-                    <i class="bi bi-play-circle-fill"></i> Aceder à Demo Agora
-                </a>
-                <p class="mt-3 mb-0 small opacity-75">
-                    <i class="bi bi-shield-check"></i> Login automático • Sem registo necessário • Dados resetados automaticamente
-                </p>
             </div>
         </div>
     </div>
 </section>
 
 <!-- Features Section -->
-<section class="py-5">
+<section class="features-section">
     <div class="container">
-        <div class="text-center mb-5">
-            <h2 class="display-5 fw-bold">Tudo o que precisa para gerir o seu condomínio</h2>
-            <p class="lead text-muted">Funcionalidades completas num só lugar</p>
+        <div class="section-header">
+            <h2 class="section-title">Tudo o que precisa para gerir o seu condomínio</h2>
+            <p class="section-subtitle">Funcionalidades completas num só lugar</p>
         </div>
 
-        <div class="row g-4">
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body text-center p-4">
-                        <div class="feature-icon bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
-                            <i class="bi bi-calculator fs-3 text-primary"></i>
-                        </div>
-                        <h5 class="card-title">Gestão Financeira</h5>
-                        <p class="card-text text-muted">Orçamentos, despesas, quotas automáticas e relatórios financeiros completos.</p>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-card-inner">
+                    <div class="feature-icon-wrapper icon-primary">
+                        <i class="bi bi-calculator"></i>
                     </div>
+                    <h5 class="feature-title">Gestão Financeira</h5>
+                    <p class="feature-description">Orçamentos, despesas, quotas automáticas e relatórios financeiros completos.</p>
                 </div>
             </div>
 
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body text-center p-4">
-                        <div class="feature-icon bg-success bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
-                            <i class="bi bi-file-earmark-text fs-3 text-success"></i>
-                        </div>
-                        <h5 class="card-title">Documentos</h5>
-                        <p class="card-text text-muted">Organize todos os documentos do condomínio de forma segura e acessível.</p>
+            <div class="feature-card">
+                <div class="feature-card-inner">
+                    <div class="feature-icon-wrapper icon-success">
+                        <i class="bi bi-file-earmark-text"></i>
                     </div>
+                    <h5 class="feature-title">Documentos</h5>
+                    <p class="feature-description">Organize todos os documentos do condomínio de forma segura e acessível.</p>
                 </div>
             </div>
 
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body text-center p-4">
-                        <div class="feature-icon bg-info bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
-                            <i class="bi bi-people fs-3 text-info"></i>
-                        </div>
-                        <h5 class="card-title">Assembleias</h5>
-                        <p class="card-text text-muted">Convocatórias automáticas, votações online e geração de atas.</p>
+            <div class="feature-card">
+                <div class="feature-card-inner">
+                    <div class="feature-icon-wrapper icon-info">
+                        <i class="bi bi-people"></i>
                     </div>
+                    <h5 class="feature-title">Assembleias</h5>
+                    <p class="feature-description">Convocatórias automáticas, votações online e geração de atas.</p>
                 </div>
             </div>
 
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body text-center p-4">
-                        <div class="feature-icon bg-warning bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
-                            <i class="bi bi-exclamation-triangle fs-3 text-warning"></i>
-                        </div>
-                        <h5 class="card-title">Ocorrências</h5>
-                        <p class="card-text text-muted">Registe e acompanhe ocorrências com workflow completo de estados.</p>
+            <div class="feature-card">
+                <div class="feature-card-inner">
+                    <div class="feature-icon-wrapper icon-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
                     </div>
+                    <h5 class="feature-title">Ocorrências</h5>
+                    <p class="feature-description">Registe e acompanhe ocorrências com workflow completo de estados.</p>
                 </div>
             </div>
 
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body text-center p-4">
-                        <div class="feature-icon bg-danger bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
-                            <i class="bi bi-calendar-check fs-3 text-danger"></i>
-                        </div>
-                        <h5 class="card-title">Reservas</h5>
-                        <p class="card-text text-muted">Gerir reservas de espaços comuns com calendário integrado.</p>
+            <div class="feature-card">
+                <div class="feature-card-inner">
+                    <div class="feature-icon-wrapper icon-danger">
+                        <i class="bi bi-calendar-check"></i>
                     </div>
+                    <h5 class="feature-title">Reservas</h5>
+                    <p class="feature-description">Gerir reservas de espaços comuns com calendário integrado.</p>
                 </div>
             </div>
 
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body text-center p-4">
-                        <div class="feature-icon bg-secondary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
-                            <i class="bi bi-shield-check fs-3 text-secondary"></i>
-                        </div>
-                        <h5 class="card-title">Segurança</h5>
-                        <p class="card-text text-muted">Dados protegidos com encriptação e conformidade GDPR.</p>
+            <div class="feature-card">
+                <div class="feature-card-inner">
+                    <div class="feature-icon-wrapper icon-secondary">
+                        <i class="bi bi-shield-check"></i>
                     </div>
+                    <h5 class="feature-title">Segurança</h5>
+                    <p class="feature-description">Dados protegidos com encriptação e conformidade GDPR.</p>
                 </div>
             </div>
         </div>
@@ -174,86 +246,131 @@
 </section>
 
 <!-- Pricing Section -->
-<section class="py-5 bg-light">
+<section class="pricing-section">
     <div class="container">
-        <div class="text-center mb-5">
-            <h2 class="display-5 fw-bold">Planos para todos os tamanhos</h2>
-            <p class="lead text-muted">Escolha o plano ideal para o seu condomínio</p>
+        <div class="section-header">
+            <h2 class="section-title">Planos para todos os tamanhos</h2>
+            <p class="section-subtitle">Escolha o plano ideal para o seu condomínio</p>
         </div>
 
-        <div class="row g-4 justify-content-center">
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100 border-2">
-                    <div class="card-header bg-white text-center py-4">
-                        <h4 class="fw-bold">START</h4>
-                        <div class="mt-3">
-                            <span class="display-4 fw-bold">€9,90</span>
-                            <span class="text-muted">/mês</span>
-                        </div>
+        <div class="pricing-grid">
+            <div class="pricing-card">
+                <div class="pricing-card-header">
+                    <h4 class="pricing-plan-name">START</h4>
+                    <div class="pricing-price">
+                        <span class="price-amount">€9,90</span>
+                        <span class="price-period">/mês</span>
                     </div>
-                    <div class="card-body">
-                        <ul class="list-unstyled">
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> 1 condomínio</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Até 20 frações</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Finanças básicas</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Documentos</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Ocorrências</li>
-                        </ul>
-                    </div>
-                    <div class="card-footer bg-white text-center">
-                        <a href="{{ BASE_URL }}register" class="btn btn-outline-primary w-100">Começar</a>
-                    </div>
+                </div>
+                <div class="pricing-card-body">
+                    <ul class="pricing-features">
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>1 condomínio</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Até 20 frações</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Finanças básicas</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Documentos</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Ocorrências</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="pricing-card-footer">
+                    <a href="{{ BASE_URL }}register" class="btn btn-pricing">Começar</a>
                 </div>
             </div>
 
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100 border-primary border-2 shadow">
-                    <div class="card-header bg-primary text-white text-center py-4">
-                        <span class="badge bg-light text-primary mb-2">Mais Popular</span>
-                        <h4 class="fw-bold">PRO</h4>
-                        <div class="mt-3">
-                            <span class="display-4 fw-bold">€29,90</span>
-                            <span class="opacity-75">/mês</span>
-                        </div>
+            <div class="pricing-card pricing-card-featured">
+                <div class="pricing-badge">Mais Popular</div>
+                <div class="pricing-card-header">
+                    <h4 class="pricing-plan-name">PRO</h4>
+                    <div class="pricing-price">
+                        <span class="price-amount">€29,90</span>
+                        <span class="price-period">/mês</span>
                     </div>
-                    <div class="card-body">
-                        <ul class="list-unstyled">
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Até 5 condomínios</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Até 150 frações</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Finanças completas</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Votações online</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Reservas de espaços</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Gestão de contratos</li>
-                        </ul>
-                    </div>
-                    <div class="card-footer bg-white text-center">
-                        <a href="{{ BASE_URL }}register" class="btn btn-primary w-100">Começar</a>
-                    </div>
+                </div>
+                <div class="pricing-card-body">
+                    <ul class="pricing-features">
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Até 5 condomínios</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Até 150 frações</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Finanças completas</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Votações online</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Reservas de espaços</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Gestão de contratos</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="pricing-card-footer">
+                    <a href="{{ BASE_URL }}register" class="btn btn-pricing btn-pricing-featured">Começar</a>
                 </div>
             </div>
 
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100 border-2">
-                    <div class="card-header bg-white text-center py-4">
-                        <h4 class="fw-bold">BUSINESS</h4>
-                        <div class="mt-3">
-                            <span class="display-4 fw-bold">€59,90</span>
-                            <span class="text-muted">/mês</span>
-                        </div>
+            <div class="pricing-card">
+                <div class="pricing-card-header">
+                    <h4 class="pricing-plan-name">BUSINESS</h4>
+                    <div class="pricing-price">
+                        <span class="price-amount">€59,90</span>
+                        <span class="price-period">/mês</span>
                     </div>
-                    <div class="card-body">
-                        <ul class="list-unstyled">
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Condomínios ilimitados</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Frações ilimitadas</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> API e integrações</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Branding personalizado</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> App Mobile Premium</li>
-                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Todos os módulos</li>
-                        </ul>
-                    </div>
-                    <div class="card-footer bg-white text-center">
-                        <a href="{{ BASE_URL }}register" class="btn btn-outline-primary w-100">Começar</a>
-                    </div>
+                </div>
+                <div class="pricing-card-body">
+                    <ul class="pricing-features">
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Condomínios ilimitados</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Frações ilimitadas</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>API e integrações</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Branding personalizado</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>App Mobile Premium</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Todos os módulos</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="pricing-card-footer">
+                    <a href="{{ BASE_URL }}register" class="btn btn-pricing">Começar</a>
                 </div>
             </div>
         </div>
@@ -261,15 +378,22 @@
 </section>
 
 <!-- CTA Section -->
-<section class="py-5 bg-primary text-white">
-    <div class="container text-center">
-        <h2 class="display-5 fw-bold mb-4">Pronto para começar?</h2>
-        <p class="lead mb-4">Junte-se a centenas de condomínios que já confiam no MeuPrédio</p>
-        <div class="d-flex gap-3 justify-content-center flex-wrap">
-            <a href="{{ BASE_URL }}register" class="btn btn-light btn-lg px-5">Criar Conta Grátis</a>
-            <a href="{{ BASE_URL }}demo/access" class="btn btn-warning btn-lg px-5">
-                <i class="bi bi-play-circle"></i> Ou Teste a Demo Primeiro
-            </a>
+<section class="cta-section">
+    <div class="cta-background"></div>
+    <div class="container">
+        <div class="cta-content">
+            <h2 class="cta-title">Pronto para começar?</h2>
+            <p class="cta-subtitle">Junte-se a centenas de condomínios que já confiam no MeuPrédio</p>
+            <div class="cta-buttons">
+                <a href="{{ BASE_URL }}register" class="btn btn-cta-primary">
+                    <span>Criar Conta Grátis</span>
+                    <i class="bi bi-arrow-right"></i>
+                </a>
+                <a href="{{ BASE_URL }}demo/access" class="btn btn-cta-secondary">
+                    <i class="bi bi-play-circle-fill"></i>
+                    <span>Ou Teste a Demo Primeiro</span>
+                </a>
+            </div>
         </div>
     </div>
 </section>

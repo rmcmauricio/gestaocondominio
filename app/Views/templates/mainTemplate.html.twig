@@ -24,13 +24,13 @@
     {% include 'blocks/header.html.twig' %}
 
     <div class="main-wrapper">
-        {% if user %}
+        {% if user and viewName != 'pages/home.html.twig' %}
             {% include 'blocks/sidebar.html.twig' %}
             <!-- Overlay when sidebar is open -->
             <div class="sidebar-overlay" onclick="toggleSidebar(); return false;"></div>
         {% endif %}
         
-        <main class="main-content">
+        <main class="main-content {% if viewName == 'pages/home.html.twig' %}main-content-full{% endif %}">
             {% if demo_banner_message %}
             <div class="alert alert-warning alert-dismissible fade show mb-0" role="alert" style="border-radius: 0; border-left: 4px solid #ffc107;">
                 <div class="container">
