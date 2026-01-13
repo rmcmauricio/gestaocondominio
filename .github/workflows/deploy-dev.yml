@@ -1,12 +1,23 @@
-name: Deploy omeupredio.com (TEST)
+name: Deploy omeupredio.com (DEV)
 
 on:
   push:
     branches: [ dev ]
 
+concurrency:
+  group: deploy-omeupredio-dev
+  cancel-in-progress: true
+
 jobs:
-  deploy_test:
+  deploy_dev:
     runs-on: ubuntu-latest
+
+    env:
+      SSH_HOST: omeupredio.com
+      SSH_PORT: "22"
+      SSH_USER: root
+      APP_USER: cantiflas
+      APP_DIR: /home/cantiflas/web/dev.omeupredio.com/public_html
 
     steps:
       - uses: actions/checkout@v4
@@ -14,14 +25,17 @@ jobs:
       - name: Setup SSH
         shell: bash
         run: |
+          set -e
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | base64 -d > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
-          ssh-keyscan -p 22 -H omeupredio.com >> ~/.ssh/known_hosts
+          ssh-keyscan -p "${SSH_PORT}" -H "${SSH_HOST}" >> ~/.ssh/known_hosts
 
-      - name: Deploy via rsync (TEST)
+      - name: Deploy via rsync (DEV)
+        shell: bash
         run: |
+          set -e
           rsync -az --delete \
             --filter='protect .env' \
             --exclude=".env" \
@@ -31,23 +45,38 @@ jobs:
             --exclude="/vendor/" \
             --exclude=".htaccess" \
             --exclude=".user.ini" \
-            -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
+            --chown="${APP_USER}:${APP_USER}" \
+            -e "ssh -p ${SSH_PORT} -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             ./ \
-            root@omeupredio.com:/home/cantiflas/web/dev.omeupredio.com/public_html
+            "${SSH_USER}@${SSH_HOST}:${APP_DIR}"
 
-      - name: Composer + migrate + seed + demo + tests (TEST)
+      - name: Composer + migrate + seed + demo + tests (DEV)
+        shell: bash
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
-            set -e
-            cd /home/cantiflas/web/dev.omeupredio.com/public_html
-            # DEV deps para phpunit
-            sudo -u cantiflas -H composer install --no-interaction --prefer-dist --optimize-autoloader
+          set -e
+          ssh -p "${SSH_PORT}" -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" << 'EOF'
+            set -euo pipefail
 
-            sudo -u cantiflas -H php cli/migrate.php
-            sudo -u cantiflas -H php cli/seed.php
-            sudo -u cantiflas -H php cli/restore-demo.php
+            APP_DIR="/home/cantiflas/web/dev.omeupredio.com/public_html"
+            APP_USER="cantiflas"
 
-            sudo -u cantiflas -H composer test
+            # garantir pasta e ownership correto (evita vendor permission issues)
+            mkdir -p "$APP_DIR"
+            chown -R "${APP_USER}:${APP_USER}" "$APP_DIR"
 
-            chown -R cantiflas:cantiflas /home/cantiflas/web/dev.omeupredio.com/public_html
+            cd "$APP_DIR"
+
+            # instalar dependências (com dev deps para testes)
+            sudo -u "$APP_USER" -H composer install --no-interaction --prefer-dist --optimize-autoloader
+
+            # migrations / seeds / demo
+            sudo -u "$APP_USER" -H php cli/migrate.php
+            sudo -u "$APP_USER" -H php cli/seed.php
+            sudo -u "$APP_USER" -H php cli/restore-demo.php
+
+            # testes
+            sudo -u "$APP_USER" -H composer test
+
+            # fix final de permissões (opcional mas útil)
+            chown -R "${APP_USER}:${APP_USER}" "$APP_DIR"
           EOF
