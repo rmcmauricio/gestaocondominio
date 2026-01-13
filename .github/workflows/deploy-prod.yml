@@ -33,7 +33,9 @@ jobs:
 
       - name: Deploy via rsync
         run: |
-          rsync -az --delete \
+          rsync -rz --delete \
+            --no-times --omit-dir-times \
+            --no-perms --no-owner --no-group \
             --exclude=".env" \
             --exclude="/vendor/" \
             --exclude=".user.ini" \
@@ -43,6 +45,7 @@ jobs:
             -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             ./ \
             jamscroll@cifrajam.com:/home/cantiflas/web/omeupredio.com/public_html/test
+
 
       - name: Composer install no servidor
         run: |
