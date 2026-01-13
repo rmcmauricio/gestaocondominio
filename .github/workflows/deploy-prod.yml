@@ -1,9 +1,9 @@
-name: Deploy via rsync para cifrajam.com
+name: Deploy via rsync para omeupredio.com
 
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   deploy:
@@ -18,7 +18,7 @@ jobs:
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
         chmod 600 ~/.ssh/id_ed25519
-        ssh-keyscan -H omeupredio.com >> ~/.ssh/known_hosts
+        ssh-keyscan -H cifrajam.com >> ~/.ssh/known_hosts
 
     - name: Deploy via rsync
       run: |
@@ -29,12 +29,12 @@ jobs:
           --exclude=".htaccess" \
           -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
           ./ \
-          rmcm@omeupredio.com:/home/rmcm/web/omeupredio.com/public_html/test
+          jamscroll@cifrajam.com:/home/rmcm/web/omeupredio.com/public_html/test
 
     - name: Composer install no servidor
       run: |
-        ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no rmcm@omeupredio.com << 'EOF'
-          cd /home/rmcm/web/rmcm@omeupredio.com/public_html/test
+        ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no jamscroll@cifrajam.com << 'EOF'
+          cd /home/rmcm/web/omeupredio.com/public_html/test
           export COMPOSER_ALLOW_SUPERUSER=1
           composer install --no-interaction --prefer-dist --optimize-autoloader
         EOF
