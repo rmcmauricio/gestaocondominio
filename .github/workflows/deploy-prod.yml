@@ -35,17 +35,15 @@ jobs:
             ./ \
             root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html/test
 
-      - name: Composer install, migrations e seed
+      - name: Composer, migrations e seed
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
             set -e
             cd /home/cantiflas/web/omeupredio.com/public_html/test
-            export COMPOSER_ALLOW_SUPERUSER=1
 
-            composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
-
-            php cli/migrate.php
-            php cli/seed.php
+            sudo -u cantiflas -H composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+            sudo -u cantiflas -H php cli/migrate.php
+            sudo -u cantiflas -H php cli/seed.php
           EOF
 
       - name: Tests (sempre corrigir ownership)
@@ -54,7 +52,7 @@ jobs:
             cd /home/cantiflas/web/omeupredio.com/public_html/test
 
             set +e
-            composer test
+            sudo -u cantiflas -H composer test
             TEST_EXIT=$?
 
             chown -R cantiflas:cantiflas /home/cantiflas/web/omeupredio.com/public_html/test
