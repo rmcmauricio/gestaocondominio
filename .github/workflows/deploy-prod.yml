@@ -36,15 +36,23 @@ jobs:
             ./ \
             root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html
 
-      - name: Composer + migrate (PROD, sem testes)
-        run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
-            set -e
-            WEBROOT="/home/cantiflas/web/omeupredio.com/public_html"
-            cd "$WEBROOT"
+            - name: Composer + migrate (PROD, sem testes)
+            run: |
+              ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
+                set -e
+                WEBROOT="/home/cantiflas/web/omeupredio.com/public_html"
 
-            sudo -u cantiflas -H composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
-            sudo -u cantiflas -H php cli/migrate.php
+                # Preflight: garantir que cantiflas pode escrever (criar vendor, etc.)
+                chown -R cantiflas:cantiflas "$WEBROOT"
+                chmod 755 "$WEBROOT"
+                find "$WEBROOT" -type d -exec chmod 755 {} \;
+                find "$WEBROOT" -type f -exec chmod 644 {} \;
 
-            chown -R cantiflas:cantiflas "$WEBROOT"
-          EOF
+                cd "$WEBROOT"
+
+                sudo -u cantiflas -H composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+                sudo -u cantiflas -H php cli/migrate.php
+
+                chown -R cantiflas:cantiflas "$WEBROOT"
+              EOF
+
