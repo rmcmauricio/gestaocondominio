@@ -1,4 +1,4 @@
-name: Deploy omeupredio.com (test) build+SFTP
+name: Deploy omeupredio.com (test)
 
 on:
   push:
