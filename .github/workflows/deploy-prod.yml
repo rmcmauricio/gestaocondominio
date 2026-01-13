@@ -17,33 +17,23 @@ jobs:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Criar chave SSH (B64 + validação)
+      - name: Criar chave SSH (B64 + debug seguro)
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          # garantir que o secret existe (se estiver vazio, o ficheiro fica vazio e dá "not a key file")
-          if [ -z "${{ secrets.SSH_PRIVATE_KEY_B64 }}" ]; then
-            echo "Secret SSH_PRIVATE_KEY_B64 está vazio ou não existe."
-            exit 1
-          fi
-
-          # escrever a chave sem adicionar newlines estranhas
           printf '%s' "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | base64 -d > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          # validações SEM expor a chave
           echo "Key bytes: $(wc -c < ~/.ssh/id_ed25519)"
           echo "Key header: $(head -n 1 ~/.ssh/id_ed25519)"
-          test -s ~/.ssh/id_ed25519
+          echo "Key footer: $(tail -n 1 ~/.ssh/id_ed25519)"
+          echo "Key sha256: $(sha256sum ~/.ssh/id_ed25519 | awk '{print $1}')"
 
-          # agora sim, validar formato
           ssh-keygen -l -f ~/.ssh/id_ed25519
 
-          ssh-keyscan -H cifrajam.com >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
 
 
 
