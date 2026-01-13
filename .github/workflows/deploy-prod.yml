@@ -1,57 +1,32 @@
-name: Deploy omeupredio.com (test)
+name: Deploy omeupredio.com (test) build+SFTP
 
 on:
   push:
     branches: [ "master" ]
-
-concurrency:
-  group: deploy-omeupredio-test
-  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup SSH
-        shell: bash
+      - name: Setup PHP + Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer
+
+      - name: Composer install (build on runner)
         run: |
-          set -euo pipefail
+          composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-
-          # Write private key safely (no newline mangling)
-          printf '%s' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          sed -i 's/\r$//' ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-
-          # Validate key can be read
-          ssh-keygen -l -f ~/.ssh/id_ed25519
-
-          # Trust server host key
-          ssh-keyscan -H cifrajam.com >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
-
-      - name: Deploy via rsync
-        run: |
-          rsync -az --delete \
-            --exclude ".env" \
-            --exclude "vendor/" \
-            --exclude ".user.ini" \
-            --exclude ".htaccess" \
-            -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes" \
-            ./ \
-            jamscroll@cifrajam.com:/home/rmcm/web/omeupredio.com/public_html/test
-
-      - name: Composer install no servidor
-        run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes jamscroll@cifrajam.com << 'EOF'
-            set -e
-            cd /home/rmcm/web/omeupredio.com/public_html/test
-            export COMPOSER_ALLOW_SUPERUSER=1
-            composer install --no-interaction --prefer-dist --optimize-autoloader
-          EOF
+      - name: Upload via SFTP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: cifrajam.com
+          username: rmcm
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "./"
+          target: "/home/cantiflas/web/omeupredio.com/public_html/test"
+          overwrite: true
