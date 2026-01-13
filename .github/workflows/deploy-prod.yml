@@ -29,40 +29,35 @@ jobs:
             --exclude=".git/" \
             --exclude=".github/" \
             --exclude="/vendor/" \
+            --exclude=".htaccess" \
+            --exclude=".user.ini" \
             -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             ./ \
             root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html/test
 
-      - name: Composer install
+      - name: Composer install, migrations e seed
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
             set -e
             cd /home/cantiflas/web/omeupredio.com/public_html/test
             export COMPOSER_ALLOW_SUPERUSER=1
+
             composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
-          EOF
 
-      - name: Migrations
-        run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
-            set -e
-            cd /home/cantiflas/web/omeupredio.com/public_html/test
             php cli/migrate.php
-          EOF
-
-      - name: Seed
-        run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
-            set -e
-            cd /home/cantiflas/web/omeupredio.com/public_html/test
             php cli/seed.php
           EOF
 
-      - name: Tests
+      - name: Tests (sempre corrigir ownership)
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
-            set -e
             cd /home/cantiflas/web/omeupredio.com/public_html/test
+
+            set +e
             composer test
+            TEST_EXIT=$?
+
             chown -R cantiflas:cantiflas /home/cantiflas/web/omeupredio.com/public_html/test
+
+            exit $TEST_EXIT
           EOF
