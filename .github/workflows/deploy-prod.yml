@@ -1,11 +1,11 @@
-name: Deploy omeupredio.com (PROD)
+name: Deploy omeupredio.com (TEST)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ dev ]
 
 jobs:
-  deploy_prod:
+  deploy_test:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,11 +20,12 @@ jobs:
           ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
           ssh-keyscan -p 22 -H omeupredio.com >> ~/.ssh/known_hosts
 
-      - name: Deploy via rsync (PROD)
+      - name: Deploy via rsync (TEST)
         run: |
           rsync -az --delete \
             --chown=cantiflas:cantiflas \
             --filter='protect .env' \
+            --filter='protect vendor/' \
             --exclude=".env" \
             --exclude=".env.*" \
             --exclude=".git/" \
@@ -34,25 +35,31 @@ jobs:
             --exclude=".user.ini" \
             -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             ./ \
-            root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html
+            root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html/test
 
-            - name: Composer + migrate (PROD, sem testes)
-            run: |
-              ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
-                set -e
-                WEBROOT="/home/cantiflas/web/omeupredio.com/public_html"
+      - name: Composer + migrate + seed + restore-demo + tests (TEST)
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
+            set -e
+            WEBROOT="/home/cantiflas/web/omeupredio.com/public_html/test"
 
-                # Preflight: garantir que cantiflas pode escrever (criar vendor, etc.)
-                chown -R cantiflas:cantiflas "$WEBROOT"
-                chmod 755 "$WEBROOT"
-                find "$WEBROOT" -type d -exec chmod 755 {} \;
-                find "$WEBROOT" -type f -exec chmod 644 {} \;
+            # garantir permissões corretas
+            chown -R cantiflas:cantiflas "$WEBROOT"
+            chmod 755 "$WEBROOT"
 
-                cd "$WEBROOT"
+            cd "$WEBROOT"
 
-                sudo -u cantiflas -H composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
-                sudo -u cantiflas -H php cli/migrate.php
+            # limpar vendor para evitar estados estranhos
+            rm -rf vendor
 
-                chown -R cantiflas:cantiflas "$WEBROOT"
-              EOF
+            # com dev deps (phpunit)
+            sudo -u cantiflas -H composer install --no-interaction --prefer-dist --optimize-autoloader
 
+            sudo -u cantiflas -H php cli/migrate.php
+            sudo -u cantiflas -H php cli/seed.php
+            sudo -u cantiflas -H php cli/restore-demo.php
+
+            sudo -u cantiflas -H composer test
+
+            chown -R cantiflas:cantiflas "$WEBROOT"
+          EOF
