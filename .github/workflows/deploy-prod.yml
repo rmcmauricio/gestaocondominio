@@ -35,7 +35,7 @@ jobs:
             ./ \
             root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html/test
 
-      - name: Composer, migrations e seed
+      - name: Composer, migrations, seed e demo restore
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
             set -e
@@ -44,6 +44,7 @@ jobs:
             sudo -u cantiflas -H composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
             sudo -u cantiflas -H php cli/migrate.php
             sudo -u cantiflas -H php cli/seed.php
+            sudo -u cantiflas -H php cli/restore-demo.php
           EOF
 
       - name: Tests (sempre corrigir ownership)
