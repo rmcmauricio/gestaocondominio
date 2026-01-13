@@ -47,12 +47,21 @@ jobs:
             ./ \
             "${SSH_USER}@${SSH_HOST}:${APP_DIR}"
 
-      - name: Composer install no servidor (DEV)
+      - name: Composer + migrate + seed + demo + tests (DEV)
         shell: bash
         run: |
           set -e
           ssh -p "${SSH_PORT}" -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" << 'EOF'
-            set -e
-            cd /home/jamscroll/web/dev.omeupredio.com/public_html
+            set -euo pipefail
+            APP_DIR="/home/jamscroll/web/dev.omeupredio.com/public_html"
+
+            cd "$APP_DIR"
+
             composer install --no-interaction --prefer-dist --optimize-autoloader
+
+            php cli/migrate.php
+            php cli/seed.php
+            php cli/restore-demo.php
+
+            composer test
           EOF
