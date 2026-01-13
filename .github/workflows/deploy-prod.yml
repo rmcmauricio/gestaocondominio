@@ -24,8 +24,14 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          printf '%s' "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | base64 -d > ~/.ssh/id_ed25519
+          # remove newlines do secret antes de decodificar
+          printf '%s' "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | tr -d '\n\r ' | base64 -d > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+
+          echo "Key bytes: $(wc -c < ~/.ssh/id_ed25519)"
+          echo "Key footer: $(tail -n 1 ~/.ssh/id_ed25519)"
+          grep -q "-----END OPENSSH PRIVATE KEY-----" ~/.ssh/id_ed25519
+          ssh-keygen -l -f ~/.ssh/id_ed25519
 
           echo "Key bytes: $(wc -c < ~/.ssh/id_ed25519)"
           echo "Key header: $(head -n 1 ~/.ssh/id_ed25519)"
