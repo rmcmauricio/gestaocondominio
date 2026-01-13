@@ -25,18 +25,40 @@ jobs:
         run: |
           composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
-      # Deploy via SFTP (no remote shell needed)
-      - name: Deploy via SFTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: cifrajam.com
-          protocol: sftp
-          username: rmcm
-          password: ${{ secrets.SFTP_PASSWORD }}
-          port: 22
-          local-dir: ./
-          server-dir: /home/cantiflas/web/omeupredio.com/public_html/test/
-          exclude: |
-            **/.git/**
-            **/.github/**
-            **/node_modules/**
+      - name: Setup SSH key + known_hosts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          sed -i 's/\r$//' ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H cifrajam.com >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Install lftp
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y lftp
+
+      - name: Deploy via SFTP (key-based)
+        env:
+          SFTP_USER: rmcm
+          SFTP_HOST: cifrajam.com
+          REMOTE_DIR: /home/cantiflas/web/omeupredio.com/public_html/test/
+        run: |
+          lftp -e "
+            set sftp:auto-confirm yes;
+            set net:timeout 20;
+            set net:max-retries 2;
+            set net:reconnect-interval-base 5;
+            set sftp:connect-program 'ssh -a -x -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes';
+            open -u $SFTP_USER, sftp://$SFTP_HOST;
+            mirror -R --verbose --delete \
+              --exclude-glob .git/ \
+              --exclude-glob .github/ \
+              --exclude-glob node_modules/ \
+              ./ $REMOTE_DIR;
+            bye
+          "
