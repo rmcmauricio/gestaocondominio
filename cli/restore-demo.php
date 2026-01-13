@@ -17,6 +17,7 @@ require_once __DIR__ . '/../database.php';
 
 use App\Models\Condominium;
 use App\Models\User;
+use App\Core\DatabaseMigration;
 
 // Set timezone
 date_default_timezone_set('Europe/Lisbon');
@@ -38,14 +39,47 @@ try {
         throw new \Exception("Database connection not available");
     }
 
+    // Ensure migrations are run first (especially for is_demo column)
+    if (!$dryRun) {
+        echo "Verificando migrations...\n";
+        try {
+            $migration = new DatabaseMigration();
+            $migration->runMigrations();
+            echo "Migrations verificadas.\n\n";
+        } catch (\Exception $e) {
+            echo "Aviso: Erro ao executar migrations: " . $e->getMessage() . "\n";
+            echo "Continuando mesmo assim...\n\n";
+        }
+    }
+
     // Find demo condominiums
     $stmt = $db->prepare("SELECT id, name FROM condominiums WHERE is_demo = TRUE");
     $stmt->execute();
     $demoCondominiums = $stmt->fetchAll();
 
     if (empty($demoCondominiums)) {
-        echo "Nenhum condomínio demo encontrado.\n\n";
-        exit(0);
+        echo "Nenhum condomínio demo encontrado.\n";
+        echo "Criando dados demo pela primeira vez...\n\n";
+        
+        if (!$dryRun) {
+            try {
+                // Instantiate DemoSeeder to create demo data
+                require_once __DIR__ . '/../database/seeders/DemoSeeder.php';
+                $demoSeeder = new DemoSeeder($db);
+                $demoSeeder->run();
+                
+                echo "\nDados demo criados com sucesso!\n";
+                echo "Agora pode executar este script novamente para restaurar os dados demo quando necessário.\n\n";
+                exit(0);
+            } catch (\Exception $e) {
+                echo "ERRO ao criar dados demo: " . $e->getMessage() . "\n";
+                echo "Stack trace: " . $e->getTraceAsString() . "\n\n";
+                exit(1);
+            }
+        } else {
+            echo "[DRY RUN] Dados demo seriam criados.\n\n";
+            exit(0);
+        }
     }
 
     echo "Encontrados " . count($demoCondominiums) . " condomínio(s) demo.\n\n";
