@@ -345,44 +345,7 @@
     }
   });
 
-  // Sidebar language selector toggle
-  function initSidebarLanguageSelector() {
-    const langBtn = document.querySelector('.sidebar-lang-btn');
-    const langMenu = document.querySelector('.sidebar-lang-menu');
-    const langSelector = document.querySelector('.sidebar-language-selector');
-    
-    if (langBtn && langMenu && langSelector) {
-      langBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        langSelector.classList.toggle('active');
-      });
-      
-      // Close when clicking outside
-      document.addEventListener('click', function(event) {
-        if (!langSelector.contains(event.target)) {
-          langSelector.classList.remove('active');
-        }
-      });
-      
-      // Close when selecting a language
-      const langLinks = langMenu.querySelectorAll('a');
-      langLinks.forEach(link => {
-        link.addEventListener('click', function() {
-          langSelector.classList.remove('active');
-        });
-      });
-    }
-  }
-
   // Start initialization
   init();
-  
-  // Initialize sidebar language selector
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initSidebarLanguageSelector);
-  } else {
-    initSidebarLanguageSelector();
-  }
 
 })();
