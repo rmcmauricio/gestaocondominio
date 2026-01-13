@@ -2,46 +2,38 @@ name: Deploy omeupredio.com (test) via rsync
 
 on:
   push:
-    branches:
-      - main
-
-concurrency:
-  group: deploy-omeupredio-test
-  cancel-in-progress: true
+    branches: [ "main" ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Criar chave SSH (B64 + debug seguro)
+      - name: Setup SSH key (B64 safe)
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          # remove newlines do secret antes de decodificar
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY_B64 }}" ]; then
+            echo "Secret SSH_PRIVATE_KEY_B64 está vazio ou não existe."
+            exit 1
+          fi
+
           printf '%s' "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | tr -d '\n\r ' | base64 -d > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
           echo "Key bytes: $(wc -c < ~/.ssh/id_ed25519)"
-          echo "Key footer: $(tail -n 1 ~/.ssh/id_ed25519)"
-          grep -q "-----END OPENSSH PRIVATE KEY-----" ~/.ssh/id_ed25519
-          ssh-keygen -l -f ~/.ssh/id_ed25519
-
-          echo "Key bytes: $(wc -c < ~/.ssh/id_ed25519)"
           echo "Key header: $(head -n 1 ~/.ssh/id_ed25519)"
           echo "Key footer: $(tail -n 1 ~/.ssh/id_ed25519)"
-          echo "Key sha256: $(sha256sum ~/.ssh/id_ed25519 | awk '{print $1}')"
 
+          grep -q -- "-----END OPENSSH PRIVATE KEY-----" ~/.ssh/id_ed25519
           ssh-keygen -l -f ~/.ssh/id_ed25519
 
-
-
+          ssh-keyscan -H cifrajam.com >> ~/.ssh/known_hosts
 
       - name: Deploy via rsync
         run: |
