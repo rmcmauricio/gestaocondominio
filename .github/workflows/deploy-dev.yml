@@ -1,40 +1,58 @@
-name: Deploy via rsync para dev.omeupredio.com
+name: Deploy dev.omeupredio.com
 
 on:
   push:
-    branches:
-      - dev
+    branches: [ dev ]
+
+concurrency:
+  group: deploy-omeupredio-dev
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    env:
+      SSH_HOST: dev.omeupredio.com
+      SSH_PORT: "22"
+      SSH_USER: jamscroll
+      APP_DIR: /home/jamscroll/web/dev.omeupredio.com/public_html
+
     steps:
-    - name: Checkout código
-      uses: actions/checkout@v4
+      - name: Checkout código
+        uses: actions/checkout@v4
 
-    - name: Criar chave SSH
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-        chmod 600 ~/.ssh/id_ed25519
-        ssh-keyscan -H dev.omeupredio.com >> ~/.ssh/known_hosts
+      - name: Setup SSH (Base64)
+        shell: bash
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | base64 -d > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
+          ssh-keyscan -p "${SSH_PORT}" -H "${SSH_HOST}" >> ~/.ssh/known_hosts
 
-    - name: Deploy via rsync
-      run: |
-        rsync -az \
-          --exclude=".env" \
-          --exclude="/vendor/" \
-          --exclude=".user.ini" \
-          --exclude=".htaccess" \
-          -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
-          ./ \
-          jamscroll@dev.omeupredio.com:/home/jamscroll/web/dev.omeupredio.com/public_html
+      - name: Deploy via rsync (DEV)
+        shell: bash
+        run: |
+          set -e
+          rsync -az --delete \
+            --exclude=".env" \
+            --exclude="/vendor/" \
+            --exclude=".user.ini" \
+            --exclude=".htaccess" \
+            --exclude=".git/" \
+            --exclude=".github/" \
+            -e "ssh -p ${SSH_PORT} -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
+            ./ \
+            "${SSH_USER}@${SSH_HOST}:${APP_DIR}"
 
-    - name: Composer install no servidor
-      run: |
-        ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no jamscroll@dev.omeupredio.com << 'EOF'
-          cd /home/jamscroll/web/dev.omeupredio.com/public_html
-          export COMPOSER_ALLOW_SUPERUSER=1
-          composer install --no-interaction --prefer-dist --optimize-autoloader
-        EOF
+      - name: Composer install no servidor (DEV)
+        shell: bash
+        run: |
+          set -e
+          ssh -p "${SSH_PORT}" -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" << 'EOF'
+            set -e
+            cd /home/jamscroll/web/dev.omeupredio.com/public_html
+            composer install --no-interaction --prefer-dist --optimize-autoloader
+          EOF
