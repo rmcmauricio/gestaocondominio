@@ -1,57 +1,50 @@
-name: Deploy omeupredio.com (test) via rsync
+name: Deploy via rsync para omeupredio.com (test)
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - master
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout código
+        uses: actions/checkout@v4
 
-      - name: Setup SSH key (B64 safe)
-        shell: bash
+      - name: Setup SSH
         run: |
-          set -euo pipefail
           mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-
-          printf '%s' "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | tr -d '\n\r ' | base64 -d > ~/.ssh/id_ed25519
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-
-          echo "Key bytes: $(wc -c < ~/.ssh/id_ed25519)"
-          echo "Key header: $(head -n 1 ~/.ssh/id_ed25519)"
-          echo "Key footer: $(tail -n 1 ~/.ssh/id_ed25519)"
-
-          grep -q -- "-----END OPENSSH PRIVATE KEY-----" ~/.ssh/id_ed25519
-          ssh-keygen -l -f ~/.ssh/id_ed25519
-
-          ssh-keyscan -H cifrajam.com >> ~/.ssh/known_hosts
-
+          ssh-keyscan -H omeupredio.com >> ~/.ssh/known_hosts
 
       - name: Deploy via rsync
         run: |
-          rsync -rz --delete \
-            --no-times --omit-dir-times \
-            --no-perms --no-owner --no-group \
+          rsync -az --delete \
             --exclude=".env" \
+            --exclude=".env.*" \
+            --exclude=".git/" \
+            --exclude=".github/" \
             --exclude="/vendor/" \
             --exclude=".user.ini" \
             --exclude=".htaccess" \
-            --exclude=".git/" \
-            --exclude=".github/" \
             -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             ./ \
-            jamscroll@cifrajam.com:/home/cantiflas/web/omeupredio.com/public_html/test
-
+            cantiflas@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html/test
 
       - name: Composer install no servidor
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no jamscroll@cifrajam.com << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no cantiflas@omeupredio.com << 'EOF'
             set -e
             cd /home/cantiflas/web/omeupredio.com/public_html/test
+
             export COMPOSER_ALLOW_SUPERUSER=1
-            composer install --no-interaction --prefer-dist --optimize-autoloader
+
+            if [ -f composer.json ]; then
+              composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+            else
+              echo "Sem composer.json, a saltar composer install."
+            fi
           EOF
