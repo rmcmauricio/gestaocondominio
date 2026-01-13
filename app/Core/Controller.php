@@ -122,8 +122,26 @@ class Controller
         
         // Check for demo banner message
         $demoBannerMessage = null;
+        $unreadNotificationsCount = 0;
         if (!empty($_SESSION['user'])) {
             $demoBannerMessage = \App\Middleware\DemoProtectionMiddleware::getDemoBannerMessage();
+            
+            // Get unread notifications count
+            global $db;
+            if ($db) {
+                $userId = $_SESSION['user']['id'] ?? null;
+                if ($userId) {
+                    try {
+                        $stmt = $db->prepare("SELECT COUNT(*) as count FROM notifications WHERE user_id = :user_id AND is_read = FALSE");
+                        $stmt->execute([':user_id' => $userId]);
+                        $result = $stmt->fetch();
+                        $unreadNotificationsCount = (int)($result['count'] ?? 0);
+                    } catch (\Exception $e) {
+                        // Silently fail if notifications table doesn't exist or other error
+                        $unreadNotificationsCount = 0;
+                    }
+                }
+            }
         }
         
         $mergedData = array_merge([
@@ -134,6 +152,7 @@ class Controller
             'APP_ENV' => APP_ENV,
             'current_lang' => $currentLang,
             'demo_banner_message' => $demoBannerMessage,
+            'unread_notifications_count' => $unreadNotificationsCount,
         ], $data);
 
         // Add optional constants only if they are defined

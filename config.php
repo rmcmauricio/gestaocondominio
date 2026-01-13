@@ -30,7 +30,9 @@ global $db;
 define("VERSION", "1.0.0");
 
 // Application environment
-define('APP_ENV', $config['APP_ENV'] ?? 'development');
+if (!defined('APP_ENV')) {
+    define('APP_ENV', $config['APP_ENV'] ?? 'development');
+}
 
 // Base path configuration (set in .env or default to empty)
 define('BASE_PATH', $config['BASE_PATH'] ?? '');
@@ -44,35 +46,41 @@ $baseUrl = $protocol . '://' . $host . '/' . $basePath;
 define('BASE_URL', $baseUrl);
 
 // Database connection (optional - only connects if configured)
+// In testing environment, never connect to database
 $db = null;
-$dbname = $config['dbname'] ?? '';
-$dbhost = $config['host'] ?? 'localhost';
-// Handle host with port (e.g., localhost:33066)
-if (strpos($dbhost, ':') !== false) {
-    list($dbhost, $dbport) = explode(':', $dbhost, 2);
-    $dsn = "mysql:dbname=" . $dbname . ";host=" . $dbhost . ";port=" . $dbport;
+if (defined('APP_ENV') && APP_ENV === 'testing') {
+    // Skip database connection in tests
+    $db = null;
 } else {
-    $dsn = "mysql:dbname=" . $dbname . ";host=" . $dbhost;
-}
-$dbuser = $config['dbuser'] ?? 'root';
-$dbpass = $config['dbpass'] ?? '';
+    $dbname = $config['dbname'] ?? '';
+    $dbhost = $config['host'] ?? 'localhost';
+    // Handle host with port (e.g., localhost:33066)
+    if (strpos($dbhost, ':') !== false) {
+        list($dbhost, $dbport) = explode(':', $dbhost, 2);
+        $dsn = "mysql:dbname=" . $dbname . ";host=" . $dbhost . ";port=" . $dbport;
+    } else {
+        $dsn = "mysql:dbname=" . $dbname . ";host=" . $dbhost;
+    }
+    $dbuser = $config['dbuser'] ?? 'root';
+    $dbpass = $config['dbpass'] ?? '';
 
-// Only attempt database connection if dbname is configured
-if (!empty($dbname)) {
-    try {
-        $db = new PDO(
-            $dsn,
-            $dbuser,
-            $dbpass,
-            [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-            ]
-        );
-    } catch(PDOException $e) {
-        // Log error but don't stop execution
-        error_log("Database connection error: " . $e->getMessage());
-        $db = null;
+    // Only attempt database connection if dbname is configured
+    if (!empty($dbname)) {
+        try {
+            $db = new PDO(
+                $dsn,
+                $dbuser,
+                $dbpass,
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+                ]
+            );
+        } catch(PDOException $e) {
+            // Log error but don't stop execution
+            error_log("Database connection error: " . $e->getMessage());
+            $db = null;
+        }
     }
 }
 

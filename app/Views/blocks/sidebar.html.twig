@@ -114,6 +114,15 @@
             </li>
             
             <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}notifications">
+                    <i class="bi bi-bell"></i> Notificações
+                    {% if unread_notifications_count > 0 %}
+                        <span class="badge bg-danger ms-auto">{{ unread_notifications_count }}</span>
+                    {% endif %}
+                </a>
+            </li>
+            
+            <li class="nav-item">
                 <a class="nav-link" href="{{ BASE_URL }}profile">
                     <i class="bi bi-person-circle"></i> Meu Perfil
                 </a>

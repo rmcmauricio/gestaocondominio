@@ -184,6 +184,55 @@ class Reservation extends Model
         $stmt->execute([':id' => $id]);
         return $stmt->fetch() ?: null;
     }
+
+    /**
+     * Get reservations by user
+     */
+    public function getByUser(int $userId, array $filters = []): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $sql = "SELECT r.*, 
+                       DATE_FORMAT(r.start_date, '%Y-%m-%d %H:%i:%s') as start_date_formatted,
+                       DATE_FORMAT(r.end_date, '%Y-%m-%d %H:%i:%s') as end_date_formatted,
+                       s.name as space_name, f.identifier as fraction_identifier,
+                       c.name as condominium_name
+                FROM reservations r
+                INNER JOIN spaces s ON s.id = r.space_id
+                INNER JOIN fractions f ON f.id = r.fraction_id
+                INNER JOIN condominiums c ON c.id = r.condominium_id
+                WHERE r.user_id = :user_id";
+
+        $params = [':user_id' => $userId];
+
+        if (isset($filters['status'])) {
+            $sql .= " AND r.status = :status";
+            $params[':status'] = $filters['status'];
+        }
+
+        if (isset($filters['condominium_id'])) {
+            $sql .= " AND r.condominium_id = :condominium_id";
+            $params[':condominium_id'] = $filters['condominium_id'];
+        }
+
+        if (isset($filters['start_date'])) {
+            $sql .= " AND r.start_date >= :start_date";
+            $params[':start_date'] = $filters['start_date'];
+        }
+
+        if (isset($filters['end_date'])) {
+            $sql .= " AND r.end_date <= :end_date";
+            $params[':end_date'] = $filters['end_date'];
+        }
+
+        $sql .= " ORDER BY r.start_date DESC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll() ?: [];
+    }
 }
 
 

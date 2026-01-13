@@ -30,16 +30,17 @@ class Security
 
     /**
      * Generate secure random string
+     * @param int $length Desired length in characters (will generate length/2 bytes)
      */
     public static function generateRandomString(int $length = 16): string
     {
-        return bin2hex(random_bytes($length / 2));
+        return bin2hex(random_bytes((int)ceil($length / 2)));
     }
 
     /**
      * Sanitize input
      */
-    public static function sanitize(string $input): string
+    public static function sanitize(?string $input): string
     {
         if ($input === null) {
             return '';

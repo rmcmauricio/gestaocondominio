@@ -506,7 +506,7 @@ main {
   background-color: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: var(--space-xl);
+  padding: var(--space-sm);
   box-shadow: var(--shadow-sm);
   transition: all var(--transition-slow);
 }
@@ -933,16 +933,16 @@ a:hover .card-hover .text-primary {
   body {
     overflow-x: hidden;
   }
-  
+
   .container {
     overflow-x: hidden;
   }
-  
+
   /* Force table-responsive to show cards instead */
   .table-responsive {
     overflow-x: visible !important;
   }
-  
+
   /* Ensure cards take full width on tablets */
   .col-md-3,
   .col-md-4,
@@ -951,7 +951,7 @@ a:hover .card-hover .text-primary {
     max-width: 100%;
     margin-bottom: 1rem;
   }
-  
+
   /* Ensure code elements break properly */
   code {
     word-break: break-all;
@@ -970,24 +970,24 @@ a:hover .card-hover .text-primary {
     max-width: 100%;
     margin-bottom: 1rem;
   }
-  
+
   /* Prevent horizontal scroll on mobile */
   .table-responsive {
     overflow-x: visible !important;
   }
-  
+
   /* Ensure all text breaks properly */
   code {
     word-break: break-all;
     white-space: normal;
     font-size: 0.7rem;
   }
-  
+
   /* Prevent any element from causing overflow */
   * {
     max-width: 100%;
   }
-  
+
   .card-body {
     overflow-x: hidden;
   }
