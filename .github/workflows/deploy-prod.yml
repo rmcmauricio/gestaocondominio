@@ -4,6 +4,10 @@ on:
   push:
     branches: [ "main" ]
 
+concurrency:
+  group: deploy-omeupredio-test
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -21,12 +25,27 @@ jobs:
         run: |
           composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
+      - name: Prepare SSH known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H cifrajam.com >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      # IMPORTANT: use SFTP to avoid remote tar extraction (scp-action can fail with restricted shells)
       - name: Upload via SFTP
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/sftp-action@v0.1.7
         with:
           host: cifrajam.com
           username: rmcm
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           source: "./"
           target: "/home/cantiflas/web/omeupredio.com/public_html/test"
           overwrite: true
+          rm: false
+          # avoid uploading repo metadata
+          ignore: |
+            **/.git/**
+            **/.github/**
+            **/node_modules/**
