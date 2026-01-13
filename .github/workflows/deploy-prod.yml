@@ -1,11 +1,11 @@
-name: Deploy omeupredio.com (TEST)
+name: Deploy omeupredio.com (PROD)
 
 on:
   push:
-    branches: [ dev ]
+    branches: [ main ]
 
 jobs:
-  deploy_test:
+  deploy_prod:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,7 +20,7 @@ jobs:
           ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
           ssh-keyscan -p 22 -H omeupredio.com >> ~/.ssh/known_hosts
 
-      - name: Deploy via rsync (TEST)
+      - name: Deploy via rsync (PROD)
         run: |
           rsync -az --delete \
             --chown=cantiflas:cantiflas \
@@ -35,13 +35,13 @@ jobs:
             --exclude=".user.ini" \
             -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             ./ \
-            root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html/test
+            root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html
 
-      - name: Composer + migrate + seed + restore-demo + tests (TEST)
+      - name: Composer + migrate + seed + restore-demo (PROD, sem testes)
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
             set -e
-            WEBROOT="/home/cantiflas/web/omeupredio.com/public_html/test"
+            WEBROOT="/home/cantiflas/web/omeupredio.com/public_html"
 
             # garantir permissões corretas
             chown -R cantiflas:cantiflas "$WEBROOT"
@@ -52,14 +52,12 @@ jobs:
             # limpar vendor para evitar estados estranhos
             rm -rf vendor
 
-            # com dev deps (phpunit)
-            sudo -u cantiflas -H composer install --no-interaction --prefer-dist --optimize-autoloader
+            # sem dev deps em produção
+            sudo -u cantiflas -H composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
 
             sudo -u cantiflas -H php cli/migrate.php
             sudo -u cantiflas -H php cli/seed.php
             sudo -u cantiflas -H php cli/restore-demo.php
-
-            sudo -u cantiflas -H composer test
 
             chown -R cantiflas:cantiflas "$WEBROOT"
           EOF
