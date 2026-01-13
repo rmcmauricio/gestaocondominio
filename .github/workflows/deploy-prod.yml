@@ -3,7 +3,7 @@ name: Deploy via rsync para omeupredio.com
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   deploy:
