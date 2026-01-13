@@ -15,6 +15,7 @@ $router->get('/', 'App\Controllers\HomeController@index');
 // Demo route
 $router->get('/demo', 'App\Controllers\DemoController@index');
 $router->get('/demo/access', 'App\Controllers\AuthController@demoAccess');
+$router->get('/demo/switch-profile', 'App\Controllers\DemoController@switchProfile');
 
 // About route
 $router->get('/about', 'App\Controllers\AboutController@index');

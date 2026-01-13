@@ -222,6 +222,51 @@
     }
   }
 
+  /**
+   * Initialize Demo Profile Dropdown
+   * Bootstrap 5 handles dropdowns automatically with data-bs-toggle="dropdown"
+   * This function ensures proper initialization and mobile-friendly behavior
+   */
+  function initDemoProfileDropdown() {
+    const demoProfileDropdown = document.getElementById('demoProfileDropdown');
+    if (demoProfileDropdown && typeof bootstrap !== 'undefined') {
+      try {
+        // Check if dropdown is already initialized
+        let dropdownInstance = bootstrap.Dropdown.getInstance(demoProfileDropdown);
+        if (!dropdownInstance) {
+          // Initialize if not already done
+          dropdownInstance = new bootstrap.Dropdown(demoProfileDropdown);
+        }
+        
+        // Add mobile-friendly backdrop and click-outside handling
+        const dropdownElement = demoProfileDropdown.closest('.dropdown');
+        const dropdownMenu = dropdownElement?.querySelector('.dropdown-menu');
+        
+        if (dropdownElement && dropdownMenu) {
+          // Close dropdown when clicking outside on mobile
+          document.addEventListener('click', function(event) {
+            const isClickInside = dropdownElement.contains(event.target);
+            const isDropdownOpen = dropdownElement.classList.contains('show');
+            
+            if (!isClickInside && isDropdownOpen) {
+              dropdownInstance.hide();
+            }
+          });
+          
+          // Prevent dropdown from closing when clicking inside the menu
+          if (dropdownMenu) {
+            dropdownMenu.addEventListener('click', function(event) {
+              event.stopPropagation();
+            });
+          }
+        }
+      } catch (e) {
+        // Bootstrap will handle it via data attributes
+        console.debug('Bootstrap dropdown will be handled via data attributes');
+      }
+    }
+  }
+
   function init() {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function() {
@@ -231,6 +276,7 @@
         initFormValidation();
         initAutoHideAlerts();
         initLanguageDropdown();
+        initDemoProfileDropdown();
       });
     } else {
       initMobileNav();
@@ -239,6 +285,7 @@
       initFormValidation();
       initAutoHideAlerts();
       initLanguageDropdown();
+      initDemoProfileDropdown();
     }
   }
 

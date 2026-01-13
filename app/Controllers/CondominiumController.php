@@ -334,7 +334,32 @@ class CondominiumController extends Controller
     public function update(int $id)
     {
         AuthMiddleware::require();
-        RoleMiddleware::requireCondominiumAccess($id);
+        
+        // Only admin can update condominium information
+        $user = AuthMiddleware::user();
+        
+        // Check if user is admin or super_admin
+        if (!RoleMiddleware::hasAnyRole(['admin', 'super_admin'])) {
+            $_SESSION['error'] = 'Apenas administradores podem editar informações do condomínio.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id);
+            exit;
+        }
+        
+        // Check if user owns this condominium (or is super_admin)
+        if ($user['role'] !== 'super_admin') {
+            RoleMiddleware::requireCondominiumAccess($id);
+            
+            // Verify that user is the owner/admin of this condominium
+            $condominium = $this->condominiumModel->findById($id);
+            if (!$condominium || $condominium['user_id'] != $user['id']) {
+                $_SESSION['error'] = 'Apenas o administrador do condomínio pode editar as informações.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $id);
+                exit;
+            }
+        } else {
+            // Super admin can update any condominium
+            RoleMiddleware::requireCondominiumAccess($id);
+        }
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $id);

@@ -123,8 +123,18 @@ class Controller
         // Check for demo banner message
         $demoBannerMessage = null;
         $unreadNotificationsCount = 0;
+        $isDemoUser = false;
+        $demoProfile = null;
+        
         if (!empty($_SESSION['user'])) {
             $demoBannerMessage = \App\Middleware\DemoProtectionMiddleware::getDemoBannerMessage();
+            
+            // Check if we're in demo mode - either current user is demo OR demo_profile is set
+            $currentUserIsDemo = \App\Middleware\DemoProtectionMiddleware::isDemoUser($_SESSION['user']['id'] ?? null);
+            $demoProfile = $_SESSION['demo_profile'] ?? ($currentUserIsDemo ? 'admin' : null);
+            
+            // If demo_profile is set, we're in demo mode regardless of current user
+            $isDemoUser = $currentUserIsDemo || isset($_SESSION['demo_profile']);
             
             // Get unread notifications count
             global $db;
@@ -153,6 +163,8 @@ class Controller
             'current_lang' => $currentLang,
             'demo_banner_message' => $demoBannerMessage,
             'unread_notifications_count' => $unreadNotificationsCount,
+            'is_demo_user' => $isDemoUser,
+            'demo_profile' => $demoProfile,
         ], $data);
 
         // Add optional constants only if they are defined

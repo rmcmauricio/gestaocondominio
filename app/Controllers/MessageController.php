@@ -166,7 +166,8 @@ class MessageController extends Controller
         $userId = AuthMiddleware::userId();
         
         // Mark as read if user is recipient
-        if ($message['recipient_id'] == $userId && !$message['is_read']) {
+        $recipientId = $message['to_user_id'] ?? $message['recipient_id'] ?? null;
+        if ($recipientId == $userId && !$message['is_read']) {
             $this->messageModel->markAsRead($id);
         }
 

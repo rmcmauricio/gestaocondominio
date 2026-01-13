@@ -13,7 +13,18 @@ class DashboardController extends Controller
         AuthMiddleware::require();
 
         $user = AuthMiddleware::user();
-        $role = $user['role'] ?? 'condomino';
+        
+        // Check if user is in demo mode and has selected a profile
+        $demoProfile = $_SESSION['demo_profile'] ?? null;
+        
+        // If demo profile is set, use that role instead of user's actual role
+        if ($demoProfile === 'condomino') {
+            $role = 'condomino';
+        } elseif ($demoProfile === 'admin') {
+            $role = 'admin';
+        } else {
+            $role = $user['role'] ?? 'condomino';
+        }
 
         $this->loadPageTranslations('dashboard');
         

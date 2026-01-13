@@ -76,6 +76,9 @@ class AuthController extends Controller
             'name' => $demoUser['name'],
             'role' => $demoUser['role']
         ];
+        
+        // Set demo profile to admin by default
+        $_SESSION['demo_profile'] = 'admin';
 
         // Update last login
         $this->userModel->updateLastLogin($demoUser['id']);

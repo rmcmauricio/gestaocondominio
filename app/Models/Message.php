@@ -19,19 +19,19 @@ class Message extends Model
 
         $sql = "SELECT m.*, u1.name as sender_name, u2.name as recipient_name
                 FROM messages m
-                LEFT JOIN users u1 ON u1.id = m.sender_id
-                LEFT JOIN users u2 ON u2.id = m.recipient_id
+                LEFT JOIN users u1 ON u1.id = m.from_user_id
+                LEFT JOIN users u2 ON u2.id = m.to_user_id
                 WHERE m.condominium_id = :condominium_id";
 
         $params = [':condominium_id' => $condominiumId];
 
         if (isset($filters['recipient_id'])) {
-            $sql .= " AND m.recipient_id = :recipient_id";
+            $sql .= " AND m.to_user_id = :recipient_id";
             $params[':recipient_id'] = $filters['recipient_id'];
         }
 
         if (isset($filters['sender_id'])) {
-            $sql .= " AND m.sender_id = :sender_id";
+            $sql .= " AND m.from_user_id = :sender_id";
             $params[':sender_id'] = $filters['sender_id'];
         }
 
@@ -60,22 +60,25 @@ class Message extends Model
             throw new \Exception("Database connection not available");
         }
 
+        // Support both old names (sender_id/recipient_id) and new names (from_user_id/to_user_id)
+        $fromUserId = $data['sender_id'] ?? $data['from_user_id'] ?? null;
+        $toUserId = $data['recipient_id'] ?? $data['to_user_id'] ?? null;
+
         $stmt = $this->db->prepare("
             INSERT INTO messages (
-                condominium_id, sender_id, recipient_id, subject, message, message_type
+                condominium_id, from_user_id, to_user_id, subject, message
             )
             VALUES (
-                :condominium_id, :sender_id, :recipient_id, :subject, :message, :message_type
+                :condominium_id, :from_user_id, :to_user_id, :subject, :message
             )
         ");
 
         $stmt->execute([
             ':condominium_id' => $data['condominium_id'],
-            ':sender_id' => $data['sender_id'],
-            ':recipient_id' => $data['recipient_id'] ?? null,
+            ':from_user_id' => $fromUserId,
+            ':to_user_id' => $toUserId,
             ':subject' => $data['subject'],
-            ':message' => $data['message'],
-            ':message_type' => $data['message_type'] ?? 'private'
+            ':message' => $data['message']
         ]);
 
         return (int)$this->db->lastInsertId();

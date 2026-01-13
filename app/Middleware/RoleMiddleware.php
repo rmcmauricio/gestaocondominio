@@ -17,6 +17,16 @@ class RoleMiddleware
             return false;
         }
 
+        // Check if user is in demo mode and has selected a profile
+        $demoProfile = $_SESSION['demo_profile'] ?? null;
+        
+        // If demo profile is set, use that role instead of user's actual role
+        if ($demoProfile === 'condomino' && $role === 'condomino') {
+            return true;
+        } elseif ($demoProfile === 'admin' && ($role === 'admin' || $role === 'super_admin')) {
+            return true;
+        }
+
         return $user['role'] === $role;
     }
 
@@ -29,6 +39,16 @@ class RoleMiddleware
         
         if (!$user) {
             return false;
+        }
+
+        // Check if user is in demo mode and has selected a profile
+        $demoProfile = $_SESSION['demo_profile'] ?? null;
+        
+        // If demo profile is set, use that role instead of user's actual role
+        if ($demoProfile === 'condomino') {
+            return in_array('condomino', $roles);
+        } elseif ($demoProfile === 'admin') {
+            return in_array('admin', $roles) || in_array('super_admin', $roles);
         }
 
         return in_array($user['role'], $roles);
@@ -117,13 +137,24 @@ class RoleMiddleware
             return false;
         }
 
+        // Check if user is in demo mode and has selected a profile
+        $demoProfile = $_SESSION['demo_profile'] ?? null;
+        
+        // Determine effective role considering demo profile
+        $effectiveRole = $user['role'];
+        if ($demoProfile === 'condomino') {
+            $effectiveRole = 'condomino';
+        } elseif ($demoProfile === 'admin' && ($user['role'] === 'admin' || $user['role'] === 'super_admin')) {
+            $effectiveRole = $user['role']; // Keep admin or super_admin
+        }
+
         // Super admin can access all
-        if ($user['role'] === 'super_admin') {
+        if ($effectiveRole === 'super_admin') {
             return true;
         }
 
         // Admin can access their own condominiums
-        if ($user['role'] === 'admin') {
+        if ($effectiveRole === 'admin') {
             global $db;
             if ($db) {
                 $stmt = $db->prepare("SELECT id FROM condominiums WHERE user_id = :user_id AND id = :condominium_id");
@@ -136,7 +167,7 @@ class RoleMiddleware
         }
 
         // Condomino can access if associated
-        if ($user['role'] === 'condomino') {
+        if ($effectiveRole === 'condomino') {
             global $db;
             if ($db) {
                 $stmt = $db->prepare("

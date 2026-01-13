@@ -6,6 +6,46 @@
 
     <div class="header-actions">
       {% if user %}
+      <!-- Demo Profile Selector -->
+      {% if is_demo_user %}
+      <div class="demo-profile-selector">
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm demo-profile-btn" type="button" id="demoProfileDropdown" aria-expanded="false" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <i class="bi bi-person-badge"></i>
+            <span class="demo-profile-label">
+              {% if demo_profile == 'admin' %}
+                Admin
+              {% else %}
+                Condómino
+              {% endif %}
+            </span>
+            <i class="bi bi-chevron-down ms-1"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end demo-profile-menu" aria-labelledby="demoProfileDropdown">
+            <li>
+              <a class="dropdown-item {% if demo_profile == 'admin' %}active{% endif %}" href="{{ BASE_URL }}demo/switch-profile?profile=admin">
+                <i class="bi bi-shield-check text-primary"></i>
+                <span>Admin</span>
+                {% if demo_profile == 'admin' %}
+                  <i class="bi bi-check-lg ms-auto text-success"></i>
+                {% endif %}
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item {% if demo_profile == 'condomino' %}active{% endif %}" href="{{ BASE_URL }}demo/switch-profile?profile=condomino">
+                <i class="bi bi-person text-info"></i>
+                <span>Condómino</span>
+                {% if demo_profile == 'condomino' %}
+                  <i class="bi bi-check-lg ms-auto text-success"></i>
+                {% endif %}
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+      {% endif %}
+      
       <!-- Notifications button -->
       <a href="{{ BASE_URL }}notifications" class="btn btn-outline-primary position-relative sidebar-toggle-header" aria-label="Notificações" title="Notificações" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0;">
         <i class="bi bi-bell"></i>

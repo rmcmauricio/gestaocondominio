@@ -4,55 +4,63 @@ on:
   push:
     branches: [ main ]
 
+concurrency:
+  group: deploy-omeupredio-prod
+  cancel-in-progress: true
+
 jobs:
-  deploy_prod:
+  deploy:
     runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
+    env:
+      SSH_HOST: omeupredio.com
+      SSH_PORT: "22"
+      SSH_USER: jamscroll
+      APP_DIR: /home/jamscroll/web/omeupredio.com/public_html
 
-      - name: Setup SSH
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup SSH (Base64)
         shell: bash
         run: |
+          set -e
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | base64 -d > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
-          ssh-keyscan -p 22 -H omeupredio.com >> ~/.ssh/known_hosts
+          ssh-keyscan -p "${SSH_PORT}" -H "${SSH_HOST}" >> ~/.ssh/known_hosts
 
       - name: Deploy via rsync (PROD)
+        shell: bash
         run: |
+          set -e
           rsync -az --delete \
-            --chown=cantiflas:cantiflas \
-            --filter='protect .env' \
             --exclude=".env" \
-            --exclude=".env.*" \
+            --exclude="/vendor/" \
+            --exclude=".user.ini" \
+            --exclude=".htaccess" \
             --exclude=".git/" \
             --exclude=".github/" \
-            --exclude="/vendor/" \
-            --exclude=".htaccess" \
-            --exclude=".user.ini" \
-            -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
+            -e "ssh -p ${SSH_PORT} -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             ./ \
-            root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html
+            "${SSH_USER}@${SSH_HOST}:${APP_DIR}"
 
-            - name: Composer + migrate (PROD, sem testes)
-            run: |
-              ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
-                set -e
-                WEBROOT="/home/cantiflas/web/omeupredio.com/public_html"
+      - name: Composer + migrate + seed + demo (PROD)
+        shell: bash
+        run: |
+          set -e
+          ssh -p "${SSH_PORT}" -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" << 'EOF'
+            set -euo pipefail
+            APP_DIR="/home/jamscroll/web/omeupredio.com/public_html"
 
-                # Preflight: garantir que cantiflas pode escrever (criar vendor, etc.)
-                chown -R cantiflas:cantiflas "$WEBROOT"
-                chmod 755 "$WEBROOT"
-                find "$WEBROOT" -type d -exec chmod 755 {} \;
-                find "$WEBROOT" -type f -exec chmod 644 {} \;
+            cd "$APP_DIR"
 
-                cd "$WEBROOT"
+            # produção: sem deps de desenvolvimento
+            composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
 
-                sudo -u cantiflas -H composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
-                sudo -u cantiflas -H php cli/migrate.php
-
-                chown -R cantiflas:cantiflas "$WEBROOT"
-              EOF
-
+            php cli/migrate.php
+            php cli/seed.php
+            php cli/restore-demo.php
+          EOF

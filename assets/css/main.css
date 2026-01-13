@@ -181,6 +181,7 @@ code {
   border-bottom: 1px solid var(--color-border);
   z-index: 1000;
   box-shadow: var(--shadow-sm);
+  overflow: visible;
 }
 
 .header .container {
@@ -190,12 +191,169 @@ code {
   justify-content: space-between;
   padding: 0 var(--container-padding);
   position: relative;
+  overflow: visible;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
   gap: 1rem;
+  position: relative;
+  overflow: visible;
+}
+
+/* Demo Profile Selector */
+.demo-profile-selector {
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 1051;
+}
+
+.demo-profile-selector .dropdown {
+  position: relative;
+}
+
+.demo-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid var(--color-border);
+  background: white;
+  color: var(--color-text);
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.demo-profile-btn:hover {
+  background: var(--color-bg-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.demo-profile-label {
+  font-weight: 600;
+}
+
+.demo-profile-menu {
+  min-width: 180px;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0;
+  margin-top: 0.5rem;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 1050;
+  background: white;
+  /* Bootstrap handles display - don't override */
+}
+
+/* Ensure Bootstrap can show the dropdown */
+.demo-profile-selector .dropdown.show .dropdown-menu,
+.demo-profile-selector .dropdown.show .demo-profile-menu {
+  display: block !important;
+}
+
+.demo-profile-menu .dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  color: var(--color-text);
+  transition: all var(--transition);
+}
+
+.demo-profile-menu .dropdown-item:hover {
+  background: var(--color-bg-light);
+  color: var(--color-primary);
+}
+
+.demo-profile-menu .dropdown-item.active {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.demo-profile-menu .dropdown-item i:first-child {
+  width: 20px;
+  text-align: center;
+}
+
+.demo-profile-menu .dropdown-item i:last-child {
+  margin-left: auto;
+}
+
+/* Responsive adjustments for demo profile selector */
+@media (max-width: 991px) {
+  .demo-profile-btn {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+  }
+  
+  .demo-profile-label {
+    display: none;
+  }
+  
+  .demo-profile-btn i:first-child {
+    margin-right: 0;
+  }
+  
+  /* Keep dropdown positioned relative to button - same as desktop */
+  .demo-profile-selector .dropdown {
+    position: relative;
+  }
+  
+  .demo-profile-menu {
+    position: absolute !important;
+    right: 0 !important;
+    left: auto !important;
+    top: 100% !important;
+    bottom: auto !important;
+    margin-top: 0.5rem !important;
+    z-index: 1052 !important;
+    min-width: 200px;
+    max-width: calc(100vw - 2 * var(--container-padding));
+    box-shadow: var(--shadow-xl);
+  }
+  
+  /* Ensure header-actions container allows overflow */
+  .header-actions {
+    position: relative;
+    overflow: visible;
+  }
+  
+  /* Ensure header container allows overflow */
+  .header .container {
+    overflow: visible;
+  }
+  
+  /* Add backdrop on mobile when dropdown is open */
+  .demo-profile-selector .dropdown.show::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1050;
+    pointer-events: auto;
+    animation: fadeIn 0.2s ease;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 }
 
 .sidebar-toggle-header {
@@ -298,21 +456,20 @@ code {
   font-weight: var(--font-weight-semibold);
 }
 
+/* General dropdown menu styles - Bootstrap handles display */
 .dropdown-menu {
-  display: none !important;
   min-width: 150px;
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-lg);
   border-radius: var(--radius-md);
   padding: var(--space-xs);
-  opacity: 0;
-  visibility: hidden;
 }
 
-.dropdown.show .dropdown-menu {
-  display: block !important;
-  opacity: 1;
-  visibility: visible;
+/* Ensure demo profile menu works with Bootstrap - don't override Bootstrap's display */
+.demo-profile-selector .dropdown-menu {
+  /* Let Bootstrap handle display via .show class */
+  position: absolute;
+  z-index: 1000;
 }
 
 .dropdown-item {
@@ -1011,6 +1168,12 @@ a:hover .card-hover .text-primary {
   .row.g-4 > * {
     margin-bottom: 1rem;
   }
+  
+  /* Features e Pricing grid: 1 coluna em mobile */
+  .features-grid,
+  .pricing-grid {
+    grid-template-columns: 1fr !important;
+  }
 
   .card-body {
     padding: 1rem;
@@ -1065,6 +1228,39 @@ a:hover .card-hover .text-primary {
 
   .table-responsive {
     font-size: 0.875rem;
+  }
+  
+  /* Fees map table - better responsive handling */
+  .fees-map-table {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+  
+  .fees-map-table table {
+    min-width: 600px;
+    width: 100%;
+  }
+  
+  .fees-map-table th,
+  .fees-map-table td {
+    white-space: nowrap;
+    padding: 0.5rem 0.25rem;
+    font-size: 0.8rem;
+  }
+  
+  @media (min-width: 768px) {
+    .fees-map-table th,
+    .fees-map-table td {
+      padding: 0.75rem 0.5rem;
+      font-size: 0.875rem;
+    }
+  }
+  
+  @media (min-width: 992px) {
+    .fees-map-table table {
+      min-width: auto;
+    }
   }
 
   .btn {
@@ -1675,8 +1871,23 @@ a:hover .card-hover .text-primary {
 
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: 1fr;
   gap: 2rem;
+}
+
+/* Tablets: 2 colunas (768px - 991px) */
+@media (min-width: 768px) and (max-width: 991px) {
+  .features-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1.5rem;
+  }
+}
+
+/* Desktop: 3 colunas (992px+) */
+@media (min-width: 992px) {
+  .features-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
 }
 
 .feature-card {
@@ -1785,10 +1996,26 @@ a:hover .card-hover .text-primary {
 
 .pricing-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: 1fr;
   gap: 2rem;
   max-width: 1100px;
   margin: 0 auto;
+}
+
+/* Tablets: 2 colunas (768px - 991px) */
+@media (min-width: 768px) and (max-width: 991px) {
+  .pricing-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1.5rem;
+    max-width: 100%;
+  }
+}
+
+/* Desktop: 3 colunas (992px+) */
+@media (min-width: 992px) {
+  .pricing-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
 }
 
 .pricing-card {
@@ -2021,7 +2248,7 @@ a:hover .card-hover .text-primary {
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .hero-title {
     font-size: 2.5rem;
   }
@@ -2047,6 +2274,11 @@ a:hover .card-hover .text-primary {
 
   .hero-visual {
     overflow: hidden;
+  }
+
+  .features-grid,
+  .pricing-grid {
+    grid-template-columns: 1fr !important;
   }
 }
 
@@ -2106,6 +2338,8 @@ a:hover .card-hover .text-primary {
   }
 }
 
+/* Mobile responsive styles */
+@media (max-width: 767px) {
   .demo-card {
     padding: 2rem 1.5rem;
   }
@@ -2118,9 +2352,9 @@ a:hover .card-hover .text-primary {
     font-size: 2rem;
   }
 
-  .features-grid,
-  .pricing-grid {
-    grid-template-columns: 1fr;
+  .pricing-grid,
+  .features-grid {
+    grid-template-columns: 1fr !important;
   }
 
   .cta-title {
