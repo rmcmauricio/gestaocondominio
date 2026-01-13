@@ -2,7 +2,7 @@ name: Deploy omeupredio.com (PROD)
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
   deploy_prod:

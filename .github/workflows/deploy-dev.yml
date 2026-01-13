@@ -2,7 +2,7 @@ name: Deploy omeupredio.com (TEST)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ dev ]
 
 jobs:
   deploy_test:
