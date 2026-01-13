@@ -24,16 +24,14 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          # escrever a chave sem partir linhas / sem acrescentar newline
-          printf '%s' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          # remover CRLF caso tenha vindo de Windows
-          sed -i 's/\r$//' ~/.ssh/id_ed25519
-
+          echo "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | base64 -d > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          # validar que a chave é legível (se falhar aqui, o Secret está mal)
+          # validar que agora é key a sério
           ssh-keygen -l -f ~/.ssh/id_ed25519
 
+          ssh-keyscan -H cifrajam.com >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
           ssh-keyscan -H cifrajam.com >> ~/.ssh/known_hosts
 
 
