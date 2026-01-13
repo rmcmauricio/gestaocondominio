@@ -51,6 +51,13 @@ $router->get('/profile', 'App\Controllers\ProfileController@show');
 $router->post('/profile/update', 'App\Controllers\ProfileController@update');
 $router->post('/profile/password', 'App\Controllers\ProfileController@updatePassword');
 
+// Notification routes
+$router->get('/notifications', 'App\Controllers\NotificationController@index');
+$router->post('/notifications/{id}/mark-read', 'App\Controllers\NotificationController@markAsRead');
+$router->post('/notifications/mark-all-read', 'App\Controllers\NotificationController@markAllAsRead');
+$router->post('/notifications/{id}/delete', 'App\Controllers\NotificationController@delete');
+$router->get('/notifications/unread-count', 'App\Controllers\NotificationController@getUnreadCount');
+
 // Condominium routes - redirect to dashboard (dashboard now shows condominiums list)
 // $router->get('/condominiums', 'App\Controllers\CondominiumController@index'); // Removed - dashboard replaces this
 $router->get('/condominiums/create', 'App\Controllers\CondominiumController@create');

@@ -25,6 +25,7 @@ use App\Models\Fee;
 use App\Models\FeePayment;
 use App\Core\Security;
 use App\Services\FeeService;
+use App\Services\NotificationService;
 
 class DemoSeeder
 {
@@ -112,6 +113,9 @@ class DemoSeeder
 
                 // 14. Create occurrences
                 $this->createOccurrences($index);
+
+                // 15. Create notifications
+                $this->createNotifications($index);
             }
 
             $this->db->commit();
@@ -263,6 +267,7 @@ class DemoSeeder
         $this->db->exec("DELETE FROM condominium_users WHERE condominium_id = {$condominiumId}");
         $this->db->exec("DELETE FROM fractions WHERE condominium_id = {$condominiumId}");
         $this->db->exec("DELETE FROM documents WHERE condominium_id = {$condominiumId}");
+        $this->db->exec("DELETE FROM notifications WHERE condominium_id = {$condominiumId}");
 
         // Delete users associated with this condominium (but not demo user)
         $stmt = $this->db->prepare("SELECT user_id FROM condominium_users WHERE condominium_id = {$condominiumId}");
@@ -1402,6 +1407,228 @@ class DemoSeeder
         }
 
         echo "   {$count} ocorrências criadas\n";
+    }
+
+    protected function createNotifications(int $condominiumIndex = 0): void
+    {
+        echo "15. Criando notificações...\n";
+
+        $notificationService = new NotificationService();
+        $count = 0;
+
+        // Get all users associated with this condominium (including fraction users)
+        $stmt = $this->db->prepare("
+            SELECT DISTINCT cu.user_id, u.name, u.email, u.role
+            FROM condominium_users cu
+            INNER JOIN users u ON u.id = cu.user_id
+            WHERE cu.condominium_id = :condominium_id
+            ORDER BY cu.user_id ASC
+        ");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $fractionUsers = $stmt->fetchAll();
+
+        // Always include demo user (admin) - owner of condominium
+        $allUsers = [];
+        if ($this->demoUserId) {
+            $stmt = $this->db->prepare("SELECT id, name, email, role FROM users WHERE id = :user_id LIMIT 1");
+            $stmt->execute([':user_id' => $this->demoUserId]);
+            $demoUserData = $stmt->fetch();
+            if ($demoUserData) {
+                $allUsers[] = [
+                    'user_id' => $demoUserData['id'],
+                    'name' => $demoUserData['name'],
+                    'email' => $demoUserData['email'],
+                    'role' => $demoUserData['role']
+                ];
+            }
+        }
+
+        // Add fraction users (avoid duplicates)
+        foreach ($fractionUsers as $user) {
+            $exists = false;
+            foreach ($allUsers as $existing) {
+                if ($existing['user_id'] == $user['user_id']) {
+                    $exists = true;
+                    break;
+                }
+            }
+            if (!$exists) {
+                $allUsers[] = $user;
+            }
+        }
+
+        if (empty($allUsers)) {
+            echo "   Nenhum utilizador encontrado para criar notificações\n";
+            return;
+        }
+
+        // Get occurrences for this condominium
+        $stmt = $this->db->prepare("
+            SELECT id, title, reported_by, created_at
+            FROM occurrences
+            WHERE condominium_id = :condominium_id
+            ORDER BY created_at DESC
+            LIMIT 5
+        ");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $occurrences = $stmt->fetchAll();
+
+        // Get assemblies for this condominium
+        $stmt = $this->db->prepare("
+            SELECT id, title, scheduled_date, status
+            FROM assemblies
+            WHERE condominium_id = :condominium_id
+            ORDER BY scheduled_date DESC
+            LIMIT 2
+        ");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $assemblies = $stmt->fetchAll();
+
+        // Get overdue fees
+        $stmt = $this->db->prepare("
+            SELECT DISTINCT f.id, f.fraction_id, cu.user_id, f.due_date, f.amount
+            FROM fees f
+            INNER JOIN condominium_users cu ON cu.fraction_id = f.fraction_id AND cu.condominium_id = f.condominium_id
+            WHERE f.condominium_id = :condominium_id
+            AND f.status = 'pending'
+            AND f.due_date < CURDATE()
+            AND COALESCE(f.is_historical, 0) = 0
+            LIMIT 3
+        ");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $overdueFees = $stmt->fetchAll();
+
+        // Find demo user (admin) from all users
+        $demoUser = null;
+        foreach ($allUsers as $user) {
+            if ($user['role'] === 'admin' && $user['user_id'] == $this->demoUserId) {
+                $demoUser = $user;
+                break;
+            }
+        }
+
+        // 1. Notifications for admin about occurrences
+        // Always notify demo user (admin) about occurrences, even if not in condominium_users
+        if ($this->demoUserId && !empty($occurrences)) {
+            foreach (array_slice($occurrences, 0, 3) as $occurrence) {
+                // Only notify if occurrence was reported by someone else
+                if ($occurrence['reported_by'] != $this->demoUserId) {
+                    $notificationService->createNotification(
+                        $this->demoUserId,
+                        $this->demoCondominiumId,
+                        'occurrence',
+                        'Nova Ocorrência',
+                        'Uma nova ocorrência foi reportada: ' . $occurrence['title'],
+                        BASE_URL . 'condominiums/' . $this->demoCondominiumId . '/occurrences/' . $occurrence['id']
+                    );
+                    $count++;
+                }
+            }
+        }
+
+        // 2. Notifications for all users about assemblies
+        if (!empty($assemblies)) {
+            foreach ($assemblies as $assembly) {
+                // Notify all users about scheduled assemblies
+                if ($assembly['status'] === 'scheduled') {
+                    foreach ($allUsers as $user) {
+                        $notificationService->createNotification(
+                            $user['user_id'],
+                            $this->demoCondominiumId,
+                            'assembly',
+                            'Nova Assembleia Agendada',
+                            'Uma assembleia foi agendada: ' . $assembly['title'],
+                            BASE_URL . 'condominiums/' . $this->demoCondominiumId . '/assemblies/' . $assembly['id']
+                        );
+                        $count++;
+                    }
+                }
+            }
+        }
+
+        // 3. Notifications for users with overdue fees
+        foreach ($overdueFees as $fee) {
+            $notificationService->createNotification(
+                $fee['user_id'],
+                $this->demoCondominiumId,
+                'fee_overdue',
+                'Quota em Atraso',
+                'Tem uma quota em atraso. Valor: €' . number_format($fee['amount'], 2, ',', '.'),
+                BASE_URL . 'condominiums/' . $this->demoCondominiumId . '/fees'
+            );
+            $count++;
+        }
+
+        // 4. Create some random notifications for variety
+        $notificationTypes = [
+            [
+                'type' => 'message',
+                'title' => 'Nova Mensagem',
+                'message' => 'Recebeu uma nova mensagem do administrador do condomínio.',
+                'link' => BASE_URL . 'condominiums/' . $this->demoCondominiumId . '/messages'
+            ],
+            [
+                'type' => 'occurrence_comment',
+                'title' => 'Novo Comentário em Ocorrência',
+                'message' => 'Um novo comentário foi adicionado a uma ocorrência que reportou.',
+                'link' => BASE_URL . 'condominiums/' . $this->demoCondominiumId . '/occurrences'
+            ]
+        ];
+
+        // Add a few random notifications to some users (including demo user)
+        $randomUsers = array_slice($allUsers, 0, min(3, count($allUsers)));
+        foreach ($randomUsers as $user) {
+            $notificationType = $notificationTypes[array_rand($notificationTypes)];
+            $notificationService->createNotification(
+                $user['user_id'],
+                $this->demoCondominiumId,
+                $notificationType['type'],
+                $notificationType['title'],
+                $notificationType['message'],
+                $notificationType['link']
+            );
+            $count++;
+        }
+
+        // 5. Create some read notifications (to show variety)
+        // Always create read notifications for demo user (admin)
+        if ($this->demoUserId) {
+            // Create a few read notifications for the admin
+            $readNotifications = [
+                [
+                    'type' => 'assembly',
+                    'title' => 'Assembleia Concluída',
+                    'message' => 'A assembleia geral foi concluída com sucesso.',
+                    'link' => BASE_URL . 'condominiums/' . $this->demoCondominiumId . '/assemblies'
+                ],
+                [
+                    'type' => 'occurrence',
+                    'title' => 'Ocorrência Resolvida',
+                    'message' => 'Uma ocorrência foi marcada como resolvida.',
+                    'link' => BASE_URL . 'condominiums/' . $this->demoCondominiumId . '/occurrences'
+                ]
+            ];
+
+            foreach ($readNotifications as $notif) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO notifications (user_id, condominium_id, type, title, message, link, is_read, read_at, created_at)
+                    VALUES (:user_id, :condominium_id, :type, :title, :message, :link, TRUE, DATE_SUB(NOW(), INTERVAL :days_ago DAY), DATE_SUB(NOW(), INTERVAL :days_ago DAY))
+                ");
+                $daysAgo = rand(1, 7);
+                $stmt->execute([
+                    ':user_id' => $this->demoUserId,
+                    ':condominium_id' => $this->demoCondominiumId,
+                    ':type' => $notif['type'],
+                    ':title' => $notif['title'],
+                    ':message' => $notif['message'],
+                    ':link' => $notif['link'],
+                    ':days_ago' => $daysAgo
+                ]);
+                $count++;
+            }
+        }
+
+        echo "   {$count} notificações criadas\n";
     }
 }
 

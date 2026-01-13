@@ -102,6 +102,7 @@ class ComposerStaticInit902480c35ff3f5f9b19e181a0d903123
         'T' => 
         array (
             'Twig\\' => 5,
+            'Tests\\' => 6,
         ),
         'S' => 
         array (
@@ -138,6 +139,10 @@ class ComposerStaticInit902480c35ff3f5f9b19e181a0d903123
         'Twig\\' => 
         array (
             0 => __DIR__ . '/..' . '/twig/twig/src',
+        ),
+        'Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/tests',
         ),
         'Symfony\\Polyfill\\Mbstring\\' => 
         array (
@@ -193,11 +198,13 @@ class ComposerStaticInit902480c35ff3f5f9b19e181a0d903123
         'App\\Controllers\\Api\\FeeApiController' => __DIR__ . '/../..' . '/app/Controllers/Api/FeeApiController.php',
         'App\\Controllers\\AssemblyController' => __DIR__ . '/../..' . '/app/Controllers/AssemblyController.php',
         'App\\Controllers\\AuthController' => __DIR__ . '/../..' . '/app/Controllers/AuthController.php',
+        'App\\Controllers\\BankAccountController' => __DIR__ . '/../..' . '/app/Controllers/BankAccountController.php',
         'App\\Controllers\\CondominiumController' => __DIR__ . '/../..' . '/app/Controllers/CondominiumController.php',
         'App\\Controllers\\DashboardController' => __DIR__ . '/../..' . '/app/Controllers/DashboardController.php',
         'App\\Controllers\\DemoController' => __DIR__ . '/../..' . '/app/Controllers/DemoController.php',
         'App\\Controllers\\DocumentController' => __DIR__ . '/../..' . '/app/Controllers/DocumentController.php',
         'App\\Controllers\\FinanceController' => __DIR__ . '/../..' . '/app/Controllers/FinanceController.php',
+        'App\\Controllers\\FinancialTransactionController' => __DIR__ . '/../..' . '/app/Controllers/FinancialTransactionController.php',
         'App\\Controllers\\FractionController' => __DIR__ . '/../..' . '/app/Controllers/FractionController.php',
         'App\\Controllers\\HomeController' => __DIR__ . '/../..' . '/app/Controllers/HomeController.php',
         'App\\Controllers\\InvitationController' => __DIR__ . '/../..' . '/app/Controllers/InvitationController.php',
@@ -205,6 +212,7 @@ class ComposerStaticInit902480c35ff3f5f9b19e181a0d903123
         'App\\Controllers\\MessageController' => __DIR__ . '/../..' . '/app/Controllers/MessageController.php',
         'App\\Controllers\\OccurrenceController' => __DIR__ . '/../..' . '/app/Controllers/OccurrenceController.php',
         'App\\Controllers\\PaymentController' => __DIR__ . '/../..' . '/app/Controllers/PaymentController.php',
+        'App\\Controllers\\ProfileController' => __DIR__ . '/../..' . '/app/Controllers/ProfileController.php',
         'App\\Controllers\\ReportController' => __DIR__ . '/../..' . '/app/Controllers/ReportController.php',
         'App\\Controllers\\ReservationController' => __DIR__ . '/../..' . '/app/Controllers/ReservationController.php',
         'App\\Controllers\\SpaceController' => __DIR__ . '/../..' . '/app/Controllers/SpaceController.php',
@@ -225,9 +233,11 @@ class ComposerStaticInit902480c35ff3f5f9b19e181a0d903123
         'App\\Core\\Utils' => __DIR__ . '/../..' . '/app/Core/Utils.php',
         'App\\Middleware\\ApiAuthMiddleware' => __DIR__ . '/../..' . '/app/Middleware/ApiAuthMiddleware.php',
         'App\\Middleware\\AuthMiddleware' => __DIR__ . '/../..' . '/app/Middleware/AuthMiddleware.php',
+        'App\\Middleware\\DemoProtectionMiddleware' => __DIR__ . '/../..' . '/app/Middleware/DemoProtectionMiddleware.php',
         'App\\Middleware\\RoleMiddleware' => __DIR__ . '/../..' . '/app/Middleware/RoleMiddleware.php',
         'App\\Models\\Assembly' => __DIR__ . '/../..' . '/app/Models/Assembly.php',
         'App\\Models\\AssemblyAttendee' => __DIR__ . '/../..' . '/app/Models/AssemblyAttendee.php',
+        'App\\Models\\BankAccount' => __DIR__ . '/../..' . '/app/Models/BankAccount.php',
         'App\\Models\\Budget' => __DIR__ . '/../..' . '/app/Models/Budget.php',
         'App\\Models\\BudgetItem' => __DIR__ . '/../..' . '/app/Models/BudgetItem.php',
         'App\\Models\\Condominium' => __DIR__ . '/../..' . '/app/Models/Condominium.php',
@@ -237,9 +247,11 @@ class ComposerStaticInit902480c35ff3f5f9b19e181a0d903123
         'App\\Models\\Expense' => __DIR__ . '/../..' . '/app/Models/Expense.php',
         'App\\Models\\Fee' => __DIR__ . '/../..' . '/app/Models/Fee.php',
         'App\\Models\\FeePayment' => __DIR__ . '/../..' . '/app/Models/FeePayment.php',
+        'App\\Models\\FinancialTransaction' => __DIR__ . '/../..' . '/app/Models/FinancialTransaction.php',
         'App\\Models\\Fraction' => __DIR__ . '/../..' . '/app/Models/Fraction.php',
         'App\\Models\\Invoice' => __DIR__ . '/../..' . '/app/Models/Invoice.php',
         'App\\Models\\Message' => __DIR__ . '/../..' . '/app/Models/Message.php',
+        'App\\Models\\MinutesSignature' => __DIR__ . '/../..' . '/app/Models/MinutesSignature.php',
         'App\\Models\\Occurrence' => __DIR__ . '/../..' . '/app/Models/Occurrence.php',
         'App\\Models\\OccurrenceComment' => __DIR__ . '/../..' . '/app/Models/OccurrenceComment.php',
         'App\\Models\\OccurrenceHistory' => __DIR__ . '/../..' . '/app/Models/OccurrenceHistory.php',
@@ -2030,6 +2042,16 @@ class ComposerStaticInit902480c35ff3f5f9b19e181a0d903123
         'Svg\\Tag\\UseTag' => __DIR__ . '/..' . '/dompdf/php-svg-lib/src/Svg/Tag/UseTag.php',
         'Symfony\\Polyfill\\Ctype\\Ctype' => __DIR__ . '/..' . '/symfony/polyfill-ctype/Ctype.php',
         'Symfony\\Polyfill\\Mbstring\\Mbstring' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/Mbstring.php',
+        'Tests\\Helpers\\TestCase' => __DIR__ . '/../..' . '/tests/Helpers/TestCase.php',
+        'Tests\\Integration\\Controllers\\AuthControllerTest' => __DIR__ . '/../..' . '/tests/Integration/Controllers/AuthControllerTest.php',
+        'Tests\\Integration\\Controllers\\ProfileControllerTest' => __DIR__ . '/../..' . '/tests/Integration/Controllers/ProfileControllerTest.php',
+        'Tests\\Integration\\Controllers\\ReservationControllerTest' => __DIR__ . '/../..' . '/tests/Integration/Controllers/ReservationControllerTest.php',
+        'Tests\\Unit\\Core\\SecurityTest' => __DIR__ . '/../..' . '/tests/Unit/Core/SecurityTest.php',
+        'Tests\\Unit\\Middleware\\AuthMiddlewareTest' => __DIR__ . '/../..' . '/tests/Unit/Middleware/AuthMiddlewareTest.php',
+        'Tests\\Unit\\Middleware\\RoleMiddlewareTest' => __DIR__ . '/../..' . '/tests/Unit/Middleware/RoleMiddlewareTest.php',
+        'Tests\\Unit\\Models\\CondominiumTest' => __DIR__ . '/../..' . '/tests/Unit/Models/CondominiumTest.php',
+        'Tests\\Unit\\Models\\UserTest' => __DIR__ . '/../..' . '/tests/Unit/Models/UserTest.php',
+        'Tests\\Unit\\Services\\FeeServiceTest' => __DIR__ . '/../..' . '/tests/Unit/Services/FeeServiceTest.php',
         'TheSeer\\Tokenizer\\Exception' => __DIR__ . '/..' . '/theseer/tokenizer/src/Exception.php',
         'TheSeer\\Tokenizer\\NamespaceUri' => __DIR__ . '/..' . '/theseer/tokenizer/src/NamespaceUri.php',
         'TheSeer\\Tokenizer\\NamespaceUriException' => __DIR__ . '/..' . '/theseer/tokenizer/src/NamespaceUriException.php',

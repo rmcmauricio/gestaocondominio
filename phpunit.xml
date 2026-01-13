@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.0/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+        executionOrder="depends,defects"
+        beStrictAboutOutputDuringTests="true"
+        failOnRisky="true"
+        failOnWarning="true">
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory suffix=".php">app</directory>
+        </include>
+        <exclude>
+            <directory>vendor</directory>
+            <directory>tests</directory>
+            <directory>cache</directory>
+            <directory>logs</directory>
+            <directory>storage</directory>
+            <directory>cli</directory>
+        </exclude>
+    </source>
+
+
+    <php>
+        <ini name="error_reporting" value="E_ALL"/>
+        <ini name="display_errors" value="1"/>
+        <ini name="display_startup_errors" value="1"/>
+        <env name="APP_ENV" value="testing"/>
+        <env name="DB_HOST" value="localhost" force="false"/>
+        <env name="DB_NAME" value="predio_test" force="false"/>
+        <env name="DB_USER" value="root" force="false"/>
+        <env name="DB_PASS" value="" force="false"/>
+    </php>
+</phpunit>
