@@ -23,6 +23,7 @@ jobs:
       - name: Deploy via rsync
         run: |
           rsync -az --delete \
+            --filter='protect .env' \
             --exclude=".env" \
             --exclude=".env.*" \
             --exclude=".git/" \
@@ -32,26 +33,36 @@ jobs:
             ./ \
             root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html/test
 
-      - name: Composer, migrations, seed e testes
+      - name: Composer install
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
             set -e
-
             cd /home/cantiflas/web/omeupredio.com/public_html/test
             export COMPOSER_ALLOW_SUPERUSER=1
-
-            echo "📦 Composer install"
             composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+          EOF
 
-            echo "🗄️  Migrations"
+      - name: Migrations
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
+            set -e
+            cd /home/cantiflas/web/omeupredio.com/public_html/test
             php cli/migrate.php
+          EOF
 
-            echo "🌱 Seed"
+      - name: Seed
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
+            set -e
+            cd /home/cantiflas/web/omeupredio.com/public_html/test
             php cli/seed.php
+          EOF
 
-            echo "🧪 Testes"
+      - name: Tests
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
+            set -e
+            cd /home/cantiflas/web/omeupredio.com/public_html/test
             composer test
-
-            echo "🔐 Corrigir ownership"
             chown -R cantiflas:cantiflas /home/cantiflas/web/omeupredio.com/public_html/test
           EOF
