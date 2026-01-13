@@ -1,11 +1,11 @@
-name: Deploy omeupredio.com (PROD)
+name: Deploy omeupredio.com (TEST)
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
-  deploy_prod:
+  deploy_test:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,7 +20,7 @@ jobs:
           ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
           ssh-keyscan -p 22 -H omeupredio.com >> ~/.ssh/known_hosts
 
-      - name: Deploy via rsync (PROD)
+      - name: Deploy via rsync (TEST)
         run: |
           rsync -az --delete \
             --filter='protect .env' \
@@ -33,19 +33,22 @@ jobs:
             --exclude=".user.ini" \
             -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             ./ \
-            root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html
+            root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html/test
 
-      - name: Composer + migrate (PROD, sem testes)
+      - name: Composer + migrate + seed + demo + tests (TEST)
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
             set -e
-            cd /home/cantiflas/web/omeupredio.com/public_html
+            cd /home/cantiflas/web/omeupredio.com/public_html/test
 
-            # sem deps de dev em produção
-            sudo -u cantiflas -H composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+            # DEV deps para phpunit
+            sudo -u cantiflas -H composer install --no-interaction --prefer-dist --optimize-autoloader
 
-            # migrations em prod (se quiseres manter)
             sudo -u cantiflas -H php cli/migrate.php
+            sudo -u cantiflas -H php cli/seed.php
+            sudo -u cantiflas -H php cli/restore-demo.php
 
-            chown -R cantiflas:cantiflas /home/cantiflas/web/omeupredio.com/public_html
+            sudo -u cantiflas -H composer test
+
+            chown -R cantiflas:cantiflas /home/cantiflas/web/omeupredio.com/public_html/test
           EOF
