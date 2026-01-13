@@ -1,29 +1,23 @@
-name: Deploy via rsync para omeupredio.com (test)
+name: Deploy omeupredio.com (test)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup SSH
         shell: bash
         run: |
           mkdir -p ~/.ssh
-
-          # escrever chave a partir de Base64 (evita problemas de CRLF/newlines)
           echo "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | base64 -d > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-
-          # valida a chave (se falhar aqui, o secret está mal)
           ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
-
           ssh-keyscan -p 22 -H omeupredio.com >> ~/.ssh/known_hosts
 
       - name: Deploy via rsync
@@ -38,14 +32,26 @@ jobs:
             ./ \
             root@omeupredio.com:/home/cantiflas/web/omeupredio.com/public_html/test
 
-      - name: Composer install no servidor
+      - name: Composer, migrations, seed e testes
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@omeupredio.com << 'EOF'
             set -e
+
             cd /home/cantiflas/web/omeupredio.com/public_html/test
             export COMPOSER_ALLOW_SUPERUSER=1
+
+            echo "📦 Composer install"
             composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
 
-            # garantir owner correto para o site (Hestia)
+            echo "🗄️  Migrations"
+            php cli/migrate.php
+
+            echo "🌱 Seed"
+            php cli/seed.php
+
+            echo "🧪 Testes"
+            composer test
+
+            echo "🔐 Corrigir ownership"
             chown -R cantiflas:cantiflas /home/cantiflas/web/omeupredio.com/public_html/test
           EOF
