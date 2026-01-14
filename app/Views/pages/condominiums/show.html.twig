@@ -86,7 +86,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Contas Bancárias e Caixa -->
                 <div class="col-12 col-lg-6">
                     {% if bank_accounts %}
@@ -141,7 +141,7 @@
                     {% endif %}
                 </div>
             </div>
-            
+
             <!-- Estatísticas -->
             <div class="row g-3 mt-4">
                 <div class="col-12">
@@ -212,7 +212,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Condóminos -->
             {% if condominium_users %}
             <div class="card shadow-sm mb-4">
@@ -246,7 +246,7 @@
                                     <td>{{ resident.email }}</td>
                                     <td>{{ resident.phone|default('-') }}</td>
                                     <td>
-                                        <span class="badge 
+                                        <span class="badge
                                             {% if resident.role == 'admin' %}bg-danger
                                             {% elseif resident.role == 'proprietario' %}bg-primary
                                             {% elseif resident.role == 'arrendatario' %}bg-info
@@ -270,13 +270,13 @@
             </div>
             {% endif %}
         </div>
-        
+
         <!-- Mapa de Quotas - Full Width -->
         <div class="col-12">
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-success text-white">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <h5 class="mb-0">Mapa de Quotas</h5>
+                        <h5 class="mb-0 text-light">Quotas</h5>
                         <div class="d-flex align-items-center gap-2">
                             <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="d-inline" id="feesYearForm">
                                 <select name="fees_year" id="fees_year" class="form-select form-select-sm" onchange="this.form.submit()" style="width: auto; display: inline-block;">
@@ -286,7 +286,7 @@
                                 </select>
                             </form>
                             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees?year={{ selected_fees_year }}" class="btn btn-sm btn-outline-light" title="Ver todas as quotas deste ano">
-                                <i class="bi bi-list-ul"></i> Ver Quotas
+                                <i class="bi bi-list-ul"></i> Ver
                             </a>
                         </div>
                     </div>
@@ -297,47 +297,48 @@
                         <table class="table table-sm table-bordered table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th class="text-center" style="min-width: 100px;">Mês</th>
-                                    {% for fraction in fractions %}
-                                    <th class="text-center" style="min-width: 80px;">{{ fraction.identifier }}</th>
+                                    <th class="text-center fw-bold" style="min-width: 100px;">Fração</th>
+                                    {% for month in 1..12 %}
+                                    <th class="text-center" style="min-width: 60px;">{{ month_names[month][:3] }}</th>
                                     {% endfor %}
-                                    <th class="text-center" style="min-width: 100px;">Total</th>
+                                    <th class="text-center fw-bold" style="min-width: 100px;">Total</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for month in 1..12 %}
+                                {% for fraction in fractions %}
                                 <tr>
-                                    <td class="fw-bold">{{ month_names[month] }}</td>
-                                    {% set month_total = 0 %}
-                                    {% set month_data = fees_map[month]|default({}) %}
-                                    {% for fraction in fractions %}
-                                    {% set fee = month_data[fraction.id]|default(null) %}
-                                    {% set is_overdue = fee and fee.is_overdue|default(false) %}
-                                    <td class="text-center {% if fee %}fee-cell{% if is_overdue %} table-danger{% elseif fee.status == 'paid' %} table-success{% elseif fee.status == 'pending' %} table-warning{% endif %}{% endif %}" 
-                                        {% if fee %}style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})"{% endif %}
-                                        {% if fee %}title="{% if is_overdue %}⚠️ Em Atraso - {% endif %}Fração: {{ fee.fraction_identifier }} | {{ month_names[month] }}/{{ selected_fees_year }}{% if fee.due_date %} | Vencimento: {{ fee.due_date|date('d/m/Y') }}{% endif %}{% if fee.paid_amount > 0 %} | Pago: €{{ fee.paid_amount|number_format(2, ',', '.') }}{% endif %}"{% endif %}>
+                                    <td class="fw-bold text-center">
+                                        <span class="badge bg-secondary">{{ fraction.identifier }}</span>
+                                    </td>
+                                    {% set fraction_total = 0 %}
+                                    {% for month in 1..12 %}
+                                        {% set month_data = fees_map[month]|default({}) %}
+                                        {% set fee = month_data[fraction.id]|default(null) %}
+                                        {% set is_overdue = fee and fee.is_overdue|default(false) %}
                                         {% if fee %}
-                                            {% set month_total = month_total + fee.amount %}
-                                            <div class="d-flex flex-column align-items-center">
-                                                <span class="{% if fee.status == 'paid' %}text-success fw-bold{% elseif is_overdue %}text-danger fw-bold{% elseif fee.status == 'pending' %}text-warning{% else %}text-muted{% endif %}">
-                                                    {% if is_overdue %}<i class="bi bi-exclamation-triangle-fill"></i> {% endif %}€{{ fee.amount|number_format(2, ',', '.') }}
-                                                </span>
-                                                {% if fee.paid_amount > 0 and fee.paid_amount < fee.amount %}
-                                                <small class="text-info">(€{{ fee.paid_amount|number_format(2, ',', '.') }} pago)</small>
-                                                {% elseif fee.status == 'paid' %}
-                                                <small class="text-success"><i class="bi bi-check-circle-fill"></i> Pago</small>
-                                                {% elseif is_overdue %}
-                                                <small class="text-danger"><i class="bi bi-exclamation-circle"></i> Em Atraso</small>
-                                                {% endif %}
-                                            </div>
+                                            {% set fraction_total = fraction_total + fee.amount %}
+                                        {% endif %}
+                                    <td class="text-center align-middle {% if fee %}fee-cell{% if is_overdue %} table-danger{% elseif fee.status == 'paid' %} table-success{% elseif fee.status == 'pending' %} table-warning{% endif %}{% endif %}"
+                                        {% if fee %}style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})"{% endif %}
+                                        {% if fee %}title="{% if is_overdue %}⚠️ Em Atraso - {% endif %}Fração: {{ fee.fraction_identifier }} | {{ month_names[month] }}/{{ selected_fees_year }}{% if fee.due_date %} | Vencimento: {{ fee.due_date|date('d/m/Y') }}{% endif %}{% if fee.paid_amount > 0 %} | Pago: €{{ fee.paid_amount|number_format(2, ',', '.') }}{% endif %} | Valor: €{{ fee.amount|number_format(2, ',', '.') }}"{% endif %}>
+                                        {% if fee %}
+                                            {% if fee.status == 'paid' %}
+                                                <i class="bi bi-check-circle-fill text-success" style="font-size: 1.2rem;" title="Pago"></i>
+                                            {% elseif is_overdue %}
+                                                <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 1.2rem;" title="Em Atraso"></i>
+                                            {% elseif fee.status == 'pending' %}
+                                                <i class="bi bi-clock-history text-warning" style="font-size: 1.2rem;" title="Pendente"></i>
+                                            {% else %}
+                                                <i class="bi bi-circle text-muted" style="font-size: 1.2rem;" title="Sem status"></i>
+                                            {% endif %}
                                         {% else %}
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
                                     {% endfor %}
-                                    <td class="text-center fw-bold">
-                                        {% if month_total > 0 %}
-                                        €{{ month_total|number_format(2, ',', '.') }}
+                                    <td class="text-center fw-bold align-middle">
+                                        {% if fraction_total > 0 %}
+                                        €{{ fraction_total|number_format(2, ',', '.') }}
                                         {% else %}
                                         <span class="text-muted">-</span>
                                         {% endif %}
@@ -345,36 +346,6 @@
                                 </tr>
                                 {% endfor %}
                             </tbody>
-                            <tfoot class="table-light">
-                                <tr>
-                                    <td class="fw-bold">Total Anual</td>
-                                    {% set grand_total = 0 %}
-                                    {% for fraction in fractions %}
-                                        {% set fraction_total = 0 %}
-                                        {% for month in 1..12 %}
-                                            {% set month_data = fees_map[month]|default({}) %}
-                                            {% if month_data[fraction.id]|default(null) %}
-                                                {% set fraction_total = fraction_total + month_data[fraction.id].amount %}
-                                            {% endif %}
-                                        {% endfor %}
-                                        {% set grand_total = grand_total + fraction_total %}
-                                    <td class="text-center fw-bold">
-                                        {% if fraction_total > 0 %}
-                                        €{{ fraction_total|number_format(2, ',', '.') }}
-                                        {% else %}
-                                        <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    {% endfor %}
-                                    <td class="text-center fw-bold">
-                                        {% if grand_total > 0 %}
-                                        €{{ grand_total|number_format(2, ',', '.') }}
-                                        {% else %}
-                                        <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                            </tfoot>
                         </table>
                     </div>
                     {% else %}
@@ -384,11 +355,11 @@
                     {% endif %}
                     <div class="p-3 pt-0">
                         <small class="text-muted">
-                            <i class="bi bi-info-circle"></i> 
-                            <strong>Legenda:</strong> 
-                            <span class="badge bg-success">Pago</span> 
-                            <span class="badge bg-warning">Pendente</span> 
-                            <span class="badge bg-danger">Em Atraso</span> 
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Legenda:</strong>
+                            <span class="badge bg-success">Pago</span>
+                            <span class="badge bg-warning">Pendente</span>
+                            <span class="badge bg-danger">Em Atraso</span>
                             | Clique numa célula para ver detalhes da quota
                         </small>
                     </div>
@@ -424,11 +395,11 @@
 function showFeeDetails(feeId) {
     const modal = new bootstrap.Modal(document.getElementById('feeDetailsModal'));
     const contentDiv = document.getElementById('feeDetailsContent');
-    
+
     // Show loading
     contentDiv.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">A carregar...</span></div></div>';
     modal.show();
-    
+
     fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)
         .then(response => response.json())
         .then(data => {
@@ -436,12 +407,12 @@ function showFeeDetails(feeId) {
                 contentDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
                 return;
             }
-            
+
             const pendingAmount = data.pending_amount;
             const totalAmount = data.total_amount;
             const paidAmount = data.total_paid;
             const payments = data.payments || [];
-            
+
             let paymentsHtml = '';
             if (payments.length > 0) {
                 paymentsHtml = `
@@ -473,12 +444,12 @@ function showFeeDetails(feeId) {
             } else {
                 paymentsHtml = '<p class="text-muted">Nenhum pagamento registado.</p>';
             }
-            
+
             const dueDate = data.fee.due_date ? new Date(data.fee.due_date).toLocaleDateString('pt-PT') : '-';
-            const period = data.fee.period_month ? 
-                `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][data.fee.period_month - 1]}/${data.fee.period_year}` : 
+            const period = data.fee.period_month ?
+                `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][data.fee.period_month - 1]}/${data.fee.period_year}` :
                 data.fee.period_year;
-            
+
             contentDiv.innerHTML = `
                 <div class="row mb-3">
                     <div class="col-md-6">

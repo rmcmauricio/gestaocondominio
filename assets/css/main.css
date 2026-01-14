@@ -1079,6 +1079,25 @@ a:hover .card-hover .text-primary {
   .card-header.d-flex > div:last-child .btn {
     width: 100%;
   }
+  
+  /* Exception: Fees map header sempre inline em todas as telas */
+  .card-header.bg-success .d-flex.justify-content-between {
+    flex-direction: row !important;
+    align-items: center !important;
+  }
+  
+  .card-header.bg-success .d-flex.justify-content-between > div:last-child {
+    width: auto;
+    flex-direction: row;
+  }
+  
+  .card-header.bg-success .d-flex.justify-content-between > div:last-child .btn {
+    width: auto;
+  }
+  
+  .card-header.bg-success form {
+    display: inline-block;
+  }
 }
 
 /* Tablets */
@@ -1098,6 +1117,25 @@ a:hover .card-hover .text-primary {
     flex: 0 0 100%;
     max-width: 100%;
   }
+  
+  /* Fees map header: manter inline */
+  .card-header.bg-success .d-flex.justify-content-between {
+    flex-direction: row !important;
+    align-items: center !important;
+  }
+  
+  .card-header.bg-success .d-flex.justify-content-between > div:last-child {
+    width: auto;
+    flex-direction: row;
+  }
+  
+  .card-header.bg-success .d-flex.justify-content-between > div:last-child .btn {
+    width: auto;
+  }
+  
+  .card-header.bg-success form {
+    display: inline-block;
+  }
 }
 
 /* Tablets and smaller */
@@ -1110,10 +1148,20 @@ a:hover .card-hover .text-primary {
   .container {
     overflow-x: hidden;
   }
+  
+  /* Exception: container with fees-map-table needs to allow overflow */
+  .container:has(.fees-map-table) {
+    overflow-x: visible;
+  }
 
   /* Force table-responsive to show cards instead */
   .table-responsive {
     overflow-x: visible !important;
+  }
+
+  /* Exception: fees-map-table needs horizontal scroll */
+  .fees-map-table {
+    overflow-x: auto !important;
   }
 
   /* Ensure cards take full width on tablets */
@@ -1148,6 +1196,17 @@ a:hover .card-hover .text-primary {
   .table-responsive {
     overflow-x: visible !important;
   }
+  
+  /* Exception: fees-map-table needs horizontal scroll */
+  .fees-map-table {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Allow overflow for card-body containing fees-map-table */
+  .card-body:has(.fees-map-table) {
+    overflow-x: visible !important;
+  }
 
   /* Ensure all text breaks properly */
   code {
@@ -1160,9 +1219,37 @@ a:hover .card-hover .text-primary {
   * {
     max-width: 100%;
   }
+  
+  /* Exception: fees-map-table and its children - mas não nas colunas sticky */
+  .fees-map-table {
+    max-width: none;
+  }
+  
+  .fees-map-table table {
+    max-width: none;
+  }
+  
+  /* Não aplicar max-width: none nas colunas sticky */
+  .fees-map-table thead th:first-child,
+  .fees-map-table tbody td:first-child,
+  .fees-map-table thead th:last-child,
+  .fees-map-table tbody td:last-child {
+    max-width: initial;
+  }
+  
+  /* Aplicar max-width: none apenas nas colunas dos meses */
+  .fees-map-table th:not(:first-child):not(:last-child),
+  .fees-map-table td:not(:first-child):not(:last-child) {
+    max-width: none;
+  }
 
   .card-body {
     overflow-x: hidden;
+  }
+  
+  /* Exception for card-body with fees-map-table */
+  .card-body:has(.fees-map-table) {
+    overflow-x: visible !important;
   }
 
   .row.g-4 > * {
@@ -1229,39 +1316,7 @@ a:hover .card-hover .text-primary {
   .table-responsive {
     font-size: 0.875rem;
   }
-  
-  /* Fees map table - better responsive handling */
-  .fees-map-table {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    max-width: 100%;
-  }
-  
-  .fees-map-table table {
-    min-width: 600px;
-    width: 100%;
-  }
-  
-  .fees-map-table th,
-  .fees-map-table td {
-    white-space: nowrap;
-    padding: 0.5rem 0.25rem;
-    font-size: 0.8rem;
-  }
-  
-  @media (min-width: 768px) {
-    .fees-map-table th,
-    .fees-map-table td {
-      padding: 0.75rem 0.5rem;
-      font-size: 0.875rem;
-    }
-  }
-  
-  @media (min-width: 992px) {
-    .fees-map-table table {
-      min-width: auto;
-    }
-  }
+}
 
   .btn {
     padding: 0.5rem 1rem;
@@ -1296,6 +1351,46 @@ a:hover .card-hover .text-primary {
 
 .account-card .card-body {
   padding: 1.25rem;
+}
+
+/* Todas as telas menores que desktop: aplicar sticky columns */
+@media (max-width: 991px) {
+  .fees-map-table table {
+    width: max-content !important;
+    display: table;
+  }
+  
+  /* Primeira coluna (Fração) sticky */
+  .fees-map-table thead th:first-child,
+  .fees-map-table tbody td:first-child {
+    position: sticky;
+    left: 0;
+    background: white;
+    z-index: 10;
+    box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+    min-width: 70px;
+  }
+  
+  .fees-map-table thead th:first-child {
+    background: #f8f9fa;
+    z-index: 11;
+  }
+  
+  /* Última coluna (Total) sticky */
+  .fees-map-table thead th:last-child,
+  .fees-map-table tbody td:last-child {
+    position: sticky;
+    right: 0;
+    background: white;
+    z-index: 10;
+    box-shadow: -2px 0 4px rgba(0,0,0,0.1);
+    min-width: 80px;
+  }
+  
+  .fees-map-table thead th:last-child {
+    background: #f8f9fa;
+    z-index: 11;
+  }
 }
 
 /* Additional responsive utilities */
