@@ -274,4 +274,68 @@ class Receipt extends Model
         $stmt = $this->db->prepare("DELETE FROM {$this->table} WHERE condominium_id IN ($placeholders)");
         return $stmt->execute($condominiumIds);
     }
+
+    /**
+     * Get available years for receipts in a condominium
+     */
+    public function getAvailableYears(int $condominiumId): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT DISTINCT f.period_year as year
+            FROM {$this->table} r
+            LEFT JOIN fees f ON f.id = r.fee_id
+            WHERE r.condominium_id = :condominium_id
+            AND r.receipt_type = 'final'
+            AND f.period_year IS NOT NULL
+            ORDER BY f.period_year DESC
+        ");
+        $stmt->execute([':condominium_id' => $condominiumId]);
+        $results = $stmt->fetchAll() ?: [];
+        
+        $years = [];
+        foreach ($results as $result) {
+            if ($result['year']) {
+                $years[] = (int)$result['year'];
+            }
+        }
+        
+        return $years;
+    }
+
+    /**
+     * Get available years for receipts by user
+     */
+    public function getAvailableYearsByUser(int $userId): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT DISTINCT f.period_year as year
+            FROM {$this->table} r
+            LEFT JOIN fees f ON f.id = r.fee_id
+            INNER JOIN condominium_users cu ON cu.condominium_id = r.condominium_id AND cu.fraction_id = r.fraction_id
+            WHERE cu.user_id = :user_id
+            AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+            AND r.receipt_type = 'final'
+            AND f.period_year IS NOT NULL
+            ORDER BY f.period_year DESC
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        $results = $stmt->fetchAll() ?: [];
+        
+        $years = [];
+        foreach ($results as $result) {
+            if ($result['year']) {
+                $years[] = (int)$result['year'];
+            }
+        }
+        
+        return $years;
+    }
 }

@@ -63,11 +63,13 @@
                 <div class="col-12 col-sm-6 col-md-3">
                     <label for="year" class="form-label">Ano</label>
                     <select class="form-select form-select-sm" id="year" name="year">
+                        <option value="">Todos</option>
+                        {% if available_years is not empty %}
                         {% for y in available_years %}
                         <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
                         {% endfor %}
-                        {% if available_years is empty %}
-                        <option value="{{ 'now'|date('Y') }}">{{ 'now'|date('Y') }}</option>
+                        {% else %}
+                        <option value="{{ 'now'|date('Y') }}" {% if selected_year == 'now'|date('Y') %}selected{% endif %}>{{ 'now'|date('Y') }}</option>
                         {% endif %}
                     </select>
                 </div>

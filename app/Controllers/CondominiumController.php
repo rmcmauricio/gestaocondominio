@@ -8,6 +8,7 @@ use App\Middleware\AuthMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Models\Condominium;
 use App\Models\Subscription;
+use App\Models\User;
 use App\Services\SubscriptionService;
 
 class CondominiumController extends Controller
@@ -113,6 +114,9 @@ class CondominiumController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($id);
+
+        // Update session with current condominium ID
+        $_SESSION['current_condominium_id'] = $id;
 
         $condominium = $this->condominiumModel->getWithStats($id);
         
@@ -303,6 +307,12 @@ class CondominiumController extends Controller
             'month_names' => $monthNames
         ];
 
+        // Update session with current condominium ID
+        $_SESSION['current_condominium_id'] = $id;
+        
+        // Re-merge global data to ensure sidebar uses correct condominium
+        $this->data = $this->mergeGlobalData($this->data);
+
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
     }
 
@@ -426,6 +436,63 @@ class CondominiumController extends Controller
         }
 
         header('Location: ' . BASE_URL . 'condominiums');
+        exit;
+    }
+
+    /**
+     * Switch to a different condominium
+     */
+    public function switch(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($id);
+
+        $condominium = $this->condominiumModel->findById($id);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'dashboard');
+            exit;
+        }
+
+        // Set current condominium in session
+        $_SESSION['current_condominium_id'] = $id;
+
+        // Redirect to condominium overview
+        header('Location: ' . BASE_URL . 'condominiums/' . $id);
+        exit;
+    }
+
+    /**
+     * Set condominium as default for user
+     */
+    public function setDefault(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($id);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id);
+            exit;
+        }
+
+        $userId = AuthMiddleware::userId();
+        $userModel = new User();
+        
+        if ($userModel->setDefaultCondominium($userId, $id)) {
+            $_SESSION['current_condominium_id'] = $id;
+            $_SESSION['success'] = 'Condomínio definido como padrão!';
+        } else {
+            $_SESSION['error'] = 'Erro ao definir condomínio padrão.';
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $id);
         exit;
     }
 }

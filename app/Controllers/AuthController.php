@@ -492,8 +492,75 @@ class AuthController extends Controller
             exit;
         }
 
+        $userId = $_SESSION['user']['id'];
         $role = $_SESSION['user']['role'];
         
+        // Get user's condominiums
+        $userCondominiums = [];
+        if ($role === 'admin' || $role === 'super_admin') {
+            $condominiumModel = new \App\Models\Condominium();
+            $userCondominiums = $condominiumModel->getByUserId($userId);
+        } else {
+            $condominiumUserModel = new \App\Models\CondominiumUser();
+            $userCondominiumsList = $condominiumUserModel->getUserCondominiums($userId);
+            $condominiumModel = new \App\Models\Condominium();
+            foreach ($userCondominiumsList as $uc) {
+                $condo = $condominiumModel->findById($uc['condominium_id']);
+                if ($condo && !in_array($condo['id'], array_column($userCondominiums, 'id'))) {
+                    $userCondominiums[] = $condo;
+                }
+            }
+        }
+        
+        // If user has only one condominium, set it as default automatically
+        if (count($userCondominiums) === 1) {
+            $userModel = new \App\Models\User();
+            $userModel->setDefaultCondominium($userId, $userCondominiums[0]['id']);
+            $_SESSION['current_condominium_id'] = $userCondominiums[0]['id'];
+            header('Location: ' . BASE_URL . 'condominiums/' . $userCondominiums[0]['id']);
+            exit;
+        }
+        
+        // Get user's default condominium
+        $userModel = new \App\Models\User();
+        $defaultCondominiumId = $userModel->getDefaultCondominiumId($userId);
+        
+        // If user has a default condominium, redirect there
+        if ($defaultCondominiumId) {
+            // Verify user still has access
+            if ($role === 'admin' || $role === 'super_admin') {
+                global $db;
+                $stmt = $db->prepare("SELECT id FROM condominiums WHERE id = :condominium_id AND user_id = :user_id");
+                $stmt->execute([
+                    ':condominium_id' => $defaultCondominiumId,
+                    ':user_id' => $userId
+                ]);
+                if ($stmt->fetch()) {
+                    $_SESSION['current_condominium_id'] = $defaultCondominiumId;
+                    header('Location: ' . BASE_URL . 'condominiums/' . $defaultCondominiumId);
+                    exit;
+                }
+            } else {
+                global $db;
+                $stmt = $db->prepare("
+                    SELECT id FROM condominium_users 
+                    WHERE user_id = :user_id 
+                    AND condominium_id = :condominium_id
+                    AND (ended_at IS NULL OR ended_at > CURDATE())
+                ");
+                $stmt->execute([
+                    ':user_id' => $userId,
+                    ':condominium_id' => $defaultCondominiumId
+                ]);
+                if ($stmt->fetch()) {
+                    $_SESSION['current_condominium_id'] = $defaultCondominiumId;
+                    header('Location: ' . BASE_URL . 'condominiums/' . $defaultCondominiumId);
+                    exit;
+                }
+            }
+        }
+        
+        // Fallback to dashboard
         switch ($role) {
             case 'super_admin':
                 header('Location: ' . BASE_URL . 'admin');

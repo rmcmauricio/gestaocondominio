@@ -240,6 +240,13 @@ class DemoSeeder
             $this->demoCondominiumIds[] = $condominiumId;
             echo "   Condomínio demo '{$data['name']}' criado (ID: {$condominiumId})\n";
         }
+        
+        // Set first condominium as default for demo user
+        if (!empty($this->demoCondominiumIds)) {
+            $userModel = new User();
+            $userModel->setDefaultCondominium($this->demoUserId, $this->demoCondominiumIds[0]);
+            echo "   Condomínio padrão definido para o utilizador demo (ID: {$this->demoCondominiumIds[0]})\n";
+        }
     }
 
     /**

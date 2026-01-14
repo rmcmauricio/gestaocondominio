@@ -8,6 +8,7 @@ use App\Middleware\RoleMiddleware;
 use App\Models\Receipt;
 use App\Models\Condominium;
 use App\Models\Fraction;
+use App\Models\CondominiumUser;
 
 class ReceiptController extends Controller
 {
@@ -38,8 +39,8 @@ class ReceiptController extends Controller
         }
 
         // Get filters
-        $fractionId = isset($_GET['fraction_id']) ? (int)$_GET['fraction_id'] : null;
-        $year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
+        $fractionId = isset($_GET['fraction_id']) && $_GET['fraction_id'] !== '' ? (int)$_GET['fraction_id'] : null;
+        $year = isset($_GET['year']) && $_GET['year'] !== '' ? (int)$_GET['year'] : null;
 
         $filters = [];
         if ($fractionId) {
@@ -57,21 +58,18 @@ class ReceiptController extends Controller
         $fractionModel = new Fraction();
         $fractions = $fractionModel->getByCondominiumId($condominiumId);
 
-        // Get available years
-        $years = [];
-        foreach ($receipts as $receipt) {
-            if ($receipt['period_year']) {
-                $years[$receipt['period_year']] = $receipt['period_year'];
-            }
+        // Get available years from database (not just from filtered receipts)
+        $years = $this->receiptModel->getAvailableYears($condominiumId);
+        if (empty($years)) {
+            $years = [date('Y')];
         }
-        rsort($years);
 
         $this->data += [
             'condominium' => $condominium,
             'receipts' => $receipts,
             'fractions' => $fractions,
             'selected_fraction_id' => $fractionId,
-            'selected_year' => $year,
+            'selected_year' => $year ?? date('Y'),
             'available_years' => $years,
             'is_admin' => true,
             'viewName' => 'pages/receipts/index.html.twig'
@@ -95,8 +93,8 @@ class ReceiptController extends Controller
         }
 
         // Get filters
-        $condominiumId = isset($_GET['condominium_id']) ? (int)$_GET['condominium_id'] : null;
-        $year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
+        $condominiumId = isset($_GET['condominium_id']) && $_GET['condominium_id'] !== '' ? (int)$_GET['condominium_id'] : null;
+        $year = isset($_GET['year']) && $_GET['year'] !== '' ? (int)$_GET['year'] : null;
 
         $filters = [];
         if ($condominiumId) {
@@ -110,31 +108,42 @@ class ReceiptController extends Controller
 
         $receipts = $this->receiptModel->getByUser($userId, $filters);
 
-        // Get condominiums for filter
+        // Get condominiums for filter - get all user condominiums, not just from receipts
+        $condominiumUserModel = new CondominiumUser();
+        $userCondominiums = $condominiumUserModel->getUserCondominiums($userId);
+        
         $condominiums = [];
-        foreach ($receipts as $receipt) {
-            if (!isset($condominiums[$receipt['condominium_id']])) {
-                $condominium = $this->condominiumModel->findById($receipt['condominium_id']);
+        foreach ($userCondominiums as $uc) {
+            if (!isset($condominiums[$uc['condominium_id']])) {
+                $condominium = $this->condominiumModel->findById($uc['condominium_id']);
                 if ($condominium) {
-                    $condominiums[$receipt['condominium_id']] = $condominium;
+                    $condominiums[$uc['condominium_id']] = $condominium;
+                }
+            }
+        }
+        
+        // If user is admin, also get condominiums they own
+        $user = AuthMiddleware::user();
+        if (RoleMiddleware::isAdmin() || ($user['role'] ?? '') === 'super_admin') {
+            $adminCondominiums = $this->condominiumModel->getByUserId($userId);
+            foreach ($adminCondominiums as $condominium) {
+                if (!isset($condominiums[$condominium['id']])) {
+                    $condominiums[$condominium['id']] = $condominium;
                 }
             }
         }
 
-        // Get available years
-        $years = [];
-        foreach ($receipts as $receipt) {
-            if ($receipt['period_year']) {
-                $years[$receipt['period_year']] = $receipt['period_year'];
-            }
+        // Get available years from database (not just from filtered receipts)
+        $years = $this->receiptModel->getAvailableYearsByUser($userId);
+        if (empty($years)) {
+            $years = [date('Y')];
         }
-        rsort($years);
 
         $this->data += [
             'receipts' => $receipts,
             'condominiums' => $condominiums,
             'selected_condominium_id' => $condominiumId,
-            'selected_year' => $year,
+            'selected_year' => $year ?? date('Y'),
             'available_years' => $years,
             'is_admin' => false,
             'viewName' => 'pages/receipts/index.html.twig'

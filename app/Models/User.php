@@ -369,5 +369,69 @@ class User extends Model
             'last_used_at' => $result['api_key_last_used_at']
         ];
     }
+
+    /**
+     * Set default condominium for user
+     */
+    public function setDefaultCondominium(int $userId, int $condominiumId): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        // Verify user has access to this condominium
+        $user = $this->findById($userId);
+        if (!$user) {
+            return false;
+        }
+
+        // Check if user is admin and owns the condominium
+        if ($user['role'] === 'admin' || $user['role'] === 'super_admin') {
+            global $db;
+            $stmt = $db->prepare("SELECT id FROM condominiums WHERE id = :condominium_id AND user_id = :user_id");
+            $stmt->execute([
+                ':condominium_id' => $condominiumId,
+                ':user_id' => $userId
+            ]);
+            if (!$stmt->fetch()) {
+                return false;
+            }
+        } else {
+            // Check if user is associated with this condominium
+            global $db;
+            $stmt = $db->prepare("
+                SELECT id FROM condominium_users 
+                WHERE user_id = :user_id 
+                AND condominium_id = :condominium_id
+                AND (ended_at IS NULL OR ended_at > CURDATE())
+            ");
+            $stmt->execute([
+                ':user_id' => $userId,
+                ':condominium_id' => $condominiumId
+            ]);
+            if (!$stmt->fetch()) {
+                return false;
+            }
+        }
+
+        $stmt = $this->db->prepare("UPDATE users SET default_condominium_id = :condominium_id WHERE id = :user_id");
+        return $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':user_id' => $userId
+        ]);
+    }
+
+    /**
+     * Get default condominium ID for user
+     */
+    public function getDefaultCondominiumId(int $userId): ?int
+    {
+        if (!$this->db) {
+            return null;
+        }
+
+        $user = $this->findById($userId);
+        return $user['default_condominium_id'] ?? null;
+    }
 }
 

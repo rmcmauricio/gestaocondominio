@@ -125,6 +125,8 @@ class Controller
         $unreadNotificationsCount = 0;
         $isDemoUser = false;
         $demoProfile = null;
+        $condominium = null;
+        $userCondominiums = [];
         
         if (!empty($_SESSION['user'])) {
             $demoBannerMessage = \App\Middleware\DemoProtectionMiddleware::getDemoBannerMessage();
@@ -152,6 +154,99 @@ class Controller
                     }
                 }
             }
+
+            // Determine current condominium
+            $userId = $_SESSION['user']['id'] ?? null;
+            $userRole = $_SESSION['user']['role'] ?? 'condomino';
+            
+            if ($userId) {
+                // Priority: URL parameter (from $data['condominium']) > Session > Default
+                // If condominium is passed in data (from URL), it takes priority
+                $currentCondominiumId = null;
+                
+                if (isset($data['condominium']) && isset($data['condominium']['id'])) {
+                    // URL parameter has highest priority - user explicitly selected a condominium
+                    $currentCondominiumId = $data['condominium']['id'];
+                    // Always update session when condominium comes from URL
+                    $_SESSION['current_condominium_id'] = $currentCondominiumId;
+                } else {
+                    // If not in URL, check session
+                    $currentCondominiumId = $_SESSION['current_condominium_id'] ?? null;
+                    
+                    // If still not set, get user's default condominium
+                    if (!$currentCondominiumId) {
+                        $userModel = new \App\Models\User();
+                        $currentCondominiumId = $userModel->getDefaultCondominiumId($userId);
+                        // Update session with default condominium
+                        if ($currentCondominiumId) {
+                            $_SESSION['current_condominium_id'] = $currentCondominiumId;
+                        }
+                    }
+                }
+                
+                // Get all user condominiums for dropdown
+                if ($userRole === 'admin' || $userRole === 'super_admin') {
+                    $condominiumModel = new \App\Models\Condominium();
+                    $userCondominiums = $condominiumModel->getByUserId($userId);
+                } else {
+                    $condominiumUserModel = new \App\Models\CondominiumUser();
+                    $userCondominiumsList = $condominiumUserModel->getUserCondominiums($userId);
+                    $condominiumModel = new \App\Models\Condominium();
+                    $userCondominiums = [];
+                    foreach ($userCondominiumsList as $uc) {
+                        $condo = $condominiumModel->findById($uc['condominium_id']);
+                        if ($condo && !in_array($condo['id'], array_column($userCondominiums, 'id'))) {
+                            $userCondominiums[] = $condo;
+                        }
+                    }
+                }
+                
+                // If still not set, get first available condominium
+                if (!$currentCondominiumId && !empty($userCondominiums)) {
+                    $currentCondominiumId = $userCondominiums[0]['id'];
+                    
+                    // If user has only one condominium, set it as default automatically
+                    if (count($userCondominiums) === 1) {
+                        $userModel = new \App\Models\User();
+                        $userModel->setDefaultCondominium($userId, $currentCondominiumId);
+                    }
+                }
+                
+                // Get current condominium details for sidebar
+                if ($currentCondominiumId) {
+                    $condominiumModel = new \App\Models\Condominium();
+                    // Use the determined condominium ID (from URL, session, or default)
+                    $condominium = $condominiumModel->findById($currentCondominiumId);
+                    // Ensure session is always set with the current condominium
+                    $_SESSION['current_condominium_id'] = $currentCondominiumId;
+                } elseif (isset($data['condominium'])) {
+                    // Fallback: if no ID determined but we have condominium in data, use it
+                    $condominium = $data['condominium'];
+                    $_SESSION['current_condominium_id'] = $condominium['id'];
+                }
+                
+                // IMPORTANT: If data has a condominium with different ID, it means user explicitly selected it
+                // Override the determined condominium with the one from data (URL parameter)
+                if (isset($data['condominium']) && isset($data['condominium']['id'])) {
+                    $dataCondominiumId = $data['condominium']['id'];
+                    // If different from what we determined, use the one from data (URL has priority)
+                    if (!$currentCondominiumId || $currentCondominiumId != $dataCondominiumId) {
+                        $condominiumModel = new \App\Models\Condominium();
+                        $condominium = $condominiumModel->findById($dataCondominiumId);
+                        $_SESSION['current_condominium_id'] = $dataCondominiumId;
+                    }
+                }
+            }
+        }
+        
+        // Final check: if data has condominium, it means user explicitly selected it from URL
+        // This should override any session-based condominium
+        if (isset($data['condominium']) && isset($data['condominium']['id'])) {
+            $dataCondominiumId = $data['condominium']['id'];
+            // Always use condominium from data (URL parameter) - it has highest priority
+            $condominiumModel = new \App\Models\Condominium();
+            $condominium = $condominiumModel->findById($dataCondominiumId);
+            $_SESSION['current_condominium_id'] = $dataCondominiumId;
         }
         
         $mergedData = array_merge([
@@ -165,7 +260,14 @@ class Controller
             'unread_notifications_count' => $unreadNotificationsCount,
             'is_demo_user' => $isDemoUser,
             'demo_profile' => $demoProfile,
+            'condominium' => $condominium ?? ($data['condominium'] ?? null),
+            'user_condominiums' => $userCondominiums,
         ], $data);
+        
+        // Ensure condominium from data is used if present (URL parameter always wins)
+        if (isset($mergedData['condominium']) && isset($mergedData['condominium']['id'])) {
+            $_SESSION['current_condominium_id'] = $mergedData['condominium']['id'];
+        }
 
         // Add optional constants only if they are defined
         if (defined('WEBSOCKET_URL')) {
@@ -192,6 +294,17 @@ class Controller
         }
 
         return $mergedData;
+    }
+    
+    /**
+     * Update session condominium when condominium is set in data
+     * This should be called after setting condominium in $this->data
+     */
+    protected function updateSessionCondominium(): void
+    {
+        if (isset($this->data['condominium']) && isset($this->data['condominium']['id'])) {
+            $_SESSION['current_condominium_id'] = $this->data['condominium']['id'];
+        }
     }
 
     protected function loadPageTranslations(string $pageName): void

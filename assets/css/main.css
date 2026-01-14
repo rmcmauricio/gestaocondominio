@@ -34,7 +34,7 @@
   --color-border-dark: #d1d5db;
 
   /* Sidebar */
-  --sidebar-width: 250px;
+  --sidebar-width: 280px;
 
   /* Typography */
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -867,6 +867,18 @@ a:hover .card-hover .text-primary {
   position: sticky;
   height: calc(100vh - 80px);
   overflow-y: auto;
+  overflow-x: hidden;
+  min-width: var(--sidebar-width);
+  max-width: var(--sidebar-width);
+}
+
+/* Allow dropdown menus to be visible even with overflow hidden */
+.sidebar-nav .nav-section {
+  overflow: visible;
+}
+
+.sidebar-nav .nav-section .dropdown {
+  overflow: visible;
 }
 
 .sidebar-header {
@@ -875,8 +887,24 @@ a:hover .card-hover .text-primary {
   margin-bottom: 1rem;
 }
 
+.sidebar-nav {
+  width: 100%;
+  overflow-x: hidden;
+}
+
 .sidebar-nav .nav {
   padding: 0 0.5rem;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* Allow dropdowns to escape overflow */
+.sidebar-nav .nav-section {
+  overflow: visible !important;
+}
+
+.sidebar-nav .nav-section .dropdown {
+  overflow: visible !important;
 }
 
 .sidebar-nav .nav-item {
@@ -892,6 +920,10 @@ a:hover .card-hover .text-primary {
   gap: 0.75rem;
   transition: all 0.2s;
   text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .sidebar-nav .nav-link:hover {
@@ -953,6 +985,10 @@ a:hover .card-hover .text-primary {
 .nav-section {
   padding: 0.5rem 1rem;
   margin-top: 1rem;
+  overflow-x: visible;
+  overflow-y: visible;
+  width: 100%;
+  position: relative;
 }
 
 .nav-section-title {
@@ -961,6 +997,59 @@ a:hover .card-hover .text-primary {
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.nav-section .dropdown {
+  width: 100%;
+}
+
+.nav-section .dropdown {
+  width: 100%;
+  overflow: visible;
+  position: relative;
+}
+
+.nav-section .dropdown-toggle {
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 1.5rem;
+  position: relative;
+}
+
+.nav-section .dropdown-toggle::after {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 0;
+}
+
+.nav-section .dropdown-menu {
+  max-width: calc(var(--sidebar-width) - 2rem);
+  min-width: calc(var(--sidebar-width) - 2rem);
+  width: calc(var(--sidebar-width) - 2rem);
+  overflow-x: hidden;
+  position: absolute;
+  left: 0 !important;
+  right: auto !important;
+  transform: none !important;
+  z-index: 1050;
+  margin-top: 0.25rem;
+}
+
+.nav-section .dropdown-item {
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .main-content {

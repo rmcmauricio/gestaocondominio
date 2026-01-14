@@ -19,7 +19,39 @@
             
             {% if condominium %}
             <li class="nav-section">
+                {% if user_condominiums|length > 1 %}
+                <div class="dropdown" style="position: relative; width: 100%;">
+                    <button class="btn btn-link nav-section-title dropdown-toggle w-100 text-start text-decoration-none p-0" 
+                            type="button" 
+                            id="condominiumDropdown" 
+                            data-bs-toggle="dropdown" 
+                            data-bs-auto-close="true"
+                            aria-expanded="false"
+                            style="color: inherit; border: none; background: none;">
+                        {% set maxLength = 20 %}
+                        {% if condominium.name|length > maxLength %}
+                            {{ condominium.name|slice(0, maxLength) }}...
+                        {% else %}
+                            {{ condominium.name }}
+                        {% endif %}
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="condominiumDropdown" style="max-width: calc(var(--sidebar-width) - 2rem); width: calc(var(--sidebar-width) - 2rem);">
+                        {% for condo in user_condominiums %}
+                        <li>
+                            <a class="dropdown-item {% if condo.id == condominium.id %}active{% endif %}" 
+                               href="{{ BASE_URL }}condominiums/switch/{{ condo.id }}">
+                                {{ condo.name }}
+                                {% if condo.id == condominium.id %}
+                                <i class="bi bi-check float-end"></i>
+                                {% endif %}
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% else %}
                 <span class="nav-section-title">{{ condominium.name }}</span>
+                {% endif %}
             </li>
             
             <li class="nav-item">
@@ -43,6 +75,12 @@
             <li class="nav-item">
                 <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees">
                     <i class="bi bi-receipt"></i> Quotas
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}{% if user.role == 'admin' or user.role == 'super_admin' %}condominiums/{{ condominium.id }}/receipts{% else %}receipts{% endif %}">
+                    <i class="bi bi-receipt-cutoff"></i> Recibos
                 </a>
             </li>
             
@@ -87,14 +125,6 @@
                     <i class="bi bi-envelope"></i> Mensagens
                 </a>
             </li>
-            
-            {% if user.role == 'condomino' %}
-            <li class="nav-item">
-                <a class="nav-link" href="{{ BASE_URL }}receipts">
-                    <i class="bi bi-receipt-cutoff"></i> Meus Recibos
-                </a>
-            </li>
-            {% endif %}
             {% endif %}
             
             {% if user.role == 'admin' or user.role == 'super_admin' %}

@@ -43,7 +43,7 @@
             <div class="row g-4">
                 {% for condominium in condominiums %}
                 <div class="col-md-6 col-lg-4">
-                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="text-decoration-none">
+                    <a href="{{ BASE_URL }}condominiums/switch/{{ condominium.id }}" class="text-decoration-none">
                         <div class="card h-100 shadow-sm card-hover border-primary">
                             <div class="card-body">
                                 <h5 class="card-title">{{ condominium.name }}</h5>
