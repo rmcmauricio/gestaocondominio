@@ -1,4 +1,4 @@
-<header id="header" class="header">
+<header id="header" class="header {% if viewName == 'pages/home.html.twig' %}header-homepage{% endif %}">
   <div class="container">
     <a href="{{ BASE_URL }}" class="logo">
       <img src="{{ BASE_URL }}assets/images/logo.svg" alt="MeuPrédio" class="logo-img">
@@ -74,6 +74,18 @@
         <i class="bi bi-list"></i>
       </button>
       {% else %}
+      {% if viewName == 'pages/home.html.twig' %}
+      <!-- Homepage Navigation -->
+      <nav class="header-nav d-none d-md-flex">
+        <a href="#funcionalidades">Funcionalidades</a>
+        <a href="#como-funciona">Como Funciona</a>
+        <a href="#demo">Demo</a>
+      </nav>
+      <div class="d-flex align-items-center gap-2">
+        <a href="{{ BASE_URL }}login" class="btn btn-link text-decoration-none" style="color: var(--homepage-text-dark); font-weight: 500;">Entrar</a>
+        <a href="{{ BASE_URL }}register" class="btn-start-free">Começar Grátis</a>
+      </div>
+      {% else %}
       <button class="mobile-nav-toggle" aria-label="Toggle navigation" id="mobileNavToggle">
         <i class="bi bi-list"></i>
       </button>
@@ -105,6 +117,7 @@
           </li>
         </ul>
       </nav>
+      {% endif %}
       {% endif %}
     </div>
   </div>

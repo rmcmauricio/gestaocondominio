@@ -19,6 +19,9 @@
 
     <!-- Custom CSS -->
     <link href="{{ BASE_URL }}assets/css/main.css" rel="stylesheet">
+    {% if viewName == 'pages/home.html.twig' %}
+    <link href="{{ BASE_URL }}assets/css/homepage.css" rel="stylesheet">
+    {% endif %}
 </head>
 <body>
     {% include 'blocks/header.html.twig' %}

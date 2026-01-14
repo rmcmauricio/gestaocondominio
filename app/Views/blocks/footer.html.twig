@@ -1,3 +1,68 @@
+{% if viewName == 'pages/home.html.twig' %}
+<footer id="footer" class="footer-homepage">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-3 mb-4 mb-md-0">
+        <div class="footer-logo">
+          <i class="bi bi-building"></i>
+          <span>O Meu Prédio</span>
+        </div>
+        <p class="footer-description">
+          A solução completa para gestão de condomínios. Simplifique sua administração e melhore a vida dos moradores.
+        </p>
+        <div class="footer-contact-item">
+          <i class="bi bi-envelope"></i>
+          <span>contato@meupredio.com</span>
+        </div>
+        <div class="footer-contact-item">
+          <i class="bi bi-telephone"></i>
+          <span>+351 999 999 999</span>
+        </div>
+        <div class="footer-contact-item">
+          <i class="bi bi-geo-alt"></i>
+          <span>Lisboa, Portugal</span>
+        </div>
+      </div>
+      <div class="col-md-3 mb-4 mb-md-0">
+        <h6 class="footer-column-title">Produto</h6>
+        <ul class="footer-column-links">
+          <li><a href="#funcionalidades">Funcionalidades</a></li>
+          <li><a href="{{ BASE_URL }}#pricing">Preços</a></li>
+          <li><a href="#integracao">Integrações</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+      </div>
+      <div class="col-md-3 mb-4 mb-md-0">
+        <h6 class="footer-column-title">Empresa</h6>
+        <ul class="footer-column-links">
+          <li><a href="#sobre">Sobre nós</a></li>
+          <li><a href="#blog">Blog</a></li>
+          <li><a href="#carreiras">Carreiras</a></li>
+          <li><a href="#contato">Contato</a></li>
+        </ul>
+      </div>
+      <div class="col-md-3">
+        <h6 class="footer-column-title">Legal</h6>
+        <ul class="footer-column-links">
+          <li><a href="#termos">Termos de uso</a></li>
+          <li><a href="#privacidade">Privacidade</a></li>
+          <li><a href="#cookies">Cookies</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="footer-copyright">
+        &copy; {{ "now"|date("Y") }} Meu Prédio. Todos os direitos reservados.
+      </div>
+      <div class="footer-social">
+        <a href="#" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
+        <a href="#" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+        <a href="#" aria-label="LinkedIn"><i class="bi bi-linkedin"></i></a>
+      </div>
+    </div>
+  </div>
+</footer>
+{% else %}
 <footer id="footer" class="footer bg-light py-4 mt-5">
   <div class="container">
     <div class="row">
@@ -28,3 +93,4 @@
     </div>
   </div>
 </footer>
+{% endif %}
