@@ -97,33 +97,39 @@
                 <div class="col-12 col-sm-6 col-lg-4">
                     <div class="card account-card {% if account.account_type == 'cash' %}border-info border-2{% else %}border-primary border-2{% endif %} h-100 shadow-sm">
                         <div class="card-body d-flex flex-column">
-                            <div class="d-flex justify-content-between align-items-start mb-3">
-                                <div class="flex-grow-1">
-                                    <h6 class="mb-2 fw-bold">
-                                        {{ account.name }}
-                                    </h6>
-                                    <div class="mb-2">
-                                        {% if account.account_type == 'cash' %}
-                                        <span class="badge bg-info">Caixa</span>
-                                        {% else %}
-                                        <span class="badge bg-primary">Bancária</span>
-                                        {% endif %}
-                                    </div>
+                            <div class="mb-3">
+                                <h6 class="mb-2 fw-bold text-break">
+                                    {{ account.name }}
+                                </h6>
+                                <div class="mb-2">
+                                    {% if account.account_type == 'cash' %}
+                                    <span class="badge bg-info">Caixa</span>
+                                    {% else %}
+                                    <span class="badge bg-primary">Bancária</span>
+                                    {% endif %}
                                 </div>
                             </div>
                             
-                            {% if account.account_type == 'bank' and account.iban %}
+                            {% if account.account_type == 'bank' %}
                             <div class="mb-3">
-                                <small class="text-muted d-block">
-                                    <code class="text-muted" style="font-size: 0.75rem;">{{ account.iban|slice(0, 20) }}...</code>
-                                </small>
+                                {% if account.bank_name %}
+                                <div class="mb-2">
+                                    <small class="text-muted d-block"><strong>Banco:</strong> {{ account.bank_name }}</small>
+                                </div>
+                                {% endif %}
+                                {% if account.iban %}
+                                <div class="mb-2">
+                                    <small class="text-muted d-block"><strong>IBAN:</strong></small>
+                                    <code class="text-muted text-break d-block" style="font-size: 0.7rem; word-break: break-all;">{{ account.iban }}</code>
+                                </div>
+                                {% endif %}
                             </div>
                             {% endif %}
                             
-                            <div class="mt-auto">
+                            <div class="mt-auto pt-3 border-top">
                                 <div class="d-flex justify-content-between align-items-center">
-                                    <small class="text-muted">Saldo</small>
-                                    <h4 class="mb-0 fw-bold {% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    <small class="text-muted flex-shrink-0">Saldo:</small>
+                                    <h4 class="mb-0 fw-bold {% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %} text-end flex-shrink-0" style="white-space: nowrap;">
                                         €{{ account.current_balance|number_format(2, ',', '.') }}
                                     </h4>
                                 </div>

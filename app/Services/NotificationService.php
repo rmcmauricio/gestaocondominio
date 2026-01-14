@@ -363,13 +363,26 @@ class NotificationService
         $notifications = $stmt->fetchAll() ?: [];
 
         foreach ($notifications as $notif) {
+            // Ensure link has BASE_URL if it's a relative path
+            $link = $notif['link'];
+            if ($link && !preg_match('/^https?:\/\//', $link) && !str_starts_with($link, BASE_URL)) {
+                // Remove BASE_URL if already present to avoid duplication
+                $link = str_replace(BASE_URL, '', $link);
+                // Add BASE_URL if link doesn't start with /
+                if (!str_starts_with($link, '/')) {
+                    $link = BASE_URL . $link;
+                } else {
+                    $link = BASE_URL . ltrim($link, '/');
+                }
+            }
+            
             $notificationData = [
                 'id' => 'notif_' . $notif['id'],
                 'source_type' => 'notification',
                 'type' => $notif['type'],
                 'title' => $notif['title'],
                 'message' => $notif['message'],
-                'link' => $notif['link'],
+                'link' => $link,
                 'condominium_id' => $notif['condominium_id'],
                 'is_read' => (bool)$notif['is_read'],
                 'read_at' => $notif['read_at'],

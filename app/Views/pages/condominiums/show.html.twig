@@ -90,49 +90,42 @@
                 <!-- Contas Bancárias e Caixa -->
                 <div class="col-12 col-lg-6">
                     {% if bank_accounts %}
-                    <div class="card shadow-sm mb-4 h-100">
+                    <div class="card shadow-sm mb-4 h-100 bank-accounts-summary-card">
                         <div class="card-header bg-info text-white">
                             <h5 class="mb-0">Contas Bancárias e Caixa</h5>
                         </div>
                         <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table table-sm mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th>Conta</th>
-                                            <th class="text-end">Saldo</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for account in bank_accounts %}
-                                        <tr>
-                                            <td>
-                                                <strong>{{ account.name }}</strong><br>
-                                                <small class="text-muted">{{ account.bank_name|default('-') }}</small>
-                                            </td>
-                                            <td class="text-end">
-                                                {% set account_balance = account.current_balance|default(0) %}
-                                                <strong class="{% if account_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                                    €{{ account_balance|number_format(2, ',', '.') }}
-                                                </strong>
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                    <tfoot>
-                                        <tr>
-                                            <td><strong>Total:</strong></td>
-                                            <td class="text-end">
-                                                <strong class="{% if stats.total_bank_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                                    €{{ stats.total_bank_balance|number_format(2, ',', '.') }}
-                                                </strong>
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
+                            <div class="bank-accounts-list">
+                                {% for account in bank_accounts %}
+                                <div class="bank-account-item">
+                                    <div class="bank-account-header">
+                                        <strong class="bank-account-name">{{ account.name }}</strong>
+                                        {% set account_balance = account.current_balance|default(0) %}
+                                        <strong class="bank-account-balance {% if account_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            €{{ account_balance|number_format(2, ',', '.') }}
+                                        </strong>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">{{ account.bank_name|default('-') }}</small>
+                                </div>
+                                {% if not loop.last %}
+                                <hr class="my-2">
+                                {% endif %}
+                                {% endfor %}
+                                
+                                <hr class="my-3">
+                                
+                                <div class="bank-account-item bank-account-total">
+                                    <div class="bank-account-header">
+                                        <strong class="bank-account-name">Total:</strong>
+                                        <strong class="bank-account-balance {% if stats.total_bank_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            €{{ stats.total_bank_balance|number_format(2, ',', '.') }}
+                                        </strong>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="mt-2">
-                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts" class="btn btn-sm btn-outline-info">
+                            
+                            <div class="mt-3">
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts" class="btn btn-sm btn-outline-info w-100">
                                     <i class="bi bi-bank"></i> Gerir Contas
                                 </a>
                             </div>

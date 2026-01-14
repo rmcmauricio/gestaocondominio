@@ -102,6 +102,9 @@ html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevent zoom on input focus in iOS */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -113,7 +116,10 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow-x: visible;
+  overflow-x: hidden;
+  /* Ensure text wraps properly */
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 /* ============================================
@@ -137,6 +143,8 @@ p {
   margin-bottom: var(--space-md);
   color: var(--color-text);
   line-height: var(--line-height);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 a {
@@ -288,6 +296,56 @@ code {
   margin-left: auto;
 }
 
+/* Mobile Header Optimizations */
+@media (max-width: 767px) {
+  .header {
+    height: 60px; /* Slightly smaller on mobile */
+  }
+  
+  .header .container {
+    padding: 0 0.75rem;
+  }
+  
+  /* Logo optimization */
+  .logo-img {
+    max-height: 32px;
+    width: auto;
+  }
+  
+  /* Header actions spacing */
+  .header-actions {
+    gap: 0.5rem;
+  }
+  
+  /* Buttons in header - ensure touch target */
+  .header-actions .btn,
+  .sidebar-toggle-header {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.125rem;
+  }
+  
+  /* Demo profile selector mobile */
+  .demo-profile-selector {
+    display: none; /* Hide on very small screens */
+  }
+  
+  /* Badge positioning */
+  .header-actions .badge {
+    font-size: 0.625rem;
+    padding: 0.125rem 0.375rem;
+    min-width: 18px;
+    height: 18px;
+    line-height: 1.2;
+  }
+}
+
 /* Responsive adjustments for demo profile selector */
 @media (max-width: 991px) {
   .demo-profile-btn {
@@ -365,6 +423,15 @@ code {
   padding: 0;
   border-radius: var(--radius-md);
   font-size: 1.25rem;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (max-width: 767px) {
+  .sidebar-toggle-header {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 .logo {
@@ -1091,13 +1158,17 @@ a:hover .card-hover .text-primary {
   .sidebar {
     position: fixed;
     left: -100%;
-    top: 80px;
+    top: 60px; /* Adjusted for mobile header height */
     z-index: 1000;
-    transition: left 0.3s ease;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Smoother animation */
+    box-shadow: 2px 0 10px rgba(0,0,0,0.15);
     width: 280px;
-    height: calc(100vh - 80px);
+    max-width: 85vw; /* Don't exceed viewport width */
+    height: calc(100vh - 60px);
     background: var(--color-bg);
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
   }
 
   .sidebar.show {
@@ -1108,7 +1179,7 @@ a:hover .card-hover .text-primary {
   .sidebar-overlay {
     display: none;
     position: fixed;
-    top: 80px;
+    top: 60px; /* Adjusted for mobile header height */
     left: 0;
     right: 0;
     bottom: 0;
@@ -1117,17 +1188,49 @@ a:hover .card-hover .text-primary {
     opacity: 0;
     transition: opacity 0.3s ease;
     cursor: pointer;
+    backdrop-filter: blur(2px); /* Slight blur effect */
   }
 
   .sidebar.show ~ .sidebar-overlay {
     display: block;
     opacity: 1;
   }
+  
+  /* Sidebar navigation items - better touch targets */
+  .sidebar-nav .nav-link {
+    min-height: 48px;
+    padding: 0.75rem 1rem;
+    font-size: 0.9375rem; /* 15px */
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  
+  .sidebar-nav .nav-link i {
+    font-size: 1.125rem;
+    width: 20px;
+    text-align: center;
+  }
+  
+  /* Sidebar section titles */
+  .nav-section-title {
+    font-size: 0.875rem;
+    padding: 0.75rem 1rem;
+    min-height: 48px;
+  }
+  
+  /* Sidebar dropdown items */
+  .nav-section .dropdown-item {
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+    font-size: 0.9375rem;
+  }
 
   .main-content {
     width: 100%;
     padding: 1rem;
-    padding-top: 100px !important;
+    padding-top: 80px !important; /* Adjusted for mobile header */
+    overflow-x: hidden;
   }
 
   /* Header sidebar toggle button remains visible */
@@ -1271,6 +1374,28 @@ a:hover .card-hover .text-primary {
 
 /* Mobile phones */
 @media (max-width: 767px) {
+  /* Base typography improvements for mobile */
+  html {
+    font-size: 16px; /* Prevent auto-zoom on iOS */
+  }
+  
+  body {
+    font-size: 16px; /* Ensure minimum readable size */
+    line-height: 1.6; /* Better readability */
+  }
+  
+  /* Ensure all text elements wrap properly */
+  p, span, div, li, td, th, label {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+  
+  /* Prevent text from being too small */
+  small, .small {
+    font-size: 0.875rem !important; /* Minimum 14px */
+  }
+  
   .col-md-3,
   .col-md-4,
   .col-md-6,
@@ -1301,12 +1426,143 @@ a:hover .card-hover .text-primary {
   code {
     word-break: break-all;
     white-space: normal;
-    font-size: 0.7rem;
+    font-size: 0.875rem; /* Increased from 0.7rem */
   }
 
   /* Prevent any element from causing overflow */
   * {
     max-width: 100%;
+  }
+  
+  /* Images should be responsive */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+  
+  /* Ensure inputs and selects are at least 16px to prevent zoom */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important; /* Prevent iOS zoom */
+    min-height: 44px; /* Touch target size */
+    padding: 0.5rem 0.75rem;
+  }
+  
+  /* Form labels */
+  label {
+    font-size: 0.9375rem; /* 15px */
+    margin-bottom: 0.5rem;
+    display: block;
+    font-weight: 500;
+  }
+  
+  /* Form groups spacing */
+  .form-group,
+  .mb-3 {
+    margin-bottom: 1.25rem !important;
+  }
+  
+  /* Form controls - ensure adequate spacing */
+  .form-control,
+  .form-select {
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Form rows spacing */
+  .row.g-3 > *,
+  .row.g-4 > * {
+    margin-bottom: 1rem;
+  }
+  
+  /* Form labels should be clearly visible */
+  .form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Input groups */
+  .input-group {
+    flex-wrap: wrap;
+  }
+  
+  .input-group .form-control {
+    flex: 1 1 100%;
+    margin-bottom: 0.5rem;
+  }
+  
+  .input-group .btn {
+    flex: 1 1 auto;
+    min-width: 44px;
+  }
+  
+  /* CRITICAL: Force ALL columns to full width on mobile - highest priority */
+  .container .row > [class*="col-"],
+  .container-fluid .row > [class*="col-"],
+  .row > [class*="col-"],
+  .row > [class*="col-sm"],
+  .row > [class*="col-md"],
+  .row > [class*="col-lg"],
+  .row > [class*="col-xl"] {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  /* Remove ALL row gutters completely on mobile */
+  .row,
+  .row.g-1,
+  .row.g-2,
+  .row.g-3,
+  .row.g-4,
+  .row.g-5 {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  
+  .row.g-1 > *,
+  .row.g-2 > *,
+  .row.g-3 > *,
+  .row.g-4 > *,
+  .row.g-5 > * {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  /* Cards should take full width - override everything */
+  .card,
+  .card-body,
+  [class*="col-"] .card,
+  .row .card,
+  .row > [class*="col-"] > .card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  
+  /* Container padding provides spacing instead of gutters */
+  .container,
+  .container-fluid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  /* Add margin between cards for proper spacing */
+  .row > [class*="col-"] {
+    margin-bottom: 1rem;
+  }
+  
+  .row > [class*="col-"]:last-child {
+    margin-bottom: 0;
   }
   
   /* Exception: fees-map-table and its children - mas não nas colunas sticky */
@@ -1374,6 +1630,108 @@ a:hover .card-hover .text-primary {
   h6 {
     font-size: 0.875rem;
   }
+  
+  /* Buttons - ensure minimum touch target size */
+  .btn {
+    padding: 0.625rem 1rem;
+    font-size: 0.9375rem; /* 15px */
+    min-height: 44px; /* Touch target */
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn-sm {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem; /* 14px */
+    min-height: 40px;
+    min-width: 40px;
+  }
+  
+  /* Better spacing for mobile */
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    overflow-x: hidden;
+  }
+  
+  .container-fluid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    overflow-x: hidden;
+  }
+  
+  /* Cards spacing and sizing */
+  .card {
+    margin-bottom: 1rem;
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .card-body {
+    padding: 1rem;
+  }
+  
+  .card-header {
+    padding: 0.875rem 1rem;
+  }
+  
+  /* Force all column classes to full width on mobile */
+  [class*="col-"] {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  
+  /* Exception: keep col-12 as is */
+  .col-12 {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+  }
+  
+  /* Cards in rows should take full width */
+  .row > [class*="col-"] > .card,
+  .row .card {
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  
+  /* Remove gutters on mobile for better space usage */
+  .row {
+    margin-left: 0;
+    margin-right: 0;
+  }
+  
+  .row > [class*="col-"] {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  
+  /* But add padding to container instead */
+  .container,
+  .container-fluid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  /* Better line height for readability */
+  p, li, td, th {
+    line-height: 1.6;
+  }
+  
+  /* Prevent horizontal overflow globally */
+  body, html {
+    overflow-x: hidden;
+    width: 100%;
+  }
+  
+  /* Ensure main content doesn't overflow */
+  .main-content {
+    overflow-x: hidden;
+    width: 100%;
+  }
 }
 
 @media (max-width: 575px) {
@@ -1431,6 +1789,8 @@ a:hover .card-hover .text-primary {
 /* Account cards styling */
 .account-card {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+  width: 100%;
 }
 
 .account-card:hover {
@@ -1440,6 +1800,414 @@ a:hover .card-hover .text-primary {
 
 .account-card .card-body {
   padding: 1.25rem;
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.account-card .card-body.d-flex.flex-column {
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Ensure balance stays inside card */
+.account-card .mt-auto {
+  width: 100%;
+  overflow: visible;
+}
+
+.account-card .mt-auto .d-flex {
+  width: 100%;
+  overflow: visible;
+}
+
+.account-card .mt-auto h4 {
+  overflow: visible;
+  max-width: none;
+}
+
+/* Mobile optimization for account cards */
+@media (max-width: 767px) {
+  .account-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    overflow: hidden;
+  }
+  
+  .account-card .card-body {
+    padding: 1rem;
+    min-height: auto;
+    overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  /* Ensure card body doesn't overflow */
+  .account-card .card-body.d-flex.flex-column {
+    overflow: hidden;
+    width: 100%;
+  }
+  
+  /* Ensure text doesn't overflow */
+  .account-card h6 {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    font-size: 1rem;
+    max-width: 100%;
+  }
+  
+  /* IBAN code should wrap */
+  .account-card code {
+    word-break: break-all;
+    white-space: normal;
+    font-size: 0.7rem;
+    display: block;
+    max-width: 100%;
+    overflow-wrap: break-word;
+  }
+  
+  /* Balance display - CRITICAL FIX */
+  .account-card h4 {
+    font-size: 1.25rem;
+    white-space: nowrap;
+    overflow: visible !important;
+    max-width: none !important;
+    flex-shrink: 0;
+    word-break: keep-all;
+  }
+  
+  /* Ensure flex layout works on mobile */
+  .account-card .d-flex {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  
+  /* Balance section - ensure it stays inside card but is visible */
+  .account-card .mt-auto {
+    margin-top: auto;
+    width: 100%;
+    max-width: 100%;
+    overflow: visible !important;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border);
+  }
+  
+  .account-card .mt-auto .d-flex {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: nowrap !important;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    overflow: visible !important;
+  }
+  
+  .account-card .mt-auto .d-flex small {
+    flex-shrink: 0;
+    white-space: nowrap;
+    min-width: fit-content;
+  }
+  
+  .account-card .mt-auto .d-flex h4 {
+    flex-shrink: 0;
+    margin-left: auto;
+    text-align: right;
+    overflow: visible !important;
+    max-width: none !important;
+    min-width: fit-content;
+  }
+  
+  /* Card should contain content but ensure balance is visible */
+  .account-card {
+    overflow: hidden;
+  }
+  
+  .account-card .card-body {
+    overflow: hidden;
+    padding: 1rem;
+  }
+  
+  /* Balance section must be fully visible */
+  .account-card .mt-auto {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .account-card .mt-auto .d-flex {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .account-card .mt-auto h4 {
+    overflow: visible;
+  }
+  
+  /* Badge spacing */
+  .account-card .badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  /* Ensure account name and bank name display properly */
+  .account-card .flex-grow-1 {
+    min-width: 0;
+    flex: 1 1 auto;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  
+  /* Fix for bank account cards in finances page */
+  .card-body .row.g-3 > [class*="col-"] {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  /* Bank name and IBAN should wrap */
+  .account-card small,
+  .account-card code {
+    display: block;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+  }
+  
+  /* Ensure account name doesn't overflow */
+  .account-card h6 {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+  
+  /* Fix flex layout for account info */
+  .account-card .d-flex.flex-column {
+    min-height: auto;
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  /* Fix for bank account info sections */
+  .account-card .mb-3 {
+    margin-bottom: 1rem;
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  /* Ensure all text is visible and contained */
+  .account-card strong,
+  .account-card small {
+    max-width: 100%;
+    overflow-wrap: break-word;
+  }
+  
+  /* CRITICAL: Ensure balance section fits within card */
+  .account-card .mt-auto {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  
+  .account-card .mt-auto .d-flex {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  
+  /* Balance text should fit within card but be fully visible */
+  .account-card .mt-auto h4 {
+    font-size: 1.1rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: visible;
+    flex-shrink: 0;
+    min-width: fit-content;
+  }
+  
+  /* Ensure balance container respects card padding */
+  .account-card .mt-auto .d-flex {
+    gap: 0.75rem;
+    width: 100%;
+  }
+  
+  /* Ensure card padding allows balance to be visible */
+  .account-card .card-body {
+    padding: 1rem;
+  }
+  
+  /* On very small screens, make balance smaller and ensure visibility */
+  @media (max-width: 375px) {
+    .account-card .mt-auto h4 {
+      font-size: 0.95rem;
+    }
+    
+    .account-card .card-body {
+      padding: 0.875rem;
+    }
+  }
+}
+
+/* Tablet optimization for account cards */
+@media (min-width: 768px) and (max-width: 991px) {
+  .account-card .card-body {
+    padding: 1rem;
+  }
+  
+  .account-card h6 {
+    font-size: 1rem;
+  }
+  
+  .account-card h4 {
+    font-size: 1.5rem;
+  }
+  
+  /* Ensure cards don't get too small on tablets */
+  .row.g-3 > [class*="col-sm-6"] {
+    flex: 0 0 50% !important;
+    max-width: 50% !important;
+  }
+}
+
+/* Bank Accounts Summary Card - List Layout */
+.bank-accounts-summary-card {
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+}
+
+.bank-accounts-summary-card .card-body {
+  overflow: hidden;
+  padding: 1rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.bank-accounts-list {
+  width: 100%;
+  max-width: 100%;
+}
+
+.bank-account-item {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.bank-account-header {
+  width: 100%;
+  max-width: 100%;
+  display: flex !important;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: nowrap !important;
+  gap: 1rem;
+  line-height: 1.5;
+}
+
+.bank-account-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  margin: 0;
+  padding: 0;
+}
+
+.bank-account-balance {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+  min-width: fit-content;
+  text-align: right;
+  margin: 0;
+  padding: 0;
+}
+
+.bank-account-item strong {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.bank-account-item small {
+  display: block;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.bank-account-total {
+  font-size: 1.05rem;
+}
+
+.bank-account-total strong {
+  font-size: 1.1rem;
+}
+
+/* Mobile optimization for bank accounts summary list */
+@media (max-width: 767px) {
+  .bank-accounts-summary-card {
+    overflow: hidden;
+  }
+  
+  .bank-accounts-summary-card .card-body {
+    padding: 0.75rem;
+    overflow: hidden;
+  }
+  
+  .bank-accounts-list {
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .bank-account-item {
+    padding: 0.5rem 0;
+  }
+  
+  .bank-account-header {
+    flex-wrap: nowrap;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  
+  .bank-account-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  
+  .bank-account-balance {
+    flex-shrink: 0;
+    text-align: right;
+    min-width: fit-content;
+    white-space: nowrap;
+  }
+  
+  .bank-account-item strong {
+    font-size: 0.9375rem;
+  }
+  
+  .bank-account-item small {
+    font-size: 0.8125rem;
+  }
+  
+  .bank-account-total {
+    font-size: 1rem;
+  }
+  
+  .bank-account-total strong {
+    font-size: 1.05rem;
+  }
+  
+  .bank-accounts-summary-card hr {
+    margin: 0.75rem 0;
+  }
 }
 
 /* Todas as telas menores que desktop: aplicar sticky columns */
@@ -2522,6 +3290,68 @@ a:hover .card-hover .text-primary {
   }
 }
 
+/* ============================================
+   Mobile Table to Cards Conversion System
+   ============================================ */
+
+/* Generic table to cards conversion for mobile */
+@media (max-width: 767px) {
+  /* Hide table headers on mobile for tables with mobile-cards class */
+  .table-mobile-cards thead {
+    display: none;
+  }
+  
+  /* Convert table rows to cards */
+  .table-mobile-cards tbody tr {
+    display: block;
+    margin-bottom: 1rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    box-shadow: var(--shadow-sm);
+  }
+  
+  /* Convert table cells to card content */
+  .table-mobile-cards tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 0.5rem 0;
+    border: none;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  
+  .table-mobile-cards tbody td:last-child {
+    border-bottom: none;
+  }
+  
+  /* Add label before cell content */
+  .table-mobile-cards tbody td::before {
+    content: attr(data-label);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-light);
+    margin-right: 1rem;
+    flex-shrink: 0;
+    min-width: 100px;
+  }
+  
+  /* Action buttons in mobile cards */
+  .table-mobile-cards tbody td .btn-group,
+  .table-mobile-cards tbody td .d-flex {
+    margin-left: auto;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  /* Ensure buttons are touch-friendly */
+  .table-mobile-cards tbody td .btn {
+    min-height: 40px;
+    min-width: 40px;
+    padding: 0.5rem 0.75rem;
+  }
+}
+
 /* Fees page mobile optimization */
 @media (max-width: 767px) {
   /* Fees table mobile cards */
@@ -2552,6 +3382,12 @@ a:hover .card-hover .text-primary {
   
   .table-responsive table {
     min-width: 600px;
+  }
+  
+  /* Exception: bank accounts table should not have min-width */
+  .bank-accounts-table table {
+    min-width: auto !important;
+    width: 100%;
   }
   
   /* Clickable rows hover effect */
@@ -2592,6 +3428,12 @@ a:hover .card-hover .text-primary {
   
   .table-responsive table {
     min-width: 700px;
+  }
+  
+  /* Exception: bank accounts table should not have min-width */
+  .bank-accounts-table table {
+    min-width: auto !important;
+    width: 100%;
   }
   
   /* Clickable rows hover effect */
@@ -2734,4 +3576,214 @@ a:hover .card-hover .text-primary {
 
 #feeDetailsModal .table thead.sticky-top {
   z-index: 10;
+}
+
+/* ============================================
+   Mobile Modals Optimization
+   ============================================ */
+@media (max-width: 767px) {
+  /* Modals should take full width on mobile */
+  .modal-dialog {
+    margin: 0.5rem;
+    max-width: calc(100% - 1rem);
+  }
+  
+  .modal-content {
+    border-radius: var(--radius-lg);
+  }
+  
+  .modal-header {
+    padding: 1rem;
+    flex-wrap: wrap;
+  }
+  
+  .modal-header .btn-close {
+    margin: 0;
+    padding: 0.5rem;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  .modal-body {
+    padding: 1rem;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .modal-footer {
+    padding: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .modal-footer .btn {
+    flex: 1 1 auto;
+    min-width: calc(50% - 0.25rem);
+  }
+  
+  /* Tables inside modals */
+  .modal-body .table {
+    font-size: 0.875rem;
+  }
+  
+  .modal-body .table-responsive {
+    max-height: 300px;
+  }
+  
+  /* Specific modal adjustments */
+  #feeDetailsModal .modal-dialog {
+    margin: 0.5rem;
+    max-width: calc(100% - 1rem);
+  }
+  
+  #feeDetailsModal .modal-body {
+    max-height: calc(100vh - 150px);
+    padding: 1rem;
+  }
+}
+
+/* ============================================
+   TinyMCE Editor Mobile Optimization
+   ============================================ */
+@media (max-width: 767px) {
+  /* TinyMCE container */
+  .tox-tinymce {
+    border-radius: var(--radius-md);
+  }
+  
+  /* TinyMCE toolbar - stack buttons on mobile */
+  .tox .tox-toolbar {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  
+  /* TinyMCE editor content area */
+  .tox .tox-edit-area {
+    min-height: 300px;
+  }
+  
+  /* TinyMCE iframe */
+  .tox .tox-edit-area__iframe {
+    min-height: 300px;
+  }
+  
+  /* Ensure images in editor are responsive */
+  .tox .tox-edit-area img {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* ============================================
+   Dashboard Mobile Optimization
+   ============================================ */
+@media (max-width: 767px) {
+  /* Dashboard cards */
+  .dashboard-card,
+  .stat-card {
+    margin-bottom: 1rem;
+  }
+  
+  /* Dashboard grid */
+  .row.g-4 > [class*="col-"] {
+    margin-bottom: 1rem;
+  }
+  
+  /* Stat cards layout */
+  .stat-card .card-body {
+    padding: 1rem;
+  }
+  
+  /* Charts and graphs */
+  canvas,
+  .chart-container {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* ============================================
+   Detail Pages Mobile Optimization
+   ============================================ */
+@media (max-width: 767px) {
+  /* Two column layouts become single column */
+  .row > .col-lg-8,
+  .row > .col-lg-4,
+  .row > .col-md-8,
+  .row > .col-md-4 {
+    flex: 0 0 100%;
+    max-width: 100%;
+    margin-bottom: 1.5rem;
+  }
+  
+  /* Action buttons stack */
+  .d-flex.justify-content-between {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .d-flex.justify-content-between > * {
+    width: 100%;
+  }
+  
+  /* Card headers with buttons */
+  .card-header.d-flex {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-start !important;
+  }
+  
+  .card-header.d-flex > div:last-child {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .card-header.d-flex > div:last-child .btn {
+    width: 100%;
+  }
+}
+
+/* ============================================
+   List Pages Mobile Optimization
+   ============================================ */
+@media (max-width: 767px) {
+  /* Filters */
+  .card-body form .row.g-3 > [class*="col-"] {
+    margin-bottom: 1rem;
+  }
+  
+  /* Search inputs */
+  input[type="search"],
+  .form-control[type="search"] {
+    width: 100%;
+  }
+  
+  /* Filter buttons */
+  .btn-group {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  
+  .btn-group .btn {
+    flex: 1 1 auto;
+    min-width: calc(50% - 0.25rem);
+  }
+  
+  /* Pagination */
+  .pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.25rem;
+  }
+  
+  .pagination .page-link {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
