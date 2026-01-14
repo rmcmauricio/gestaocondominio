@@ -747,9 +747,14 @@ class FinanceController extends Controller
                 
                 // Check if fee is now fully paid
                 $newTotalPaid = $this->feePaymentModel->getTotalPaid($feeId);
-                if ($newTotalPaid >= (float)$fee['amount']) {
+                $isFullyPaid = $newTotalPaid >= (float)$fee['amount'];
+                
+                if ($isFullyPaid) {
                     $this->feeModel->markAsPaid($feeId);
                 }
+                
+                // Generate receipts
+                $this->generateReceipts($feeId, $paymentId, $condominiumId, $userId, $isFullyPaid);
                 
                 $db->commit();
                 $_SESSION['success'] = 'Pagamento registado com sucesso!';
@@ -770,8 +775,22 @@ class FinanceController extends Controller
      */
     public function getFeeDetails(int $condominiumId, int $feeId)
     {
-        AuthMiddleware::require();
-        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        // Set JSON header first for AJAX requests
+        header('Content-Type: application/json');
+        
+        // Check authentication
+        if (!AuthMiddleware::user()) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Não autenticado']);
+            exit;
+        }
+        
+        // Check condominium access
+        if (!RoleMiddleware::canAccessCondominium($condominiumId)) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Não tem permissão para aceder a este condomínio.']);
+            exit;
+        }
 
         $fee = $this->feeModel->findById($feeId);
         if (!$fee || $fee['condominium_id'] != $condominiumId) {
@@ -783,22 +802,116 @@ class FinanceController extends Controller
         // Get fraction info
         $fractionModel = new \App\Models\Fraction();
         $fraction = $fractionModel->findById($fee['fraction_id']);
+        
+        if (!$fraction) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Fração não encontrada']);
+            exit;
+        }
 
         // Get payments
         $payments = $this->feePaymentModel->getByFee($feeId);
         $totalPaid = $this->feePaymentModel->getTotalPaid($feeId);
         $pendingAmount = (float)$fee['amount'] - $totalPaid;
 
-        header('Content-Type: application/json');
+        // Get receipts
+        $receiptModel = new \App\Models\Receipt();
+        $receipts = $receiptModel->getByFee($feeId);
+
         echo json_encode([
             'fee' => $fee,
             'fraction' => $fraction,
             'payments' => $payments,
+            'receipts' => $receipts,
             'total_amount' => (float)$fee['amount'],
             'total_paid' => $totalPaid,
             'pending_amount' => $pendingAmount
         ]);
         exit;
+    }
+
+    /**
+     * Generate receipts for a payment
+     */
+    private function generateReceipts(int $feeId, int $paymentId, int $condominiumId, int $userId, bool $isFullyPaid): void
+    {
+        try {
+            $fee = $this->feeModel->findById($feeId);
+            if (!$fee) {
+                return;
+            }
+
+            $fractionModel = new \App\Models\Fraction();
+            $fraction = $fractionModel->findById($fee['fraction_id']);
+            if (!$fraction) {
+                return;
+            }
+
+            $condominium = $this->condominiumModel->findById($condominiumId);
+            if (!$condominium) {
+                return;
+            }
+
+            $receiptModel = new \App\Models\Receipt();
+            $pdfService = new \App\Services\PdfService();
+
+            // Generate final receipt only if fully paid
+            if ($isFullyPaid) {
+                // Check if final receipt already exists
+                $existingReceipts = $receiptModel->getByFee($feeId);
+                $hasFinalReceipt = false;
+                foreach ($existingReceipts as $r) {
+                    if ($r['receipt_type'] === 'final') {
+                        $hasFinalReceipt = true;
+                        break;
+                    }
+                }
+
+                if (!$hasFinalReceipt) {
+                    $receiptNumber = $receiptModel->generateReceiptNumber($condominiumId, (int)$fee['period_year']);
+                    $htmlContent = $pdfService->generateReceiptReceipt($fee, $fraction, $condominium, null, 'final');
+                    
+                    // Create receipt record
+                    $receiptId = $receiptModel->create([
+                        'fee_id' => $feeId,
+                        'fee_payment_id' => null,
+                        'condominium_id' => $condominiumId,
+                        'fraction_id' => $fee['fraction_id'],
+                        'receipt_number' => $receiptNumber,
+                        'receipt_type' => 'final',
+                        'amount' => $fee['amount'],
+                        'file_path' => '',
+                        'file_name' => '',
+                        'file_size' => 0,
+                        'generated_at' => date('Y-m-d H:i:s'),
+                        'generated_by' => $userId
+                    ]);
+
+                    // Generate PDF
+                    $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber);
+                    $fullPath = __DIR__ . '/../../storage/documents/' . $filePath;
+                    $fileSize = file_exists($fullPath) ? filesize($fullPath) : 0;
+                    $fileName = basename($filePath);
+
+                    // Update receipt with file info
+                    global $db;
+                    $stmt = $db->prepare("
+                        UPDATE receipts 
+                        SET file_path = :file_path, file_name = :file_name, file_size = :file_size 
+                        WHERE id = :id
+                    ");
+                    $stmt->execute([
+                        ':file_path' => $filePath,
+                        ':file_name' => $fileName,
+                        ':file_size' => $fileSize,
+                        ':id' => $receiptId
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            // Log error but don't fail the payment
+            error_log("Error generating receipt: " . $e->getMessage());
+        }
     }
 
     public function fees(int $condominiumId)
@@ -975,6 +1088,33 @@ class FinanceController extends Controller
             'limit' => 50
         ]);
 
+        // Prepare data for fees map block
+        $feeModel = new \App\Models\Fee();
+        $fractionModel = new \App\Models\Fraction();
+        
+        // Get available years for fees map
+        $availableYears = $feeModel->getAvailableYears($condominiumId);
+        if (empty($availableYears)) {
+            $availableYears = [date('Y')];
+        }
+        
+        // Get selected year for fees map (default to current year or selected year from filters)
+        $selectedFeesYear = $selectedYear ?? $availableYears[0];
+        $selectedFeesYear = (int)$selectedFeesYear;
+        
+        // Get fractions for the condominium
+        $fractions = $fractionModel->getByCondominiumId($condominiumId);
+        
+        // Get fees map for selected year
+        $feesMap = $feeModel->getFeesMapByYear($condominiumId, $selectedFeesYear);
+        
+        // Month names in Portuguese
+        $monthNames = [
+            1 => 'Janeiro', 2 => 'Fevereiro', 3 => 'Março', 4 => 'Abril',
+            5 => 'Maio', 6 => 'Junho', 7 => 'Julho', 8 => 'Agosto',
+            9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro'
+        ];
+
         $this->loadPageTranslations('finances');
         
         $isAdmin = RoleMiddleware::isAdmin();
@@ -997,7 +1137,13 @@ class FinanceController extends Controller
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null,
-            'user' => AuthMiddleware::user()
+            'user' => AuthMiddleware::user(),
+            // Variables for fees map block
+            'fees_map' => $feesMap,
+            'fractions' => $fractions,
+            'available_years' => $availableYears,
+            'selected_fees_year' => $selectedFeesYear,
+            'month_names' => $monthNames
         ];
         
         unset($_SESSION['error']);

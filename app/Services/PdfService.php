@@ -832,6 +832,270 @@ class PdfService
             return $filename;
         }
     }
+
+    /**
+     * Generate receipt HTML
+     */
+    public function generateReceiptReceipt(array $fee, array $fraction, array $condominium, array $payment = null, string $type = 'partial'): string
+    {
+        $period = '';
+        if ($fee['period_month']) {
+            $months = [
+                1 => 'Janeiro', 2 => 'Fevereiro', 3 => 'Março', 4 => 'Abril',
+                5 => 'Maio', 6 => 'Junho', 7 => 'Julho', 8 => 'Agosto',
+                9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro'
+            ];
+            $period = $months[$fee['period_month']] . '/' . $fee['period_year'];
+        } else {
+            $period = $fee['period_year'];
+        }
+
+        $amount = $fee['amount'];
+        $receiptTypeLabel = 'Recibo de Quota';
+
+        $condominiumName = htmlspecialchars($condominium['name'] ?? '');
+        $condominiumAddress = htmlspecialchars($condominium['address'] ?? '');
+        $fractionIdentifier = htmlspecialchars($fraction['identifier'] ?? '');
+        $feeReference = htmlspecialchars($fee['reference'] ?? '');
+
+        return "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <title>Recibo de Quota</title>
+            <style>
+                @page { margin: 1.5cm; }
+                body { 
+                    font-family: 'Times New Roman', serif; 
+                    margin: 0;
+                    padding: 10px;
+                    line-height: 1.4;
+                    color: #333;
+                    font-size: 11pt;
+                }
+                .header { 
+                    text-align: center; 
+                    margin-bottom: 20px;
+                    border-bottom: 2px solid #333;
+                    padding-bottom: 10px;
+                }
+                .header h1 { 
+                    color: #1a1a1a;
+                    font-size: 22px;
+                    margin: 0;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    font-weight: bold;
+                }
+                .header .subtitle {
+                    font-size: 12px;
+                    color: #666;
+                    margin-top: 5px;
+                    font-weight: normal;
+                }
+                .receipt-info {
+                    margin: 15px 0;
+                }
+                .info-box {
+                    background-color: #f9f9f9;
+                    border: 1px solid #333;
+                    padding: 12px;
+                    margin: 12px 0;
+                }
+                .info-box h2 {
+                    margin-top: 0;
+                    font-size: 14px;
+                    border-bottom: 1px solid #333;
+                    padding-bottom: 5px;
+                    margin-bottom: 8px;
+                }
+                .info-row {
+                    display: flex;
+                    margin: 5px 0;
+                    padding: 4px 0;
+                    border-bottom: 1px dotted #ccc;
+                }
+                .info-label {
+                    font-weight: bold;
+                    width: 140px;
+                    flex-shrink: 0;
+                    font-size: 10pt;
+                }
+                .info-value {
+                    flex: 1;
+                    font-size: 10pt;
+                }
+                .amount-box {
+                    background-color: #e7f3ff;
+                    border: 2px solid #007bff;
+                    padding: 15px;
+                    margin: 15px 0;
+                    text-align: center;
+                }
+                .amount-box .label {
+                    font-size: 12px;
+                    color: #666;
+                    margin-bottom: 5px;
+                }
+                .amount-box .value {
+                    font-size: 28px;
+                    font-weight: bold;
+                    color: #007bff;
+                }
+                .footer { 
+                    margin-top: 25px;
+                    padding-top: 10px;
+                    border-top: 1px solid #333;
+                    font-size: 9px;
+                    color: #666;
+                    text-align: center;
+                }
+                .signature-section {
+                    margin-top: 30px;
+                    display: flex;
+                    justify-content: space-between;
+                }
+                .signature-box {
+                    width: 45%;
+                    text-align: center;
+                    border-top: 1px solid #333;
+                    padding-top: 5px;
+                    margin-top: 40px;
+                    font-size: 9pt;
+                }
+                .receipt-number {
+                    text-align: right;
+                    font-size: 11px;
+                    color: #666;
+                    margin-bottom: 10px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class='receipt-number'>
+                <strong>Nº Recibo:</strong> {{RECEIPT_NUMBER}}
+            </div>
+            <div class='header'>
+                <h1>RECIBO DE QUOTA</h1>
+            </div>
+            
+            <div class='info-box'>
+                <h2>Dados do Condomínio</h2>
+                <div class='info-row'>
+                    <span class='info-label'>Condomínio:</span>
+                    <span class='info-value'>{$condominiumName}</span>
+                </div>
+                <div class='info-row'>
+                    <span class='info-label'>Morada:</span>
+                    <span class='info-value'>{$condominiumAddress}</span>
+                </div>
+            </div>
+
+            <div class='info-box'>
+                <h2>Dados da Quota</h2>
+                <div class='info-row'>
+                    <span class='info-label'>Fração:</span>
+                    <span class='info-value'><strong>{$fractionIdentifier}</strong></span>
+                </div>
+                <div class='info-row'>
+                    <span class='info-label'>Período:</span>
+                    <span class='info-value'>{$period}</span>
+                </div>
+                <div class='info-row'>
+                    <span class='info-label'>Referência:</span>
+                    <span class='info-value'>{$feeReference}</span>
+                </div>
+                <div class='info-row'>
+                    <span class='info-label'>Data de Vencimento:</span>
+                    <span class='info-value'>" . ($fee['due_date'] ? date('d/m/Y', strtotime($fee['due_date'])) : '-') . "</span>
+                </div>
+            </div>
+
+            <div class='amount-box'>
+                <div class='label'>Valor Recebido</div>
+                <div class='value'>€" . number_format((float)$amount, 2, ',', '.') . "</div>
+            </div>
+
+            <div class='info-box' style='background-color: #d4edda; border-color: #28a745;'>
+                <p style='margin: 0; text-align: center; font-size: 12px;'><strong>✓ Quota totalmente liquidada</strong></p>
+            </div>
+
+            <div class='footer'>
+                <p style='margin: 3px 0;'>Este recibo foi gerado automaticamente pelo sistema de gestão de condomínios.</p>
+                <p style='margin: 3px 0;'>Data de geração: " . date('d/m/Y H:i') . "</p>
+                <p style='margin-top: 8px; margin-bottom: 0;'>Este documento tem valor fiscal e comprovativo do pagamento da quota de condomínio.</p>
+            </div>
+
+            <div class='signature-section'>
+                <div class='signature-box'>
+                    <p><strong>Condómino</strong></p>
+                </div>
+                <div class='signature-box'>
+                    <p><strong>Administrador do Condomínio</strong></p>
+                </div>
+            </div>
+        </body>
+        </html>";
+    }
+
+    /**
+     * Generate receipt PDF from HTML content
+     */
+    public function generateReceiptPdf(string $htmlContent, int $receiptId, string $receiptNumber): string
+    {
+        // Replace receipt number placeholder
+        $htmlContent = str_replace('{{RECEIPT_NUMBER}}', $receiptNumber, $htmlContent);
+
+        // Use DomPDF to generate PDF
+        if (!class_exists('\Dompdf\Dompdf')) {
+            $autoloadPath = __DIR__ . '/../../vendor/autoload.php';
+            if (file_exists($autoloadPath)) {
+                require_once $autoloadPath;
+            }
+        }
+        
+        try {
+            $dompdf = new \Dompdf\Dompdf();
+            $dompdf->loadHtml($htmlContent);
+            
+            // Set paper size and orientation
+            $dompdf->setPaper('A4', 'portrait');
+            
+            // Render PDF
+            $dompdf->render();
+            
+            // Ensure receipts directory exists
+            $receiptsDir = __DIR__ . '/../../storage/documents/receipts';
+            if (!is_dir($receiptsDir)) {
+                mkdir($receiptsDir, 0755, true);
+            }
+            
+            // Generate filename
+            $filename = 'receipt_' . $receiptId . '_' . time() . '.pdf';
+            $filepath = $receiptsDir . '/' . $filename;
+            
+            // Save PDF to file
+            file_put_contents($filepath, $dompdf->output());
+            
+            return 'receipts/' . $filename;
+        } catch (\Exception $e) {
+            // Fallback to HTML if PDF generation fails
+            error_log("PDF generation error: " . $e->getMessage());
+            
+            $receiptsDir = __DIR__ . '/../../storage/documents/receipts';
+            if (!is_dir($receiptsDir)) {
+                mkdir($receiptsDir, 0755, true);
+            }
+            
+            $filename = 'receipt_' . $receiptId . '_' . time() . '.html';
+            $filepath = $receiptsDir . '/' . $filename;
+            
+            file_put_contents($filepath, $htmlContent);
+            
+            return 'receipts/' . $filename;
+        }
+    }
 }
 
 

@@ -87,6 +87,14 @@
                     <i class="bi bi-envelope"></i> Mensagens
                 </a>
             </li>
+            
+            {% if user.role == 'condomino' %}
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}receipts">
+                    <i class="bi bi-receipt-cutoff"></i> Meus Recibos
+                </a>
+            </li>
+            {% endif %}
             {% endif %}
             
             {% if user.role == 'admin' or user.role == 'super_admin' %}

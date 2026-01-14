@@ -111,6 +111,12 @@ $router->post('/condominiums/{condominium_id}/fees/bulk-mark-paid', 'App\Control
 $router->post('/condominiums/{condominium_id}/fees/{id}/add-payment', 'App\Controllers\FinanceController@addPayment');
 $router->get('/condominiums/{condominium_id}/fees/{id}/details', 'App\Controllers\FinanceController@getFeeDetails');
 
+// Receipt routes
+$router->get('/condominiums/{condominium_id}/receipts', 'App\Controllers\ReceiptController@index');
+$router->get('/receipts', 'App\Controllers\ReceiptController@myReceipts');
+$router->get('/condominiums/{condominium_id}/receipts/{id}', 'App\Controllers\ReceiptController@show');
+$router->get('/condominiums/{condominium_id}/receipts/{id}/download', 'App\Controllers\ReceiptController@download');
+
 // Revenue routes
 $router->get('/condominiums/{condominium_id}/finances/revenues', 'App\Controllers\FinanceController@revenues');
 $router->get('/condominiums/{condominium_id}/finances/revenues/create', 'App\Controllers\FinanceController@createRevenue');

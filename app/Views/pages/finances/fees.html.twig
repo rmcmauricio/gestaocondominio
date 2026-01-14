@@ -1,13 +1,13 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
-            <h2>Quotas</h2>
+            <h2 class="mb-0">Quotas</h2>
             <p class="text-muted mb-0">{{ condominium.name }}</p>
         </div>
         {% if is_admin %}
         <div>
             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateFeesModal">
-                <i class="bi bi-calculator"></i> Gerar Quotas
+                <i class="bi bi-calculator"></i> <span class="d-none d-sm-inline">Gerar Quotas</span>
             </button>
         </div>
         {% endif %}
@@ -27,21 +27,26 @@
     </div>
     {% endif %}
 
+    <!-- Mapa de Quotas - Primeiro Item -->
+    <div class="row g-3 mb-4">
+        {% include 'blocks/fees-map.html.twig' %}
+    </div>
+
     <div class="card shadow-sm mb-4">
         <div class="card-body">
             <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="row g-3" id="filtersForm">
-                <div class="col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                     <label for="year" class="form-label">Ano</label>
-                    <select class="form-select" id="year" name="year">
+                    <select class="form-select form-select-sm" id="year" name="year">
                         <option value="" {% if selected_year == '' or selected_year is empty %}selected{% endif %}>Todos</option>
                         {% for y in range(current_year - 2, current_year + 1) %}
                         <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                     <label for="month" class="form-label">Mês</label>
-                    <select class="form-select" id="month" name="month">
+                    <select class="form-select form-select-sm" id="month" name="month">
                         <option value="">Todos</option>
                         <option value="1" {% if selected_month == 1 %}selected{% endif %}>Janeiro</option>
                         <option value="2" {% if selected_month == 2 %}selected{% endif %}>Fevereiro</option>
@@ -57,62 +62,77 @@
                         <option value="12" {% if selected_month == 12 %}selected{% endif %}>Dezembro</option>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-12 col-sm-6 col-md-2">
                     <label for="status" class="form-label">Status</label>
-                    <select class="form-select" id="status" name="status">
+                    <select class="form-select form-select-sm" id="status" name="status">
                         <option value="">Todos</option>
                         <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Pendentes</option>
                         <option value="paid" {% if selected_status == 'paid' %}selected{% endif %}>Pagas</option>
                         <option value="overdue" {% if selected_status == 'overdue' %}selected{% endif %}>Em Atraso</option>
                     </select>
                 </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <div class="form-check form-switch">
+                <div class="col-12 col-sm-6 col-md-2 d-flex align-items-end">
+                    <div class="form-check form-switch w-100">
                         <input class="form-check-input" type="checkbox" id="show_historical" name="show_historical" value="1" {% if show_historical %}checked{% endif %} onchange="document.getElementById('filtersForm').submit()">
                         <label class="form-check-label" for="show_historical">Incluir Dívidas</label>
                     </div>
                 </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-outline-primary w-100">Filtrar</button>
+                <div class="col-12 col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-outline-primary w-100 btn-sm">Filtrar</button>
                 </div>
             </form>
         </div>
     </div>
 
-    {% if fees %}
-    <div class="card shadow-sm">
+    <!-- Resumo - Logo após os filtros -->
+    {% if summary %}
+    <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <!-- Bulk Actions -->
-            <div class="mb-3 d-none" id="bulkActions">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="text-muted" id="selectedCount">0 selecionadas</span>
-                    <button type="button" class="btn btn-sm btn-success" onclick="bulkMarkAsPaid()">
-                        <i class="bi bi-check-circle"></i> Marcar como Pagas
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
-                        <i class="bi bi-x-circle"></i> Limpar Seleção
-                    </button>
+            <h5 class="mb-3">Resumo</h5>
+            <div class="row g-3">
+                <div class="col-6 col-sm-4 col-md-3">
+                    <div class="text-muted small">Total</div>
+                    <div class="fw-bold">€{{ summary.total|number_format(2, ',', '.') }}</div>
+                </div>
+                <div class="col-6 col-sm-4 col-md-3">
+                    <div class="text-muted small">Pagas</div>
+                    <div class="fw-bold text-success">€{{ summary.paid|number_format(2, ',', '.') }}</div>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <div class="text-muted small">Pendentes</div>
+                    <div class="fw-bold text-warning">€{{ summary.pending|number_format(2, ',', '.') }}</div>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <div class="text-muted small">Parciais</div>
+                    <div class="fw-bold text-info">€{{ summary.partial|default(0)|number_format(2, ',', '.') }}</div>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <div class="text-muted small">Em Atraso</div>
+                    <div class="fw-bold text-danger">€{{ summary.overdue|number_format(2, ',', '.') }}</div>
                 </div>
             </div>
-            
+        </div>
+    </div>
+    {% endif %}
+
+    {% if fees %}
+    <!-- Desktop Table View -->
+    <div class="card shadow-sm d-none d-md-block">
+        <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover">
+                <table class="table table-hover mb-0">
                     <thead>
                         <tr>
-                            {% if is_admin %}
-                            <th width="40">
-                                <input type="checkbox" id="selectAll" onchange="toggleAllSelection()">
-                            </th>
-                            {% endif %}
-                            <th>Tipo</th>
                             <th>Fração</th>
                             <th>Período</th>
                             <th>Valor Total</th>
                             <th>Pago</th>
                             <th>Pendente</th>
                             <th>Vencimento</th>
-                            <th>Status</th>
-                            <th>Ações</th>
+                            <th class="text-center">Status</th>
+                            {% if is_admin %}
+                            <th style="width: 80px;">Ações</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -120,23 +140,7 @@
                         {% set paid_amount = fee.paid_amount|default(0) %}
                         {% set pending_amount = fee.pending_amount|default(fee.amount) %}
                         {% set calculated_status = fee.calculated_status|default(fee.status) %}
-                        <tr>
-                            {% if is_admin %}
-                            <td>
-                                {% if calculated_status == 'pending' or calculated_status == 'overdue' %}
-                                <input type="checkbox" class="fee-checkbox" value="{{ fee.id }}" onchange="updateBulkActions()">
-                                {% endif %}
-                            </td>
-                            {% endif %}
-                            <td>
-                                {% if fee.is_historical %}
-                                    <span class="badge bg-warning text-dark" title="Dívida Histórica">
-                                        <i class="bi bi-clock-history"></i> Dívida
-                                    </span>
-                                {% else %}
-                                    <span class="badge bg-primary">Quota</span>
-                                {% endif %}
-                            </td>
+                        <tr style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})" title="Clique para ver detalhes">
                             <td><strong>{{ fee.fraction_identifier }}</strong></td>
                             <td>
                                 {% if fee.period_month %}
@@ -161,43 +165,26 @@
                                 {% endif %}
                             </td>
                             <td>{{ fee.due_date|date('d/m/Y') }}</td>
-                            <td>
-                                <span class="badge 
-                                    {% if calculated_status == 'paid' %}bg-success
-                                    {% elseif calculated_status == 'overdue' %}bg-danger
-                                    {% elseif calculated_status == 'partial' %}bg-info
-                                    {% else %}bg-warning{% endif %}">
-                                    {% if calculated_status == 'paid' %}Paga
-                                    {% elseif calculated_status == 'overdue' %}Em Atraso
-                                    {% elseif calculated_status == 'partial' %}Parcial
-                                    {% else %}Pendente{% endif %}
-                                </span>
+                            <td class="text-center">
+                                {% if calculated_status == 'paid' %}
+                                    <i class="bi bi-check-circle-fill text-success" style="font-size: 1.2rem;" title="Pago"></i>
+                                {% elseif calculated_status == 'overdue' %}
+                                    <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 1.2rem;" title="Em Atraso"></i>
+                                {% elseif calculated_status == 'partial' %}
+                                    <i class="bi bi-circle-half text-info" style="font-size: 1.2rem;" title="Parcial"></i>
+                                {% else %}
+                                    <i class="bi bi-clock-history text-warning" style="font-size: 1.2rem;" title="Pendente"></i>
+                                {% endif %}
                             </td>
-                            <td>
+                            <td onclick="event.stopPropagation();">
                                 {% if is_admin %}
-                                <div class="btn-group btn-group-sm">
                                     {% if calculated_status != 'paid' %}
-                                    <button type="button" class="btn btn-outline-primary" 
-                                            onclick="showPaymentModal({{ fee.id }})" 
+                                    <button type="button" class="btn btn-sm btn-outline-primary" 
+                                            onclick="event.stopPropagation(); showPaymentModal({{ fee.id }})" 
                                             title="Registar Pagamento">
                                         <i class="bi bi-cash-coin"></i>
                                     </button>
                                     {% endif %}
-                                    <button type="button" class="btn btn-outline-info" 
-                                            onclick="showFeeDetails({{ fee.id }})" 
-                                            title="Ver Detalhes">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                    {% if calculated_status == 'paid' %}
-                                    <span class="text-success"><i class="bi bi-check-circle"></i></span>
-                                    {% endif %}
-                                </div>
-                                {% else %}
-                                <button type="button" class="btn btn-sm btn-outline-info" 
-                                        onclick="showFeeDetails({{ fee.id }})" 
-                                        title="Ver Detalhes">
-                                    <i class="bi bi-eye"></i>
-                                </button>
                                 {% endif %}
                             </td>
                         </tr>
@@ -207,31 +194,70 @@
             </div>
         </div>
     </div>
-    
-    {% if summary %}
-    <div class="card shadow-sm mt-4">
-        <div class="card-body">
-            <h5>Resumo</h5>
-            <div class="row">
-                <div class="col-md-3">
-                    <strong>Total:</strong> €{{ summary.total|number_format(2, ',', '.') }}
+
+    <!-- Mobile/Tablet Card View -->
+    <div class="d-md-none">
+        {% for fee in fees %}
+        {% set paid_amount = fee.paid_amount|default(0) %}
+        {% set pending_amount = fee.pending_amount|default(fee.amount) %}
+        {% set calculated_status = fee.calculated_status|default(fee.status) %}
+        <div class="card shadow-sm mb-3" style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})" title="Clique para ver detalhes">
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6 class="mb-1 d-flex align-items-center gap-2">
+                        <span class="badge bg-secondary">{{ fee.fraction_identifier }}</span>
+                        {% if calculated_status == 'paid' %}
+                            <i class="bi bi-check-circle-fill text-success" style="font-size: 1.2rem;" title="Pago"></i>
+                        {% elseif calculated_status == 'overdue' %}
+                            <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 1.2rem;" title="Em Atraso"></i>
+                        {% elseif calculated_status == 'partial' %}
+                            <i class="bi bi-circle-half text-info" style="font-size: 1.2rem;" title="Parcial"></i>
+                        {% else %}
+                            <i class="bi bi-clock-history text-warning" style="font-size: 1.2rem;" title="Pendente"></i>
+                        {% endif %}
+                        <span class="ms-auto">
+                            {% if fee.period_month %}
+                                {{ fee.period_month }}/{{ fee.period_year }}
+                            {% else %}
+                                {{ fee.period_year }}
+                            {% endif %}
+                        </span>
+                    </h6>
+                    <small class="text-muted">Vencimento: {{ fee.due_date|date('d/m/Y') }}</small>
                 </div>
-                <div class="col-md-3">
-                    <strong>Pagas:</strong> €{{ summary.paid|number_format(2, ',', '.') }}
+                
+                <div class="row g-2 mb-3">
+                    <div class="col-4">
+                        <div class="text-muted small">Total</div>
+                        <div class="fw-bold">€{{ fee.amount|number_format(2, ',', '.') }}</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-muted small">Pago</div>
+                        <div class="{% if paid_amount > 0 %}text-success fw-bold{% else %}text-muted{% endif %}">
+                            €{{ paid_amount|number_format(2, ',', '.') }}
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-muted small">Pendente</div>
+                        <div class="{% if pending_amount > 0 %}text-danger fw-bold{% else %}text-success{% endif %}">
+                            €{{ pending_amount|number_format(2, ',', '.') }}
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-2">
-                    <strong>Pendentes:</strong> €{{ summary.pending|number_format(2, ',', '.') }}
+                
+                {% if is_admin and calculated_status != 'paid' %}
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary w-100" 
+                            onclick="event.stopPropagation(); showPaymentModal({{ fee.id }})" 
+                            title="Registar Pagamento">
+                        <i class="bi bi-cash-coin"></i> Pagar
+                    </button>
                 </div>
-                <div class="col-md-2">
-                    <strong>Parciais:</strong> €{{ summary.partial|default(0)|number_format(2, ',', '.') }}
-                </div>
-                <div class="col-md-2">
-                    <strong>Em Atraso:</strong> €{{ summary.overdue|number_format(2, ',', '.') }}
-                </div>
+                {% endif %}
             </div>
         </div>
+        {% endfor %}
     </div>
-    {% endif %}
     {% else %}
     <div class="card shadow">
         <div class="card-body text-center py-5">
@@ -415,27 +441,6 @@
     </div>
 </div>
 
-<!-- Modal para Ver Detalhes -->
-<div class="modal fade" id="detailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Detalhes da Quota/Dívida</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="feeDetailsContent">
-                <div class="text-center py-3">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">A carregar...</span>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <script>
 let currentFeeId = null;
@@ -499,104 +504,6 @@ function showPaymentModal(feeId) {
     modal.show();
 }
 
-function showFeeDetails(feeId) {
-    const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
-    
-    fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)
-        .then(response => response.json())
-        .then(data => {
-            const pendingAmount = data.pending_amount;
-            const totalAmount = data.total_amount;
-            const paidAmount = data.total_paid;
-            const payments = data.payments || [];
-            
-            let paymentsHtml = '';
-            if (payments.length > 0) {
-                paymentsHtml = `
-                    <h6 class="mt-4">Histórico de Pagamentos</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Data</th>
-                                    <th>Valor</th>
-                                    <th>Método</th>
-                                    <th>Referência</th>
-                                    <th>Movimento Financeiro</th>
-                                    <th>Registado por</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${payments.map(p => `
-                                    <tr>
-                                        <td>${new Date(p.payment_date).toLocaleDateString('pt-PT')}</td>
-                                        <td><strong>€${parseFloat(p.amount).toFixed(2).replace('.', ',')}</strong></td>
-                                        <td>${p.payment_method}</td>
-                                        <td>${p.reference || '-'}</td>
-                                        <td>
-                                            ${p.transaction_id ? `
-                                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" 
-                                                   class="text-decoration-none" 
-                                                   title="Ver movimento financeiro #${p.transaction_id}">
-                                                    <i class="bi bi-link-45deg"></i> 
-                                                    ${p.account_name ? p.account_name + ' (#' + p.transaction_id + ')' : 'Movimento #' + p.transaction_id}
-                                                </a>
-                                            ` : '<span class="text-muted">-</span>'}
-                                        </td>
-                                        <td>${p.created_by_name || '-'}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                `;
-            } else {
-                paymentsHtml = '<p class="text-muted">Nenhum pagamento registado ainda.</p>';
-            }
-            
-            document.getElementById('feeDetailsContent').innerHTML = `
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Fração:</strong> ${data.fraction.identifier}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Tipo:</strong> ${data.fee.is_historical ? '<span class="badge bg-warning text-dark">Dívida Histórica</span>' : '<span class="badge bg-primary">Quota</span>'}
-                    </div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Período:</strong> ${data.fee.period_month ? data.fee.period_month + '/' + data.fee.period_year : data.fee.period_year}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Vencimento:</strong> ${new Date(data.fee.due_date).toLocaleDateString('pt-PT')}
-                    </div>
-                </div>
-                <hr>
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <strong>Valor Total:</strong><br>
-                        <h5>€${parseFloat(totalAmount).toFixed(2).replace('.', ',')}</h5>
-                    </div>
-                    <div class="col-md-4">
-                        <strong>Já Pago:</strong><br>
-                        <h5 class="text-success">€${parseFloat(paidAmount).toFixed(2).replace('.', ',')}</h5>
-                    </div>
-                    <div class="col-md-4">
-                        <strong>Pendente:</strong><br>
-                        <h5 class="text-danger">€${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}</h5>
-                    </div>
-                </div>
-                ${paymentsHtml}
-                ${data.fee.notes ? `<hr><div><strong>Notas:</strong><br>${data.fee.notes}</div>` : ''}
-            `;
-        })
-        .catch(error => {
-            console.error('Erro ao carregar detalhes:', error);
-            document.getElementById('feeDetailsContent').innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes</div>';
-        });
-    
-    modal.show();
-}
 
 // Update max amount when input changes
 document.getElementById('payment_amount')?.addEventListener('input', function() {
@@ -609,77 +516,9 @@ document.getElementById('payment_amount')?.addEventListener('input', function() 
 });
 
 // Bulk actions functions
-function toggleAllSelection() {
-    const selectAll = document.getElementById('selectAll');
-    const checkboxes = document.querySelectorAll('.fee-checkbox');
-    checkboxes.forEach(cb => cb.checked = selectAll.checked);
-    updateBulkActions();
-}
-
-function updateBulkActions() {
-    const checkboxes = document.querySelectorAll('.fee-checkbox:checked');
-    const bulkActions = document.getElementById('bulkActions');
-    const selectedCount = document.getElementById('selectedCount');
-    
-    if (checkboxes.length > 0) {
-        bulkActions.classList.remove('d-none');
-        selectedCount.textContent = checkboxes.length + ' selecionada(s)';
-    } else {
-        bulkActions.classList.add('d-none');
-    }
-    
-    // Update select all checkbox
-    const allCheckboxes = document.querySelectorAll('.fee-checkbox');
-    const allChecked = allCheckboxes.length > 0 && Array.from(allCheckboxes).every(cb => cb.checked);
-    const selectAll = document.getElementById('selectAll');
-    if (selectAll) {
-        selectAll.checked = allChecked;
-    }
-}
-
-function clearSelection() {
-    document.querySelectorAll('.fee-checkbox').forEach(cb => cb.checked = false);
-    const selectAll = document.getElementById('selectAll');
-    if (selectAll) {
-        selectAll.checked = false;
-    }
-    updateBulkActions();
-}
-
-function bulkMarkAsPaid() {
-    const selected = Array.from(document.querySelectorAll('.fee-checkbox:checked')).map(cb => cb.value);
-    
-    if (selected.length === 0) {
-        alert('Selecione pelo menos uma quota.');
-        return;
-    }
-    
-    if (!confirm('Tem certeza que deseja marcar ' + selected.length + ' quota(s) como paga(s)?')) {
-        return;
-    }
-    
-    // Create form and submit
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/bulk-mark-paid';
-    
-    const csrfInput = document.createElement('input');
-    csrfInput.type = 'hidden';
-    csrfInput.name = 'csrf_token';
-    csrfInput.value = '{{ csrf_token }}';
-    form.appendChild(csrfInput);
-    
-    selected.forEach(id => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'fee_ids[]';
-        input.value = id;
-        form.appendChild(input);
-    });
-    
-    document.body.appendChild(form);
-    form.submit();
-}
 </script>
+
+<!-- Modal e Script para Detalhes da Quota (Mapa) -->
+{% include 'blocks/fees-map-modal.html.twig' %}
 
 
