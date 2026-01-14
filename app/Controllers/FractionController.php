@@ -66,8 +66,15 @@ class FractionController extends Controller
             'total_permillage' => $totalPermillage,
             'current_user_id' => $userId,
             'is_admin' => $isAdmin,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $_SESSION['error'] ?? null,
+            'success' => $_SESSION['success'] ?? null,
+            'user' => $user
         ];
+
+        // Clear session messages after displaying them
+        unset($_SESSION['error']);
+        unset($_SESSION['success']);
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
     }
@@ -237,6 +244,19 @@ class FractionController extends Controller
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
             $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        // Check if fraction has fees or payments before deletion
+        if ($this->fractionModel->hasFees($id)) {
+            $_SESSION['error'] = 'Não é possível remover esta fração porque existem quotas associadas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        if ($this->fractionModel->hasPayments($id)) {
+            $_SESSION['error'] = 'Não é possível remover esta fração porque existem pagamentos associados.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
             exit;
         }

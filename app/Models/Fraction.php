@@ -88,7 +88,12 @@ class Fraction extends Model
 
         foreach ($data as $key => $value) {
             $fields[] = "$key = :$key";
-            $params[":$key"] = $value;
+            // Convert boolean to integer for MySQL TINYINT columns
+            if (is_bool($value)) {
+                $params[":$key"] = $value ? 1 : 0;
+            } else {
+                $params[":$key"] = $value;
+            }
         }
 
         if (empty($fields)) {
@@ -102,11 +107,55 @@ class Fraction extends Model
     }
 
     /**
+     * Check if fraction has fees
+     */
+    public function hasFees(int $id): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("SELECT COUNT(*) as count FROM fees WHERE fraction_id = :id");
+        $stmt->execute([':id' => $id]);
+        $result = $stmt->fetch();
+        
+        return ($result && (int)$result['count'] > 0);
+    }
+
+    /**
+     * Check if fraction has payments
+     */
+    public function hasPayments(int $id): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) as count 
+            FROM fee_payments fp
+            INNER JOIN fees f ON f.id = fp.fee_id
+            WHERE f.fraction_id = :id
+        ");
+        $stmt->execute([':id' => $id]);
+        $result = $stmt->fetch();
+        
+        return ($result && (int)$result['count'] > 0);
+    }
+
+    /**
      * Delete fraction (soft delete)
+     * Only allows deletion if fraction has no fees or payments
      */
     public function delete(int $id): bool
     {
-        return $this->update($id, ['is_active' => false]);
+        // Check if fraction has fees or payments
+        if ($this->hasFees($id) || $this->hasPayments($id)) {
+            return false;
+        }
+
+        // Convert boolean to integer for MySQL
+        return $this->update($id, ['is_active' => 0]);
     }
 
     /**
