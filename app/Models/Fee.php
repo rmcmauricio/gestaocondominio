@@ -56,12 +56,12 @@ class Fee extends Model
 
         $stmt = $this->db->prepare("
             INSERT INTO fees (
-                condominium_id, fraction_id, period_type, period_year,
+                condominium_id, fraction_id, period_type, fee_type, period_year,
                 period_month, period_quarter, amount, base_amount,
                 status, due_date, reference, notes, is_historical
             )
             VALUES (
-                :condominium_id, :fraction_id, :period_type, :period_year,
+                :condominium_id, :fraction_id, :period_type, :fee_type, :period_year,
                 :period_month, :period_quarter, :amount, :base_amount,
                 :status, :due_date, :reference, :notes, :is_historical
             )
@@ -71,6 +71,7 @@ class Fee extends Model
             ':condominium_id' => $data['condominium_id'],
             ':fraction_id' => $data['fraction_id'],
             ':period_type' => $data['period_type'] ?? 'monthly',
+            ':fee_type' => $data['fee_type'] ?? 'regular',
             ':period_year' => $data['period_year'],
             ':period_month' => $data['period_month'] ?? null,
             ':period_quarter' => $data['period_quarter'] ?? null,
@@ -178,8 +179,48 @@ class Fee extends Model
     }
 
     /**
+     * Get all fees by month and fraction
+     * Returns array of all fees for a specific month and fraction
+     */
+    public function getByMonthAndFraction(int $condominiumId, int $year, int $month, int $fractionId): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT 
+                f.*,
+                fr.identifier as fraction_identifier,
+                COALESCE((
+                    SELECT SUM(fp.amount) 
+                    FROM fee_payments fp 
+                    WHERE fp.fee_id = f.id
+                ), 0) as paid_amount
+            FROM fees f
+            INNER JOIN fractions fr ON fr.id = f.fraction_id
+            WHERE f.condominium_id = :condominium_id
+            AND f.period_year = :year
+            AND f.period_month = :month
+            AND f.fraction_id = :fraction_id
+            AND COALESCE(f.is_historical, 0) = 0
+            ORDER BY f.fee_type ASC, f.created_at ASC
+        ");
+
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':year' => $year,
+            ':month' => $month,
+            ':fraction_id' => $fractionId
+        ]);
+
+        return $stmt->fetchAll() ?: [];
+    }
+
+    /**
      * Get fees map by year (organized by month and fraction)
      * Returns array: [month => [fraction_id => fee_data]]
+     * Now sums all fees (regular + extra) for each month/fraction combination
      */
     public function getFeesMapByYear(int $condominiumId, int $year): array
     {
@@ -196,6 +237,8 @@ class Fee extends Model
                 f.status,
                 f.due_date,
                 f.paid_at,
+                f.fee_type,
+                f.notes,
                 fr.identifier as fraction_identifier,
                 COALESCE((
                     SELECT SUM(fp.amount) 
@@ -208,7 +251,7 @@ class Fee extends Model
             AND f.period_year = :year
             AND f.period_month IS NOT NULL
             AND COALESCE(f.is_historical, 0) = 0
-            ORDER BY f.period_month ASC, fr.identifier ASC
+            ORDER BY f.period_month ASC, fr.identifier ASC, f.fee_type ASC, f.created_at ASC
         ");
 
         $stmt->execute([
@@ -218,7 +261,7 @@ class Fee extends Model
 
         $fees = $stmt->fetchAll() ?: [];
         
-        // Organize by month and fraction
+        // Organize by month and fraction, summing amounts
         $map = [];
         foreach ($fees as $fee) {
             $month = (int)$fee['period_month'];
@@ -228,26 +271,60 @@ class Fee extends Model
                 $map[$month] = [];
             }
             
-            // Check if fee is overdue
-            $isOverdue = false;
+            if (!isset($map[$month][$fractionId])) {
+                // Initialize with first fee data
+                $isOverdue = false;
+                if ($fee['status'] === 'pending' && !empty($fee['due_date'])) {
+                    $dueDate = new \DateTime($fee['due_date']);
+                    $today = new \DateTime();
+                    $isOverdue = $dueDate < $today;
+                }
+                
+                $map[$month][$fractionId] = [
+                    'id' => (int)$fee['id'], // Keep first fee ID for modal
+                    'fraction_id' => $fractionId,
+                    'fraction_identifier' => $fee['fraction_identifier'],
+                    'amount' => 0, // Start at 0, will sum below
+                    'paid_amount' => 0, // Start at 0, will sum below
+                    'status' => $fee['status'],
+                    'due_date' => $fee['due_date'],
+                    'paid_at' => $fee['paid_at'],
+                    'is_overdue' => $isOverdue,
+                    'has_extra' => false,
+                    'all_fees' => [] // Store all fees for this month/fraction
+                ];
+            }
+            
+            // Add this fee to the list
+            $map[$month][$fractionId]['all_fees'][] = [
+                'id' => (int)$fee['id'],
+                'fee_type' => $fee['fee_type'] ?? 'regular',
+                'amount' => (float)$fee['amount'],
+                'notes' => $fee['notes']
+            ];
+            
+            // Sum amounts (always sum, including first fee)
+            $map[$month][$fractionId]['amount'] += (float)$fee['amount'];
+            $map[$month][$fractionId]['paid_amount'] += (float)$fee['paid_amount'];
+            
+            // Check if has extra fees
+            if (($fee['fee_type'] ?? 'regular') === 'extra') {
+                $map[$month][$fractionId]['has_extra'] = true;
+            }
+            
+            // Update status: if any is overdue, mark as overdue
             if ($fee['status'] === 'pending' && !empty($fee['due_date'])) {
                 $dueDate = new \DateTime($fee['due_date']);
                 $today = new \DateTime();
-                $isOverdue = $dueDate < $today;
+                if ($dueDate < $today) {
+                    $map[$month][$fractionId]['is_overdue'] = true;
+                    $map[$month][$fractionId]['status'] = 'overdue';
+                }
             }
             
-            $map[$month][$fractionId] = [
-                'id' => (int)$fee['id'],
-                'fraction_id' => $fractionId,
-                'fraction_identifier' => $fee['fraction_identifier'],
-                'amount' => (float)$fee['amount'],
-                'paid_amount' => (float)$fee['paid_amount'],
-                'remaining_amount' => (float)$fee['amount'] - (float)$fee['paid_amount'],
-                'status' => $fee['status'],
-                'due_date' => $fee['due_date'],
-                'paid_at' => $fee['paid_at'],
-                'is_overdue' => $isOverdue
-            ];
+            // Update remaining amount
+            $map[$month][$fractionId]['remaining_amount'] = 
+                $map[$month][$fractionId]['amount'] - $map[$month][$fractionId]['paid_amount'];
         }
 
         return $map;

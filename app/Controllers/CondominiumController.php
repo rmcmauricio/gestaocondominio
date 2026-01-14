@@ -304,6 +304,7 @@ class CondominiumController extends Controller
             'fractions' => $fractions,
             'available_years' => $availableYears,
             'selected_fees_year' => $selectedYear,
+            'fees_map_form_action' => BASE_URL . 'condominiums/' . $id,
             'month_names' => $monthNames
         ];
 

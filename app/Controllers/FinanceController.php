@@ -588,16 +588,79 @@ class FinanceController extends Controller
         }
 
         $year = (int)($_POST['year'] ?? date('Y'));
-        $month = (int)($_POST['month'] ?? date('m'));
+        
+        // Get months array (can be single value or array)
+        $months = $_POST['months'] ?? [];
+        if (!is_array($months)) {
+            // Fallback to old single month format
+            $month = (int)($_POST['month'] ?? date('m'));
+            $months = [$month];
+        } else {
+            // Filter and convert to integers
+            $months = array_filter(array_map('intval', $months), function($m) {
+                return $m >= 1 && $m <= 12;
+            });
+        }
+
+        if (empty($months)) {
+            $_SESSION['error'] = 'Selecione pelo menos um mês para gerar as quotas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $isExtra = isset($_POST['is_extra']) && $_POST['is_extra'] === '1';
 
         try {
-            $generated = $this->feeService->generateMonthlyFees($condominiumId, $year, $month);
+            if ($isExtra) {
+                // Generate extra fees
+                $extraAmount = (float)($_POST['extra_amount'] ?? 0);
+                $extraDescription = Security::sanitize($_POST['extra_description'] ?? '');
+                $extraFractions = $_POST['extra_fractions'] ?? [];
+                
+                if ($extraAmount <= 0) {
+                    throw new \Exception('O valor da quota extra deve ser maior que zero.');
+                }
+
+                // Convert fraction IDs to array of integers
+                if (!is_array($extraFractions)) {
+                    $extraFractions = [];
+                } else {
+                    $extraFractions = array_filter(array_map('intval', $extraFractions));
+                }
+
+                $generated = $this->feeService->generateExtraFees(
+                    $condominiumId,
+                    $year,
+                    $months,
+                    $extraAmount,
+                    $extraDescription,
+                    $extraFractions
+                );
+                
+                $monthCount = count($months);
+                $fractionCount = empty($extraFractions) ? 'todas as frações' : count($extraFractions) . ' fração(ões)';
+                $_SESSION['success'] = count($generated) . ' quota(s) extra(s) gerada(s) com sucesso para ' . $monthCount . ' mês(es) e ' . $fractionCount . '!';
+            } else {
+                // Generate regular fees
+                $generated = $this->feeService->generateMonthlyFees($condominiumId, $year, $months);
+                
+                $monthCount = count($months);
+                $_SESSION['success'] = count($generated) . ' quota(s) gerada(s) com sucesso para ' . $monthCount . ' mês(es)!';
+            }
             
-            $_SESSION['success'] = count($generated) . ' quotas geradas com sucesso!';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
             exit;
         } catch (\Exception $e) {
-            $_SESSION['error'] = 'Erro ao gerar quotas: ' . $e->getMessage();
+            $errorMessage = 'Erro ao gerar quotas: ' . $e->getMessage();
+            
+            // If error is about missing budget, store the year for link generation
+            if (strpos($e->getMessage(), 'Orçamento não encontrado') !== false && strpos($e->getMessage(), 'Crie um orçamento primeiro') !== false) {
+                $_SESSION['error'] = $errorMessage;
+                $_SESSION['error_budget_year'] = $year; // Store year for link generation
+            } else {
+                $_SESSION['error'] = $errorMessage;
+            }
+            
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
             exit;
         }
@@ -1098,8 +1161,8 @@ class FinanceController extends Controller
             $availableYears = [date('Y')];
         }
         
-        // Get selected year for fees map (default to current year or selected year from filters)
-        $selectedFeesYear = $selectedYear ?? $availableYears[0];
+        // Get selected year for fees map (check fees_year parameter first, then selectedYear from filters, then default)
+        $selectedFeesYear = !empty($_GET['fees_year']) ? (int)$_GET['fees_year'] : ($selectedYear ?? $availableYears[0]);
         $selectedFeesYear = (int)$selectedFeesYear;
         
         // Get fractions for the condominium
@@ -1136,6 +1199,7 @@ class FinanceController extends Controller
             'is_admin' => $isAdmin,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
+            'error_budget_year' => $_SESSION['error_budget_year'] ?? null,
             'success' => $_SESSION['success'] ?? null,
             'user' => AuthMiddleware::user(),
             // Variables for fees map block
@@ -1143,10 +1207,12 @@ class FinanceController extends Controller
             'fractions' => $fractions,
             'available_years' => $availableYears,
             'selected_fees_year' => $selectedFeesYear,
+            'fees_map_form_action' => BASE_URL . 'condominiums/' . $condominiumId . '/fees',
             'month_names' => $monthNames
         ];
         
         unset($_SESSION['error']);
+        unset($_SESSION['error_budget_year']);
         unset($_SESSION['success']);
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -1627,6 +1693,211 @@ class FinanceController extends Controller
         }
         if ($errorCount > 0) {
             $_SESSION['error'] = "Erro ao processar {$errorCount} quota(s).";
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+        exit;
+    }
+
+    /**
+     * Show edit form for extra fee
+     */
+    public function editFee(int $condominiumId, int $feeId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $fee = $this->feeModel->findById($feeId);
+        if (!$fee || $fee['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Quota não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        // Only allow editing extra fees
+        if (($fee['fee_type'] ?? 'regular') !== 'extra') {
+            $_SESSION['error'] = 'Apenas quotas extras podem ser editadas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        // Check if fee has payments
+        $totalPaid = $this->feePaymentModel->getTotalPaid($feeId);
+        if ($totalPaid > 0) {
+            $_SESSION['error'] = 'Não é possível editar uma quota que já possui pagamentos registados.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        // Get fraction info
+        $fractionModel = new \App\Models\Fraction();
+        $fraction = $fractionModel->findById($fee['fraction_id']);
+        
+        if (!$fraction) {
+            $_SESSION['error'] = 'Fração não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $this->loadPageTranslations('finances');
+        
+        $this->data += [
+            'viewName' => 'pages/finances/edit-fee.html.twig',
+            'page' => ['titulo' => 'Editar Quota Extra'],
+            'condominium' => $condominium,
+            'fee' => $fee,
+            'fraction' => $fraction,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Update extra fee
+     */
+    public function updateFee(int $condominiumId, int $feeId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $fee = $this->feeModel->findById($feeId);
+        if (!$fee || $fee['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Quota não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        // Only allow editing extra fees
+        if (($fee['fee_type'] ?? 'regular') !== 'extra') {
+            $_SESSION['error'] = 'Apenas quotas extras podem ser editadas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        // Check if fee has payments
+        $totalPaid = $this->feePaymentModel->getTotalPaid($feeId);
+        if ($totalPaid > 0) {
+            $_SESSION['error'] = 'Não é possível editar uma quota que já possui pagamentos registados.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        // Get and validate input
+        $amount = (float)($_POST['amount'] ?? 0);
+        $description = Security::sanitize($_POST['description'] ?? '');
+        $dueDate = $_POST['due_date'] ?? $fee['due_date'];
+
+        if ($amount <= 0) {
+            $_SESSION['error'] = 'O valor da quota deve ser maior que zero.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/' . $feeId . '/edit');
+            exit;
+        }
+
+        // Update fee
+        global $db;
+        $stmt = $db->prepare("
+            UPDATE fees 
+            SET amount = :amount, 
+                base_amount = :base_amount,
+                due_date = :due_date,
+                notes = :notes,
+                updated_at = NOW()
+            WHERE id = :id
+        ");
+
+        $success = $stmt->execute([
+            ':amount' => round($amount, 2),
+            ':base_amount' => round($amount, 2),
+            ':due_date' => $dueDate,
+            ':notes' => $description,
+            ':id' => $feeId
+        ]);
+
+        if ($success) {
+            $_SESSION['success'] = 'Quota extra atualizada com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao atualizar a quota extra.';
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+        exit;
+    }
+
+    /**
+     * Delete extra fee
+     */
+    public function deleteFee(int $condominiumId, int $feeId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $fee = $this->feeModel->findById($feeId);
+        if (!$fee || $fee['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Quota não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        // Only allow deleting extra fees
+        if (($fee['fee_type'] ?? 'regular') !== 'extra') {
+            $_SESSION['error'] = 'Apenas quotas extras podem ser eliminadas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        // Check if fee has payments
+        $totalPaid = $this->feePaymentModel->getTotalPaid($feeId);
+        if ($totalPaid > 0) {
+            $_SESSION['error'] = 'Não é possível eliminar uma quota que já possui pagamentos registados.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        // Delete fee
+        global $db;
+        $stmt = $db->prepare("DELETE FROM fees WHERE id = :id");
+        $success = $stmt->execute([':id' => $feeId]);
+
+        if ($success) {
+            $_SESSION['success'] = 'Quota extra eliminada com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao eliminar a quota extra.';
         }
 
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');

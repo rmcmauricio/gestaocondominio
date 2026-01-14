@@ -116,6 +116,9 @@ $router->post('/condominiums/{condominium_id}/fees/{id}/mark-paid', 'App\Control
 $router->post('/condominiums/{condominium_id}/fees/bulk-mark-paid', 'App\Controllers\FinanceController@bulkMarkFeesAsPaid');
 $router->post('/condominiums/{condominium_id}/fees/{id}/add-payment', 'App\Controllers\FinanceController@addPayment');
 $router->get('/condominiums/{condominium_id}/fees/{id}/details', 'App\Controllers\FinanceController@getFeeDetails');
+$router->get('/condominiums/{condominium_id}/fees/{id}/edit', 'App\Controllers\FinanceController@editFee');
+$router->post('/condominiums/{condominium_id}/fees/{id}/update', 'App\Controllers\FinanceController@updateFee');
+$router->post('/condominiums/{condominium_id}/fees/{id}/delete', 'App\Controllers\FinanceController@deleteFee');
 
 // Receipt routes
 $router->get('/condominiums/{condominium_id}/receipts', 'App\Controllers\ReceiptController@index');
