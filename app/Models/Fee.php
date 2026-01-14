@@ -221,14 +221,21 @@ class Fee extends Model
      * Get fees map by year (organized by month and fraction)
      * Returns array: [month => [fraction_id => fee_data]]
      * Now sums all fees (regular + extra) for each month/fraction combination
+     * Includes historical fees if the year is in the past
      */
-    public function getFeesMapByYear(int $condominiumId, int $year): array
+    public function getFeesMapByYear(int $condominiumId, int $year, bool $includeHistorical = null): array
     {
         if (!$this->db) {
             return [];
         }
 
-        $stmt = $this->db->prepare("
+        // If includeHistorical is not specified, include historical fees if year is in the past
+        if ($includeHistorical === null) {
+            $currentYear = (int)date('Y');
+            $includeHistorical = $year < $currentYear;
+        }
+
+        $sql = "
             SELECT 
                 f.id,
                 f.fraction_id,
@@ -239,6 +246,7 @@ class Fee extends Model
                 f.paid_at,
                 f.fee_type,
                 f.notes,
+                f.is_historical,
                 fr.identifier as fraction_identifier,
                 COALESCE((
                     SELECT SUM(fp.amount) 
@@ -249,10 +257,18 @@ class Fee extends Model
             INNER JOIN fractions fr ON fr.id = f.fraction_id
             WHERE f.condominium_id = :condominium_id
             AND f.period_year = :year
-            AND f.period_month IS NOT NULL
-            AND COALESCE(f.is_historical, 0) = 0
-            ORDER BY f.period_month ASC, fr.identifier ASC, f.fee_type ASC, f.created_at ASC
-        ");
+            AND f.period_month IS NOT NULL";
+
+        // Include historical fees if requested
+        if (!$includeHistorical) {
+            // Exclude historical fees
+            $sql .= " AND COALESCE(f.is_historical, 0) = 0";
+        }
+        // If includeHistorical is true, don't filter by is_historical (include all)
+
+        $sql .= " ORDER BY f.period_month ASC, fr.identifier ASC, f.fee_type ASC, f.created_at ASC";
+
+        $stmt = $this->db->prepare($sql);
 
         $stmt->execute([
             ':condominium_id' => $condominiumId,

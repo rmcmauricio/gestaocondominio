@@ -23,6 +23,7 @@ use App\Models\Reservation;
 use App\Models\Occurrence;
 use App\Models\Fee;
 use App\Models\FeePayment;
+use App\Models\Message;
 use App\Core\Security;
 use App\Services\FeeService;
 use App\Services\NotificationService;
@@ -111,8 +112,23 @@ class DemoSeeder
                 // 13. Create reservations
                 $this->createReservations($index);
 
+                // 13b. Create messages 2025 (only for Condominium 1)
+                if ($index === 0) {
+                    $this->createMessages2025($index);
+                }
+
                 // 14. Create occurrences
                 $this->createOccurrences($index);
+
+                // 15a. Create budget 2026 (only for Condominium 1)
+                if ($index === 0) {
+                    $this->createBudget2026($index);
+                }
+
+                // 15b. Generate fees 2026 (only for Condominium 1)
+                if ($index === 0) {
+                    $this->generateFees2026($index);
+                }
 
                 // 15. Create receipts for demo payments
                 $this->createReceiptsForDemoPayments($index);
@@ -160,7 +176,7 @@ class DemoSeeder
         echo "2. Criando condomínios demo...\n";
 
         // Check if demo condominiums exist
-        $stmt = $this->db->prepare("SELECT id FROM condominiums WHERE is_demo = TRUE ORDER BY id ASC");
+        $stmt = $this->db->prepare("SELECT id, name FROM condominiums WHERE is_demo = TRUE ORDER BY id ASC");
         $stmt->execute();
         $existingCondominiums = $stmt->fetchAll();
 
@@ -189,13 +205,10 @@ class DemoSeeder
         $condominiumModel = new Condominium();
         $this->demoCondominiumIds = [];
 
-        // Delete existing demo condominiums and recreate
-        if (!empty($existingCondominiums)) {
-            echo "   Removendo condomínios demo existentes...\n";
-            foreach ($existingCondominiums as $existing) {
-                $this->deleteCondominiumData($existing['id']);
-                $this->db->exec("DELETE FROM condominiums WHERE id = {$existing['id']}");
-            }
+        // Map existing condominiums by name
+        $existingByName = [];
+        foreach ($existingCondominiums as $existing) {
+            $existingByName[$existing['name']] = $existing['id'];
         }
 
         // Remove non-demo condominiums with same names that belong to demo user
@@ -223,29 +236,84 @@ class DemoSeeder
             }
         }
 
-        // Create 2 distinct condominiums
+        // Create or reuse 2 distinct condominiums
         foreach ($condominiumsData as $index => $data) {
-            $condominiumId = $condominiumModel->create([
-                'user_id' => $this->demoUserId,
-                'name' => $data['name'],
-                'address' => $data['address'],
-                'postal_code' => $data['postal_code'],
-                'city' => $data['city'],
-                'country' => $data['country'],
-                'nif' => $data['nif'],
-                'total_fractions' => $data['total_fractions'],
-                'is_active' => true,
-                'is_demo' => true
-            ]);
+            $condominiumId = null;
+            
+            // Check if demo condominium with this name already exists
+            if (isset($existingByName[$data['name']])) {
+                // Reuse existing ID
+                $condominiumId = $existingByName[$data['name']];
+                echo "   Reutilizando condomínio demo '{$data['name']}' (ID: {$condominiumId})\n";
+                
+                // Update condominium data to ensure it's correct
+                // Note: Data cleaning should be handled by deleteDemoData() before run() is called
+                // We don't clean here to avoid double execution when restore-demo.php calls deleteDemoData() first
+                $stmt = $this->db->prepare("
+                    UPDATE condominiums 
+                    SET user_id = :user_id,
+                        address = :address,
+                        postal_code = :postal_code,
+                        city = :city,
+                        country = :country,
+                        nif = :nif,
+                        total_fractions = :total_fractions,
+                        is_active = :is_active,
+                        is_demo = :is_demo
+                    WHERE id = :id
+                ");
+                $stmt->execute([
+                    ':id' => $condominiumId,
+                    ':user_id' => $this->demoUserId,
+                    ':address' => $data['address'],
+                    ':postal_code' => $data['postal_code'],
+                    ':city' => $data['city'],
+                    ':country' => $data['country'],
+                    ':nif' => $data['nif'],
+                    ':total_fractions' => $data['total_fractions'],
+                    ':is_active' => 1,
+                    ':is_demo' => 1
+                ]);
+            } else {
+                // Create new condominium
+                $condominiumId = $condominiumModel->create([
+                    'user_id' => $this->demoUserId,
+                    'name' => $data['name'],
+                    'address' => $data['address'],
+                    'postal_code' => $data['postal_code'],
+                    'city' => $data['city'],
+                    'country' => $data['country'],
+                    'nif' => $data['nif'],
+                    'total_fractions' => $data['total_fractions'],
+                    'is_active' => true,
+                    'is_demo' => true
+                ]);
+                echo "   Condomínio demo '{$data['name']}' criado (ID: {$condominiumId})\n";
+            }
+            
             $this->demoCondominiumIds[] = $condominiumId;
-            echo "   Condomínio demo '{$data['name']}' criado (ID: {$condominiumId})\n";
         }
         
-        // Set first condominium as default for demo user
+        // Delete any extra demo condominiums that shouldn't exist (if there are more than 2)
+        if (count($existingCondominiums) > 2) {
+            echo "   Removendo condomínios demo extras...\n";
+            foreach ($existingCondominiums as $existing) {
+                if (!in_array($existing['id'], $this->demoCondominiumIds)) {
+                    echo "   Removendo condomínio demo extra '{$existing['name']}' (ID: {$existing['id']})...\n";
+                    $this->deleteCondominiumData($existing['id']);
+                    $this->db->exec("DELETE FROM condominiums WHERE id = {$existing['id']}");
+                }
+            }
+        }
+        
+        // Set first condominium (most detailed) as default for demo user
         if (!empty($this->demoCondominiumIds)) {
             $userModel = new User();
             $userModel->setDefaultCondominium($this->demoUserId, $this->demoCondominiumIds[0]);
-            echo "   Condomínio padrão definido para o utilizador demo (ID: {$this->demoCondominiumIds[0]})\n";
+            $condominiumModel = new Condominium();
+            $firstCondominium = $condominiumModel->findById($this->demoCondominiumIds[0]);
+            $condominiumName = $firstCondominium ? $firstCondominium['name'] : 'Condomínio 1';
+            echo "   Condomínio padrão definido: {$condominiumName} (ID: {$this->demoCondominiumIds[0]})\n";
         }
     }
 
@@ -260,9 +328,15 @@ class DemoSeeder
         $this->db->exec("DELETE FROM assembly_vote_topics WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
         $this->db->exec("DELETE FROM assembly_attendees WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
         $this->db->exec("DELETE FROM assemblies WHERE condominium_id = {$condominiumId}");
+        // Delete fee payment history first (references fee_payments)
+        $this->db->exec("DELETE FROM fee_payment_history WHERE fee_id IN (SELECT id FROM fees WHERE condominium_id = {$condominiumId})");
+        // Update fee_payments to remove foreign key constraint
         $this->db->exec("UPDATE fee_payments SET financial_transaction_id = NULL WHERE fee_id IN (SELECT id FROM fees WHERE condominium_id = {$condominiumId})");
+        // Delete fee payments
         $this->db->exec("DELETE FROM fee_payments WHERE fee_id IN (SELECT id FROM fees WHERE condominium_id = {$condominiumId})");
+        // Delete fees
         $this->db->exec("DELETE FROM fees WHERE condominium_id = {$condominiumId}");
+        // Delete financial transactions
         $this->db->exec("DELETE FROM financial_transactions WHERE condominium_id = {$condominiumId}");
         $this->db->exec("DELETE FROM bank_accounts WHERE condominium_id = {$condominiumId}");
         $this->db->exec("DELETE FROM reservations WHERE condominium_id = {$condominiumId}");
@@ -273,8 +347,16 @@ class DemoSeeder
         $this->db->exec("DELETE FROM expenses WHERE condominium_id = {$condominiumId}");
         $this->db->exec("DELETE FROM budget_items WHERE budget_id IN (SELECT id FROM budgets WHERE condominium_id = {$condominiumId})");
         $this->db->exec("DELETE FROM budgets WHERE condominium_id = {$condominiumId}");
+        // Delete contracts
+        $this->db->exec("DELETE FROM contracts WHERE condominium_id = {$condominiumId}");
+        
+        // Delete suppliers
         $this->db->exec("DELETE FROM suppliers WHERE condominium_id = {$condominiumId}");
+        
+        // Delete condominium users
         $this->db->exec("DELETE FROM condominium_users WHERE condominium_id = {$condominiumId}");
+        
+        // Delete fractions
         $this->db->exec("DELETE FROM fractions WHERE condominium_id = {$condominiumId}");
         // Delete receipts created by non-demo users (keep demo receipts)
         // Only delete receipts where generated_by is not the demo user
@@ -338,7 +420,63 @@ class DemoSeeder
             $deleteStmt->execute([':condominium_id' => $condominiumId]);
         }
         
+        // Delete message attachments (files and database records)
+        $messageAttachmentsStmt = $this->db->prepare("SELECT file_path FROM message_attachments WHERE condominium_id = :condominium_id");
+        $messageAttachmentsStmt->execute([':condominium_id' => $condominiumId]);
+        $messageAttachments = $messageAttachmentsStmt->fetchAll();
+        foreach ($messageAttachments as $attachment) {
+            if (!empty($attachment['file_path'])) {
+                $fullPath = __DIR__ . '/../../storage/' . $attachment['file_path'];
+                if (file_exists($fullPath)) {
+                    @unlink($fullPath);
+                }
+            }
+        }
+        $this->db->exec("DELETE FROM message_attachments WHERE condominium_id = {$condominiumId}");
+        
+        // Delete occurrence attachments (files and database records)
+        $occurrenceAttachmentsStmt = $this->db->prepare("SELECT file_path FROM occurrence_attachments WHERE condominium_id = :condominium_id");
+        $occurrenceAttachmentsStmt->execute([':condominium_id' => $condominiumId]);
+        $occurrenceAttachments = $occurrenceAttachmentsStmt->fetchAll();
+        foreach ($occurrenceAttachments as $attachment) {
+            if (!empty($attachment['file_path'])) {
+                $fullPath = __DIR__ . '/../../storage/' . $attachment['file_path'];
+                if (file_exists($fullPath)) {
+                    @unlink($fullPath);
+                }
+            }
+        }
+        $this->db->exec("DELETE FROM occurrence_attachments WHERE condominium_id = {$condominiumId}");
+        
+        // Delete messages
+        $this->db->exec("DELETE FROM messages WHERE condominium_id = {$condominiumId}");
+        
+        // Delete fees for 2026
+        $this->db->exec("DELETE FROM fees WHERE condominium_id = {$condominiumId} AND period_year = 2026");
+        
+        // Delete budget 2026
+        $stmt = $this->db->prepare("DELETE FROM budget_items WHERE budget_id IN (SELECT id FROM budgets WHERE condominium_id = :condominium_id AND year = 2026)");
+        $stmt->execute([':condominium_id' => $condominiumId]);
+        $this->db->exec("DELETE FROM budgets WHERE condominium_id = {$condominiumId} AND year = 2026");
+        
+        // Delete revenues
+        $this->db->exec("DELETE FROM revenues WHERE condominium_id = {$condominiumId}");
+        
+        // Delete documents
+        $documentsStmt = $this->db->prepare("SELECT file_path FROM documents WHERE condominium_id = :condominium_id");
+        $documentsStmt->execute([':condominium_id' => $condominiumId]);
+        $documents = $documentsStmt->fetchAll();
+        foreach ($documents as $document) {
+            if (!empty($document['file_path'])) {
+                $fullPath = __DIR__ . '/../../storage/' . $document['file_path'];
+                if (file_exists($fullPath)) {
+                    @unlink($fullPath);
+                }
+            }
+        }
         $this->db->exec("DELETE FROM documents WHERE condominium_id = {$condominiumId}");
+        
+        // Delete notifications
         $this->db->exec("DELETE FROM notifications WHERE condominium_id = {$condominiumId}");
 
         // Delete users associated with this condominium (but not demo user)
@@ -406,16 +544,53 @@ class DemoSeeder
         $this->fractionIds = [];
 
         foreach ($fractions as $fraction) {
-            $fractionId = $fractionModel->create([
-                'condominium_id' => $this->demoCondominiumId,
-                'identifier' => $fraction['identifier'],
-                'permillage' => $fraction['permillage'],
-                'floor' => $fraction['floor'],
-                'typology' => $fraction['typology'],
-                'area' => $fraction['area']
+            // Check if fraction already exists
+            $stmt = $this->db->prepare("
+                SELECT id FROM fractions 
+                WHERE condominium_id = :condominium_id 
+                AND identifier = :identifier
+            ");
+            $stmt->execute([
+                ':condominium_id' => $this->demoCondominiumId,
+                ':identifier' => $fraction['identifier']
             ]);
+            $existing = $stmt->fetch();
+            
+            if ($existing) {
+                // Reuse existing fraction
+                $fractionId = (int)$existing['id'];
+                // Update fraction data to ensure it's correct
+                $updateStmt = $this->db->prepare("
+                    UPDATE fractions 
+                    SET permillage = :permillage,
+                        floor = :floor,
+                        typology = :typology,
+                        area = :area,
+                        is_active = 1
+                    WHERE id = :id
+                ");
+                $updateStmt->execute([
+                    ':id' => $fractionId,
+                    ':permillage' => $fraction['permillage'],
+                    ':floor' => $fraction['floor'],
+                    ':typology' => $fraction['typology'],
+                    ':area' => $fraction['area']
+                ]);
+                echo "   Fração {$fraction['identifier']} reutilizada (ID: {$fractionId})\n";
+            } else {
+                // Create new fraction
+                $fractionId = $fractionModel->create([
+                    'condominium_id' => $this->demoCondominiumId,
+                    'identifier' => $fraction['identifier'],
+                    'permillage' => $fraction['permillage'],
+                    'floor' => $fraction['floor'],
+                    'typology' => $fraction['typology'],
+                    'area' => $fraction['area']
+                ]);
+                echo "   Fração {$fraction['identifier']} criada (ID: {$fractionId})\n";
+            }
+            
             $this->fractionIds[$fraction['identifier']] = $fractionId;
-            echo "   Fração {$fraction['identifier']} criada (ID: {$fractionId})\n";
         }
     }
 
@@ -475,19 +650,53 @@ class DemoSeeder
                 ]);
             }
 
-            // Associate with fraction
-            $condominiumUserModel->associate([
-                'condominium_id' => $this->demoCondominiumId,
-                'user_id' => $userId,
-                'fraction_id' => $this->fractionIds[$userData['fraction']],
-                'role' => $userData['role'],
-                'is_primary' => true,
-                'can_view_finances' => true,
-                'can_vote' => true,
-                'started_at' => '2024-01-01'
+            // Check if association already exists
+            $fractionId = $this->fractionIds[$userData['fraction']];
+            $checkStmt = $this->db->prepare("
+                SELECT id FROM condominium_users 
+                WHERE condominium_id = :condominium_id 
+                AND user_id = :user_id 
+                AND fraction_id = :fraction_id
+            ");
+            $checkStmt->execute([
+                ':condominium_id' => $this->demoCondominiumId,
+                ':user_id' => $userId,
+                ':fraction_id' => $fractionId
             ]);
-
-            echo "   Utilizador {$userData['name']} criado e associado à fração {$userData['fraction']}\n";
+            $existingAssociation = $checkStmt->fetch();
+            
+            if ($existingAssociation) {
+                // Update existing association
+                $updateStmt = $this->db->prepare("
+                    UPDATE condominium_users 
+                    SET role = :role,
+                        is_primary = :is_primary,
+                        can_view_finances = :can_view_finances,
+                        can_vote = :can_vote
+                    WHERE id = :id
+                ");
+                $updateStmt->execute([
+                    ':id' => $existingAssociation['id'],
+                    ':role' => $userData['role'],
+                    ':is_primary' => true,
+                    ':can_view_finances' => true,
+                    ':can_vote' => true
+                ]);
+                echo "   Utilizador {$userData['name']} associado e atualizado à fração {$userData['fraction']}\n";
+            } else {
+                // Associate with fraction
+                $condominiumUserModel->associate([
+                    'condominium_id' => $this->demoCondominiumId,
+                    'user_id' => $userId,
+                    'fraction_id' => $fractionId,
+                    'role' => $userData['role'],
+                    'is_primary' => true,
+                    'can_view_finances' => true,
+                    'can_vote' => true,
+                    'started_at' => '2024-01-01'
+                ]);
+                echo "   Utilizador {$userData['name']} criado e associado à fração {$userData['fraction']}\n";
+            }
         }
     }
 
@@ -867,7 +1076,115 @@ class DemoSeeder
         $feePaymentModel = new FeePayment();
         $transactionModel = new FinancialTransaction();
 
-        // Generate fees for all months
+        // For Condominium 1 (index 0): Create historical debts for fraction 1A in 2024
+        if ($condominiumIndex === 0) {
+            echo "   Criando dívidas históricas 2024 para fração 1A...\n";
+            
+            // Create budget for 2024 if it doesn't exist
+            $budgetModel = new Budget();
+            $existingBudget2024 = $budgetModel->getByCondominiumAndYear($this->demoCondominiumId, 2024);
+            
+            if (!$existingBudget2024) {
+                // Create a simple budget for 2024
+                $budget2024Id = $budgetModel->create([
+                    'condominium_id' => $this->demoCondominiumId,
+                    'year' => 2024,
+                    'status' => 'approved',
+                    'total_amount' => 60000.00,
+                    'notes' => 'Orçamento demo 2024'
+                ]);
+                
+                // Add revenue item
+                $budgetItemModel = new BudgetItem();
+                $budgetItemModel->create([
+                    'budget_id' => $budget2024Id,
+                    'category' => 'Receita: Quotas Mensais',
+                    'amount' => 60000.00,
+                    'description' => 'Receita anual de quotas'
+                ]);
+            }
+            
+            // Get fraction 1A ID
+            $fraction1AId = $this->fractionIds['1A'] ?? null;
+            
+            if ($fraction1AId) {
+                // Generate fees for fraction 1A for 6 months in 2024 (historical debts)
+                $historicalMonths = [1, 2, 3, 7, 8, 9]; // Some months unpaid
+                foreach ($historicalMonths as $month) {
+                    try {
+                        // Check if historical fee already exists
+                        $checkStmt = $this->db->prepare("
+                            SELECT id FROM fees 
+                            WHERE condominium_id = :condominium_id 
+                            AND fraction_id = :fraction_id 
+                            AND period_year = 2024 
+                            AND period_month = :month 
+                            AND COALESCE(is_historical, 0) = 1
+                        ");
+                        $checkStmt->execute([
+                            ':condominium_id' => $this->demoCondominiumId,
+                            ':fraction_id' => $fraction1AId,
+                            ':month' => $month
+                        ]);
+                        $existingFee = $checkStmt->fetch();
+                        
+                        if ($existingFee) {
+                            // Update existing historical fee to ensure it's marked as historical
+                            $updateStmt = $this->db->prepare("
+                                UPDATE fees 
+                                SET is_historical = 1,
+                                    status = 'overdue',
+                                    fee_type = 'regular'
+                                WHERE id = :id
+                            ");
+                            $updateStmt->execute([':id' => $existingFee['id']]);
+                            continue;
+                        }
+                        
+                        // Generate fee for this specific fraction
+                        $fractions = $this->db->query("SELECT * FROM fractions WHERE id = {$fraction1AId}")->fetchAll();
+                        if (!empty($fractions)) {
+                            $fraction = $fractions[0];
+                            $budget2024 = $budgetModel->getByCondominiumAndYear($this->demoCondominiumId, 2024);
+                            if ($budget2024) {
+                                $budgetItems = $this->db->query("SELECT * FROM budget_items WHERE budget_id = {$budget2024['id']}")->fetchAll();
+                                $revenueItems = array_filter($budgetItems, function($item) {
+                                    return strpos($item['category'], 'Receita:') === 0;
+                                });
+                                $totalRevenue = array_sum(array_column($revenueItems, 'amount'));
+                                $monthlyAmount = $totalRevenue / 12;
+                                $totalPermillage = 1000; // Assuming 1000‰ total
+                                $feeAmount = ($monthlyAmount * (float)$fraction['permillage']) / $totalPermillage;
+                                
+                                $dueDate = date('Y-m-d', strtotime("2024-{$month}-10"));
+                                $reference = sprintf('Q%03d-%02d-%04d%02d', $this->demoCondominiumId, $fraction1AId, 2024, str_pad($month, 2, '0', STR_PAD_LEFT));
+                                
+                                $feeId = $feeModel->create([
+                                    'condominium_id' => $this->demoCondominiumId,
+                                    'fraction_id' => $fraction1AId,
+                                    'period_type' => 'monthly',
+                                    'fee_type' => 'regular',
+                                    'period_year' => 2024,
+                                    'period_month' => $month,
+                                    'amount' => round($feeAmount, 2),
+                                    'base_amount' => round($feeAmount, 2),
+                                    'status' => 'overdue',
+                                    'due_date' => $dueDate,
+                                    'reference' => $reference,
+                                    'is_historical' => 1
+                                ]);
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        // Log error but continue
+                        echo "   Aviso: Erro ao criar dívida histórica 2024/{$month} para fração 1A: " . $e->getMessage() . "\n";
+                    }
+                }
+                echo "   Dívidas históricas 2024 criadas/atualizadas para fração 1A\n";
+            }
+        }
+
+        // Generate fees for all months in 2025
         for ($month = 1; $month <= 12; $month++) {
             try {
                 $feeService->generateMonthlyFees($this->demoCondominiumId, 2025, $month);
@@ -881,7 +1198,8 @@ class DemoSeeder
 
         // Get all fees for 2025
         $stmt = $this->db->prepare("
-            SELECT f.* FROM fees f
+            SELECT f.*, fr.identifier as fraction_identifier FROM fees f
+            LEFT JOIN fractions fr ON fr.id = f.fraction_id
             WHERE f.condominium_id = :condominium_id
             AND f.period_year = 2025
             ORDER BY f.period_month ASC, f.fraction_id ASC
@@ -891,45 +1209,152 @@ class DemoSeeder
 
         $paidCount = 0;
         $totalFees = count($fees);
-        $targetPaid = (int)($totalFees * 0.75); // 75% paid
 
-        foreach ($fees as $index => $fee) {
-            $shouldPay = $index < $targetPaid;
-            $paymentDate = $shouldPay ? "2025-" . str_pad($fee['period_month'], 2, '0', STR_PAD_LEFT) . "-" . rand(5, 25) : null;
+        // Group fees by fraction and sort by month to ensure paid fees are always first
+        $feesByFraction = [];
+        foreach ($fees as $fee) {
+            $fractionId = (int)$fee['fraction_id'];
+            if (!isset($feesByFraction[$fractionId])) {
+                $feesByFraction[$fractionId] = [];
+            }
+            $feesByFraction[$fractionId][] = $fee;
+        }
+        
+        // Sort each fraction's fees by month
+        foreach ($feesByFraction as $fractionId => $fractionFees) {
+            usort($feesByFraction[$fractionId], function($a, $b) {
+                return $a['period_month'] <=> $b['period_month'];
+            });
+        }
 
-            if ($shouldPay && $paymentDate) {
-                // Create payment
-                $paymentId = $feePaymentModel->create([
-                    'fee_id' => $fee['id'],
-                    'amount' => $fee['amount'],
-                    'payment_method' => ['multibanco', 'transfer', 'mbway'][rand(0, 2)],
-                    'payment_date' => $paymentDate,
-                    'reference' => 'REF' . rand(100000, 999999),
-                    'created_by' => $this->demoUserId,
-                    'financial_transaction_id' => null
-                ]);
+        if ($condominiumIndex === 0) {
+            // Condominium 1: Different payment logic
+            // Fraction 1A: No payments (all year in debt)
+            // Fractions 2A, 2B: Partial payments (first 6 months paid)
+            // Fractions 1B, 3A, 3B, 4A, 4B: All fees paid (100%)
+            // Other fractions: 75% paid (first months paid)
+            
+            $fraction1AId = $this->fractionIds['1A'] ?? null;
+            $fraction1BId = $this->fractionIds['1B'] ?? null;
+            $fraction2AId = $this->fractionIds['2A'] ?? null;
+            $fraction2BId = $this->fractionIds['2B'] ?? null;
+            $fraction3AId = $this->fractionIds['3A'] ?? null;
+            $fraction3BId = $this->fractionIds['3B'] ?? null;
+            $fraction4AId = $this->fractionIds['4A'] ?? null;
+            $fraction4BId = $this->fractionIds['4B'] ?? null;
+            
+            // 5 fractions with all fees paid: 1B, 3A, 3B, 4A, 4B
+            $fullyPaidFractionIds = [
+                $fraction1BId,
+                $fraction3AId,
+                $fraction3BId,
+                $fraction4AId,
+                $fraction4BId
+            ];
+            
+            foreach ($feesByFraction as $fractionId => $fractionFees) {
+                $totalFeesForFraction = count($fractionFees);
+                
+                // Fraction 1A: No payments
+                if ($fractionId == $fraction1AId) {
+                    $paidCountForFraction = 0;
+                }
+                // Fractions 2A, 2B: First 6 months paid (50%)
+                elseif ($fractionId == $fraction2AId || $fractionId == $fraction2BId) {
+                    $paidCountForFraction = 6; // First 6 months
+                }
+                // 5 fractions: All fees paid (100%)
+                elseif (in_array($fractionId, $fullyPaidFractionIds)) {
+                    $paidCountForFraction = $totalFeesForFraction; // All months
+                }
+                // Other fractions: 75% paid (first months)
+                else {
+                    $paidCountForFraction = (int)($totalFeesForFraction * 0.75);
+                }
+                
+                // Pay first N fees for this fraction
+                for ($i = 0; $i < $paidCountForFraction && $i < $totalFeesForFraction; $i++) {
+                    $fee = $fractionFees[$i];
+                    $paymentDate = "2025-" . str_pad($fee['period_month'], 2, '0', STR_PAD_LEFT) . "-" . rand(5, 25);
+                    
+                    // Create payment
+                    $paymentId = $feePaymentModel->create([
+                        'fee_id' => $fee['id'],
+                        'amount' => $fee['amount'],
+                        'payment_method' => ['transfer', 'cash'][rand(0, 1)],
+                        'payment_date' => $paymentDate,
+                        'reference' => 'REF' . $this->demoCondominiumId . $fee['fraction_id'] . $fee['id'],
+                        'created_by' => $this->demoUserId,
+                        'financial_transaction_id' => null
+                    ]);
 
-                // Create financial transaction
-                $transactionId = $transactionModel->create([
-                    'condominium_id' => $this->demoCondominiumId,
-                    'bank_account_id' => $this->accountIds[0], // Main account
-                    'transaction_type' => 'income',
-                    'amount' => $fee['amount'],
-                    'transaction_date' => $paymentDate,
-                    'description' => "Pagamento quota {$fee['reference']}",
-                    'category' => 'Quotas',
-                    'reference' => 'REF' . rand(100000, 999999),
-                    'related_type' => 'fee_payment',
-                    'related_id' => $paymentId,
-                    'created_by' => $this->demoUserId
-                ]);
+                    // Create financial transaction
+                    $transactionId = $transactionModel->create([
+                        'condominium_id' => $this->demoCondominiumId,
+                        'bank_account_id' => $this->accountIds[0], // Main account
+                        'transaction_type' => 'income',
+                        'amount' => $fee['amount'],
+                        'transaction_date' => $paymentDate,
+                        'description' => "Pagamento quota {$fee['reference']}",
+                        'category' => 'Quotas',
+                        'reference' => 'REF' . rand(100000, 999999),
+                        'related_type' => 'fee_payment',
+                        'related_id' => $paymentId,
+                        'created_by' => $this->demoUserId
+                    ]);
 
-                // Update payment with transaction
-                $this->db->exec("UPDATE fee_payments SET financial_transaction_id = {$transactionId} WHERE id = {$paymentId}");
+                    // Update payment with transaction
+                    $this->db->exec("UPDATE fee_payments SET financial_transaction_id = {$transactionId} WHERE id = {$paymentId}");
 
-                // Mark fee as paid
-                $feeModel->markAsPaid($fee['id']);
-                $paidCount++;
+                    // Mark fee as paid
+                    $feeModel->markAsPaid($fee['id']);
+                    $paidCount++;
+                }
+            }
+        } else {
+            // Condominium 2: 75% paid (first months for each fraction)
+            foreach ($feesByFraction as $fractionId => $fractionFees) {
+                $totalFeesForFraction = count($fractionFees);
+                $paidCountForFraction = (int)($totalFeesForFraction * 0.75);
+                
+                // Pay first N fees for this fraction
+                for ($i = 0; $i < $paidCountForFraction && $i < $totalFeesForFraction; $i++) {
+                    $fee = $fractionFees[$i];
+                    $paymentDate = "2025-" . str_pad($fee['period_month'], 2, '0', STR_PAD_LEFT) . "-" . rand(5, 25);
+
+                    // Create payment
+                    $paymentId = $feePaymentModel->create([
+                        'fee_id' => $fee['id'],
+                        'amount' => $fee['amount'],
+                        'payment_method' => ['multibanco', 'transfer', 'mbway'][rand(0, 2)],
+                        'payment_date' => $paymentDate,
+                        'reference' => 'REF' . rand(100000, 999999),
+                        'created_by' => $this->demoUserId,
+                        'financial_transaction_id' => null
+                    ]);
+
+                    // Create financial transaction
+                    $transactionId = $transactionModel->create([
+                        'condominium_id' => $this->demoCondominiumId,
+                        'bank_account_id' => $this->accountIds[0], // Main account
+                        'transaction_type' => 'income',
+                        'amount' => $fee['amount'],
+                        'transaction_date' => $paymentDate,
+                        'description' => "Pagamento quota {$fee['reference']}",
+                        'category' => 'Quotas',
+                        'reference' => 'REF' . rand(100000, 999999),
+                        'related_type' => 'fee_payment',
+                        'related_id' => $paymentId,
+                        'created_by' => $this->demoUserId
+                    ]);
+
+                    // Update payment with transaction
+                    $this->db->exec("UPDATE fee_payments SET financial_transaction_id = {$transactionId} WHERE id = {$paymentId}");
+
+                    // Mark fee as paid
+                    $feeModel->markAsPaid($fee['id']);
+                    $paidCount++;
+                }
             }
         }
 
@@ -1229,15 +1654,37 @@ class DemoSeeder
         $fractionUsers = $stmt->fetchAll();
 
         // Create reservations throughout 2025
-        $reservations = [
-            ['space_index' => 0, 'month' => 2, 'day' => 14, 'status' => 'approved'], // Salão - Valentine
-            ['space_index' => 0, 'month' => 5, 'day' => 1, 'status' => 'approved'], // Salão - Labor Day
-            ['space_index' => 1, 'month' => 7, 'day' => 15, 'status' => 'approved'], // Piscina - Summer
-            ['space_index' => 1, 'month' => 8, 'day' => 10, 'status' => 'pending'], // Piscina - Pending
-            ['space_index' => 2, 'month' => 4, 'day' => 20, 'status' => 'approved'], // Ténis
-            ['space_index' => 2, 'month' => 6, 'day' => 10, 'status' => 'approved'], // Ténis
-            ['space_index' => 0, 'month' => 12, 'day' => 25, 'status' => 'pending'], // Salão - Christmas
-        ];
+        // More reservations for Condominium 1 (index 0)
+        if ($condominiumIndex === 0) {
+            $reservations = [
+                ['space_index' => 0, 'month' => 1, 'day' => 15, 'status' => 'approved'], // Salão - January
+                ['space_index' => 0, 'month' => 2, 'day' => 14, 'status' => 'approved'], // Salão - Valentine
+                ['space_index' => 2, 'month' => 2, 'day' => 20, 'status' => 'approved'], // Ténis - February
+                ['space_index' => 0, 'month' => 3, 'day' => 8, 'status' => 'approved'], // Salão - March
+                ['space_index' => 2, 'month' => 4, 'day' => 20, 'status' => 'approved'], // Ténis - April
+                ['space_index' => 0, 'month' => 5, 'day' => 1, 'status' => 'approved'], // Salão - Labor Day
+                ['space_index' => 1, 'month' => 5, 'day' => 25, 'status' => 'pending'], // Piscina - May (pending)
+                ['space_index' => 2, 'month' => 6, 'day' => 10, 'status' => 'approved'], // Ténis - June
+                ['space_index' => 1, 'month' => 7, 'day' => 15, 'status' => 'approved'], // Piscina - Summer
+                ['space_index' => 1, 'month' => 7, 'day' => 28, 'status' => 'approved'], // Piscina - July
+                ['space_index' => 1, 'month' => 8, 'day' => 10, 'status' => 'pending'], // Piscina - August (pending)
+                ['space_index' => 0, 'month' => 9, 'day' => 15, 'status' => 'approved'], // Salão - September
+                ['space_index' => 0, 'month' => 10, 'day' => 5, 'status' => 'canceled'], // Salão - October (canceled)
+                ['space_index' => 0, 'month' => 11, 'day' => 20, 'status' => 'approved'], // Salão - November
+                ['space_index' => 0, 'month' => 12, 'day' => 25, 'status' => 'pending'], // Salão - Christmas
+            ];
+        } else {
+            // Condominium 2: Keep original reservations
+            $reservations = [
+                ['space_index' => 0, 'month' => 2, 'day' => 14, 'status' => 'approved'], // Salão - Valentine
+                ['space_index' => 0, 'month' => 5, 'day' => 1, 'status' => 'approved'], // Salão - Labor Day
+                ['space_index' => 1, 'month' => 7, 'day' => 15, 'status' => 'approved'], // Piscina - Summer
+                ['space_index' => 1, 'month' => 8, 'day' => 10, 'status' => 'pending'], // Piscina - Pending
+                ['space_index' => 2, 'month' => 4, 'day' => 20, 'status' => 'approved'], // Ténis
+                ['space_index' => 2, 'month' => 6, 'day' => 10, 'status' => 'approved'], // Ténis
+                ['space_index' => 0, 'month' => 12, 'day' => 25, 'status' => 'pending'], // Salão - Christmas
+            ];
+        }
 
         foreach ($reservations as $res) {
             $userIndex = rand(0, count($fractionUsers) - 1);
@@ -1259,6 +1706,306 @@ class DemoSeeder
         }
 
         echo "   {$count} reservas criadas\n";
+    }
+
+    protected function createMessages2025(int $condominiumIndex = 0): void
+    {
+        echo "13b. Criando mensagens 2025...\n";
+
+        // Only for Condominium 1
+        if ($condominiumIndex !== 0) {
+            return;
+        }
+
+        $messageModel = new Message();
+        $count = 0;
+
+        // Get fraction users
+        $stmt = $this->db->prepare("
+            SELECT cu.user_id, cu.fraction_id, fr.identifier as fraction_identifier
+            FROM condominium_users cu
+            LEFT JOIN fractions fr ON fr.id = cu.fraction_id
+            WHERE cu.condominium_id = {$this->demoCondominiumId}
+            AND cu.is_primary = TRUE
+            ORDER BY cu.fraction_id ASC
+        ");
+        $stmt->execute();
+        $fractionUsers = $stmt->fetchAll();
+
+        if (empty($fractionUsers)) {
+            echo "   Nenhum utilizador encontrado para criar mensagens\n";
+            return;
+        }
+
+        // Messages from admin to all (announcements)
+        $announcements = [
+            [
+                'subject' => 'Aviso: Manutenção do Elevador',
+                'message' => '<p>Informamos que o <strong>elevador</strong> estará em manutenção no dia 15 de março entre as 9h e as 12h.</p><p>Pedimos a vossa compreensão.</p>',
+                'month' => 2,
+                'day' => 10,
+                'is_read' => false
+            ],
+            [
+                'subject' => 'Assembleia Geral - Convocatória',
+                'message' => '<p>Convocamos todos os condóminos para a <strong>Assembleia Geral</strong> que se realizará no dia 20 de abril às 19h.</p><ul><li>Ponto 1: Aprovação de orçamento</li><li>Ponto 2: Obras de renovação</li></ul>',
+                'month' => 3,
+                'day' => 15,
+                'is_read' => true
+            ],
+            [
+                'subject' => 'Lembretes: Pagamento de Quotas',
+                'message' => '<p>Lembramos que as <strong>quotas do mês de maio</strong> devem ser pagas até ao dia 10.</p><p>Obrigado pela vossa colaboração.</p>',
+                'month' => 4,
+                'day' => 28,
+                'is_read' => false
+            ],
+            [
+                'subject' => 'Obras de Renovação - Informação',
+                'message' => '<p>Informamos que as <strong>obras de renovação</strong> do edifício terão início em setembro.</p><p>Será criada uma quota extra para financiar estas obras.</p>',
+                'month' => 6,
+                'day' => 5,
+                'is_read' => true
+            ],
+            [
+                'subject' => 'Férias de Verão - Informação',
+                'message' => '<p>Desejamos a todos umas <strong>excelentes férias de verão</strong>!</p><p>O condomínio continuará a funcionar normalmente.</p>',
+                'month' => 7,
+                'day' => 1,
+                'is_read' => false
+            ],
+            [
+                'subject' => 'Reunião de Condomínio - Outubro',
+                'message' => '<p>Convocamos reunião para o dia <strong>15 de outubro</strong> para discutir questões importantes.</p>',
+                'month' => 9,
+                'day' => 20,
+                'is_read' => true
+            ],
+            [
+                'subject' => 'Festa de Natal',
+                'message' => '<p>Estamos a organizar uma <strong>festa de Natal</strong> no salão de festas no dia 20 de dezembro.</p><p>Contamos com a vossa presença!</p>',
+                'month' => 11,
+                'day' => 10,
+                'is_read' => false
+            ]
+        ];
+
+        $natalMessageId = null; // Store ID of "Festa de Natal" message
+
+        foreach ($announcements as $announcement) {
+            $createdAt = "2025-" . str_pad($announcement['month'], 2, '0', STR_PAD_LEFT) . "-" . str_pad($announcement['day'], 2, '0', STR_PAD_LEFT) . " " . rand(9, 18) . ":" . str_pad(rand(0, 59), 2, '0', STR_PAD_LEFT) . ":00";
+            
+            $messageId = $messageModel->create([
+                'condominium_id' => $this->demoCondominiumId,
+                'from_user_id' => $this->demoUserId,
+                'to_user_id' => null, // Announcement to all
+                'thread_id' => null,
+                'subject' => $announcement['subject'],
+                'message' => $announcement['message']
+            ]);
+            
+            // Store ID of "Festa de Natal" message for later replies
+            if ($announcement['subject'] === 'Festa de Natal') {
+                $natalMessageId = $messageId;
+            }
+            
+            // Update created_at
+            $this->db->exec("UPDATE messages SET created_at = '{$createdAt}' WHERE id = {$messageId}");
+            
+            // For announcements, mark as read if specified (announcements are read by default for some users)
+            if ($announcement['is_read']) {
+                $readAt = date('Y-m-d H:i:s', strtotime($createdAt . ' +' . rand(1, 5) . ' hours'));
+                $this->db->exec("
+                    UPDATE messages 
+                    SET is_read = TRUE, read_at = '{$readAt}' 
+                    WHERE id = {$messageId}
+                ");
+            }
+            
+            $count++;
+        }
+
+        // Private messages from admin to specific fractions
+        $privateMessages = [
+            [
+                'fraction_index' => 0, // 1A
+                'subject' => 'Lembrete: Quotas em Atraso',
+                'message' => '<p>Bom dia,</p><p>Lembramos que existem <strong>quotas em atraso</strong> da fração 1A.</p><p>Por favor, regularize a situação.</p>',
+                'month' => 3,
+                'day' => 5,
+                'is_read' => false
+            ],
+            [
+                'fraction_index' => 2, // 2A
+                'subject' => 'Reserva do Salão de Festas',
+                'message' => '<p>A vossa reserva do <strong>Salão de Festas</strong> para o dia 14 de fevereiro foi aprovada.</p><p>Bom evento!</p>',
+                'month' => 1,
+                'day' => 25,
+                'is_read' => true
+            ],
+            [
+                'fraction_index' => 3, // 2B
+                'subject' => 'Ocorrência Reportada',
+                'message' => '<p>Recebemos a vossa ocorrência sobre o <strong>ruído</strong>.</p><p>Estamos a investigar a situação.</p>',
+                'month' => 5,
+                'day' => 12,
+                'is_read' => true
+            ],
+            [
+                'fraction_index' => 4, // 3A
+                'subject' => 'Informação sobre Obras',
+                'message' => '<p>Informamos que as obras de renovação podem afetar temporariamente o acesso à vossa fração.</p><p>Será avisado com antecedência.</p>',
+                'month' => 8,
+                'day' => 15,
+                'is_read' => false
+            ],
+            [
+                'fraction_index' => 0, // 1A - Another message
+                'subject' => 'Urgente: Regularização de Dívidas',
+                'message' => '<p>É urgente a regularização das <strong>dívidas acumuladas</strong>.</p><p>Por favor, contacte-nos o mais breve possível.</p>',
+                'month' => 9,
+                'day' => 1,
+                'is_read' => false
+            ]
+        ];
+
+        foreach ($privateMessages as $msg) {
+            if (!isset($fractionUsers[$msg['fraction_index']])) {
+                continue;
+            }
+            
+            $user = $fractionUsers[$msg['fraction_index']];
+            $createdAt = "2025-" . str_pad($msg['month'], 2, '0', STR_PAD_LEFT) . "-" . str_pad($msg['day'], 2, '0', STR_PAD_LEFT) . " " . rand(9, 18) . ":" . str_pad(rand(0, 59), 2, '0', STR_PAD_LEFT) . ":00";
+            
+            $messageId = $messageModel->create([
+                'condominium_id' => $this->demoCondominiumId,
+                'from_user_id' => $this->demoUserId,
+                'to_user_id' => $user['user_id'],
+                'thread_id' => null,
+                'subject' => $msg['subject'],
+                'message' => $msg['message']
+            ]);
+            
+            // Update created_at
+            $this->db->exec("UPDATE messages SET created_at = '{$createdAt}' WHERE id = {$messageId}");
+            
+            // Mark as read if specified
+            if ($msg['is_read']) {
+                $readAt = date('Y-m-d H:i:s', strtotime($createdAt . ' +' . rand(1, 5) . ' hours'));
+                $this->db->exec("UPDATE messages SET is_read = TRUE, read_at = '{$readAt}' WHERE id = {$messageId}");
+            }
+            
+            $count++;
+        }
+
+        // Create replies to "Festa de Natal" message from multiple residents
+        if ($natalMessageId) {
+            // Get several fraction users to reply (different fractions)
+            $stmt = $this->db->prepare("
+                SELECT DISTINCT cu.user_id, cu.fraction_id
+                FROM condominium_users cu
+                WHERE cu.condominium_id = {$this->demoCondominiumId}
+                AND cu.is_primary = TRUE
+                AND cu.user_id != {$this->demoUserId}
+                ORDER BY cu.fraction_id ASC
+                LIMIT 5
+            ");
+            $stmt->execute();
+            $replyUsers = $stmt->fetchAll();
+
+            // Get the original message creation date
+            $stmt = $this->db->prepare("SELECT created_at FROM messages WHERE id = {$natalMessageId}");
+            $stmt->execute();
+            $natalCreatedAt = $stmt->fetchColumn();
+
+            // Reply messages from residents confirming attendance
+            $residentReplies = [
+                '<p>Excelente ideia! <strong>Confirmamos a nossa presença</strong>.</p><p>Contamos com a festa!</p>',
+                '<p>Adoramos a ideia! <strong>Estaremos presentes</strong> com toda a família.</p><p>Obrigado pela organização!</p>',
+                '<p>Confirmamos a nossa presença! <strong>Vamos adorar participar</strong>.</p><p>Se precisarem de ajuda, disponham!</p>',
+                '<p>Que iniciativa fantástica! <strong>Confirmamos presença</strong>.</p><p>Estamos ansiosos!</p>',
+                '<p>Perfeito! <strong>Confirmamos a nossa presença</strong>.</p><p>Será uma excelente oportunidade para convivermos!</p>'
+            ];
+
+            $replyIndex = 0;
+            foreach ($replyUsers as $replyUser) {
+                if ($replyIndex >= count($residentReplies)) {
+                    break;
+                }
+
+                // Reply created 1-3 days after the original message
+                $replyCreatedAt = date('Y-m-d H:i:s', strtotime($natalCreatedAt . ' +' . ($replyIndex + 1) . ' days ' . rand(10, 18) . ' hours'));
+                
+                $replyId = $messageModel->create([
+                    'condominium_id' => $this->demoCondominiumId,
+                    'from_user_id' => $replyUser['user_id'], // Reply from resident
+                    'to_user_id' => $this->demoUserId, // Reply to admin
+                    'thread_id' => $natalMessageId,
+                    'subject' => 'Re: Festa de Natal',
+                    'message' => $residentReplies[$replyIndex]
+                ]);
+                
+                // Update created_at
+                $this->db->exec("UPDATE messages SET created_at = '{$replyCreatedAt}' WHERE id = {$replyId}");
+                
+                $count++;
+                $replyIndex++;
+            }
+
+            // Admin's reply thanking everyone (created after all resident replies)
+            if ($replyIndex > 0) {
+                $adminReplyCreatedAt = date('Y-m-d H:i:s', strtotime($natalCreatedAt . ' +' . ($replyIndex + 1) . ' days ' . rand(9, 12) . ' hours'));
+                
+                $adminReplyId = $messageModel->create([
+                    'condominium_id' => $this->demoCondominiumId,
+                    'from_user_id' => $this->demoUserId, // Reply from admin
+                    'to_user_id' => null, // Reply to all (announcement reply)
+                    'thread_id' => $natalMessageId,
+                    'subject' => 'Re: Festa de Natal',
+                    'message' => '<p>Muito obrigado a todos pelas <strong>confirmações de presença</strong>!</p><p>Ficamos muito contentes com a adesão. A festa promete ser um sucesso!</p><p>Mais informações serão enviadas em breve.</p><p>Até breve!</p>'
+                ]);
+                
+                // Update created_at
+                $this->db->exec("UPDATE messages SET created_at = '{$adminReplyCreatedAt}' WHERE id = {$adminReplyId}");
+                
+                $count++;
+            }
+        }
+
+        // Create some replies (thread messages) for private messages
+        // Get first private message to create a reply
+        $stmt = $this->db->prepare("
+            SELECT id, to_user_id, created_at FROM messages 
+            WHERE condominium_id = {$this->demoCondominiumId}
+            AND to_user_id IS NOT NULL
+            AND thread_id IS NULL
+            ORDER BY created_at ASC
+            LIMIT 2
+        ");
+        $stmt->execute();
+        $parentMessages = $stmt->fetchAll();
+
+        foreach ($parentMessages as $parent) {
+            $replyCreatedAt = date('Y-m-d H:i:s', strtotime($parent['created_at'] . ' +' . rand(1, 3) . ' days'));
+            
+            $parentSubject = $this->db->query("SELECT subject FROM messages WHERE id = {$parent['id']}")->fetchColumn();
+            
+            $replyId = $messageModel->create([
+                'condominium_id' => $this->demoCondominiumId,
+                'from_user_id' => $parent['to_user_id'], // Reply from recipient
+                'to_user_id' => $this->demoUserId, // Reply to admin
+                'thread_id' => $parent['id'],
+                'subject' => 'Re: ' . $parentSubject,
+                'message' => '<p>Obrigado pela informação!</p><p>Ficamos a aguardar mais detalhes.</p>'
+            ]);
+            
+            // Update created_at
+            $this->db->exec("UPDATE messages SET created_at = '{$replyCreatedAt}' WHERE id = {$replyId}");
+            
+            $count++;
+        }
+
+        echo "   {$count} mensagens criadas\n";
     }
 
     protected function createOccurrences(int $condominiumIndex = 0): void
@@ -1701,6 +2448,384 @@ class DemoSeeder
         }
 
         echo "   {$count} notificações criadas\n";
+    }
+
+    protected function createBudget2026(int $condominiumIndex = 0): void
+    {
+        echo "15a. Criando orçamento 2026...\n";
+
+        // Only for Condominium 1
+        if ($condominiumIndex !== 0) {
+            return;
+        }
+
+        $budgetModel = new Budget();
+        $budgetItemModel = new BudgetItem();
+
+        // Check if budget exists
+        $existingBudget = $budgetModel->getByCondominiumAndYear($this->demoCondominiumId, 2026);
+
+        if ($existingBudget) {
+            $budgetId = $existingBudget['id'];
+            echo "   Orçamento 2026 já existe (ID: {$budgetId})\n";
+        } else {
+            // Get 2025 budget as base
+            $budget2025 = $budgetModel->getByCondominiumAndYear($this->demoCondominiumId, 2025);
+            
+            if (!$budget2025) {
+                echo "   Erro: Orçamento 2025 não encontrado. Não é possível criar orçamento 2026.\n";
+                return;
+            }
+
+            // Get 2025 budget items
+            $items2025 = $budgetItemModel->getByBudget($budget2025['id']);
+            
+            // Calculate totals with 7% increase
+            $totalRevenue = 0;
+            $totalExpenses = 0;
+            
+            foreach ($items2025 as $item) {
+                if (strpos($item['category'], 'Receita:') === 0) {
+                    $totalRevenue += $item['amount'] * 1.07; // 7% increase
+                } else {
+                    $totalExpenses += $item['amount'] * 1.07; // 7% increase
+                }
+            }
+            
+            $totalAmount = $totalRevenue - $totalExpenses;
+
+            $budgetId = $budgetModel->create([
+                'condominium_id' => $this->demoCondominiumId,
+                'year' => 2026,
+                'status' => 'approved',
+                'total_amount' => $totalAmount,
+                'notes' => 'Orçamento demo 2026 - Aprovado'
+            ]);
+            echo "   Orçamento 2026 criado (ID: {$budgetId})\n";
+        }
+
+        // Delete existing items
+        $this->db->exec("DELETE FROM budget_items WHERE budget_id = {$budgetId}");
+
+        // Get 2025 budget items
+        $budget2025 = $budgetModel->getByCondominiumAndYear($this->demoCondominiumId, 2025);
+        $items2025 = $budgetItemModel->getByBudget($budget2025['id']);
+
+        // Create 2026 items with 7% increase
+        foreach ($items2025 as $item) {
+            $budgetItemModel->create([
+                'budget_id' => $budgetId,
+                'category' => $item['category'],
+                'amount' => round($item['amount'] * 1.07, 2),
+                'description' => $item['description'] . ' (2026)'
+            ]);
+        }
+
+        echo "   Itens do orçamento 2026 criados\n";
+    }
+
+    protected function generateFees2026(int $condominiumIndex = 0): void
+    {
+        echo "15b. Gerando quotas 2026...\n";
+
+        // Only for Condominium 1
+        if ($condominiumIndex !== 0) {
+            return;
+        }
+
+        $feeService = new FeeService();
+        $feeModel = new Fee();
+        $feePaymentModel = new FeePayment();
+        $transactionModel = new FinancialTransaction();
+
+        // Generate regular fees for all months in 2026
+        for ($month = 1; $month <= 12; $month++) {
+            try {
+                $feeService->generateMonthlyFees($this->demoCondominiumId, 2026, $month);
+            } catch (\Exception $e) {
+                // If fees already exist, continue
+                if (strpos($e->getMessage(), 'already exists') === false) {
+                    throw $e;
+                }
+            }
+        }
+
+        // Get all regular fees for 2026
+        $stmt = $this->db->prepare("
+            SELECT f.* FROM fees f
+            WHERE f.condominium_id = :condominium_id
+            AND f.period_year = 2026
+            AND f.fee_type = 'regular'
+            ORDER BY f.fraction_id ASC, f.period_month ASC
+        ");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $regularFees = $stmt->fetchAll();
+
+        // Group regular fees by fraction and sort by month
+        $regularFeesByFraction = [];
+        foreach ($regularFees as $fee) {
+            $fractionId = (int)$fee['fraction_id'];
+            if (!isset($regularFeesByFraction[$fractionId])) {
+                $regularFeesByFraction[$fractionId] = [];
+            }
+            $regularFeesByFraction[$fractionId][] = $fee;
+        }
+        
+        // Sort each fraction's fees by month
+        foreach ($regularFeesByFraction as $fractionId => $fractionFees) {
+            usort($regularFeesByFraction[$fractionId], function($a, $b) {
+                return $a['period_month'] <=> $b['period_month'];
+            });
+        }
+
+        // Pay fees for 2026
+        // IMPORTANT: Only pay 2026 fees if there are no pending debts from 2025 (sequential payment rule)
+        // 5 fractions (1B, 3A, 3B, 4A, 4B) will have all 2026 fees paid up to current month if no debts from 2025
+        // Get current month to limit payments
+        $currentYear = (int)date('Y');
+        $currentMonth = (int)date('n'); // 1-12
+        
+        $fraction1BId2026 = $this->fractionIds['1B'] ?? null;
+        $fraction3AId2026 = $this->fractionIds['3A'] ?? null;
+        $fraction3BId2026 = $this->fractionIds['3B'] ?? null;
+        $fraction4AId2026 = $this->fractionIds['4A'] ?? null;
+        $fraction4BId2026 = $this->fractionIds['4B'] ?? null;
+        
+        // 5 fractions with all fees paid: 1B, 3A, 3B, 4A, 4B
+        $fullyPaidFractionIds2026 = [
+            $fraction1BId2026,
+            $fraction3AId2026,
+            $fraction3BId2026,
+            $fraction4AId2026,
+            $fraction4BId2026
+        ];
+        
+        $paidCount = 0;
+        foreach ($regularFeesByFraction as $fractionId => $fractionFees) {
+            // Check if this fraction has any pending debts from 2025
+            $stmt = $this->db->prepare("
+                SELECT f.id, f.amount, COALESCE(SUM(fp.amount), 0) as paid_amount
+                FROM fees f
+                LEFT JOIN fee_payments fp ON fp.fee_id = f.id
+                WHERE f.condominium_id = :condominium_id
+                AND f.fraction_id = :fraction_id
+                AND f.period_year = 2025
+                AND f.status != 'paid'
+                GROUP BY f.id
+                HAVING (f.amount - paid_amount) > 0
+            ");
+            $stmt->execute([
+                ':condominium_id' => $this->demoCondominiumId,
+                ':fraction_id' => $fractionId
+            ]);
+            $pendingDebts = $stmt->fetchAll();
+            
+            // Only pay 2026 fees if there are no pending debts from 2025
+            if (empty($pendingDebts)) {
+                // Determine how many months to pay
+                // 5 fractions get all months up to current month, others get first 4 months (but not beyond current month)
+                if (in_array($fractionId, $fullyPaidFractionIds2026)) {
+                    // For fully paid fractions, pay up to current month (if year is 2026)
+                    $monthsToPay = ($currentYear == 2026) ? min($currentMonth, count($fractionFees)) : count($fractionFees);
+                } else {
+                    // For other fractions, pay first 4 months (but not beyond current month if year is 2026)
+                    $monthsToPay = ($currentYear == 2026) ? min(4, $currentMonth, count($fractionFees)) : min(4, count($fractionFees));
+                }
+                
+                // Pay fees for this fraction (only up to monthsToPay)
+                for ($i = 0; $i < $monthsToPay && $i < count($fractionFees); $i++) {
+                    $fee = $fractionFees[$i];
+                    
+                    // Skip if fee month is beyond current month (for current year)
+                    if ($currentYear == 2026 && $fee['period_month'] > $currentMonth) {
+                        continue;
+                    }
+                    $fee = $fractionFees[$i];
+                    $paymentDate = "2026-" . str_pad($fee['period_month'], 2, '0', STR_PAD_LEFT) . "-" . rand(5, 25);
+                    
+                    // Create payment
+                    $paymentId = $feePaymentModel->create([
+                        'fee_id' => $fee['id'],
+                        'amount' => $fee['amount'],
+                        'payment_method' => ['transfer', 'cash'][rand(0, 1)],
+                        'payment_date' => $paymentDate,
+                        'reference' => 'REF' . $this->demoCondominiumId . $fee['fraction_id'] . $fee['id'],
+                        'created_by' => $this->demoUserId,
+                        'financial_transaction_id' => null
+                    ]);
+
+                    // Create financial transaction
+                    $transactionId = $transactionModel->create([
+                        'condominium_id' => $this->demoCondominiumId,
+                        'bank_account_id' => $this->accountIds[0], // Main account
+                        'transaction_type' => 'income',
+                        'amount' => $fee['amount'],
+                        'transaction_date' => $paymentDate,
+                        'description' => "Pagamento quota {$fee['reference']}",
+                        'category' => 'Quotas',
+                        'reference' => 'REF' . rand(100000, 999999),
+                        'related_type' => 'fee_payment',
+                        'related_id' => $paymentId,
+                        'created_by' => $this->demoUserId
+                    ]);
+
+                    // Update payment with transaction
+                    $this->db->exec("UPDATE fee_payments SET financial_transaction_id = {$transactionId} WHERE id = {$paymentId}");
+
+                    // Mark fee as paid
+                    $feeModel->markAsPaid($fee['id']);
+                    $paidCount++;
+                }
+            } else {
+                // Get fraction identifier for logging
+                $fractionStmt = $this->db->prepare("SELECT identifier FROM fractions WHERE id = :fraction_id");
+                $fractionStmt->execute([':fraction_id' => $fractionId]);
+                $fraction = $fractionStmt->fetch();
+                $fractionIdentifier = $fraction ? $fraction['identifier'] : "ID:{$fractionId}";
+                echo "   Fração {$fractionIdentifier}: Não pagando quotas 2026 devido a dívidas pendentes de 2025\n";
+            }
+        }
+
+        // Generate extra fee for works (€5000 total, distributed across all months)
+        echo "   Gerando quota extra para obras...\n";
+        try {
+            $extraFeeIds = $feeService->generateExtraFees(
+                $this->demoCondominiumId,
+                2026,
+                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], // All months
+                5000.00, // Total amount
+                'Quota Extra - Obras de Renovação',
+                [] // All fractions
+            );
+            
+            echo "   " . count($extraFeeIds) . " quotas extras geradas\n";
+        } catch (\Exception $e) {
+            echo "   Aviso: Erro ao gerar quotas extras: " . $e->getMessage() . "\n";
+        }
+
+        // Get all extra fees for 2026
+        $stmt = $this->db->prepare("
+            SELECT f.* FROM fees f
+            WHERE f.condominium_id = :condominium_id
+            AND f.period_year = 2026
+            AND f.fee_type = 'extra'
+            ORDER BY f.fraction_id ASC, f.period_month ASC
+        ");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $extraFees = $stmt->fetchAll();
+
+        // Group extra fees by fraction and sort by month
+        $extraFeesByFraction = [];
+        foreach ($extraFees as $fee) {
+            $fractionId = (int)$fee['fraction_id'];
+            if (!isset($extraFeesByFraction[$fractionId])) {
+                $extraFeesByFraction[$fractionId] = [];
+            }
+            $extraFeesByFraction[$fractionId][] = $fee;
+        }
+        
+        // Sort each fraction's fees by month
+        foreach ($extraFeesByFraction as $fractionId => $fractionFees) {
+            usort($extraFeesByFraction[$fractionId], function($a, $b) {
+                return $a['period_month'] <=> $b['period_month'];
+            });
+        }
+
+        // Pay extra fees for 2026
+        // IMPORTANT: Only pay 2026 extra fees if there are no pending debts from 2025 (sequential payment rule)
+        // 5 fractions (1B, 3A, 3B, 4A, 4B) will have all extra fees paid up to current month if no debts from 2025
+        $extraPaidCount = 0;
+        foreach ($extraFeesByFraction as $fractionId => $fractionFees) {
+            // Check if this fraction has any pending debts from 2025
+            $stmt = $this->db->prepare("
+                SELECT f.id, f.amount, COALESCE(SUM(fp.amount), 0) as paid_amount
+                FROM fees f
+                LEFT JOIN fee_payments fp ON fp.fee_id = f.id
+                WHERE f.condominium_id = :condominium_id
+                AND f.fraction_id = :fraction_id
+                AND f.period_year = 2025
+                AND f.status != 'paid'
+                GROUP BY f.id
+                HAVING (f.amount - paid_amount) > 0
+            ");
+            $stmt->execute([
+                ':condominium_id' => $this->demoCondominiumId,
+                ':fraction_id' => $fractionId
+            ]);
+            $pendingDebts = $stmt->fetchAll();
+            
+            // Only pay extra fees if there are no pending debts from 2025
+            if (empty($pendingDebts)) {
+                // Determine how many months to pay
+                // 5 fractions get all months up to current month, others get first 3 months (but not beyond current month)
+                if (in_array($fractionId, $fullyPaidFractionIds2026)) {
+                    // For fully paid fractions, pay up to current month (if year is 2026)
+                    $monthsToPay = ($currentYear == 2026) ? min($currentMonth, count($fractionFees)) : count($fractionFees);
+                } else {
+                    // For other fractions, pay first 3 months (but not beyond current month if year is 2026)
+                    $monthsToPay = ($currentYear == 2026) ? min(3, $currentMonth, count($fractionFees)) : min(3, count($fractionFees));
+                }
+                
+                // Pay extra fees for this fraction (only up to monthsToPay)
+                for ($i = 0; $i < $monthsToPay && $i < count($fractionFees); $i++) {
+                    $fee = $fractionFees[$i];
+                    
+                    // Skip if fee month is beyond current month (for current year)
+                    if ($currentYear == 2026 && $fee['period_month'] > $currentMonth) {
+                        continue;
+                    }
+                    $paymentDate = "2026-" . str_pad($fee['period_month'], 2, '0', STR_PAD_LEFT) . "-" . rand(5, 25);
+                    
+                    // Create payment
+                    $paymentId = $feePaymentModel->create([
+                        'fee_id' => $fee['id'],
+                        'amount' => $fee['amount'],
+                        'payment_method' => ['transfer', 'cash'][rand(0, 1)],
+                        'payment_date' => $paymentDate,
+                        'reference' => 'REF' . $this->demoCondominiumId . $fee['fraction_id'] . $fee['id'],
+                        'created_by' => $this->demoUserId,
+                        'financial_transaction_id' => null
+                    ]);
+
+                    // Create financial transaction
+                    $transactionId = $transactionModel->create([
+                        'condominium_id' => $this->demoCondominiumId,
+                        'bank_account_id' => $this->accountIds[0], // Main account
+                        'transaction_type' => 'income',
+                        'amount' => $fee['amount'],
+                        'transaction_date' => $paymentDate,
+                        'description' => "Pagamento quota extra {$fee['reference']}",
+                        'category' => 'Quotas',
+                        'reference' => 'REF' . rand(100000, 999999),
+                        'related_type' => 'fee_payment',
+                        'related_id' => $paymentId,
+                        'created_by' => $this->demoUserId
+                    ]);
+
+                    // Update payment with transaction
+                    $this->db->exec("UPDATE fee_payments SET financial_transaction_id = {$transactionId} WHERE id = {$paymentId}");
+
+                    // Mark fee as paid
+                    $feeModel->markAsPaid($fee['id']);
+                    $extraPaidCount++;
+                }
+            } else {
+                // Get fraction identifier for logging
+                $fractionStmt = $this->db->prepare("SELECT identifier FROM fractions WHERE id = :fraction_id");
+                $fractionStmt->execute([':fraction_id' => $fractionId]);
+                $fraction = $fractionStmt->fetch();
+                $fractionIdentifier = $fraction ? $fraction['identifier'] : "ID:{$fractionId}";
+                echo "   Fração {$fractionIdentifier}: Não pagando quotas extras 2026 devido a dívidas pendentes de 2025\n";
+            }
+        }
+
+        // Update account balances
+        $bankAccountModel = new BankAccount();
+        foreach ($this->accountIds as $accountId) {
+            $bankAccountModel->updateBalance($accountId);
+        }
+
+        echo "   {$paidCount} quotas regulares pagas, {$extraPaidCount} quotas extras pagas\n";
     }
 
     protected function createReceiptsForDemoPayments(int $condominiumIndex = 0): void

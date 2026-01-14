@@ -872,28 +872,126 @@ class FinanceController extends Controller
             exit;
         }
 
-        // Get payments
-        $payments = $this->feePaymentModel->getByFee($feeId);
-        $totalPaid = $this->feePaymentModel->getTotalPaid($feeId);
-        $pendingAmount = (float)$fee['amount'] - $totalPaid;
+        // Get all fees for the same month/fraction (regular + extra)
+        $allFees = [];
+        if ($fee['period_year'] && $fee['period_month']) {
+            $allFees = $this->feeModel->getByMonthAndFraction(
+                $condominiumId,
+                (int)$fee['period_year'],
+                (int)$fee['period_month'],
+                (int)$fee['fraction_id']
+            );
+        }
 
-        // Get receipts
+        // If no fees found, use current fee as the only fee
+        if (empty($allFees)) {
+            $allFees = [$fee];
+        }
+
+        // Separate regular and extra fees
+        $regularFee = null;
+        $extraFee = null;
+        foreach ($allFees as $f) {
+            $feeType = $f['fee_type'] ?? 'regular';
+            if ($feeType === 'regular' || ($feeType === null && !$regularFee)) {
+                $regularFee = $f;
+            } elseif ($feeType === 'extra') {
+                $extraFee = $f;
+            }
+        }
+
+        // Get payments for all fees in this month/fraction
+        $allPayments = [];
+        $totalPaid = 0;
+        $regularPaid = 0;
+        $extraPaid = 0;
+        
+        foreach ($allFees as $f) {
+            $feePayments = $this->feePaymentModel->getByFee($f['id']);
+            $feePaid = $this->feePaymentModel->getTotalPaid($f['id']);
+            
+            // Add payments to all payments array
+            foreach ($feePayments as $payment) {
+                $allPayments[] = $payment;
+            }
+            
+            // Sum paid amounts
+            $totalPaid += $feePaid;
+            if ($f['fee_type'] === 'extra') {
+                $extraPaid += $feePaid;
+            } else {
+                $regularPaid += $feePaid;
+            }
+        }
+
+        // If no allFees, get payments for current fee
+        if (empty($allFees)) {
+            $allPayments = $this->feePaymentModel->getByFee($feeId);
+            $totalPaid = $this->feePaymentModel->getTotalPaid($feeId);
+            if ($fee['fee_type'] === 'extra') {
+                $extraPaid = $totalPaid;
+            } else {
+                $regularPaid = $totalPaid;
+            }
+        }
+
+        // Calculate amounts
+        $regularAmount = $regularFee ? (float)$regularFee['amount'] : 0;
+        $extraAmount = $extraFee ? (float)$extraFee['amount'] : 0;
+        $totalAmount = $regularAmount + $extraAmount;
+        $pendingAmount = $totalAmount - $totalPaid;
+        $regularPending = $regularAmount - $regularPaid;
+        $extraPending = $extraAmount - $extraPaid;
+
+        // Get receipts (for all fees)
         $receiptModel = new \App\Models\Receipt();
-        $receipts = $receiptModel->getByFee($feeId);
+        $receipts = [];
+        foreach ($allFees as $f) {
+            $feeReceipts = $receiptModel->getByFee($f['id']);
+            $receipts = array_merge($receipts, $feeReceipts);
+        }
+        if (empty($allFees)) {
+            $receipts = $receiptModel->getByFee($feeId);
+        }
 
-        // Get payment history
+        // Get payment history (for all fees)
         $historyModel = new \App\Models\FeePaymentHistory();
-        $paymentHistory = $historyModel->getByFee($feeId);
+        $paymentHistory = [];
+        foreach ($allFees as $f) {
+            $feeHistory = $historyModel->getByFee($f['id']);
+            $paymentHistory = array_merge($paymentHistory, $feeHistory);
+        }
+        if (empty($allFees)) {
+            $paymentHistory = $historyModel->getByFee($feeId);
+        }
 
         echo json_encode([
             'fee' => $fee,
             'fraction' => $fraction,
-            'payments' => $payments,
+            'payments' => $allPayments,
             'receipts' => $receipts,
             'payment_history' => $paymentHistory,
-            'total_amount' => (float)$fee['amount'],
+            'total_amount' => $totalAmount,
             'total_paid' => $totalPaid,
-            'pending_amount' => $pendingAmount
+            'pending_amount' => $pendingAmount,
+            'regular_fee' => $regularFee ? [
+                'id' => $regularFee['id'],
+                'amount' => $regularAmount,
+                'paid_amount' => $regularPaid,
+                'pending_amount' => $regularPending,
+                'due_date' => $regularFee['due_date'] ?? null,
+                'reference' => $regularFee['reference'] ?? null
+            ] : null,
+            'extra_fee' => $extraFee ? [
+                'id' => $extraFee['id'],
+                'amount' => $extraAmount,
+                'paid_amount' => $extraPaid,
+                'pending_amount' => $extraPending,
+                'due_date' => $extraFee['due_date'] ?? null,
+                'reference' => $extraFee['reference'] ?? null,
+                'notes' => $extraFee['notes'] ?? null,
+                'description' => $extraFee['notes'] ?? 'Quota Extra'
+            ] : null
         ]);
         exit;
     }
@@ -1094,7 +1192,15 @@ class FinanceController extends Controller
 
         $currentYear = date('Y');
         $currentMonth = date('m');
-        $selectedYear = !empty($_GET['year']) ? (int)$_GET['year'] : null;
+        // Default to current year if no year filter is provided
+        // If 'year' parameter exists but is empty, it means "Todos" was selected
+        if (isset($_GET['year']) && $_GET['year'] === '') {
+            $selectedYear = null; // Show all years
+        } elseif (!empty($_GET['year'])) {
+            $selectedYear = (int)$_GET['year'];
+        } else {
+            $selectedYear = $currentYear; // Default to current year
+        }
         $selectedMonth = !empty($_GET['month']) ? (int)$_GET['month'] : null;
         $selectedStatus = $_GET['status'] ?? null;
         $selectedFraction = !empty($_GET['fraction_id']) ? (int)$_GET['fraction_id'] : null;
@@ -1177,10 +1283,10 @@ class FinanceController extends Controller
             $sql .= " AND (f.is_historical = 1";
             
             // Add regular fees condition
-            if ($selectedYear !== null || $selectedMonth !== null) {
+            if ($selectedYear || $selectedMonth !== null) {
                 // Regular fees must match year/month filters
                 $sql .= " OR (COALESCE(f.is_historical, 0) = 0";
-                if ($selectedYear !== null) {
+                if ($selectedYear) {
                     $sql .= " AND f.period_year = :year";
                     $params[':year'] = $selectedYear;
                 }
@@ -1205,7 +1311,8 @@ class FinanceController extends Controller
         } else {
             // Only show regular fees matching filters
             $sql .= " AND COALESCE(f.is_historical, 0) = 0";
-            if ($selectedYear !== null) {
+            // selectedYear is now always set (defaults to current year), so always filter by it
+            if ($selectedYear) {
                 $sql .= " AND f.period_year = :year";
                 $params[':year'] = $selectedYear;
             }
@@ -1300,9 +1407,13 @@ class FinanceController extends Controller
         
         // Get available years for fees map
         $availableYears = $feeModel->getAvailableYears($condominiumId);
-        if (empty($availableYears)) {
-            $availableYears = [date('Y')];
+        // Always include current year even if no fees exist yet
+        if (!in_array($currentYear, $availableYears)) {
+            $availableYears[] = $currentYear;
+            sort($availableYears);
         }
+        // Reverse to show most recent first
+        rsort($availableYears);
         
         // Get selected year for fees map (check fees_year parameter first, then selectedYear from filters, then default)
         $selectedFeesYear = !empty($_GET['fees_year']) ? (int)$_GET['fees_year'] : ($selectedYear ?? $availableYears[0]);
@@ -1333,7 +1444,7 @@ class FinanceController extends Controller
             'summary' => $summary,
             'current_year' => $currentYear,
             'current_month' => $currentMonth,
-            'selected_year' => $selectedYear ?? '',
+            'selected_year' => $selectedYear,
             'selected_month' => $selectedMonth,
             'selected_status' => $selectedStatus,
             'selected_fraction' => $selectedFraction,
@@ -1355,7 +1466,8 @@ class FinanceController extends Controller
             'available_years' => $availableYears,
             'selected_fees_year' => $selectedFeesYear,
             'fees_map_form_action' => BASE_URL . 'condominiums/' . $condominiumId . '/fees',
-            'month_names' => $monthNames
+            'month_names' => $monthNames,
+            'available_filter_years' => $availableYears // Years available for filtering
         ];
         
         unset($_SESSION['error']);
@@ -1421,7 +1533,7 @@ class FinanceController extends Controller
                 FROM fees f
                 INNER JOIN fractions fr ON fr.id = f.fraction_id
                 WHERE f.condominium_id = :condominium_id
-                AND f.is_historical = TRUE
+                AND COALESCE(f.is_historical, 0) = 1
                 ORDER BY f.period_year DESC, f.period_month DESC, fr.identifier ASC
             ");
             $stmt->execute([':condominium_id' => $condominiumId]);

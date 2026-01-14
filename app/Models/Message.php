@@ -17,10 +17,12 @@ class Message extends Model
             return [];
         }
 
-        $sql = "SELECT m.*, u1.name as sender_name, u2.name as recipient_name
+        $sql = "SELECT m.*, u1.name as sender_name, u2.name as recipient_name,
+                       parent.subject as parent_subject, parent.id as parent_id
                 FROM messages m
                 LEFT JOIN users u1 ON u1.id = m.from_user_id
                 LEFT JOIN users u2 ON u2.id = m.to_user_id
+                LEFT JOIN messages parent ON parent.id = m.thread_id
                 WHERE m.condominium_id = :condominium_id";
 
         $params = [':condominium_id' => $condominiumId];

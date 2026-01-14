@@ -41,8 +41,38 @@ class MessageController extends Controller
         }
 
         $userId = AuthMiddleware::userId();
-        $messages = $this->messageModel->getByCondominium($condominiumId, ['recipient_id' => $userId]);
-        $sentMessages = $this->messageModel->getByCondominium($condominiumId, ['sender_id' => $userId]);
+        
+        // Get root messages (messages without thread_id)
+        $rootMessages = $this->messageModel->getByCondominium($condominiumId, ['recipient_id' => $userId]);
+        $rootSentMessages = $this->messageModel->getByCondominium($condominiumId, ['sender_id' => $userId]);
+        
+        // Get all replies for received messages
+        $organizedMessages = [];
+        foreach ($rootMessages as $msg) {
+            $msg['replies'] = $this->messageModel->getReplies($msg['id']);
+            // Filter replies to only show those relevant to this user
+            $msg['replies'] = array_filter($msg['replies'], function($reply) use ($userId) {
+                return $reply['to_user_id'] == $userId || $reply['to_user_id'] === null || $reply['from_user_id'] == $userId;
+            });
+            $msg['is_sent'] = false; // Mark as received
+            $organizedMessages[] = $msg;
+        }
+        
+        // Get all replies for sent messages
+        foreach ($rootSentMessages as $msg) {
+            $msg['replies'] = $this->messageModel->getReplies($msg['id']);
+            // Filter replies to only show those sent by this user or received by this user
+            $msg['replies'] = array_filter($msg['replies'], function($reply) use ($userId) {
+                return $reply['from_user_id'] == $userId || $reply['to_user_id'] == $userId;
+            });
+            $msg['is_sent'] = true; // Mark as sent
+            $organizedMessages[] = $msg;
+        }
+        
+        // Sort all messages by created_at DESC (most recent first)
+        usort($organizedMessages, function($a, $b) {
+            return strtotime($b['created_at']) - strtotime($a['created_at']);
+        });
 
         $this->loadPageTranslations('messages');
         
@@ -50,8 +80,8 @@ class MessageController extends Controller
             'viewName' => 'pages/messages/index.html.twig',
             'page' => ['titulo' => 'Mensagens'],
             'condominium' => $condominium,
-            'messages' => $messages,
-            'sent_messages' => $sentMessages,
+            'messages' => $organizedMessages,
+            'current_user_id' => $userId,
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
         ];
@@ -222,11 +252,17 @@ class MessageController extends Controller
         // If this message is not the root, get the root message
         $rootMessage = ($rootMessageId == $id) ? $message : $this->messageModel->findById($rootMessageId);
         
+        // Determine if we're viewing a specific reply or the root message
+        $isViewingReply = ($rootMessageId != $id);
+        $viewingMessage = $isViewingReply ? $message : $rootMessage;
+        
         // Get attachments for root message and all replies
         $attachmentModel = new MessageAttachment();
         $messageAttachments = $attachmentModel->getByMessage($rootMessageId);
         foreach ($replies as &$reply) {
             $reply['attachments'] = $attachmentModel->getByMessage($reply['id']);
+            // Mark if this is the message being viewed
+            $reply['is_viewing'] = ($reply['id'] == $id);
         }
         
         // Get condominium for sidebar
@@ -239,14 +275,20 @@ class MessageController extends Controller
 
         $this->loadPageTranslations('messages');
         
+        // Determine page title
+        $pageTitle = $isViewingReply ? $viewingMessage['subject'] : $rootMessage['subject'];
+        
         $this->data += [
             'viewName' => 'pages/messages/show.html.twig',
-            'page' => ['titulo' => $rootMessage['subject']],
+            'page' => ['titulo' => $pageTitle],
             'condominium' => $condominium,
             'message' => $rootMessage,
             'replies' => $replies,
             'attachments' => $messageAttachments,
             'current_user_id' => $userId,
+            'viewing_message_id' => $id, // ID of the message being viewed (could be root or reply)
+            'is_viewing_reply' => $isViewingReply,
+            'viewing_message' => $viewingMessage,
             'csrf_token' => Security::generateCSRFToken()
         ];
 

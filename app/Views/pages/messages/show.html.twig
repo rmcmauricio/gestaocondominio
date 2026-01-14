@@ -2,9 +2,21 @@
     <div class="row justify-content-center">
         <div class="col-lg-10">
             <!-- Original Message -->
-            <div class="card shadow mb-3">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">{{ message.subject }}</h4>
+            {% set message_is_sent = message.from_user_id == current_user_id %}
+            <div class="card shadow mb-3" style="border-left: 4px solid {% if message_is_sent %}#28a745{% else %}#0d6efd{% endif %};">
+                <div class="card-header {% if message_is_sent %}bg-success{% else %}bg-primary{% endif %} text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">{{ message.subject }}</h4>
+                        {% if message_is_sent %}
+                            <span class="badge bg-light text-dark">
+                                <i class="bi bi-send"></i> Enviada
+                            </span>
+                        {% else %}
+                            <span class="badge bg-light text-dark">
+                                <i class="bi bi-inbox"></i> Recebida
+                            </span>
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="card-body p-4">
                     <div class="mb-4">
@@ -62,28 +74,55 @@
                 </div>
                 <div class="card-body p-4">
                     {% for reply in replies %}
-                    <div class="border-start border-primary border-3 ps-3 mb-4 {% if not loop.last %}pb-4{% endif %}">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <div>
-                                <strong>{{ reply.sender_name|default('Sistema') }}</strong>
-                                <small class="text-muted ms-2">{{ reply.created_at|date('d/m/Y H:i') }}</small>
+                    {% set reply_is_sent = reply.from_user_id == current_user_id %}
+                    <div class="reply-message mb-4 {% if not loop.last %}border-bottom pb-4{% endif %} {% if reply.is_viewing %}bg-light rounded p-3{% endif %}" {% if reply.is_viewing %}id="viewing-reply"{% endif %}>
+                        <div class="d-flex align-items-start">
+                            <div class="reply-indicator me-3 mt-1">
+                                <i class="bi bi-arrow-return-right {% if reply_is_sent %}text-success{% else %}text-primary{% endif %}" style="font-size: 1.2rem;"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <strong>{{ reply.sender_name|default('Sistema') }}</strong>
+                                            <span class="badge bg-info" style="font-size: 0.7rem;">
+                                                <i class="bi bi-reply"></i> Resposta
+                                            </span>
+                                            {% if reply_is_sent %}
+                                                <span class="badge bg-success" style="font-size: 0.7rem;">
+                                                    <i class="bi bi-send"></i> Enviada
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-primary" style="font-size: 0.7rem;">
+                                                    <i class="bi bi-inbox"></i> Recebida
+                                                </span>
+                                            {% endif %}
+                                            {% if reply.is_viewing %}
+                                                <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">
+                                                    <i class="bi bi-eye"></i> Visualizando
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                        <small class="text-muted">{{ reply.created_at|date('d/m/Y H:i') }}</small>
+                                    </div>
+                                </div>
+                                <div class="message-content bg-light p-3 rounded" style="border-left: 4px solid {% if reply_is_sent %}#28a745{% else %}#0d6efd{% endif %};">
+                                    {% autoescape false %}
+                                    {{ reply.message }}
+                                    {% endautoescape %}
+                                </div>
+                                {% if reply.attachments %}
+                                <div class="mt-2">
+                                    <small><i class="bi bi-paperclip"></i> Anexos:</small>
+                                    {% for attachment in reply.attachments %}
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages/{{ reply.id }}/attachments/{{ attachment.id }}/download" class="badge bg-secondary text-decoration-none ms-1">
+                                        {{ attachment.file_name }}
+                                    </a>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
                             </div>
                         </div>
-                        <div class="message-content">
-                            {% autoescape false %}
-                            {{ reply.message }}
-                            {% endautoescape %}
-                        </div>
-                        {% if reply.attachments %}
-                        <div class="mt-2">
-                            <small><i class="bi bi-paperclip"></i> Anexos:</small>
-                            {% for attachment in reply.attachments %}
-                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages/{{ reply.id }}/attachments/{{ attachment.id }}/download" class="badge bg-secondary text-decoration-none ms-1">
-                                {{ attachment.file_name }}
-                            </a>
-                            {% endfor %}
-                        </div>
-                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
@@ -110,7 +149,7 @@
                     </div>
                     {% endif %}
 
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages/{{ message.id }}/reply" enctype="multipart/form-data">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages/{{ viewing_message_id|default(message.id) }}/reply" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         
                         <div class="mb-3">
@@ -139,6 +178,21 @@
                     <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
                     <script>
                     document.addEventListener('DOMContentLoaded', function() {
+                        // Scroll to viewing reply if viewing a specific reply
+                        {% if is_viewing_reply %}
+                        const viewingReply = document.getElementById('viewing-reply');
+                        if (viewingReply) {
+                            setTimeout(function() {
+                                viewingReply.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                viewingReply.style.transition = 'background-color 0.3s';
+                                viewingReply.style.backgroundColor = '#fff3cd';
+                                setTimeout(function() {
+                                    viewingReply.style.backgroundColor = '';
+                                }, 2000);
+                            }, 300);
+                        }
+                        {% endif %}
+                        
                         tinymce.init({
                             selector: '#reply_message',
                             height: 300,

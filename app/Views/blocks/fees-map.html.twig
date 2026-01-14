@@ -104,7 +104,21 @@
                                 {% endif %}
                                 
                             <td class="text-center align-middle {% if fee %}fee-cell{% if is_overdue %} table-danger{% elseif fee.status == 'paid' %} table-success{% elseif fee.status == 'pending' %} table-warning{% endif %}{% endif %}"
-                                {% if fee %}style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})"{% endif %}
+                                {% if fee %}
+                                    {% set extra_fee_id = null %}
+                                    {% set regular_fee_id = null %}
+                                    {% if fee.all_fees|default([])|length > 0 %}
+                                        {% for fee_detail in fee.all_fees %}
+                                            {% if fee_detail.fee_type == 'extra' and extra_fee_id == null %}
+                                                {% set extra_fee_id = fee_detail.id %}
+                                            {% elseif fee_detail.fee_type == 'regular' and regular_fee_id == null %}
+                                                {% set regular_fee_id = fee_detail.id %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                    {% set fee_id_to_show = extra_fee_id ?: (regular_fee_id ?: fee.id) %}
+                                    style="cursor: pointer;" onclick="showFeeDetails({{ fee_id_to_show }})"
+                                {% endif %}
                                 {% if fee %}title="{{ tooltip_parts|join(' | ') }}"{% endif %}>
                                 {% if fee %}
                                     <div class="d-flex flex-column align-items-center" style="gap: 0.2rem;">
