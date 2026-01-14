@@ -881,11 +881,16 @@ class FinanceController extends Controller
         $receiptModel = new \App\Models\Receipt();
         $receipts = $receiptModel->getByFee($feeId);
 
+        // Get payment history
+        $historyModel = new \App\Models\FeePaymentHistory();
+        $paymentHistory = $historyModel->getByFee($feeId);
+
         echo json_encode([
             'fee' => $fee,
             'fraction' => $fraction,
             'payments' => $payments,
             'receipts' => $receipts,
+            'payment_history' => $paymentHistory,
             'total_amount' => (float)$fee['amount'],
             'total_paid' => $totalPaid,
             'pending_amount' => $pendingAmount
@@ -977,6 +982,104 @@ class FinanceController extends Controller
         }
     }
 
+    /**
+     * Regenerate receipts for a fee (delete existing and create new if fully paid)
+     */
+    private function regenerateReceiptsForFee(int $feeId, int $condominiumId, int $userId): void
+    {
+        try {
+            $fee = $this->feeModel->findById($feeId);
+            if (!$fee) {
+                return;
+            }
+
+            $receiptModel = new \App\Models\Receipt();
+            $existingReceipts = $receiptModel->getByFee($feeId);
+
+            // Delete all existing receipts for this fee
+            global $db;
+            foreach ($existingReceipts as $receipt) {
+                // Delete receipt file if exists
+                if (!empty($receipt['file_path'])) {
+                    $filePath = $receipt['file_path'];
+                    if (strpos($filePath, 'condominiums/') === 0) {
+                        $fullPath = __DIR__ . '/../../storage/' . $filePath;
+                    } else {
+                        $fullPath = __DIR__ . '/../../storage/documents/' . $filePath;
+                    }
+                    if (file_exists($fullPath)) {
+                        @unlink($fullPath);
+                    }
+                }
+                
+                // Delete receipt record
+                $stmt = $db->prepare("DELETE FROM receipts WHERE id = :id");
+                $stmt->execute([':id' => $receipt['id']]);
+            }
+
+            // Check if fee is still fully paid after changes
+            $totalPaid = $this->feePaymentModel->getTotalPaid($feeId);
+            $isFullyPaid = $totalPaid >= (float)$fee['amount'];
+
+            // Only regenerate receipt if fully paid
+            // If partially paid, receipts are deleted but not regenerated until fully paid
+            if ($isFullyPaid) {
+                $fractionModel = new \App\Models\Fraction();
+                $fraction = $fractionModel->findById($fee['fraction_id']);
+                if (!$fraction) {
+                    return;
+                }
+
+                $condominium = $this->condominiumModel->findById($condominiumId);
+                if (!$condominium) {
+                    return;
+                }
+
+                $pdfService = new \App\Services\PdfService();
+                $receiptNumber = $receiptModel->generateReceiptNumber($condominiumId, (int)$fee['period_year']);
+                $htmlContent = $pdfService->generateReceiptReceipt($fee, $fraction, $condominium, null, 'final');
+                
+                // Create receipt record
+                $receiptId = $receiptModel->create([
+                    'fee_id' => $feeId,
+                    'fee_payment_id' => null,
+                    'condominium_id' => $condominiumId,
+                    'fraction_id' => $fee['fraction_id'],
+                    'receipt_number' => $receiptNumber,
+                    'receipt_type' => 'final',
+                    'amount' => $fee['amount'],
+                    'file_path' => '',
+                    'file_name' => '',
+                    'file_size' => 0,
+                    'generated_at' => date('Y-m-d H:i:s'),
+                    'generated_by' => $userId
+                ]);
+
+                // Generate PDF
+                $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber, $condominiumId);
+                $fullPath = __DIR__ . '/../../storage/' . $filePath;
+                $fileSize = file_exists($fullPath) ? filesize($fullPath) : 0;
+                $fileName = basename($filePath);
+
+                // Update receipt with file info
+                $stmt = $db->prepare("
+                    UPDATE receipts 
+                    SET file_path = :file_path, file_name = :file_name, file_size = :file_size 
+                    WHERE id = :id
+                ");
+                $stmt->execute([
+                    ':file_path' => $filePath,
+                    ':file_name' => $fileName,
+                    ':file_size' => $fileSize,
+                    ':id' => $receiptId
+                ]);
+            }
+        } catch (\Exception $e) {
+            // Log error but don't fail the operation
+            error_log("Error regenerating receipts: " . $e->getMessage());
+        }
+    }
+
     public function fees(int $condominiumId)
     {
         AuthMiddleware::require();
@@ -994,8 +1097,32 @@ class FinanceController extends Controller
         $selectedYear = !empty($_GET['year']) ? (int)$_GET['year'] : null;
         $selectedMonth = !empty($_GET['month']) ? (int)$_GET['month'] : null;
         $selectedStatus = $_GET['status'] ?? null;
+        $selectedFraction = !empty($_GET['fraction_id']) ? (int)$_GET['fraction_id'] : null;
         // Check if show_historical is set and equals '1' (can be from checkbox or URL parameter)
         $showHistorical = !empty($_GET['show_historical']) && $_GET['show_historical'] == '1';
+
+        // Get user fractions for this condominium (for non-admin users)
+        $isAdmin = RoleMiddleware::isAdmin();
+        $userFractions = [];
+        if (!$isAdmin) {
+            $userId = AuthMiddleware::userId();
+            $condominiumUserModel = new \App\Models\CondominiumUser();
+            $userCondominiums = $condominiumUserModel->getUserCondominiums($userId);
+            $userFractions = array_filter($userCondominiums, function($uc) use ($condominiumId) {
+                return $uc['condominium_id'] == $condominiumId && !empty($uc['fraction_id']);
+            });
+            $userFractionIds = array_column($userFractions, 'fraction_id');
+            
+            // If no fraction selected and user has fractions, default to first user fraction
+            if ($selectedFraction === null && !empty($userFractionIds)) {
+                $selectedFraction = (int)$userFractionIds[0];
+            }
+            
+            // If fraction selected but not in user fractions, reset to first user fraction
+            if ($selectedFraction !== null && !in_array($selectedFraction, $userFractionIds)) {
+                $selectedFraction = !empty($userFractionIds) ? (int)$userFractionIds[0] : null;
+            }
+        }
 
         $filters = [
             'year' => $selectedYear
@@ -1025,6 +1152,22 @@ class FinanceController extends Controller
                 WHERE f.condominium_id = :condominium_id";
 
         $params = [':condominium_id' => $condominiumId];
+
+        // Filter by fraction if selected, or filter by user fractions if not admin
+        if ($selectedFraction !== null) {
+            $sql .= " AND f.fraction_id = :fraction_id";
+            $params[':fraction_id'] = $selectedFraction;
+        } elseif (!$isAdmin && !empty($userFractions)) {
+            // Non-admin users: filter by their fractions
+            $userFractionIds = array_column($userFractions, 'fraction_id');
+            if (!empty($userFractionIds)) {
+                $placeholders = implode(',', array_fill(0, count($userFractionIds), '?'));
+                $sql .= " AND f.fraction_id IN ($placeholders)";
+                foreach ($userFractionIds as $fractionId) {
+                    $params[] = $fractionId;
+                }
+            }
+        }
 
         // Build filter conditions
         // Handle is_historical - MySQL stores booleans as TINYINT(1): 1 for TRUE, 0 for FALSE
@@ -1193,7 +1336,11 @@ class FinanceController extends Controller
             'selected_year' => $selectedYear ?? '',
             'selected_month' => $selectedMonth,
             'selected_status' => $selectedStatus,
+            'selected_fraction' => $selectedFraction,
+            'user_fractions' => $userFractions,
+            'user_fraction_ids' => !empty($userFractions) ? array_column($userFractions, 'fraction_id') : [],
             'show_historical' => $showHistorical,
+            'fractions' => $fractions,
             'bank_accounts' => $bankAccounts,
             'available_transactions' => $availableTransactions,
             'is_admin' => $isAdmin,
@@ -1898,6 +2045,229 @@ class FinanceController extends Controller
             $_SESSION['success'] = 'Quota extra eliminada com sucesso!';
         } else {
             $_SESSION['error'] = 'Erro ao eliminar a quota extra.';
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+        exit;
+    }
+
+    /**
+     * Get payment details for editing
+     */
+    public function getPayment(int $condominiumId, int $feeId, int $paymentId)
+    {
+        header('Content-Type: application/json');
+        
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
+
+        $fee = $this->feeModel->findById($feeId);
+        if (!$fee || $fee['condominium_id'] != $condominiumId) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Quota não encontrada']);
+            exit;
+        }
+
+        $payment = $this->feePaymentModel->findById($paymentId);
+        if (!$payment || $payment['fee_id'] != $feeId) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Pagamento não encontrado']);
+            exit;
+        }
+
+        echo json_encode(['payment' => $payment]);
+        exit;
+    }
+
+    /**
+     * Update payment
+     */
+    public function updatePayment(int $condominiumId, int $feeId, int $paymentId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $fee = $this->feeModel->findById($feeId);
+        if (!$fee || $fee['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Quota não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $payment = $this->feePaymentModel->findById($paymentId);
+        if (!$payment || $payment['fee_id'] != $feeId) {
+            $_SESSION['error'] = 'Pagamento não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $amount = (float)($_POST['amount'] ?? 0);
+        $paymentMethod = Security::sanitize($_POST['payment_method'] ?? '');
+        $paymentDate = $_POST['payment_date'] ?? date('Y-m-d');
+        $notes = Security::sanitize($_POST['notes'] ?? '');
+
+        if ($amount <= 0 || empty($paymentMethod)) {
+            $_SESSION['error'] = 'Por favor, preencha todos os campos obrigatórios.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        // Get current total paid (excluding this payment)
+        $totalPaid = $this->feePaymentModel->getTotalPaid($feeId) - $payment['amount'];
+        $remainingAmount = (float)$fee['amount'] - $totalPaid;
+
+        if ($amount > $remainingAmount) {
+            $_SESSION['error'] = 'O valor do pagamento não pode ser superior ao valor pendente (€' . number_format($remainingAmount, 2, ',', '.') . ').';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        // Track changes for audit
+        $changes = [];
+        if ((float)$payment['amount'] != $amount) {
+            $changes['amount'] = [
+                'old' => '€' . number_format((float)$payment['amount'], 2, ',', '.'),
+                'new' => '€' . number_format($amount, 2, ',', '.')
+            ];
+        }
+        if ($payment['payment_method'] != $paymentMethod) {
+            $changes['payment_method'] = [
+                'old' => $payment['payment_method'],
+                'new' => $paymentMethod
+            ];
+        }
+        if ($payment['payment_date'] != $paymentDate) {
+            $changes['payment_date'] = [
+                'old' => $payment['payment_date'],
+                'new' => $paymentDate
+            ];
+        }
+        if (($payment['notes'] ?? '') != $notes) {
+            $changes['notes'] = [
+                'old' => $payment['notes'] ?? '',
+                'new' => $notes
+            ];
+        }
+
+        // Update payment
+        $success = $this->feePaymentModel->update($paymentId, [
+            'amount' => $amount,
+            'payment_method' => $paymentMethod,
+            'payment_date' => $paymentDate,
+            'notes' => $notes
+        ]);
+
+        if ($success) {
+            // Log changes to history
+            if (!empty($changes)) {
+                $historyModel = new \App\Models\FeePaymentHistory();
+                $userId = AuthMiddleware::userId();
+                $historyModel->logUpdate($paymentId, $feeId, $userId, $changes);
+            }
+            
+            // Regenerate receipts for this fee
+            $userId = AuthMiddleware::userId();
+            $this->regenerateReceiptsForFee($feeId, $condominiumId, $userId);
+            
+            // Update fee status based on new total paid
+            $newTotalPaid = $this->feePaymentModel->getTotalPaid($feeId);
+            $isFullyPaid = $newTotalPaid >= (float)$fee['amount'];
+            if ($isFullyPaid) {
+                $this->feeModel->markAsPaid($feeId);
+            } else {
+                // If not fully paid, mark as pending
+                global $db;
+                $stmt = $db->prepare("UPDATE fees SET status = 'pending', updated_at = NOW() WHERE id = :id");
+                $stmt->execute([':id' => $feeId]);
+            }
+            
+            $_SESSION['success'] = 'Pagamento atualizado com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao atualizar o pagamento.';
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+        exit;
+    }
+
+    /**
+     * Delete payment
+     */
+    public function deletePayment(int $condominiumId, int $feeId, int $paymentId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $fee = $this->feeModel->findById($feeId);
+        if (!$fee || $fee['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Quota não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $payment = $this->feePaymentModel->findById($paymentId);
+        if (!$payment || $payment['fee_id'] != $feeId) {
+            $_SESSION['error'] = 'Pagamento não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        // Log deletion to history BEFORE deleting
+        $historyModel = new \App\Models\FeePaymentHistory();
+        $userId = AuthMiddleware::userId();
+        $historyModel->logDeletion($paymentId, $feeId, $userId, $payment, 
+            'Pagamento eliminado: €' . number_format((float)$payment['amount'], 2, ',', '.') . 
+            ' (' . $payment['payment_method'] . ') - Referência: ' . ($payment['reference'] ?? 'N/A'));
+
+        // Delete payment
+        $success = $this->feePaymentModel->delete($paymentId);
+
+        if ($success) {
+            // Regenerate receipts for this fee (will delete existing and create new if fully paid)
+            $this->regenerateReceiptsForFee($feeId, $condominiumId, $userId);
+            
+            // Update fee status based on new total paid
+            $newTotalPaid = $this->feePaymentModel->getTotalPaid($feeId);
+            $isFullyPaid = $newTotalPaid >= (float)$fee['amount'];
+            if ($isFullyPaid) {
+                $this->feeModel->markAsPaid($feeId);
+            } else {
+                // If not fully paid, mark as pending
+                global $db;
+                $stmt = $db->prepare("UPDATE fees SET status = 'pending', updated_at = NOW() WHERE id = :id");
+                $stmt->execute([':id' => $feeId]);
+            }
+            
+            $_SESSION['success'] = 'Pagamento eliminado com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao eliminar o pagamento.';
         }
 
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');

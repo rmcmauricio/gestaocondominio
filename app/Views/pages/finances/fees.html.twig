@@ -43,7 +43,7 @@
 
     <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="row g-3" id="filtersForm">
+            <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="row g-3" id="filtersForm" onsubmit="event.preventDefault(); filterFees(); return false;">
                 <div class="col-12 col-sm-6 col-md-3">
                     <label for="year" class="form-label">Ano</label>
                     <select class="form-select form-select-sm" id="year" name="year">
@@ -78,6 +78,20 @@
                         <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Pendentes</option>
                         <option value="paid" {% if selected_status == 'paid' %}selected{% endif %}>Pagas</option>
                         <option value="overdue" {% if selected_status == 'overdue' %}selected{% endif %}>Em Atraso</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-2">
+                    <label for="fraction_id" class="form-label">Fração</label>
+                    <select class="form-select form-select-sm" id="fraction_id" name="fraction_id">
+                        {% if is_admin %}
+                        <option value="">Todas</option>
+                        {% endif %}
+                        {% for fraction in fractions %}
+                        <option value="{{ fraction.id }}" {% if selected_fraction == fraction.id %}selected{% endif %}>
+                            {{ fraction.identifier }}
+                            {% if not is_admin and fraction.id not in user_fraction_ids %}(Outras){% endif %}
+                        </option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="col-12 col-sm-6 col-md-2 d-flex align-items-end">
@@ -421,6 +435,38 @@
     </div>
 
     <script>
+        // Function to filter fees and scroll to filters
+        function filterFees() {
+            const form = document.getElementById('filtersForm');
+            const formData = new FormData(form);
+            const params = new URLSearchParams();
+            
+            // Add all form fields to params
+            for (const [key, value] of formData.entries()) {
+                if (value) {
+                    params.append(key, value);
+                }
+            }
+            
+            // Build URL with filters
+            const url = form.action + (params.toString() ? '?' + params.toString() : '');
+            
+            // Submit form normally but scroll to filters after load
+            window.location.href = url + '#filtersForm';
+        }
+        
+        // Scroll to filters if hash is present
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.location.hash === '#filtersForm') {
+                setTimeout(function() {
+                    const filtersForm = document.getElementById('filtersForm');
+                    if (filtersForm) {
+                        filtersForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }, 100);
+            }
+        });
+        
         document.addEventListener('DOMContentLoaded', function() {
             const isExtraCheckbox = document.getElementById('is_extra');
             const extraFields = document.getElementById('extraFields');
@@ -510,7 +556,7 @@
             <form method="POST" id="paymentForm">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <div class="modal-body">
-                    <div id="feeInfo" class="alert alert-info mb-3">
+                    <div id="feeInfo" class="alert alert-info mb-3" style="display: block !important;">
                         <small>Carregando informações...</small>
                     </div>
                     
@@ -526,14 +572,10 @@
 
                     <div class="mb-3">
                         <label for="payment_method" class="form-label">Método de Pagamento <span class="text-danger">*</span></label>
-                        <select class="form-select" id="payment_method" name="payment_method" required>
+                        <select class="form-select" id="payment_method" name="payment_method" required onchange="handlePaymentMethodChange()">
                             <option value="">Selecione...</option>
-                            <option value="multibanco">Multibanco</option>
-                            <option value="mbway">MBWay</option>
                             <option value="transfer">Transferência</option>
                             <option value="cash">Dinheiro</option>
-                            <option value="card">Cartão</option>
-                            <option value="sepa">Débito Direto SEPA</option>
                         </select>
                     </div>
 
@@ -546,7 +588,8 @@
                     <div class="mb-3">
                         <label for="payment_reference" class="form-label">Referência</label>
                         <input type="text" class="form-control" id="payment_reference" name="reference" 
-                               placeholder="Ex: Referência Multibanco, número de transferência, etc.">
+                               readonly style="background-color: #e9ecef; cursor: not-allowed;">
+                        <small class="form-text text-muted">Referência gerada automaticamente</small>
                     </div>
 
                     <div class="mb-3">
@@ -577,14 +620,28 @@
                         <div class="mb-3">
                             <label for="bank_account_id" class="form-label">Conta Bancária</label>
                             <select class="form-select" id="bank_account_id" name="bank_account_id">
-                                <option value="">Usar Caixa (padrão)</option>
+                                <option value="">Selecione...</option>
                                 {% if bank_accounts %}
+                                {% set main_bank_account = null %}
+                                {% set cash_account = null %}
                                 {% for account in bank_accounts %}
-                                <option value="{{ account.id }}">{{ account.name }} {% if account.account_type == 'cash' %}(Caixa){% endif %}</option>
+                                    {% if account.account_type == 'bank' and main_bank_account == null %}
+                                        {% set main_bank_account = account %}
+                                    {% endif %}
+                                    {% if account.account_type == 'cash' and cash_account == null %}
+                                        {% set cash_account = account %}
+                                    {% endif %}
+                                {% endfor %}
+                                {% for account in bank_accounts %}
+                                <option value="{{ account.id }}" 
+                                        {% if account.account_type == 'bank' and main_bank_account and account.id == main_bank_account.id %}data-is-main-bank="true"{% endif %}
+                                        {% if account.account_type == 'cash' %}data-is-cash="true"{% endif %}>
+                                    {{ account.name }} {% if account.account_type == 'cash' %}(Caixa){% endif %}
+                                </option>
                                 {% endfor %}
                                 {% endif %}
                             </select>
-                            <small class="form-text text-muted">Se não selecionar, será usado o caixa por padrão</small>
+                            <small class="form-text text-muted">Selecionada automaticamente conforme o método de pagamento</small>
                         </div>
                     </div>
 
@@ -636,6 +693,8 @@ function toggleTransactionFields() {
         bankAccountSelect.removeAttribute('required');
         transactionSelect.removeAttribute('required');
         transactionSelect.value = '';
+        // Trigger payment method change to auto-select account
+        handlePaymentMethodChange();
     } else {
         createFields.style.display = 'none';
         associateFields.style.display = 'block';
@@ -645,41 +704,124 @@ function toggleTransactionFields() {
     }
 }
 
+function handlePaymentMethodChange() {
+    const paymentMethod = document.getElementById('payment_method');
+    const bankAccountSelect = document.getElementById('bank_account_id');
+    
+    if (!paymentMethod || !bankAccountSelect) {
+        return;
+    }
+    
+    const selectedMethod = paymentMethod.value;
+    
+    if (selectedMethod === 'transfer') {
+        // Select main bank account (first bank account that is not cash)
+        const mainBankOption = bankAccountSelect.querySelector('option[data-is-main-bank="true"]');
+        if (mainBankOption) {
+            bankAccountSelect.value = mainBankOption.value;
+        } else {
+            // Fallback: select first bank account
+            const bankOptions = Array.from(bankAccountSelect.options).filter(opt => {
+                const option = bankAccountSelect.querySelector(`option[value="${opt.value}"]`);
+                return option && !option.hasAttribute('data-is-cash');
+            });
+            if (bankOptions.length > 0) {
+                bankAccountSelect.value = bankOptions[0].value;
+            }
+        }
+    } else if (selectedMethod === 'cash') {
+        // Select cash account
+        const cashOption = bankAccountSelect.querySelector('option[data-is-cash="true"]');
+        if (cashOption) {
+            bankAccountSelect.value = cashOption.value;
+        }
+    }
+}
+
 function showPaymentModal(feeId) {
     currentFeeId = feeId;
-    const modal = new bootstrap.Modal(document.getElementById('paymentModal'));
+    const modalElement = document.getElementById('paymentModal');
+    if (!modalElement) {
+        console.error('Modal element not found');
+        return;
+    }
+    
+    const modal = new bootstrap.Modal(modalElement);
     
     // Reset form
-    document.getElementById('transaction_create').checked = true;
+    const transactionCreate = document.getElementById('transaction_create');
+    if (transactionCreate) {
+        transactionCreate.checked = true;
+    }
     toggleTransactionFields();
     
-    // Load fee info
-    fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)
-        .then(response => response.json())
-        .then(data => {
-            const pendingAmount = data.pending_amount;
-            const totalAmount = data.total_amount;
-            const paidAmount = data.total_paid;
-            
-            document.getElementById('feeInfo').innerHTML = `
-                <strong>Fração:</strong> ${data.fraction.identifier}<br>
-                <strong>Valor Total:</strong> €${parseFloat(totalAmount).toFixed(2).replace('.', ',')}<br>
-                <strong>Já Pago:</strong> €${parseFloat(paidAmount).toFixed(2).replace('.', ',')}<br>
-                <strong>Pendente:</strong> <span class="text-danger">€${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}</span>
-            `;
-            
-            document.getElementById('payment_amount').max = pendingAmount;
-            document.getElementById('payment_amount').value = '';
-            document.getElementById('maxAmountHint').textContent = `Valor máximo: €${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}`;
-            
-            document.getElementById('paymentForm').action = `{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/add-payment`;
-        })
-        .catch(error => {
-            console.error('Erro ao carregar informações:', error);
-            document.getElementById('feeInfo').innerHTML = '<div class="alert alert-danger">Erro ao carregar informações</div>';
-        });
-    
+    // Open modal first to ensure elements are available
     modal.show();
+    
+    // Wait for modal to be shown, then update elements
+    modalElement.addEventListener('shown.bs.modal', function onModalShown() {
+        // Remove listener after first use
+        modalElement.removeEventListener('shown.bs.modal', onModalShown);
+        
+        // Show loading state
+        const feeInfoElement = document.getElementById('feeInfo');
+        if (feeInfoElement) {
+            feeInfoElement.style.display = 'block';
+            feeInfoElement.innerHTML = '<small>Carregando informações...</small>';
+        }
+        
+        // Load fee info
+        fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)
+            .then(response => response.json())
+            .then(data => {
+                const pendingAmount = data.pending_amount;
+                const totalAmount = data.total_amount;
+                const paidAmount = data.total_paid;
+                
+                // Update fee info - keep it visible permanently
+                if (feeInfoElement) {
+                    feeInfoElement.innerHTML = `
+                        <strong>Fração:</strong> ${data.fraction.identifier}<br>
+                        <strong>Valor Total:</strong> €${parseFloat(totalAmount).toFixed(2).replace('.', ',')}<br>
+                        <strong>Já Pago:</strong> €${parseFloat(paidAmount).toFixed(2).replace('.', ',')}<br>
+                        <strong>Pendente:</strong> <span class="text-danger">€${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}</span>
+                    `;
+                    feeInfoElement.style.display = 'block';
+                }
+                
+                const paymentAmountInput = document.getElementById('payment_amount');
+                if (paymentAmountInput) {
+                    paymentAmountInput.max = pendingAmount;
+                    paymentAmountInput.value = parseFloat(pendingAmount).toFixed(2);
+                }
+                
+                const maxAmountHint = document.getElementById('maxAmountHint');
+                if (maxAmountHint) {
+                    maxAmountHint.textContent = `Valor máximo: €${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}`;
+                }
+                
+                const paymentForm = document.getElementById('paymentForm');
+                if (paymentForm) {
+                    paymentForm.action = `{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/add-payment`;
+                }
+                
+                // Generate automatic reference: REF + condominium_id + fraction_id + fee_id
+                const paymentReferenceInput = document.getElementById('payment_reference');
+                if (paymentReferenceInput) {
+                    const condominiumId = {{ condominium.id }};
+                    const fractionId = data.fraction.id;
+                    const reference = `REF${condominiumId}${fractionId}${feeId}`;
+                    paymentReferenceInput.value = reference;
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao carregar informações:', error);
+                if (feeInfoElement) {
+                    feeInfoElement.innerHTML = '<div class="alert alert-danger">Erro ao carregar informações</div>';
+                    feeInfoElement.style.display = 'block';
+                }
+            });
+    }, { once: true });
 }
 
 
@@ -697,6 +839,72 @@ document.getElementById('payment_amount')?.addEventListener('input', function() 
 </script>
 
 <!-- Modal e Script para Detalhes da Quota (Mapa) -->
-{% include 'blocks/fees-map-modal.html.twig' %}
+{% include 'blocks/fees-map-modal.html.twig' with {'is_admin': is_admin, 'csrf_token': csrf_token} %}
+
+<!-- Modal para Editar Pagamento -->
+<div class="modal fade" id="editPaymentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Pagamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="editPaymentForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" id="edit_payment_id" name="payment_id">
+                <input type="hidden" id="edit_payment_fee_id" name="fee_id">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_payment_amount" class="form-label">Valor do Pagamento (€) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">€</span>
+                            <input type="number" class="form-control" id="edit_payment_amount" name="amount" 
+                                   step="0.01" min="0.01" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_payment_method" class="form-label">Método de Pagamento <span class="text-danger">*</span></label>
+                        <select class="form-select" id="edit_payment_method" name="payment_method" required>
+                            <option value="">Selecione...</option>
+                            <option value="transfer">Transferência</option>
+                            <option value="cash">Dinheiro</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_payment_date" class="form-label">Data do Pagamento <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="edit_payment_date" name="payment_date" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_payment_reference" class="form-label">Referência</label>
+                        <input type="text" class="form-control" id="edit_payment_reference" name="reference" readonly 
+                               style="background-color: #e9ecef; cursor: not-allowed;">
+                        <small class="form-text text-muted">Referência não pode ser alterada</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_payment_notes" class="form-label">Notas</label>
+                        <textarea class="form-control" id="edit_payment_notes" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Set form action when modal is shown
+document.getElementById('editPaymentModal')?.addEventListener('show.bs.modal', function() {
+    const feeId = document.getElementById('edit_payment_fee_id').value;
+    const paymentId = document.getElementById('edit_payment_id').value;
+    document.getElementById('editPaymentForm').action = `{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/payments/${paymentId}/update`;
+});
+</script>
 
 

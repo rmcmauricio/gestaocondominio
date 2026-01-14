@@ -714,14 +714,100 @@ main {
 }
 
 .btn-outline-secondary {
-  background-color: transparent;
+  background-color: var(--color-bg-light);
   color: var(--color-text);
   border-color: var(--color-border);
 }
 
 .btn-outline-secondary:hover {
-  background-color: var(--color-bg-light);
+  background-color: var(--color-border);
   color: var(--color-text);
+  border-color: var(--color-border-dark);
+}
+
+/* Bootstrap outline button variants */
+.btn-outline-primary {
+  background-color: rgba(99, 102, 241, 0.1);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.btn-outline-primary:hover {
+  background-color: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary-dark);
+}
+
+.btn-outline-success {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.btn-outline-success:hover {
+  background-color: var(--color-success);
+  color: white;
+  border-color: #059669;
+}
+
+.btn-outline-danger {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.btn-outline-danger:hover {
+  background-color: var(--color-danger);
+  color: white;
+  border-color: #dc2626;
+}
+
+.btn-outline-warning {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+
+.btn-outline-warning:hover {
+  background-color: var(--color-warning);
+  color: white;
+  border-color: #d97706;
+}
+
+.btn-outline-info {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: var(--color-info);
+  border-color: var(--color-info);
+}
+
+.btn-outline-info:hover {
+  background-color: var(--color-info);
+  color: white;
+  border-color: #2563eb;
+}
+
+.btn-outline-light {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #1f2937;
+  border-color: #e5e7eb;
+}
+
+.btn-outline-light:hover {
+  background-color: white;
+  color: #1f2937;
+  border-color: #d1d5db;
+}
+
+.btn-outline-dark {
+  background-color: rgba(31, 41, 55, 0.1);
+  color: #1f2937;
+  border-color: #374151;
+}
+
+.btn-outline-dark:hover {
+  background-color: #1f2937;
+  color: white;
+  border-color: #111827;
 }
 
 /* ============================================
@@ -2208,6 +2294,75 @@ a:hover .card-hover .text-primary {
   .bank-accounts-summary-card hr {
     margin: 0.75rem 0;
   }
+}
+
+/* Fees map table - Compact styling */
+.fees-map-table {
+  font-size: 0.85rem;
+}
+
+.fees-map-table .card-body {
+  padding: 0.5rem !important;
+}
+
+.fees-map-table table {
+  font-size: 0.85rem;
+  margin-bottom: 0;
+}
+
+.fees-map-table thead th {
+  padding: 0.35rem 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fees-map-table tbody td {
+  padding: 0.3rem 0.25rem;
+  font-size: 0.75rem;
+  vertical-align: middle;
+}
+
+.fees-map-table .badge {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.35rem;
+  line-height: 1.2;
+}
+
+.fees-map-table i {
+  font-size: 0.9rem !important;
+}
+
+.fees-map-table .text-success,
+.fees-map-table .text-danger,
+.fees-map-table .text-warning {
+  font-size: 0.75rem;
+}
+
+.fees-map-table .d-flex.flex-column {
+  gap: 0.2rem !important;
+}
+
+.fees-map-table .card-header {
+  padding: 0.5rem 0.75rem;
+}
+
+.fees-map-table .card-header h5 {
+  font-size: 1rem;
+  margin-bottom: 0;
+}
+
+.fees-map-table .card-header .btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.fees-map-table .card-body > div:last-child {
+  padding: 0.5rem 0.75rem;
+}
+
+.fees-map-table .card-body > div:last-child small {
+  font-size: 0.7rem;
 }
 
 /* Todas as telas menores que desktop: aplicar sticky columns */

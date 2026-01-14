@@ -115,6 +115,9 @@ $router->post('/condominiums/{condominium_id}/fees/generate', 'App\Controllers\F
 $router->post('/condominiums/{condominium_id}/fees/{id}/mark-paid', 'App\Controllers\FinanceController@markFeeAsPaid');
 $router->post('/condominiums/{condominium_id}/fees/bulk-mark-paid', 'App\Controllers\FinanceController@bulkMarkFeesAsPaid');
 $router->post('/condominiums/{condominium_id}/fees/{id}/add-payment', 'App\Controllers\FinanceController@addPayment');
+$router->get('/condominiums/{condominium_id}/fees/{fee_id}/payments/{payment_id}', 'App\Controllers\FinanceController@getPayment');
+$router->post('/condominiums/{condominium_id}/fees/{fee_id}/payments/{payment_id}/update', 'App\Controllers\FinanceController@updatePayment');
+$router->post('/condominiums/{condominium_id}/fees/{fee_id}/payments/{payment_id}/delete', 'App\Controllers\FinanceController@deletePayment');
 $router->get('/condominiums/{condominium_id}/fees/{id}/details', 'App\Controllers\FinanceController@getFeeDetails');
 $router->get('/condominiums/{condominium_id}/fees/{id}/edit', 'App\Controllers\FinanceController@editFee');
 $router->post('/condominiums/{condominium_id}/fees/{id}/update', 'App\Controllers\FinanceController@updateFee');
