@@ -19,7 +19,7 @@ class NotificationService
     public function createNotification(int $userId, int $condominiumId, string $type, string $title, string $message, string $link = null): bool
     {
         global $db;
-        
+
         if (!$db) {
             return false;
         }
@@ -56,10 +56,10 @@ class NotificationService
             $stmtOcc = $db->prepare("SELECT priority, title FROM occurrences WHERE id = :occurrence_id LIMIT 1");
             $stmtOcc->execute([':occurrence_id' => $occurrenceId]);
             $occurrence = $stmtOcc->fetch();
-            
+
             $priority = $occurrence['priority'] ?? 'medium';
             $occurrenceTitle = $occurrence['title'] ?? 'Nova Ocorrência';
-            
+
             // Map priority to Portuguese
             $priorityLabels = [
                 'low' => 'Baixa',
@@ -68,9 +68,9 @@ class NotificationService
                 'urgent' => 'Urgente'
             ];
             $priorityLabel = $priorityLabels[$priority] ?? 'Média';
-            
+
             $stmt = $db->prepare("
-                SELECT DISTINCT u.id 
+                SELECT DISTINCT u.id
                 FROM users u
                 INNER JOIN condominiums c ON c.user_id = u.id
                 WHERE c.id = :condominium_id AND u.role = 'admin'
@@ -112,7 +112,7 @@ class NotificationService
     public function sendOverdueFeeEmail(int $userId, array $feeData, int $condominiumId): bool
     {
         global $db;
-        
+
         if (!$db) {
             return false;
         }
@@ -144,7 +144,7 @@ class NotificationService
         }
 
         $subject = 'Quotas em Atraso - ' . ($condominium['name'] ?? 'Condomínio');
-        
+
         $html = $this->getOverdueFeeEmailTemplate(
             $user['name'],
             $condominium['name'] ?? 'Condomínio',
@@ -197,7 +197,7 @@ class NotificationService
                 <div class="content">
                     <p>Olá <strong>' . htmlspecialchars($userName) . '</strong>,</p>
                     <p>Informamos que tem quotas em atraso no condomínio <strong>' . htmlspecialchars($condominiumName) . '</strong>.</p>
-                    
+
                     <table>
                         <thead>
                             <tr>
@@ -217,9 +217,9 @@ class NotificationService
                             </tr>
                         </tfoot>
                     </table>
-                    
+
                     <p>Por favor, efetue o pagamento o mais breve possível para evitar juros de mora.</p>
-                    
+
                     <a href="' . BASE_URL . 'condominiums/' . $condominiumId . '/fees" class="button">Ver Detalhes das Quotas</a>
                 </div>
                 <div class="footer">
@@ -261,7 +261,7 @@ class NotificationService
 
         // Also notify admins
         $stmt = $db->prepare("
-            SELECT DISTINCT u.id 
+            SELECT DISTINCT u.id
             FROM users u
             INNER JOIN condominium_users cu ON cu.user_id = u.id
             WHERE cu.condominium_id = :condominium_id AND u.role IN ('admin', 'super_admin')
@@ -310,15 +310,15 @@ class NotificationService
     public function getUserNotifications(int $userId, int $limit = 10): array
     {
         global $db;
-        
+
         if (!$db) {
             return [];
         }
 
         $stmt = $db->prepare("
-            SELECT * FROM notifications 
-            WHERE user_id = :user_id 
-            ORDER BY created_at DESC 
+            SELECT * FROM notifications
+            WHERE user_id = :user_id
+            ORDER BY created_at DESC
             LIMIT :limit
         ");
 
@@ -335,7 +335,7 @@ class NotificationService
     public function getUnifiedNotifications(int $userId, int $limit = 50): array
     {
         global $db;
-        
+
         if (!$db) {
             return [];
         }
@@ -344,7 +344,7 @@ class NotificationService
 
         // Get system notifications
         $stmt = $db->prepare("
-            SELECT 
+            SELECT
                 n.id,
                 'notification' as source_type,
                 n.type,
@@ -356,7 +356,7 @@ class NotificationService
                 n.read_at,
                 n.created_at
             FROM notifications n
-            WHERE n.user_id = :user_id 
+            WHERE n.user_id = :user_id
             ORDER BY n.created_at DESC
         ");
         $stmt->execute([':user_id' => $userId]);
@@ -365,17 +365,31 @@ class NotificationService
         foreach ($notifications as $notif) {
             // Ensure link has BASE_URL if it's a relative path
             $link = $notif['link'];
-            if ($link && !preg_match('/^https?:\/\//', $link) && !str_starts_with($link, BASE_URL)) {
-                // Remove BASE_URL if already present to avoid duplication
-                $link = str_replace(BASE_URL, '', $link);
-                // Add BASE_URL if link doesn't start with /
-                if (!str_starts_with($link, '/')) {
-                    $link = BASE_URL . $link;
-                } else {
-                    $link = BASE_URL . ltrim($link, '/');
+            if ($link) {
+                // Replace localhost with current domain if present
+                $currentHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                $currentProtocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+                $currentBaseUrl = $currentProtocol . '://' . $currentHost . '/';
+
+                // If link contains localhost, replace with current domain
+                if (strpos($link, 'localhost') !== false) {
+                    $link = preg_replace('/https?:\/\/localhost\/?/', $currentBaseUrl, $link);
+                    $link = preg_replace('/https?:\/\/127\.0\.0\.1\/?/', $currentBaseUrl, $link);
+                }
+
+                // If link is relative or doesn't start with http, add BASE_URL
+                if (!preg_match('/^https?:\/\//', $link)) {
+                    // Remove BASE_URL if already present to avoid duplication
+                    $link = str_replace(BASE_URL, '', $link);
+                    // Add BASE_URL if link doesn't start with /
+                    if (!str_starts_with($link, '/')) {
+                        $link = BASE_URL . $link;
+                    } else {
+                        $link = BASE_URL . ltrim($link, '/');
+                    }
                 }
             }
-            
+
             $notificationData = [
                 'id' => 'notif_' . $notif['id'],
                 'source_type' => 'notification',
@@ -388,7 +402,7 @@ class NotificationService
                 'read_at' => $notif['read_at'],
                 'created_at' => $notif['created_at']
             ];
-            
+
             // If it's an occurrence notification, get the priority from the occurrence
             if ($notif['type'] === 'occurrence' && $notif['link']) {
                 // Extract occurrence ID from link (format: BASE_URL/condominiums/{id}/occurrences/{occurrence_id})
@@ -402,13 +416,13 @@ class NotificationService
                     }
                 }
             }
-            
+
             $unified[] = $notificationData;
         }
 
         // Get unread messages
         $stmt = $db->prepare("
-            SELECT 
+            SELECT
                 m.id,
                 m.condominium_id,
                 m.subject,
@@ -458,14 +472,14 @@ class NotificationService
     public function markAsRead(int $notificationId): bool
     {
         global $db;
-        
+
         if (!$db) {
             return false;
         }
 
         $stmt = $db->prepare("
-            UPDATE notifications 
-            SET is_read = TRUE, read_at = NOW() 
+            UPDATE notifications
+            SET is_read = TRUE, read_at = NOW()
             WHERE id = :id
         ");
 
