@@ -112,7 +112,12 @@ class Router extends Controller
             }
             
             // Convert route path to regex pattern
-            $pattern = preg_replace('/\{(\w+)\}/', '([^/]+)', $routePath);
+            // Special handling for {path} parameter - allow slashes for storage routes
+            if (strpos($routePath, '/storage/{path}') !== false) {
+                $pattern = str_replace('/storage/{path}', '/storage/(.+)', $routePath);
+            } else {
+                $pattern = preg_replace('/\{(\w+)\}/', '([^/]+)', $routePath);
+            }
             $pattern = str_replace('/', '\/', $pattern);
             $pattern = '/^' . $pattern . '$/';
 

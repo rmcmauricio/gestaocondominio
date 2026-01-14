@@ -888,8 +888,8 @@ class FinanceController extends Controller
                     ]);
 
                     // Generate PDF
-                    $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber);
-                    $fullPath = __DIR__ . '/../../storage/documents/' . $filePath;
+                    $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber, $condominiumId);
+                    $fullPath = __DIR__ . '/../../storage/' . $filePath;
                     $fileSize = file_exists($fullPath) ? filesize($fullPath) : 0;
                     $fileName = basename($filePath);
 

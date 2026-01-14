@@ -52,6 +52,23 @@ class NotificationService
         // Notify admins
         global $db;
         if ($db) {
+            // Get occurrence priority
+            $stmtOcc = $db->prepare("SELECT priority, title FROM occurrences WHERE id = :occurrence_id LIMIT 1");
+            $stmtOcc->execute([':occurrence_id' => $occurrenceId]);
+            $occurrence = $stmtOcc->fetch();
+            
+            $priority = $occurrence['priority'] ?? 'medium';
+            $occurrenceTitle = $occurrence['title'] ?? 'Nova Ocorrência';
+            
+            // Map priority to Portuguese
+            $priorityLabels = [
+                'low' => 'Baixa',
+                'medium' => 'Média',
+                'high' => 'Alta',
+                'urgent' => 'Urgente'
+            ];
+            $priorityLabel = $priorityLabels[$priority] ?? 'Média';
+            
             $stmt = $db->prepare("
                 SELECT DISTINCT u.id 
                 FROM users u
@@ -67,7 +84,7 @@ class NotificationService
                     $condominiumId,
                     'occurrence',
                     'Nova Ocorrência',
-                    'Uma nova ocorrência foi reportada.',
+                    'Uma nova ocorrência foi reportada: ' . $occurrenceTitle . ' (Prioridade: ' . $priorityLabel . ')',
                     BASE_URL . 'condominiums/' . $condominiumId . '/occurrences/' . $occurrenceId
                 );
             }
@@ -310,6 +327,116 @@ class NotificationService
         $stmt->execute();
 
         return $stmt->fetchAll() ?: [];
+    }
+
+    /**
+     * Get unified notifications (system notifications + unread messages)
+     */
+    public function getUnifiedNotifications(int $userId, int $limit = 50): array
+    {
+        global $db;
+        
+        if (!$db) {
+            return [];
+        }
+
+        $unified = [];
+
+        // Get system notifications
+        $stmt = $db->prepare("
+            SELECT 
+                n.id,
+                'notification' as source_type,
+                n.type,
+                n.title,
+                n.message,
+                n.link,
+                n.condominium_id,
+                n.is_read,
+                n.read_at,
+                n.created_at
+            FROM notifications n
+            WHERE n.user_id = :user_id 
+            ORDER BY n.created_at DESC
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        $notifications = $stmt->fetchAll() ?: [];
+
+        foreach ($notifications as $notif) {
+            $notificationData = [
+                'id' => 'notif_' . $notif['id'],
+                'source_type' => 'notification',
+                'type' => $notif['type'],
+                'title' => $notif['title'],
+                'message' => $notif['message'],
+                'link' => $notif['link'],
+                'condominium_id' => $notif['condominium_id'],
+                'is_read' => (bool)$notif['is_read'],
+                'read_at' => $notif['read_at'],
+                'created_at' => $notif['created_at']
+            ];
+            
+            // If it's an occurrence notification, get the priority from the occurrence
+            if ($notif['type'] === 'occurrence' && $notif['link']) {
+                // Extract occurrence ID from link (format: BASE_URL/condominiums/{id}/occurrences/{occurrence_id})
+                if (preg_match('/occurrences\/(\d+)/', $notif['link'], $matches)) {
+                    $occurrenceId = (int)$matches[1];
+                    $stmtOcc = $db->prepare("SELECT priority FROM occurrences WHERE id = :occurrence_id LIMIT 1");
+                    $stmtOcc->execute([':occurrence_id' => $occurrenceId]);
+                    $occurrence = $stmtOcc->fetch();
+                    if ($occurrence) {
+                        $notificationData['priority'] = $occurrence['priority'];
+                    }
+                }
+            }
+            
+            $unified[] = $notificationData;
+        }
+
+        // Get unread messages
+        $stmt = $db->prepare("
+            SELECT 
+                m.id,
+                m.condominium_id,
+                m.subject,
+                m.message,
+                m.is_read,
+                m.read_at,
+                m.created_at,
+                u.name as sender_name
+            FROM messages m
+            LEFT JOIN users u ON u.id = m.from_user_id
+            WHERE (m.to_user_id = :user_id OR m.to_user_id IS NULL)
+            AND m.is_read = FALSE
+            AND m.from_user_id != :user_id
+            AND m.thread_id IS NULL
+            ORDER BY m.created_at DESC
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        $messages = $stmt->fetchAll() ?: [];
+
+        foreach ($messages as $msg) {
+            $unified[] = [
+                'id' => 'msg_' . $msg['id'],
+                'source_type' => 'message',
+                'type' => 'message',
+                'title' => 'Nova Mensagem: ' . $msg['subject'],
+                'message' => 'De: ' . ($msg['sender_name'] ?? 'Sistema') . ' - ' . substr(strip_tags($msg['message']), 0, 100) . '...',
+                'link' => BASE_URL . 'condominiums/' . $msg['condominium_id'] . '/messages/' . $msg['id'],
+                'condominium_id' => $msg['condominium_id'],
+                'is_read' => false,
+                'read_at' => null,
+                'created_at' => $msg['created_at']
+            ];
+        }
+
+        // Sort by created_at DESC
+        usort($unified, function($a, $b) {
+            return strtotime($b['created_at']) - strtotime($a['created_at']);
+        });
+
+        // Limit results
+        return array_slice($unified, 0, $limit);
     }
 
     /**

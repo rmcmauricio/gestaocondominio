@@ -1042,7 +1042,7 @@ class PdfService
     /**
      * Generate receipt PDF from HTML content
      */
-    public function generateReceiptPdf(string $htmlContent, int $receiptId, string $receiptNumber): string
+    public function generateReceiptPdf(string $htmlContent, int $receiptId, string $receiptNumber, int $condominiumId): string
     {
         // Replace receipt number placeholder
         $htmlContent = str_replace('{{RECEIPT_NUMBER}}', $receiptNumber, $htmlContent);
@@ -1065,8 +1065,12 @@ class PdfService
             // Render PDF
             $dompdf->render();
             
-            // Ensure receipts directory exists
-            $receiptsDir = __DIR__ . '/../../storage/documents/receipts';
+            // Create folder structure: condominiums/{condominium_id}/receipts/{year}/{month}/
+            $year = date('Y');
+            $month = date('m');
+            $basePath = __DIR__ . '/../../storage';
+            $receiptsDir = $basePath . '/condominiums/' . $condominiumId . '/receipts/' . $year . '/' . $month;
+            
             if (!is_dir($receiptsDir)) {
                 mkdir($receiptsDir, 0755, true);
             }
@@ -1078,12 +1082,17 @@ class PdfService
             // Save PDF to file
             file_put_contents($filepath, $dompdf->output());
             
-            return 'receipts/' . $filename;
+            // Return relative path from storage root
+            return 'condominiums/' . $condominiumId . '/receipts/' . $year . '/' . $month . '/' . $filename;
         } catch (\Exception $e) {
             // Fallback to HTML if PDF generation fails
             error_log("PDF generation error: " . $e->getMessage());
             
-            $receiptsDir = __DIR__ . '/../../storage/documents/receipts';
+            $year = date('Y');
+            $month = date('m');
+            $basePath = __DIR__ . '/../../storage';
+            $receiptsDir = $basePath . '/condominiums/' . $condominiumId . '/receipts/' . $year . '/' . $month;
+            
             if (!is_dir($receiptsDir)) {
                 mkdir($receiptsDir, 0755, true);
             }
@@ -1093,7 +1102,7 @@ class PdfService
             
             file_put_contents($filepath, $htmlContent);
             
-            return 'receipts/' . $filename;
+            return 'condominiums/' . $condominiumId . '/receipts/' . $year . '/' . $month . '/' . $filename;
         }
     }
 }

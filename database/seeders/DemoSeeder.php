@@ -292,9 +292,17 @@ class DemoSeeder
             
             foreach ($receipts as $receipt) {
                 if (!empty($receipt['file_path'])) {
-                    $filePath = __DIR__ . '/../../storage/documents/' . $receipt['file_path'];
-                    if (file_exists($filePath)) {
-                        @unlink($filePath);
+                    // Handle both old and new path formats
+                    $filePath = $receipt['file_path'];
+                    if (strpos($filePath, 'condominiums/') === 0) {
+                        // New path format
+                        $fullPath = __DIR__ . '/../../storage/' . $filePath;
+                    } else {
+                        // Old path format
+                        $fullPath = __DIR__ . '/../../storage/documents/' . $filePath;
+                    }
+                    if (file_exists($fullPath)) {
+                        @unlink($fullPath);
                     }
                 }
             }
@@ -312,9 +320,17 @@ class DemoSeeder
             
             foreach ($receipts as $receipt) {
                 if (!empty($receipt['file_path'])) {
-                    $filePath = __DIR__ . '/../../storage/documents/' . $receipt['file_path'];
-                    if (file_exists($filePath)) {
-                        @unlink($filePath);
+                    // Handle both old and new path formats
+                    $filePath = $receipt['file_path'];
+                    if (strpos($filePath, 'condominiums/') === 0) {
+                        // New path format
+                        $fullPath = __DIR__ . '/../../storage/' . $filePath;
+                    } else {
+                        // Old path format
+                        $fullPath = __DIR__ . '/../../storage/documents/' . $filePath;
+                    }
+                    if (file_exists($fullPath)) {
+                        @unlink($fullPath);
                     }
                 }
             }
@@ -1768,8 +1784,8 @@ class DemoSeeder
                         ]);
 
                         // Generate PDF
-                        $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber);
-                        $fullPath = __DIR__ . '/../../storage/documents/' . $filePath;
+                        $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber, $this->demoCondominiumId);
+                        $fullPath = __DIR__ . '/../../storage/' . $filePath;
                         $fileSize = file_exists($fullPath) ? filesize($fullPath) : 0;
                         $fileName = basename($filePath);
 

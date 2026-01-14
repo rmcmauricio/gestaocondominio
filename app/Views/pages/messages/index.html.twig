@@ -53,8 +53,11 @@
                                 </h6>
                                 <small>{{ message.created_at|date('d/m/Y H:i') }}</small>
                             </div>
-                            <p class="mb-1">{{ message.message|slice(0, 100) }}{% if message.message|length > 100 %}...{% endif %}</p>
+                            <p class="mb-1">{{ message.message|striptags|slice(0, 100) }}{% if message.message|length > 100 %}...{% endif %}</p>
                             <small>De: {{ message.sender_name }}</small>
+                            {% if message.thread_id %}
+                            <br><small class="text-muted"><i class="bi bi-reply"></i> Resposta</small>
+                            {% endif %}
                         </a>
                         {% endfor %}
                     </div>
@@ -81,7 +84,7 @@
                                 <h6 class="mb-1">{{ message.subject }}</h6>
                                 <small>{{ message.created_at|date('d/m/Y H:i') }}</small>
                             </div>
-                            <p class="mb-1">{{ message.message|slice(0, 100) }}{% if message.message|length > 100 %}...{% endif %}</p>
+                            <p class="mb-1">{{ message.message|striptags|slice(0, 100) }}{% if message.message|length > 100 %}...{% endif %}</p>
                             <small>Para: {{ message.recipient_name|default('Todos') }}</small>
                         </a>
                         {% endfor %}

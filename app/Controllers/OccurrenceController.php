@@ -197,7 +197,7 @@ class OccurrenceController extends Controller
                             'error' => $_FILES['attachments']['error'][$key],
                             'size' => $_FILES['attachments']['size'][$key]
                         ];
-                        $fileData = $this->fileStorageService->upload($file, $condominiumId, 'occurrences');
+                        $fileData = $this->fileStorageService->upload($file, $condominiumId, 'occurrences', 'attachments');
                         $attachments[] = $fileData['file_path'];
                     } catch (\Exception $e) {
                         error_log("File upload error: " . $e->getMessage());
@@ -207,12 +207,19 @@ class OccurrenceController extends Controller
         }
 
         try {
+            // Get HTML description content from TinyMCE
+            $descriptionContent = $_POST['description'] ?? '';
+            // Basic HTML sanitization - allow common formatting tags
+            $allowedTags = '<p><br><br/><strong><b><em><i><u><ul><ol><li><h1><h2><h3><h4><h5><h6><a><img><blockquote><code><pre><div><span>';
+            $descriptionContent = strip_tags($descriptionContent, $allowedTags);
+            // Don't escape HTML - we want to store it as-is for rendering
+            
             $occurrenceId = $this->occurrenceModel->create([
                 'condominium_id' => $condominiumId,
                 'fraction_id' => !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null,
                 'reported_by' => $userId,
                 'title' => Security::sanitize($_POST['title'] ?? ''),
-                'description' => Security::sanitize($_POST['description'] ?? ''),
+                'description' => $descriptionContent,
                 'category' => Security::sanitize($_POST['category'] ?? ''),
                 'priority' => Security::sanitize($_POST['priority'] ?? 'medium'),
                 'status' => 'open',
@@ -530,6 +537,44 @@ class OccurrenceController extends Controller
         header('Content-Disposition: attachment; filename="' . basename($attachmentPath) . '"');
         header('Content-Length: ' . filesize($filePath));
         readfile($filePath);
+        exit;
+    }
+    
+    /**
+     * Upload inline image for editor
+     */
+    public function uploadInlineImage(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(400);
+            echo json_encode(['error' => 'Método não permitido']);
+            exit;
+        }
+
+        if (empty($_FILES['file'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Nenhum ficheiro enviado']);
+            exit;
+        }
+
+        try {
+            $uploadResult = $this->fileStorageService->upload($_FILES['file'], $condominiumId, 'occurrences', 'inline', 2097152);
+            
+            // Return URL for TinyMCE
+            $fileUrl = $this->fileStorageService->getFileUrl($uploadResult['file_path']);
+            
+            echo json_encode([
+                'location' => $fileUrl
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
         exit;
     }
 }

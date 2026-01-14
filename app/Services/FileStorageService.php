@@ -21,9 +21,9 @@ class FileStorageService
 
     public function __construct()
     {
-        $this->basePath = __DIR__ . '/../../storage/documents';
+        $this->basePath = __DIR__ . '/../../storage';
         
-        // Create directories if they don't exist
+        // Create base storage directory if it doesn't exist
         if (!is_dir($this->basePath)) {
             mkdir($this->basePath, 0755, true);
         }
@@ -31,31 +31,50 @@ class FileStorageService
 
     /**
      * Upload file
+     * @param array $file File array from $_FILES
+     * @param int $condominiumId Condominium ID
+     * @param string $type Type of file: 'messages', 'occurrences', 'receipts', 'documents'
+     * @param string $subfolder Optional subfolder (e.g., 'inline', 'attachments')
+     * @param int $maxSize Optional max file size in bytes (default: 10MB, 2MB for inline images)
      */
-    public function upload(array $file, int $condominiumId, string $folder = null): array
+    public function upload(array $file, int $condominiumId, string $type = 'documents', string $subfolder = null, int $maxSize = null): array
     {
         // Validate file
         if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
             throw new \Exception("Ficheiro inválido");
         }
 
-        if ($file['size'] > $this->maxFileSize) {
-            throw new \Exception("Ficheiro muito grande. Máximo: " . ($this->maxFileSize / 1048576) . "MB");
+        // Use specific max size for inline images, otherwise use default
+        $fileMaxSize = $maxSize ?? ($subfolder === 'inline' ? 2097152 : $this->maxFileSize); // 2MB for inline, 10MB for others
+        
+        if ($file['size'] > $fileMaxSize) {
+            throw new \Exception("Ficheiro muito grande. Máximo: " . ($fileMaxSize / 1048576) . "MB");
         }
 
         $mimeType = mime_content_type($file['tmp_name']);
-        if (!in_array($mimeType, $this->allowedMimeTypes)) {
+        
+        // For inline images, only allow image types
+        if ($subfolder === 'inline') {
+            $allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!in_array($mimeType, $allowedImageTypes)) {
+                throw new \Exception("Apenas imagens são permitidas (JPEG, PNG, GIF, WebP)");
+            }
+        } elseif (!in_array($mimeType, $this->allowedMimeTypes)) {
             throw new \Exception("Tipo de ficheiro não permitido");
         }
 
         // Generate unique filename
         $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $filename = uniqid('doc_', true) . '.' . $extension;
+        $filename = uniqid('file_', true) . '.' . $extension;
         
-        // Create folder structure: condominium_id/folder/year/month/
+        // Create folder structure: condominiums/{condominium_id}/{type}/{subfolder}/{year}/{month}/
         $year = date('Y');
         $month = date('m');
-        $storagePath = $condominiumId . '/' . ($folder ? $folder . '/' : '') . $year . '/' . $month . '/';
+        $storagePath = 'condominiums/' . $condominiumId . '/' . $type;
+        if ($subfolder) {
+            $storagePath .= '/' . $subfolder;
+        }
+        $storagePath .= '/' . $year . '/' . $month . '/';
         $fullPath = $this->basePath . '/' . $storagePath;
 
         if (!is_dir($fullPath)) {
@@ -83,6 +102,14 @@ class FileStorageService
     public function getFilePath(string $relativePath): string
     {
         return $this->basePath . '/' . $relativePath;
+    }
+
+    /**
+     * Get file URL for web access
+     */
+    public function getFileUrl(string $relativePath): string
+    {
+        return BASE_URL . 'storage/' . $relativePath;
     }
 
     /**

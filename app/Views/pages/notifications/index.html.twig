@@ -56,7 +56,7 @@
                 {% elseif notification.type == 'fee_overdue' %}
                     {% set notification_icon = 'bi-currency-euro' %}
                     {% set notification_color = 'danger' %}
-                {% elseif notification.type == 'message' %}
+                {% elseif notification.type == 'message' or notification.source_type == 'message' %}
                     {% set notification_icon = 'bi-envelope' %}
                     {% set notification_color = 'primary' %}
                 {% elseif notification.type == 'occurrence_comment' %}
@@ -64,7 +64,10 @@
                     {% set notification_color = 'success' %}
                 {% endif %}
 
-                <div class="card mb-2 shadow-sm {% if not notification.is_read %}border-start border-2 border-{{ notification_color }}{% endif %}" style="border-radius: 0.375rem;">
+                {% if notification.link %}
+                <a href="{{ notification.link }}" class="text-decoration-none" style="color: inherit;">
+                {% endif %}
+                <div class="card mb-2 shadow-sm {% if not notification.is_read %}border-start border-2 border-{{ notification_color }}{% endif %}" style="border-radius: 0.375rem; {% if notification.link %}cursor: pointer; transition: all 0.2s;{% endif %}" {% if notification.link %}onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform=''; this.style.boxShadow='';"{% endif %}>
                     <div class="card-body" style="padding: 0.5rem 0.75rem;">
                         <div class="d-flex align-items-start gap-2">
                             <!-- Icon -->
@@ -74,13 +77,48 @@
 
                             <!-- Content -->
                             <div class="flex-grow-1" style="min-width: 0;">
-                                <div class="d-flex justify-content-between align-items-start mb-1">
-                                    <h6 class="mb-0 {% if not notification.is_read %}fw-bold{% endif %}" style="font-size: 0.875rem; line-height: 1.2;">
-                                        {{ notification.title }}
-                                    </h6>
-                                    {% if not notification.is_read %}
-                                        <span class="badge bg-{{ notification_color }} ms-2" style="font-size: 0.65rem; padding: 0.15rem 0.35rem;">{{ translations.unread }}</span>
-                                    {% endif %}
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <h6 class="mb-0 {% if not notification.is_read %}fw-bold{% endif %}" style="font-size: 0.875rem; line-height: 1.2;">
+                                            {{ notification.title }}
+                                        </h6>
+                                        {% if notification.type == 'occurrence' and notification.priority %}
+                                            {% set priority_colors = {
+                                                'urgent': 'danger',
+                                                'high': 'warning',
+                                                'medium': 'info',
+                                                'low': 'secondary'
+                                            } %}
+                                            {% set priority_labels = {
+                                                'urgent': 'Urgente',
+                                                'high': 'Alta',
+                                                'medium': 'Média',
+                                                'low': 'Baixa'
+                                            } %}
+                                            <span class="badge bg-{{ priority_colors[notification.priority]|default('info') }}" style="font-size: 0.65rem; padding: 0.15rem 0.35rem;">
+                                                {{ priority_labels[notification.priority]|default('Média') }}
+                                            </span>
+                                        {% endif %}
+                                        {% if not notification.is_read %}
+                                            <i class="bi bi-envelope-open text-{{ notification_color }}" style="font-size: 0.875rem;" title="{{ translations.unread }}"></i>
+                                        {% endif %}
+                                        <div class="d-flex gap-1" onclick="event.stopPropagation();">
+                                            {% if not notification.is_read %}
+                                                <form method="POST" action="{{ BASE_URL }}notifications/{{ notification.id }}/mark-read" class="d-inline">
+                                                    <button type="submit" class="btn btn-sm btn-outline-success" style="padding: 0.15rem 0.35rem;" title="{{ translations.mark_read }}">
+                                                        <i class="bi bi-check"></i>
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+                                            {% if notification.source_type == 'notification' %}
+                                            <form method="POST" action="{{ BASE_URL }}notifications/{{ notification.id }}/delete" class="d-inline" onsubmit="return confirm('Eliminar esta notificação?');">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" style="padding: 0.15rem 0.35rem;" title="{{ translations.delete }}">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                        </div>
+                                    </div>
                                 </div>
                                 <p class="mb-1 text-muted small" style="font-size: 0.8rem; line-height: 1.2;">{{ notification.message }}</p>
                                 <div class="d-flex justify-content-between align-items-center">
@@ -103,30 +141,14 @@
                                             há {{ (diff / 2592000)|round }} meses
                                         {% endif %}
                                     </small>
-                                    <div class="d-flex gap-1 ms-2">
-                                        {% if notification.link %}
-                                            <a href="{{ notification.link }}" class="btn btn-sm btn-outline-{{ notification_color }}" style="padding: 0.15rem 0.35rem; font-size: 0.7rem;">
-                                                <i class="bi bi-arrow-right"></i>
-                                            </a>
-                                        {% endif %}
-                                        {% if not notification.is_read %}
-                                            <form method="POST" action="{{ BASE_URL }}notifications/{{ notification.id }}/mark-read" class="d-inline">
-                                                <button type="submit" class="btn btn-sm btn-outline-success" style="padding: 0.15rem 0.35rem;" title="{{ translations.mark_read }}">
-                                                    <i class="bi bi-check"></i>
-                                                </button>
-                                            </form>
-                                        {% endif %}
-                                        <form method="POST" action="{{ BASE_URL }}notifications/{{ notification.id }}/delete" class="d-inline" onsubmit="return confirm('Eliminar esta notificação?');">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" style="padding: 0.15rem 0.35rem;" title="{{ translations.delete }}">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </form>
-                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+                {% if notification.link %}
+                </a>
+                {% endif %}
             {% endfor %}
         </div>
     {% endif %}

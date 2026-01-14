@@ -78,7 +78,7 @@ try {
             }
         } else {
             echo "[DRY RUN] Dados demo seriam criados.\n\n";
-            exit(0);
+        exit(0);
         }
     }
 

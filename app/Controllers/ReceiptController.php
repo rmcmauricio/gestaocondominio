@@ -247,7 +247,21 @@ class ReceiptController extends Controller
             }
         }
 
-        $filePath = __DIR__ . '/../../storage/documents/' . $receipt['file_path'];
+        // Handle both old path (receipts/) and new path (condominiums/{id}/receipts/)
+        $filePath = $receipt['file_path'];
+        if (strpos($filePath, 'condominiums/') !== 0) {
+            // Old path format - try old location first, then construct new path
+            $oldPath = __DIR__ . '/../../storage/documents/' . $filePath;
+            if (file_exists($oldPath)) {
+                $filePath = $oldPath;
+            } else {
+                // Construct new path from receipt data
+                $filePath = __DIR__ . '/../../storage/condominiums/' . $condominiumId . '/receipts/' . basename($receipt['file_path']);
+            }
+        } else {
+            // New path format
+            $filePath = __DIR__ . '/../../storage/' . $receipt['file_path'];
+        }
         
         if (!file_exists($filePath)) {
             $_SESSION['error'] = 'Ficheiro do recibo não encontrado.';

@@ -38,7 +38,11 @@
                 </div>
                 <div class="card-body">
                     <p><strong>Descrição:</strong></p>
-                    <p>{{ occurrence.description }}</p>
+                    <div class="occurrence-description" style="word-wrap: break-word;">
+                        {% autoescape false %}
+                        {{ occurrence.description }}
+                        {% endautoescape %}
+                    </div>
 
                     <div class="row mb-3">
                         <div class="col-md-6">

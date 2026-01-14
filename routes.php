@@ -9,6 +9,10 @@
  * $router->post('/submit', 'App\Controllers\ExampleController@submit');
  */
 
+// Storage route (must be before other routes to catch storage requests)
+// Use catch-all pattern: /storage/{path...} where path can contain slashes
+$router->get('/storage/{path}', 'App\Controllers\StorageController@serve');
+
 // Home route
 $router->get('/', 'App\Controllers\HomeController@index');
 
@@ -166,6 +170,7 @@ $router->post('/condominiums/{condominium_id}/occurrences/{id}/assign', 'App\Con
 $router->post('/condominiums/{condominium_id}/occurrences/{id}/comments', 'App\Controllers\OccurrenceController@addComment');
 $router->post('/condominiums/{condominium_id}/occurrences/{id}/comments/{comment_id}/delete', 'App\Controllers\OccurrenceController@deleteComment');
 $router->get('/condominiums/{condominium_id}/occurrences/{id}/attachments/{attachment_path}', 'App\Controllers\OccurrenceController@downloadAttachment');
+$router->post('/condominiums/{condominium_id}/occurrences/upload-image', 'App\Controllers\OccurrenceController@uploadInlineImage');
 
 // Supplier routes
 $router->get('/condominiums/{condominium_id}/suppliers', 'App\Controllers\SupplierController@index');
@@ -249,6 +254,9 @@ $router->get('/condominiums/{condominium_id}/messages', 'App\Controllers\Message
 $router->get('/condominiums/{condominium_id}/messages/create', 'App\Controllers\MessageController@create');
 $router->post('/condominiums/{condominium_id}/messages', 'App\Controllers\MessageController@store');
 $router->get('/condominiums/{condominium_id}/messages/{id}', 'App\Controllers\MessageController@show');
+$router->post('/condominiums/{condominium_id}/messages/{id}/reply', 'App\Controllers\MessageController@reply');
+$router->post('/condominiums/{condominium_id}/messages/upload-image', 'App\Controllers\MessageController@uploadInlineImage');
+$router->get('/condominiums/{condominium_id}/messages/{message_id}/attachments/{attachment_id}/download', 'App\Controllers\MessageController@downloadAttachment');
 
 // API Key management routes
 $router->get('/api-keys', 'App\Controllers\ApiKeyController@index');

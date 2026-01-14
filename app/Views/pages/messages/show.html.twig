@@ -1,7 +1,8 @@
 <div class="container py-4">
     <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card shadow">
+        <div class="col-lg-10">
+            <!-- Original Message -->
+            <div class="card shadow mb-3">
                 <div class="card-header bg-primary text-white">
                     <h4 class="mb-0">{{ message.subject }}</h4>
                 </div>
@@ -23,15 +24,188 @@
 
                     <hr>
 
-                    <div class="message-content">
-                        {{ message.message|nl2br }}
+                    <div class="message-content" style="word-wrap: break-word;">
+                        {% autoescape false %}
+                        {{ message.message }}
+                        {% endautoescape %}
                     </div>
 
-                    <div class="mt-4">
-                        <a href="{{ BASE_URL }}condominiums/{{ message.condominium_id }}/messages" class="btn btn-secondary">
-                            <i class="bi bi-arrow-left"></i> Voltar
-                        </a>
+                    {% if attachments %}
+                    <hr>
+                    <div class="mt-3">
+                        <h6><i class="bi bi-paperclip"></i> Anexos</h6>
+                        <div class="list-group">
+                            {% for attachment in attachments %}
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages/{{ message.id }}/attachments/{{ attachment.id }}/download" class="list-group-item list-group-item-action">
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-file-earmark me-2"></i>
+                                    <div class="flex-grow-1">
+                                        <strong>{{ attachment.file_name }}</strong>
+                                        <br>
+                                        <small class="text-muted">{{ attachment.file_size|number_format(0, ',', '.') }} bytes</small>
+                                    </div>
+                                    <i class="bi bi-download"></i>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        </div>
                     </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Replies -->
+            {% if replies %}
+            <div class="card shadow mb-3">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-chat-dots"></i> Respostas ({{ replies|length }})</h5>
+                </div>
+                <div class="card-body p-4">
+                    {% for reply in replies %}
+                    <div class="border-start border-primary border-3 ps-3 mb-4 {% if not loop.last %}pb-4{% endif %}">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <strong>{{ reply.sender_name|default('Sistema') }}</strong>
+                                <small class="text-muted ms-2">{{ reply.created_at|date('d/m/Y H:i') }}</small>
+                            </div>
+                        </div>
+                        <div class="message-content">
+                            {% autoescape false %}
+                            {{ reply.message }}
+                            {% endautoescape %}
+                        </div>
+                        {% if reply.attachments %}
+                        <div class="mt-2">
+                            <small><i class="bi bi-paperclip"></i> Anexos:</small>
+                            {% for attachment in reply.attachments %}
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages/{{ reply.id }}/attachments/{{ attachment.id }}/download" class="badge bg-secondary text-decoration-none ms-1">
+                                {{ attachment.file_name }}
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Reply Form -->
+            <div class="card shadow">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-reply"></i> Responder</h5>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    {% if success %}
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        {{ success }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages/{{ message.id }}/reply" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        
+                        <div class="mb-3">
+                            <label for="reply_message" class="form-label">Mensagem <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="reply_message" name="message" rows="8" required autofocus></textarea>
+                            <div class="form-text">Use o editor para formatar o texto e inserir imagens</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="reply_attachments" class="form-label">Anexos</label>
+                            <input type="file" class="form-control" id="reply_attachments" name="attachments[]" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif">
+                            <div class="form-text">Pode selecionar múltiplos ficheiros (máx. 10MB por ficheiro)</div>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Voltar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-send"></i> Enviar Resposta
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- TinyMCE WYSIWYG Editor for Reply -->
+                    <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
+                    <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        tinymce.init({
+                            selector: '#reply_message',
+                            height: 300,
+                            menubar: true,
+                            plugins: [
+                                'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+                                'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                                'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
+                            ],
+                            toolbar: 'undo redo | blocks | ' +
+                                'bold italic forecolor | alignleft aligncenter ' +
+                                'alignright alignjustify | bullist numlist outdent indent | ' +
+                                'link image | removeformat | code | fullscreen',
+                            content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+                            language: 'pt_PT',
+                            branding: false,
+                            promotion: false,
+                            images_upload_url: '{{ BASE_URL }}condominiums/{{ condominium.id }}/messages/upload-image',
+                            images_upload_handler: function (blobInfo, progress) {
+                                return new Promise(function (resolve, reject) {
+                                    var xhr = new XMLHttpRequest();
+                                    xhr.withCredentials = false;
+                                    xhr.open('POST', '{{ BASE_URL }}condominiums/{{ condominium.id }}/messages/upload-image');
+                                    
+                                    xhr.upload.onprogress = function (e) {
+                                        progress(e.loaded / e.total * 100);
+                                    };
+                                    
+                                    xhr.onload = function () {
+                                        if (xhr.status === 403) {
+                                            reject({ message: 'HTTP Error: ' + xhr.status, remove: true });
+                                            return;
+                                        }
+                                        
+                                        if (xhr.status < 200 || xhr.status >= 300) {
+                                            reject('HTTP Error: ' + xhr.status);
+                                            return;
+                                        }
+                                        
+                                        var json = JSON.parse(xhr.responseText);
+                                        
+                                        if (!json || typeof json.location != 'string') {
+                                            reject('Invalid JSON: ' + xhr.responseText);
+                                            return;
+                                        }
+                                        
+                                        resolve(json.location);
+                                    };
+                                    
+                                    xhr.onerror = function () {
+                                        reject('Image upload failed due to a XHR Transport error. Code: ' + xhr.status);
+                                    };
+                                    
+                                    var formData = new FormData();
+                                    formData.append('file', blobInfo.blob(), blobInfo.filename());
+                                    
+                                    xhr.send(formData);
+                                });
+                            },
+                            setup: function(editor) {
+                                editor.on('change', function() {
+                                    editor.save();
+                                });
+                            }
+                        });
+                    });
+                    </script>
                 </div>
             </div>
         </div>

@@ -123,6 +123,7 @@ class Controller
         // Check for demo banner message
         $demoBannerMessage = null;
         $unreadNotificationsCount = 0;
+        $unreadMessagesCount = 0;
         $isDemoUser = false;
         $demoProfile = null;
         $condominium = null;
@@ -138,7 +139,7 @@ class Controller
             // If demo_profile is set, we're in demo mode regardless of current user
             $isDemoUser = $currentUserIsDemo || isset($_SESSION['demo_profile']);
             
-            // Get unread notifications count
+            // Get unread notifications count (system notifications only)
             global $db;
             if ($db) {
                 $userId = $_SESSION['user']['id'] ?? null;
@@ -147,11 +148,45 @@ class Controller
                         $stmt = $db->prepare("SELECT COUNT(*) as count FROM notifications WHERE user_id = :user_id AND is_read = FALSE");
                         $stmt->execute([':user_id' => $userId]);
                         $result = $stmt->fetch();
-                        $unreadNotificationsCount = (int)($result['count'] ?? 0);
+                        $systemNotificationsCount = (int)($result['count'] ?? 0);
                     } catch (\Exception $e) {
                         // Silently fail if notifications table doesn't exist or other error
-                        $unreadNotificationsCount = 0;
+                        $systemNotificationsCount = 0;
                     }
+                    
+                    // Get unread messages count (all condominiums user has access to)
+                    try {
+                        $unreadMessagesCount = 0;
+                        // Get all condominiums user has access to
+                        $userRole = $_SESSION['user']['role'] ?? 'condomino';
+                        if ($userRole === 'admin' || $userRole === 'super_admin') {
+                            $condominiumModel = new \App\Models\Condominium();
+                            $userCondominiums = $condominiumModel->getByUserId($userId);
+                        } else {
+                            $condominiumUserModel = new \App\Models\CondominiumUser();
+                            $userCondominiumsList = $condominiumUserModel->getUserCondominiums($userId);
+                            $condominiumModel = new \App\Models\Condominium();
+                            $userCondominiums = [];
+                            foreach ($userCondominiumsList as $uc) {
+                                $condo = $condominiumModel->findById($uc['condominium_id']);
+                                if ($condo) {
+                                    $userCondominiums[] = $condo;
+                                }
+                            }
+                        }
+                        
+                        // Count unread messages across all condominiums
+                        $messageModel = new \App\Models\Message();
+                        foreach ($userCondominiums as $condo) {
+                            $unreadMessagesCount += $messageModel->getUnreadCount($condo['id'], $userId);
+                        }
+                    } catch (\Exception $e) {
+                        // Silently fail if messages table doesn't exist or other error
+                        $unreadMessagesCount = 0;
+                    }
+                    
+                    // Unified count includes both notifications and messages
+                    $unreadNotificationsCount = $systemNotificationsCount + $unreadMessagesCount;
                 }
             }
 
@@ -258,6 +293,7 @@ class Controller
             'current_lang' => $currentLang,
             'demo_banner_message' => $demoBannerMessage,
             'unread_notifications_count' => $unreadNotificationsCount,
+            'unread_messages_count' => $unreadMessagesCount,
             'is_demo_user' => $isDemoUser,
             'demo_profile' => $demoProfile,
             'condominium' => $condominium ?? ($data['condominium'] ?? null),
