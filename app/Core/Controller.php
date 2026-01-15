@@ -289,6 +289,7 @@ class Controller
             'user' => $_SESSION['user'] ?? null,
             'session' => array_merge($_SESSION ?? [], ['lang' => $currentLang]),
             'BASE_URL' => BASE_URL,
+            'VERSION' => defined('VERSION') ? VERSION : '1.0.0',
             'APP_ENV' => APP_ENV,
             'current_lang' => $currentLang,
             'demo_banner_message' => $demoBannerMessage,

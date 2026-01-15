@@ -101,6 +101,7 @@ if (($config['APP_ENV'] ?? 'development') !== 'production') {
 
 // Add global variables to Twig
 $twig->addGlobal('BASE_URL', BASE_URL);
+$twig->addGlobal('VERSION', VERSION);
 
 // Make Twig available globally
 $GLOBALS['twig'] = $twig;
