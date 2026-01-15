@@ -1,0 +1,85 @@
+<div class="container py-4 help-page">
+    <div class="help-page-header">
+        <h1 class="help-page-title">
+            <i class="bi bi-chat-dots text-primary me-2"></i>
+            Mensagens
+        </h1>
+        <p class="help-page-description">
+            Aprenda a criar mensagens, responder e gerir anexos com o editor HTML.
+        </p>
+    </div>
+
+    {% if not isModal %}
+    <div class="help-navigation mb-4">
+        <a href="{{ BASE_URL }}help/assemblies" class="help-nav-link">
+            <i class="bi bi-chevron-left"></i>
+            <span>Anterior: Assembleias</span>
+        </a>
+        <a href="{{ BASE_URL }}help" class="help-nav-link">
+            <i class="bi bi-house"></i>
+            <span>Voltar ao Índice</span>
+        </a>
+        <a href="{{ BASE_URL }}help/reservations" class="help-nav-link">
+            <span>Próximo: Reservas</span>
+            <i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+    {% endif %}
+
+    <div class="help-section">
+        <h2 class="help-section-title">Visão Geral</h2>
+        <p class="help-step-content">
+            O sistema de mensagens permite comunicação eficiente entre administradores e condóminos, 
+            com editor HTML rico, anexos e sistema de respostas (threads).
+        </p>
+    </div>
+
+    <div class="help-section">
+        <h2 class="help-section-title">Passo a Passo</h2>
+
+        <div class="help-step">
+            <div class="help-step-number">1</div>
+            <h3 class="help-step-title">Criar Mensagem</h3>
+            <div class="help-step-content">
+                <p>Clique em "Nova Mensagem", preencha o assunto e use o editor HTML para formatar o conteúdo.</p>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Editor HTML de mensagens</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <div class="help-step-number">2</div>
+            <h3 class="help-step-title">Responder Mensagens</h3>
+            <div class="help-step-content">
+                <p>Clique numa mensagem para visualizar e responder. As respostas são organizadas em threads.</p>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Thread de mensagens com respostas</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="help-navigation">
+        <a href="{{ BASE_URL }}help/assemblies" class="help-nav-link">
+            <i class="bi bi-chevron-left"></i>
+            <span>Anterior: Assembleias</span>
+        </a>
+        <a href="{{ BASE_URL }}help" class="help-nav-link">
+            <i class="bi bi-house"></i>
+            <span>Voltar ao Índice</span>
+        </a>
+        <a href="{{ BASE_URL }}help/reservations" class="help-nav-link">
+            <span>Próximo: Reservas</span>
+            <i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+</div>

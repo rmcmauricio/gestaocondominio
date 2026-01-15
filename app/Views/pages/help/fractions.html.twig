@@ -1,0 +1,160 @@
+<div class="container py-4 help-page">
+    <div class="help-page-header">
+        <h1 class="help-page-title">
+            <i class="bi bi-building text-primary me-2"></i>
+            Frações
+        </h1>
+        <p class="help-page-description">
+            Aprenda a criar e gerir frações, atribuir condóminos e configurar a permilagem de cada fração.
+        </p>
+    </div>
+
+    {% if not isModal %}
+    <div class="help-navigation mb-4">
+        <a href="{{ BASE_URL }}help/dashboard" class="help-nav-link">
+            <i class="bi bi-chevron-left"></i>
+            <span>Anterior: Dashboard</span>
+        </a>
+        <a href="{{ BASE_URL }}help" class="help-nav-link">
+            <i class="bi bi-house"></i>
+            <span>Voltar ao Índice</span>
+        </a>
+        <a href="{{ BASE_URL }}help/documents" class="help-nav-link">
+            <span>Próximo: Documentos</span>
+            <i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+    {% endif %}
+
+    <div class="help-section">
+        <h2 class="help-section-title">Visão Geral</h2>
+        <p class="help-step-content">
+            As frações representam as unidades habitacionais do condomínio. Cada fração tem uma permilagem que determina 
+            a percentagem de participação nos custos do condomínio. As frações podem ser associadas a condóminos para 
+            permitir acesso à plataforma.
+        </p>
+    </div>
+
+    <div class="help-section">
+        <h2 class="help-section-title">Passo a Passo</h2>
+
+        <div class="help-step">
+            <div class="help-step-number">1</div>
+            <h3 class="help-step-title">Criar uma Fração</h3>
+            <div class="help-step-content">
+                <p>Na página de Frações, clique no botão "Adicionar Fração" e preencha os dados:</p>
+                <ul>
+                    <li><strong>Identificador:</strong> Número ou letra da fração (ex: 1A, 2B, 101)</li>
+                    <li><strong>Permilagem:</strong> Percentagem de participação (ex: 25.5 para 2,55%)</li>
+                    <li><strong>Andar:</strong> Andar onde se localiza a fração</li>
+                    <li><strong>Tipologia:</strong> Tipo de fração (T1, T2, T3, etc.)</li>
+                    <li><strong>Área:</strong> Área útil em m²</li>
+                    <li><strong>Estado:</strong> Ativa ou Inativa</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Formulário de criação de fração com todos os campos</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <div class="help-step-number">2</div>
+            <h3 class="help-step-title">Atribuir Condómino</h3>
+            <div class="help-step-content">
+                <p>Para atribuir um condómino a uma fração:</p>
+                <ul>
+                    <li>Clique no botão de ações da fração</li>
+                    <li>Selecione "Atribuir a Mim" (se for para si) ou use o sistema de convites</li>
+                    <li>O condómino receberá um convite por email</li>
+                    <li>Após aceitar, terá acesso à fração e poderá ver as suas quotas e recibos</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Processo de atribuição de fração a condómino</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <div class="help-step-number">3</div>
+            <h3 class="help-step-title">Editar Fração</h3>
+            <div class="help-step-content">
+                <p>Para editar os dados de uma fração:</p>
+                <ul>
+                    <li>Clique no botão de ações da fração</li>
+                    <li>Selecione "Editar"</li>
+                    <li>Modifique os campos necessários</li>
+                    <li>Salve as alterações</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Formulário de edição de fração</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <div class="help-step-number">4</div>
+            <h3 class="help-step-title">Desativar Fração</h3>
+            <div class="help-step-content">
+                <p>Se uma fração não deve mais gerar quotas, pode desativá-la:</p>
+                <ul>
+                    <li>Clique no botão de ações da fração</li>
+                    <li>Selecione "Remover" (desativa a fração)</li>
+                    <li><strong>Nota:</strong> Não é possível remover frações que tenham quotas ou pagamentos associados</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Confirmação de remoção/desativação de fração</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="help-tip">
+        <div class="help-tip-title">
+            <i class="bi bi-lightbulb"></i>
+            <span>Dica</span>
+        </div>
+        <div class="help-tip-content">
+            <p>A permilagem total de todas as frações deve somar 1000 (100%). O sistema valida isso automaticamente ao gerar quotas.</p>
+        </div>
+    </div>
+
+    <div class="help-related-links">
+        <h3 class="help-related-links-title">Tópicos Relacionados</h3>
+        <ul class="help-related-links-list">
+            <li><a href="{{ BASE_URL }}help/finances-fees"><i class="bi bi-arrow-right"></i> Quotas</a></li>
+            <li><a href="{{ BASE_URL }}help/invitations"><i class="bi bi-arrow-right"></i> Convites</a></li>
+            <li><a href="{{ BASE_URL }}help/finances-budgets"><i class="bi bi-arrow-right"></i> Orçamentos</a></li>
+        </ul>
+    </div>
+
+    <div class="help-navigation">
+        <a href="{{ BASE_URL }}help/dashboard" class="help-nav-link">
+            <i class="bi bi-chevron-left"></i>
+            <span>Anterior: Dashboard</span>
+        </a>
+        <a href="{{ BASE_URL }}help" class="help-nav-link">
+            <i class="bi bi-house"></i>
+            <span>Voltar ao Índice</span>
+        </a>
+        <a href="{{ BASE_URL }}help/documents" class="help-nav-link">
+            <span>Próximo: Documentos</span>
+            <i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+</div>

@@ -282,5 +282,10 @@ $router->get('/api/condominiums/{id}', 'App\Controllers\Api\CondominiumApiContro
 $router->get('/api/condominiums/{condominium_id}/fees', 'App\Controllers\Api\FeeApiController@index');
 $router->get('/api/fractions/{fraction_id}/fees', 'App\Controllers\Api\FeeApiController@byFraction');
 
+// Help routes
+$router->get('/help', 'App\Controllers\HelpController@index');
+$router->get('/help/{section}', 'App\Controllers\HelpController@show');
+$router->get('/help/{section}/modal', 'App\Controllers\HelpController@modal');
+
 // Add your routes here
 

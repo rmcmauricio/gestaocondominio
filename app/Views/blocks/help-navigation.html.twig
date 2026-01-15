@@ -1,0 +1,34 @@
+{% set prevSection = prevSection|default(null) %}
+{% set prevTitle = prevTitle|default(null) %}
+{% set nextSection = nextSection|default(null) %}
+{% set nextTitle = nextTitle|default(null) %}
+{% set showHome = showHome|default(true) %}
+
+<div class="help-navigation">
+    {% if prevSection %}
+    <a href="{{ BASE_URL }}help/{{ prevSection }}" class="help-nav-link">
+        <i class="bi bi-chevron-left"></i>
+        <span>Anterior: {{ prevTitle }}</span>
+    </a>
+    {% else %}
+    <div></div>
+    {% endif %}
+    
+    {% if showHome %}
+    <a href="{{ BASE_URL }}help" class="help-nav-link">
+        <i class="bi bi-house"></i>
+        <span>Voltar ao Índice</span>
+    </a>
+    {% else %}
+    <div></div>
+    {% endif %}
+    
+    {% if nextSection %}
+    <a href="{{ BASE_URL }}help/{{ nextSection }}" class="help-nav-link">
+        <span>Próximo: {{ nextTitle }}</span>
+        <i class="bi bi-chevron-right"></i>
+    </a>
+    {% else %}
+    <div></div>
+    {% endif %}
+</div>

@@ -1,4 +1,4 @@
-<header id="header" class="header {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName %}header-homepage{% endif %}">
+<header id="header" class="header {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName or viewName == 'pages/help/index.html.twig' %}header-homepage{% endif %}">
   <div class="container">
     <a href="{{ BASE_URL }}" class="logo">
       <img src="{{ BASE_URL }}assets/images/logo.svg" alt="O Meu Prédio" class="logo-img">
@@ -74,7 +74,7 @@
         <i class="bi bi-list"></i>
       </button>
       {% else %}
-      {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName %}
+      {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName or viewName == 'pages/help/index.html.twig' %}
       <!-- Homepage Navigation -->
       <div class="d-flex align-items-center gap-2">
         <a href="{{ BASE_URL }}login" class="btn-login">Entrar</a>

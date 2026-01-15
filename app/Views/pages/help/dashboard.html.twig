@@ -1,0 +1,127 @@
+<div class="container py-4 help-page">
+    <div class="help-page-header">
+        <h1 class="help-page-title">
+            <i class="bi bi-speedometer2 text-primary me-2"></i>
+            Dashboard
+        </h1>
+        <p class="help-page-description">
+            Aprenda a navegar pelo dashboard, visualizar estatísticas e aceder rapidamente às principais funcionalidades.
+        </p>
+    </div>
+
+    {% if not isModal %}
+    <div class="help-navigation mb-4">
+        <div></div>
+        <a href="{{ BASE_URL }}help" class="help-nav-link">
+            <i class="bi bi-house"></i>
+            <span>Voltar ao Índice</span>
+        </a>
+        <a href="{{ BASE_URL }}help/finances" class="help-nav-link">
+            <span>Próximo: Finanças</span>
+            <i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+    {% endif %}
+
+    <div class="help-section">
+        <h2 class="help-section-title">Visão Geral</h2>
+        <p class="help-step-content">
+            O dashboard é a página principal após o login. Mostra uma visão geral do condomínio selecionado, 
+            incluindo estatísticas financeiras, quotas pendentes, ocorrências recentes e acesso rápido às principais funcionalidades.
+        </p>
+    </div>
+
+    <div class="help-section">
+        <h2 class="help-section-title">Passo a Passo</h2>
+
+        <div class="help-step">
+            <div class="help-step-number">1</div>
+            <h3 class="help-step-title">Selecionar Condomínio</h3>
+            <div class="help-step-content">
+                <p>Se tiver acesso a múltiplos condomínios, use o seletor no topo da página para alternar entre eles.</p>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Seletor de condomínio no topo da página</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <div class="help-step-number">2</div>
+            <h3 class="help-step-title">Visualizar Estatísticas</h3>
+            <div class="help-step-content">
+                <p>O dashboard mostra cards com informações importantes:</p>
+                <ul>
+                    <li><strong>Saldo Atual:</strong> Saldo total das contas bancárias</li>
+                    <li><strong>Quotas Pendentes:</strong> Valor total de quotas não pagas</li>
+                    <li><strong>Despesas do Mês:</strong> Total de despesas registadas no mês atual</li>
+                    <li><strong>Ocorrências Abertas:</strong> Número de ocorrências em aberto</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Cards de estatísticas no dashboard</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <div class="help-step-number">3</div>
+            <h3 class="help-step-title">Acesso Rápido</h3>
+            <div class="help-step-content">
+                <p>Use o menu lateral (sidebar) para aceder rapidamente a todas as funcionalidades:</p>
+                <ul>
+                    <li>Finanças</li>
+                    <li>Frações</li>
+                    <li>Documentos</li>
+                    <li>Ocorrências</li>
+                    <li>Assembleias</li>
+                    <li>Mensagens</li>
+                    <li>E muito mais...</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Menu lateral (sidebar) com todas as opções</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="help-tip">
+        <div class="help-tip-title">
+            <i class="bi bi-lightbulb"></i>
+            <span>Dica</span>
+        </div>
+        <div class="help-tip-content">
+            <p>Pode definir um condomínio como padrão nas configurações do perfil. Assim, será sempre o primeiro a aparecer quando fizer login.</p>
+        </div>
+    </div>
+
+    <div class="help-related-links">
+        <h3 class="help-related-links-title">Tópicos Relacionados</h3>
+        <ul class="help-related-links-list">
+            <li><a href="{{ BASE_URL }}help/finances"><i class="bi bi-arrow-right"></i> Finanças</a></li>
+            <li><a href="{{ BASE_URL }}help/profile"><i class="bi bi-arrow-right"></i> Perfil</a></li>
+            <li><a href="{{ BASE_URL }}help/notifications"><i class="bi bi-arrow-right"></i> Notificações</a></li>
+        </ul>
+    </div>
+
+    <div class="help-navigation">
+        <a href="{{ BASE_URL }}help" class="help-nav-link">
+            <i class="bi bi-house"></i>
+            <span>Voltar ao Índice</span>
+        </a>
+        <a href="{{ BASE_URL }}help/finances" class="help-nav-link">
+            <span>Próximo: Finanças</span>
+            <i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+</div>

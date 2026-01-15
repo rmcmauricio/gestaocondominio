@@ -1,0 +1,107 @@
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="container">
+        <div class="row justify-content-center text-center">
+            <div class="col-lg-10">
+                <div class="hero-badge-top">
+                    <i class="bi bi-question-circle"></i>
+                    <span>Manual de Instruções</span>
+                </div>
+                <h1 class="hero-title">
+                    <span class="title-part-1">Aprenda a utilizar o</span>
+                    <span class="title-part-2"> O Meu Prédio</span>
+                </h1>
+                <p class="hero-subtitle">
+                    Guia completo passo a passo para todas as funcionalidades. Encontre respostas rápidas e aprenda a tirar o máximo partido da plataforma.
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="absolute bottom-0 left-0 right-0" style="line-height: 0; margin: 0; padding: 0; border: none; outline: none; bottom: -1px;">
+        <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-100 h-auto" preserveAspectRatio="none" style="width: 100%; height: auto; display: block; vertical-align: bottom; margin: 0; padding: 0; border: none; outline: none; overflow: visible;">
+            <path d="M0 120L60 105C120 90 240 60 360 45C480 30 600 30 720 37.5C840 45 960 60 1080 67.5C1200 75 1320 75 1380 75L1440 75V120H1440V121H0V120Z" fill="white" stroke="none" style="shape-rendering: geometricPrecision;"></path>
+        </svg>
+    </div>
+</section>
+
+<!-- Help Sections -->
+<section class="features-section">
+    <div class="container">
+        <div class="text-center mb-5">
+            <div class="section-label">GUIA COMPLETO</div>
+            <h2 class="section-title">Explore todas as funcionalidades</h2>
+            <p class="section-description">Selecione uma funcionalidade para ver instruções detalhadas passo a passo</p>
+        </div>
+
+        <div class="features-grid">
+            {% for key, section in helpSections %}
+            <div class="feature-card animate-fade-up" style="animation-delay: {{ loop.index0 * 0.1 }}s; opacity: 0;">
+                <div class="feature-icon">
+                    <i class="bi {{ section.icon }}"></i>
+                </div>
+                <h5 class="feature-card-title">{{ section.title }}</h5>
+                <p class="feature-card-description">{{ section.description }}</p>
+                <div class="mt-3">
+                    <a href="{{ BASE_URL }}help/{{ key }}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-book"></i> Ver Guia
+                    </a>
+                </div>
+                {% if section.subsections|length > 0 %}
+                <div class="mt-3">
+                    <small class="text-muted d-block mb-2">Sub-seções:</small>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for subKey, subTitle in section.subsections %}
+                        <a href="{{ BASE_URL }}help/{{ subKey }}" class="badge bg-light text-dark text-decoration-none">
+                            {{ subTitle }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- Quick Links Section -->
+<section class="how-it-works-section" style="background: hsl(var(--background)); padding: 4rem 0;">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h3 class="section-title">Precisa de ajuda rápida?</h3>
+            <p class="section-description">Aceda diretamente às instruções mais procuradas</p>
+        </div>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-cash-stack text-primary" style="font-size: 2.5rem;"></i>
+                        <h5 class="mt-3">Gerir Quotas</h5>
+                        <p class="text-muted">Aprenda a criar, gerir e acompanhar quotas mensais e extras</p>
+                        <a href="{{ BASE_URL }}help/finances-fees" class="btn btn-primary btn-sm">Ver Guia</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-people text-primary" style="font-size: 2.5rem;"></i>
+                        <h5 class="mt-3">Assembleias</h5>
+                        <p class="text-muted">Criar assembleias, enviar convocatórias e gerar atas</p>
+                        <a href="{{ BASE_URL }}help/assemblies" class="btn btn-primary btn-sm">Ver Guia</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-folder text-primary" style="font-size: 2.5rem;"></i>
+                        <h5 class="mt-3">Documentos</h5>
+                        <p class="text-muted">Organizar e partilhar documentos com pastas e versões</p>
+                        <a href="{{ BASE_URL }}help/documents" class="btn btn-primary btn-sm">Ver Guia</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

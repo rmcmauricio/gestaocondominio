@@ -1,4 +1,4 @@
-{% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName %}
+
 <footer id="footer" class="footer-homepage">
   <div class="container">
     <div class="row justify-content-center">
@@ -19,6 +19,7 @@
           <li><a href="{{ BASE_URL }}#pricing">Preços</a></li>
           <li><a href="{{ BASE_URL }}demo/access">Demonstração</a></li>
           <li><a href="{{ BASE_URL }}faq">FAQ</a></li>
+          <li><a href="{{ BASE_URL }}help">Ajuda</a></li>
         </ul>
       </div>
       <div class="col-12 col-md-6 col-lg-4">
@@ -42,35 +43,3 @@
     </div>
   </div>
 </footer>
-{% else %}
-<footer id="footer" class="footer bg-light py-4 mt-5">
-  <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-md-4 mb-3 mb-md-0">
-        <h5 class="fw-bold">O Meu Prédio</h5>
-        <p class="text-muted small">A solução completa para gestão de condomínios em Portugal.</p>
-      </div>
-      <div class="col-md-4 mb-3 mb-md-0">
-        <h6 class="fw-bold">Links Rápidos</h6>
-        <ul class="list-unstyled small">
-          <li><a href="{{ BASE_URL }}" class="text-decoration-none text-muted">Início</a></li>
-          <li><a href="{{ BASE_URL }}register" class="text-decoration-none text-muted">Criar Conta</a></li>
-          <li><a href="{{ BASE_URL }}login" class="text-decoration-none text-muted">Login</a></li>
-        </ul>
-      </div>
-      <div class="col-md-4">
-        <h6 class="fw-bold">Suporte</h6>
-        <ul class="list-unstyled small">
-          <li><a href="#" class="text-decoration-none text-muted">Ajuda</a></li>
-          <li><a href="#" class="text-decoration-none text-muted">Contactos</a></li>
-          <li><a href="#" class="text-decoration-none text-muted">Termos e Condições</a></li>
-        </ul>
-      </div>
-    </div>
-    <hr class="my-3">
-    <div class="text-center">
-      <p class="text-muted small mb-0">&copy; {{ "now"|date("Y") }} O Meu Prédio. Todos os direitos reservados.</p>
-    </div>
-  </div>
-</footer>
-{% endif %}
