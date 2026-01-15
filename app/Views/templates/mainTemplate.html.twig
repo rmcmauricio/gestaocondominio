@@ -27,7 +27,7 @@
     {% include 'blocks/header.html.twig' %}
 
     <div class="main-wrapper">
-        {% if user and viewName != 'pages/home.html.twig' %}
+        {% if user %}
             {% include 'blocks/sidebar.html.twig' %}
             <!-- Overlay when sidebar is open -->
             <div class="sidebar-overlay" onclick="toggleSidebar(); return false;"></div>
