@@ -6,6 +6,32 @@ use App\Core\Controller;
 
 class HelpController extends Controller
 {
+    // Ordem linear de navegação - todas as páginas na sequência
+    private $helpNavigationOrder = [
+        'dashboard',
+        'finances',
+        'finances-budgets',
+        'finances-fees',
+        'finances-expenses',
+        'finances-revenues',
+        'finances-historical-debts',
+        'finances-reports',
+        'finances-fees-map',
+        'fractions',
+        'documents',
+        'occurrences',
+        'assemblies',
+        'messages',
+        'reservations',
+        'suppliers',
+        'bank-accounts',
+        'receipts',
+        'notifications',
+        'profile',
+        'subscriptions',
+        'invitations'
+    ];
+
     private $helpSections = [
         'dashboard' => [
             'title' => 'Dashboard',
@@ -107,6 +133,57 @@ class HelpController extends Controller
         ]
     ];
 
+    /**
+     * Get navigation info (previous and next sections)
+     */
+    private function getNavigationInfo(string $currentSection): array
+    {
+        $currentIndex = array_search($currentSection, $this->helpNavigationOrder);
+        
+        if ($currentIndex === false) {
+            return ['prev' => null, 'next' => null];
+        }
+        
+        $prevSection = $currentIndex > 0 ? $this->helpNavigationOrder[$currentIndex - 1] : null;
+        $nextSection = $currentIndex < count($this->helpNavigationOrder) - 1 ? $this->helpNavigationOrder[$currentIndex + 1] : null;
+        
+        $prevTitle = null;
+        $nextTitle = null;
+        
+        if ($prevSection) {
+            if (isset($this->helpSections[$prevSection])) {
+                $prevTitle = $this->helpSections[$prevSection]['title'];
+            } else {
+                // Check if it's a subsection
+                foreach ($this->helpSections as $sectionData) {
+                    if (isset($sectionData['subsections'][$prevSection])) {
+                        $prevTitle = $sectionData['subsections'][$prevSection];
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if ($nextSection) {
+            if (isset($this->helpSections[$nextSection])) {
+                $nextTitle = $this->helpSections[$nextSection]['title'];
+            } else {
+                // Check if it's a subsection
+                foreach ($this->helpSections as $sectionData) {
+                    if (isset($sectionData['subsections'][$nextSection])) {
+                        $nextTitle = $sectionData['subsections'][$nextSection];
+                        break;
+                    }
+                }
+            }
+        }
+        
+        return [
+            'prev' => $prevSection ? ['section' => $prevSection, 'title' => $prevTitle] : null,
+            'next' => $nextSection ? ['section' => $nextSection, 'title' => $nextTitle] : null
+        ];
+    }
+
     public function index()
     {
         // Load page metadata from Metafiles
@@ -166,6 +243,9 @@ class HelpController extends Controller
         $sectionData = $isSubsection ? $this->helpSections[$sectionKey] : $this->helpSections[$sectionKey];
         $subsectionTitle = $isSubsection ? $this->helpSections[$sectionKey]['subsections'][$section] : null;
         
+        // Get navigation info
+        $navigation = $this->getNavigationInfo($section);
+        
         $this->data += [
             'viewName' => 'pages/help/' . $section . '.html.twig',
             'page' => [
@@ -178,7 +258,8 @@ class HelpController extends Controller
             'subsectionTitle' => $subsectionTitle,
             'isSubsection' => $isSubsection,
             'parentSection' => $sectionKey,
-            'helpSections' => $this->helpSections
+            'helpSections' => $this->helpSections,
+            'navigation' => $navigation
         ];
         
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -214,6 +295,9 @@ class HelpController extends Controller
         $sectionData = $isSubsection ? $this->helpSections[$sectionKey] : $this->helpSections[$sectionKey];
         $subsectionTitle = $isSubsection ? $this->helpSections[$sectionKey]['subsections'][$section] : null;
         
+        // Get navigation info
+        $navigation = $this->getNavigationInfo($section);
+        
         // Load the help content view
         $viewPath = 'pages/help/' . $section . '.html.twig';
         $fullPath = __DIR__ . '/../Views/' . $viewPath;
@@ -232,7 +316,8 @@ class HelpController extends Controller
             'subsectionTitle' => $subsectionTitle,
             'isSubsection' => $isSubsection,
             'parentSection' => $sectionKey,
-            'isModal' => true
+            'isModal' => true,
+            'navigation' => $navigation
         ]));
         
         header('Content-Type: application/json');

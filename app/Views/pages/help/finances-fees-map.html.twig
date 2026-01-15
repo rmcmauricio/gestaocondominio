@@ -9,6 +9,8 @@
         </p>
     </div>
 
+    {% include 'blocks/help-navigation.html.twig' %}
+
     <div class="help-section">
         <h2 class="help-section-title">Visão Geral</h2>
         <p class="help-step-content">
@@ -40,16 +42,5 @@
                 <p>Quota em atraso ou não paga</p>
             </div>
         </div>
-    </div>
-
-    <div class="help-navigation">
-        <a href="{{ BASE_URL }}help/finances-fees" class="help-nav-link">
-            <i class="bi bi-chevron-left"></i>
-            <span>Anterior: Quotas</span>
-        </a>
-        <a href="{{ BASE_URL }}help" class="help-nav-link">
-            <i class="bi bi-house"></i>
-            <span>Voltar ao Índice</span>
-        </a>
     </div>
 </div>

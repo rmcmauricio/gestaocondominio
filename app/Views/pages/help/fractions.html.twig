@@ -9,22 +9,7 @@
         </p>
     </div>
 
-    {% if not isModal %}
-    <div class="help-navigation mb-4">
-        <a href="{{ BASE_URL }}help/dashboard" class="help-nav-link">
-            <i class="bi bi-chevron-left"></i>
-            <span>Anterior: Dashboard</span>
-        </a>
-        <a href="{{ BASE_URL }}help" class="help-nav-link">
-            <i class="bi bi-house"></i>
-            <span>Voltar ao Índice</span>
-        </a>
-        <a href="{{ BASE_URL }}help/documents" class="help-nav-link">
-            <span>Próximo: Documentos</span>
-            <i class="bi bi-chevron-right"></i>
-        </a>
-    </div>
-    {% endif %}
+    {% include 'blocks/help-navigation.html.twig' %}
 
     <div class="help-section">
         <h2 class="help-section-title">Visão Geral</h2>
@@ -143,18 +128,5 @@
         </ul>
     </div>
 
-    <div class="help-navigation">
-        <a href="{{ BASE_URL }}help/dashboard" class="help-nav-link">
-            <i class="bi bi-chevron-left"></i>
-            <span>Anterior: Dashboard</span>
-        </a>
-        <a href="{{ BASE_URL }}help" class="help-nav-link">
-            <i class="bi bi-house"></i>
-            <span>Voltar ao Índice</span>
-        </a>
-        <a href="{{ BASE_URL }}help/documents" class="help-nav-link">
-            <span>Próximo: Documentos</span>
-            <i class="bi bi-chevron-right"></i>
-        </a>
-    </div>
+    {% include 'blocks/help-navigation.html.twig' %}
 </div>
