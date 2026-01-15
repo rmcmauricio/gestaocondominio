@@ -19,7 +19,7 @@
 
     <!-- Custom CSS -->
     <link href="{{ BASE_URL }}assets/css/main.css" rel="stylesheet">
-    {% if viewName == 'pages/home.html.twig' %}
+    {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName %}
     <link href="{{ BASE_URL }}assets/css/homepage.css" rel="stylesheet">
     {% endif %}
 </head>
@@ -32,8 +32,8 @@
             <!-- Overlay when sidebar is open -->
             <div class="sidebar-overlay" onclick="toggleSidebar(); return false;"></div>
         {% endif %}
-        
-        <main class="main-content {% if viewName == 'pages/home.html.twig' %}main-content-full{% endif %}">
+
+        <main class="main-content {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName %}main-content-full{% endif %}">
             {% if demo_banner_message %}
             <div class="alert alert-warning alert-dismissible fade show mb-0" role="alert" style="border-radius: 0; border-left: 4px solid #ffc107;">
                 <div class="container">

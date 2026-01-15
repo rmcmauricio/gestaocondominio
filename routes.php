@@ -24,6 +24,12 @@ $router->get('/demo/switch-profile', 'App\Controllers\DemoController@switchProfi
 // About route
 $router->get('/about', 'App\Controllers\AboutController@index');
 
+// Legal pages routes
+$router->get('/faq', 'App\Controllers\LegalController@faq');
+$router->get('/termos', 'App\Controllers\LegalController@terms');
+$router->get('/privacidade', 'App\Controllers\LegalController@privacy');
+$router->get('/cookies', 'App\Controllers\LegalController@cookies');
+
 // Language routes
 $router->get('/lang/{lang}', 'App\Controllers\LanguageController@switch');
 

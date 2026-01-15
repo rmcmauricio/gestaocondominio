@@ -863,23 +863,23 @@ table .btn-outline-info {
   table td .d-flex.gap-1 {
     gap: 0.5rem !important;
   }
-  
+
   table td .d-flex.gap-2 {
     gap: 0.75rem !important;
   }
-  
+
   /* Ensure buttons in action columns have proper spacing */
   table td[onclick] .d-flex {
     gap: 0.5rem !important;
   }
-  
+
   /* Ensure buttons don't stick together */
   table td .d-flex > .btn,
   table td .d-flex > a.btn,
   table td .d-flex > form {
     margin-right: 0.5rem;
   }
-  
+
   table td .d-flex > .btn:last-child,
   table td .d-flex > a.btn:last-child,
   table td .d-flex > form:last-child {
@@ -1465,7 +1465,6 @@ a:hover .card-hover .text-primary {
 
   .main-content {
     width: 100%;
-    padding: 1rem;
     padding-top: 80px !important; /* Adjusted for mobile header */
     overflow-x: hidden;
   }
@@ -2686,8 +2685,7 @@ a:hover .card-hover .text-primary {
   /* Ensure main-content has proper spacing when sidebar is visible */
   .main-content {
     margin-left: 0;
-    padding-left: 1rem;
-    padding-right: 1rem;
+
     overflow-x: visible; /* Allow horizontal scroll for tables */
     max-width: 100%;
     width: 100%;
