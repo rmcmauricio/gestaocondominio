@@ -3,3 +3,4 @@ omeupredio_deploy.pub
 storage/
 vendor/
 .env.env
+.env
