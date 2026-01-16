@@ -145,10 +145,12 @@ class Controller
                 $userId = $_SESSION['user']['id'] ?? null;
                 if ($userId) {
                     try {
-                        $stmt = $db->prepare("SELECT COUNT(*) as count FROM notifications WHERE user_id = :user_id AND is_read = FALSE");
-                        $stmt->execute([':user_id' => $userId]);
-                        $result = $stmt->fetch();
-                        $systemNotificationsCount = (int)($result['count'] ?? 0);
+                        // Use NotificationService to get filtered notifications (only from condominiums user has access to)
+                        $notificationService = new \App\Services\NotificationService();
+                        $notifications = $notificationService->getUserNotifications($userId, 1000); // Get all to count
+                        $systemNotificationsCount = count(array_filter($notifications, function($n) {
+                            return !$n['is_read'];
+                        }));
                     } catch (\Exception $e) {
                         // Silently fail if notifications table doesn't exist or other error
                         $systemNotificationsCount = 0;

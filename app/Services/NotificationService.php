@@ -337,7 +337,58 @@ class NotificationService
     }
 
     /**
-     * Get user notifications
+     * Check if user has access to condominium
+     */
+    protected function userHasAccessToCondominium(int $userId, int $condominiumId): bool
+    {
+        global $db;
+        if (!$db) {
+            return false;
+        }
+
+        // Get user role
+        $stmt = $db->prepare("SELECT role FROM users WHERE id = :user_id LIMIT 1");
+        $stmt->execute([':user_id' => $userId]);
+        $user = $stmt->fetch();
+
+        if (!$user) {
+            return false;
+        }
+
+        $role = $user['role'];
+
+        // Super admin can access all
+        if ($role === 'super_admin') {
+            return true;
+        }
+
+        // Admin can access their own condominiums
+        if ($role === 'admin') {
+            $stmt = $db->prepare("SELECT id FROM condominiums WHERE user_id = :user_id AND id = :condominium_id LIMIT 1");
+            $stmt->execute([
+                ':user_id' => $userId,
+                ':condominium_id' => $condominiumId
+            ]);
+            return $stmt->fetch() !== false;
+        }
+
+        // Condomino can access if associated
+        $stmt = $db->prepare("
+            SELECT id FROM condominium_users 
+            WHERE user_id = :user_id 
+            AND condominium_id = :condominium_id
+            AND (ended_at IS NULL OR ended_at > CURDATE())
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':user_id' => $userId,
+            ':condominium_id' => $condominiumId
+        ]);
+        return $stmt->fetch() !== false;
+    }
+
+    /**
+     * Get user notifications (only for condominiums user has access to)
      */
     public function getUserNotifications(int $userId, int $limit = 10): array
     {
@@ -347,18 +398,33 @@ class NotificationService
             return [];
         }
 
+        // Get all notifications for user
         $stmt = $db->prepare("
             SELECT * FROM notifications
             WHERE user_id = :user_id
             ORDER BY created_at DESC
-            LIMIT :limit
         ");
 
-        $stmt->bindValue(':user_id', $userId, \PDO::PARAM_INT);
-        $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
-        $stmt->execute();
+        $stmt->execute([':user_id' => $userId]);
+        $allNotifications = $stmt->fetchAll() ?: [];
 
-        return $stmt->fetchAll() ?: [];
+        // Filter notifications to only include those from condominiums user has access to
+        $filteredNotifications = [];
+        foreach ($allNotifications as $notification) {
+            $condominiumId = $notification['condominium_id'] ?? null;
+            
+            // If notification has no condominium_id (system notification), include it
+            if ($condominiumId === null) {
+                $filteredNotifications[] = $notification;
+            } 
+            // If notification has condominium_id, check access
+            elseif ($this->userHasAccessToCondominium($userId, $condominiumId)) {
+                $filteredNotifications[] = $notification;
+            }
+        }
+
+        // Apply limit
+        return array_slice($filteredNotifications, 0, $limit);
     }
 
     /**
@@ -392,7 +458,22 @@ class NotificationService
             ORDER BY n.created_at DESC
         ");
         $stmt->execute([':user_id' => $userId]);
-        $notifications = $stmt->fetchAll() ?: [];
+        $allNotifications = $stmt->fetchAll() ?: [];
+
+        // Filter notifications to only include those from condominiums user has access to
+        $notifications = [];
+        foreach ($allNotifications as $notif) {
+            $condominiumId = $notif['condominium_id'] ?? null;
+            
+            // If notification has no condominium_id (system notification), include it
+            if ($condominiumId === null) {
+                $notifications[] = $notif;
+            } 
+            // If notification has condominium_id, check access
+            elseif ($this->userHasAccessToCondominium($userId, $condominiumId)) {
+                $notifications[] = $notif;
+            }
+        }
 
         foreach ($notifications as $notif) {
             // Ensure link has BASE_URL if it's a relative path
@@ -452,7 +533,7 @@ class NotificationService
             $unified[] = $notificationData;
         }
 
-        // Get unread messages
+        // Get unread messages (only from condominiums user has access to)
         $stmt = $db->prepare("
             SELECT
                 m.id,
@@ -472,7 +553,18 @@ class NotificationService
             ORDER BY m.created_at DESC
         ");
         $stmt->execute([':user_id' => $userId]);
-        $messages = $stmt->fetchAll() ?: [];
+        $allMessages = $stmt->fetchAll() ?: [];
+
+        // Filter messages to only include those from condominiums user has access to
+        $messages = [];
+        foreach ($allMessages as $msg) {
+            $condominiumId = $msg['condominium_id'] ?? null;
+            
+            // If message has condominium_id, check access
+            if ($condominiumId && $this->userHasAccessToCondominium($userId, $condominiumId)) {
+                $messages[] = $msg;
+            }
+        }
 
         foreach ($messages as $msg) {
             $unified[] = [

@@ -175,7 +175,8 @@ class NotificationController extends Controller
         AuthMiddleware::require();
 
         $userId = AuthMiddleware::userId();
-        $notifications = $this->notificationService->getUserNotifications($userId, 100);
+        // Use unified notifications to get accurate count (includes messages and filters by condominium access)
+        $notifications = $this->notificationService->getUnifiedNotifications($userId, 1000);
         $unreadCount = count(array_filter($notifications, function($n) {
             return !$n['is_read'];
         }));
