@@ -42,6 +42,42 @@ class DemoSeeder
     protected $accountIds = [];
     protected $spaceIds = [];
     protected $savedDemoReceipts = []; // Store demo receipts data during restore to preserve them
+    
+    // ID tracking for all created records (for restore functionality)
+    protected $createdIds = [
+        'condominiums' => [],
+        'fractions' => [],
+        'condominium_users' => [],
+        'bank_accounts' => [],
+        'suppliers' => [],
+        'budgets' => [],
+        'budget_items' => [],
+        'expenses' => [],
+        'fees' => [],
+        'fee_payments' => [],
+        'fee_payment_history' => [],
+        'financial_transactions' => [],
+        'assemblies' => [],
+        'assembly_attendees' => [],
+        'assembly_vote_topics' => [],
+        'assembly_votes' => [],
+        'minutes_signatures' => [],
+        'spaces' => [],
+        'reservations' => [],
+        'messages' => [],
+        'occurrences' => [],
+        'occurrence_comments' => [],
+        'occurrence_history' => [],
+        'standalone_votes' => [],
+        'vote_options' => [],
+        'standalone_vote_responses' => [],
+        'receipts' => [],
+        'notifications' => [],
+        'revenues' => [],
+        'documents' => [],
+        'contracts' => [],
+        'users' => [] // Fraction users (not demo user)
+    ];
 
     public function __construct($db)
     {
@@ -3401,6 +3437,211 @@ class DemoSeeder
             $vote3Votes++;
         }
         echo "   Votação 3 criada (Aberta): {$vote3Votes} votos\n";
+    }
+
+    /**
+     * Track a created ID for a specific table
+     */
+    protected function trackId(string $table, int $id): void
+    {
+        if (isset($this->createdIds[$table])) {
+            if (!in_array($id, $this->createdIds[$table])) {
+                $this->createdIds[$table][] = $id;
+            }
+        }
+    }
+
+    /**
+     * Get all created IDs for demo data
+     * This method queries the database to capture all IDs related to demo condominiums
+     * 
+     * @return array Array with table names as keys and arrays of IDs as values
+     */
+    public function getCreatedIds(): array
+    {
+        if (empty($this->demoCondominiumIds)) {
+            return $this->createdIds;
+        }
+
+        $condominiumIdsList = implode(',', $this->demoCondominiumIds);
+        
+        // Query database to get all IDs for demo condominiums
+        $ids = [
+            'demo_user_id' => $this->demoUserId,
+            'condominiums' => $this->demoCondominiumIds,
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+
+        // Fractions
+        $stmt = $this->db->prepare("SELECT id FROM fractions WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['fractions'] = array_column($stmt->fetchAll(), 'id');
+
+        // Condominium users
+        $stmt = $this->db->prepare("SELECT id FROM condominium_users WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['condominium_users'] = array_column($stmt->fetchAll(), 'id');
+
+        // Bank accounts
+        $stmt = $this->db->prepare("SELECT id FROM bank_accounts WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['bank_accounts'] = array_column($stmt->fetchAll(), 'id');
+
+        // Suppliers
+        $stmt = $this->db->prepare("SELECT id FROM suppliers WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['suppliers'] = array_column($stmt->fetchAll(), 'id');
+
+        // Budgets
+        $stmt = $this->db->prepare("SELECT id FROM budgets WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['budgets'] = array_column($stmt->fetchAll(), 'id');
+
+        // Budget items
+        $stmt = $this->db->prepare("SELECT id FROM budget_items WHERE budget_id IN (SELECT id FROM budgets WHERE condominium_id IN ({$condominiumIdsList}))");
+        $stmt->execute();
+        $ids['budget_items'] = array_column($stmt->fetchAll(), 'id');
+
+        // Expenses
+        $stmt = $this->db->prepare("SELECT id FROM expenses WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['expenses'] = array_column($stmt->fetchAll(), 'id');
+
+        // Fees
+        $stmt = $this->db->prepare("SELECT id FROM fees WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['fees'] = array_column($stmt->fetchAll(), 'id');
+
+        // Fee payments
+        $stmt = $this->db->prepare("SELECT id FROM fee_payments WHERE fee_id IN (SELECT id FROM fees WHERE condominium_id IN ({$condominiumIdsList}))");
+        $stmt->execute();
+        $ids['fee_payments'] = array_column($stmt->fetchAll(), 'id');
+
+        // Fee payment history
+        $stmt = $this->db->prepare("SELECT id FROM fee_payment_history WHERE fee_id IN (SELECT id FROM fees WHERE condominium_id IN ({$condominiumIdsList}))");
+        $stmt->execute();
+        $ids['fee_payment_history'] = array_column($stmt->fetchAll(), 'id');
+
+        // Financial transactions
+        $stmt = $this->db->prepare("SELECT id FROM financial_transactions WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['financial_transactions'] = array_column($stmt->fetchAll(), 'id');
+
+        // Assemblies
+        $stmt = $this->db->prepare("SELECT id FROM assemblies WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['assemblies'] = array_column($stmt->fetchAll(), 'id');
+
+        // Assembly attendees
+        $stmt = $this->db->prepare("SELECT id FROM assembly_attendees WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id IN ({$condominiumIdsList}))");
+        $stmt->execute();
+        $ids['assembly_attendees'] = array_column($stmt->fetchAll(), 'id');
+
+        // Assembly vote topics
+        $stmt = $this->db->prepare("SELECT id FROM assembly_vote_topics WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id IN ({$condominiumIdsList}))");
+        $stmt->execute();
+        $ids['assembly_vote_topics'] = array_column($stmt->fetchAll(), 'id');
+
+        // Assembly votes
+        $stmt = $this->db->prepare("SELECT id FROM assembly_votes WHERE topic_id IN (SELECT id FROM assembly_vote_topics WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id IN ({$condominiumIdsList})))");
+        $stmt->execute();
+        $ids['assembly_votes'] = array_column($stmt->fetchAll(), 'id');
+
+        // Minutes signatures
+        $stmt = $this->db->prepare("SELECT id FROM minutes_signatures WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id IN ({$condominiumIdsList}))");
+        $stmt->execute();
+        $ids['minutes_signatures'] = array_column($stmt->fetchAll(), 'id');
+
+        // Spaces
+        $stmt = $this->db->prepare("SELECT id FROM spaces WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['spaces'] = array_column($stmt->fetchAll(), 'id');
+
+        // Reservations
+        $stmt = $this->db->prepare("SELECT id FROM reservations WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['reservations'] = array_column($stmt->fetchAll(), 'id');
+
+        // Messages
+        $stmt = $this->db->prepare("SELECT id FROM messages WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['messages'] = array_column($stmt->fetchAll(), 'id');
+
+        // Occurrences
+        $stmt = $this->db->prepare("SELECT id FROM occurrences WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['occurrences'] = array_column($stmt->fetchAll(), 'id');
+
+        // Occurrence comments
+        $stmt = $this->db->prepare("SELECT id FROM occurrence_comments WHERE occurrence_id IN (SELECT id FROM occurrences WHERE condominium_id IN ({$condominiumIdsList}))");
+        $stmt->execute();
+        $ids['occurrence_comments'] = array_column($stmt->fetchAll(), 'id');
+
+        // Occurrence history
+        $stmt = $this->db->prepare("SELECT id FROM occurrence_history WHERE occurrence_id IN (SELECT id FROM occurrences WHERE condominium_id IN ({$condominiumIdsList}))");
+        $stmt->execute();
+        $ids['occurrence_history'] = array_column($stmt->fetchAll(), 'id');
+
+        // Standalone votes
+        $stmt = $this->db->prepare("SELECT id FROM standalone_votes WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['standalone_votes'] = array_column($stmt->fetchAll(), 'id');
+
+        // Vote options (only those used by demo standalone votes)
+        $stmt = $this->db->prepare("SELECT DISTINCT vo.id FROM vote_options vo INNER JOIN standalone_votes sv ON JSON_CONTAINS(sv.allowed_options, CAST(vo.id AS JSON)) WHERE sv.condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['vote_options'] = array_column($stmt->fetchAll(), 'id');
+
+        // Standalone vote responses
+        $stmt = $this->db->prepare("SELECT id FROM standalone_vote_responses WHERE standalone_vote_id IN (SELECT id FROM standalone_votes WHERE condominium_id IN ({$condominiumIdsList}))");
+        $stmt->execute();
+        $ids['standalone_vote_responses'] = array_column($stmt->fetchAll(), 'id');
+
+        // Receipts (only demo receipts)
+        if ($this->demoUserId) {
+            $stmt = $this->db->prepare("SELECT id FROM receipts WHERE condominium_id IN ({$condominiumIdsList}) AND generated_by = :demo_user_id");
+            $stmt->execute([':demo_user_id' => $this->demoUserId]);
+            $ids['receipts'] = array_column($stmt->fetchAll(), 'id');
+        } else {
+            $ids['receipts'] = [];
+        }
+
+        // Notifications
+        $stmt = $this->db->prepare("SELECT id FROM notifications WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['notifications'] = array_column($stmt->fetchAll(), 'id');
+
+        // Revenues
+        $stmt = $this->db->prepare("SELECT id FROM revenues WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['revenues'] = array_column($stmt->fetchAll(), 'id');
+
+        // Documents
+        $stmt = $this->db->prepare("SELECT id FROM documents WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['documents'] = array_column($stmt->fetchAll(), 'id');
+
+        // Contracts
+        $stmt = $this->db->prepare("SELECT id FROM contracts WHERE condominium_id IN ({$condominiumIdsList})");
+        $stmt->execute();
+        $ids['contracts'] = array_column($stmt->fetchAll(), 'id');
+
+        // Users (fraction users, not demo user)
+        if ($this->demoUserId) {
+            $stmt = $this->db->prepare("
+                SELECT DISTINCT u.id 
+                FROM users u
+                INNER JOIN condominium_users cu ON cu.user_id = u.id
+                WHERE cu.condominium_id IN ({$condominiumIdsList})
+                AND u.id != :demo_user_id
+            ");
+            $stmt->execute([':demo_user_id' => $this->demoUserId]);
+            $ids['users'] = array_column($stmt->fetchAll(), 'id');
+        } else {
+            $ids['users'] = [];
+        }
+
+        return $ids;
     }
 }
 
