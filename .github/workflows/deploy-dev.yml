@@ -60,6 +60,7 @@ jobs:
             composer install --no-interaction --prefer-dist --optimize-autoloader
 
             php cli/migrate.php
+            php cli/delete-condominium.php
             php cli/seed.php
             php cli/restore-demo.php
 
