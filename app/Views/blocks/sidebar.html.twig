@@ -79,6 +79,12 @@
             </li>
             
             <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports">
+                    <i class="bi bi-file-earmark-text"></i> Relatórios
+                </a>
+            </li>
+            
+            <li class="nav-item">
                 <a class="nav-link" href="{{ BASE_URL }}{% if user.role == 'admin' or user.role == 'super_admin' %}condominiums/{{ condominium.id }}/receipts{% else %}receipts{% endif %}">
                     <i class="bi bi-receipt-cutoff"></i> Recibos
                 </a>
