@@ -3587,8 +3587,8 @@ class DemoSeeder
         $stmt->execute();
         $ids['standalone_votes'] = array_column($stmt->fetchAll(), 'id');
 
-        // Vote options (only those used by demo standalone votes)
-        $stmt = $this->db->prepare("SELECT DISTINCT vo.id FROM vote_options vo INNER JOIN standalone_votes sv ON JSON_CONTAINS(sv.allowed_options, CAST(vo.id AS JSON)) WHERE sv.condominium_id IN ({$condominiumIdsList})");
+        // Vote options (all options for demo condominiums)
+        $stmt = $this->db->prepare("SELECT id FROM vote_options WHERE condominium_id IN ({$condominiumIdsList})");
         $stmt->execute();
         $ids['vote_options'] = array_column($stmt->fetchAll(), 'id');
 
