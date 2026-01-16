@@ -358,30 +358,40 @@ try {
         }
     }
 
-    // Handle vote_options (may be shared, only delete if orphaned)
+    // Handle vote_options (delete options for demo condominiums that are not in original list)
     echo "\nProcessando opções de voto...\n";
     $originalVoteOptionIds = $snapshot['vote_options'] ?? [];
     
     if (!empty($originalVoteOptionIds)) {
         $originalVoteOptionIdsList = implode(',', array_map('intval', $originalVoteOptionIds));
         
-        // Only delete vote_options that are not used by any standalone_vote
+        // Delete vote_options that belong to demo condominiums but are not in original list
         if (!$dryRun) {
-            $orphanedStmt = $db->prepare("
-                SELECT vo.id FROM vote_options vo
-                LEFT JOIN standalone_votes sv ON JSON_CONTAINS(sv.allowed_options, CAST(vo.id AS JSON))
-                WHERE vo.id NOT IN ({$originalVoteOptionIdsList})
-                AND sv.id IS NULL
+            $deleteStmt = $db->prepare("
+                SELECT id FROM vote_options 
+                WHERE condominium_id IN ({$condominiumIdsList})
+                AND id NOT IN ({$originalVoteOptionIdsList})
             ");
-            $orphanedStmt->execute();
-            $orphaned = $orphanedStmt->fetchAll();
+            $deleteStmt->execute();
+            $toDelete = $deleteStmt->fetchAll();
             
-            if (!empty($orphaned)) {
-                $orphanedIds = array_column($orphaned, 'id');
-                $orphanedIdsList = implode(',', array_map('intval', $orphanedIds));
-                $deleteStmt = $db->prepare("DELETE FROM vote_options WHERE id IN ({$orphanedIdsList})");
+            if (!empty($toDelete)) {
+                $idsToDelete = array_column($toDelete, 'id');
+                $idsList = implode(',', array_map('intval', $idsToDelete));
+                $deleteStmt = $db->prepare("DELETE FROM vote_options WHERE id IN ({$idsList})");
                 $deleteStmt->execute();
-                echo "   vote_options: " . count($orphanedIds) . " opções órfãs removidas\n";
+                echo "   vote_options: " . count($idsToDelete) . " opções removidas\n";
+            }
+        } else {
+            $checkStmt = $db->prepare("
+                SELECT COUNT(*) as count FROM vote_options 
+                WHERE condominium_id IN ({$condominiumIdsList})
+                AND id NOT IN ({$originalVoteOptionIdsList})
+            ");
+            $checkStmt->execute();
+            $result = $checkStmt->fetch();
+            if ($result && $result['count'] > 0) {
+                echo "   [DRY RUN] vote_options: {$result['count']} opções seriam removidas\n";
             }
         }
     }
