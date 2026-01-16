@@ -302,15 +302,15 @@ class DashboardController extends Controller
             }
         }
 
-        // Get unread notifications
+        // Get unread notifications (max 3)
         $notificationService = new \App\Services\NotificationService();
         $allNotifications = $notificationService->getUnifiedNotifications($userId, 50);
         $unreadNotifications = array_filter($allNotifications, function($notif) {
             return isset($notif['is_read']) && !$notif['is_read'];
         });
-        // Re-index array and limit to 10 most recent
+        // Re-index array and limit to 3 most recent
         $unreadNotifications = array_values($unreadNotifications);
-        $unreadNotifications = array_slice($unreadNotifications, 0, 10);
+        $unreadNotifications = array_slice($unreadNotifications, 0, 3);
 
         $this->loadPageTranslations('dashboard');
         
