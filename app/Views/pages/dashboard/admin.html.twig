@@ -298,7 +298,9 @@
                             <h5>Ações Rápidas</h5>
                         </div>
                         <div class="card-body">
+                            {% if user.role == 'admin' or user.role == 'super_admin' %}
                             <a href="{{ BASE_URL }}condominiums/create" class="btn btn-primary mb-2 d-block">Criar Condomínio</a>
+                            {% endif %}
                             <a href="{{ BASE_URL }}subscription" class="btn btn-secondary mb-2 d-block">Gerir Subscrição</a>
                             {% if condominiums|length > 0 %}
                             <a href="{{ BASE_URL }}condominiums/{{ condominiums[0].id }}/finances" class="btn btn-success mb-2 d-block">Ver Finanças</a>
