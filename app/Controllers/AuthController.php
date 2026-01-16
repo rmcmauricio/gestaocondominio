@@ -485,7 +485,7 @@ class AuthController extends Controller
         session_start();
         
         $_SESSION['login_success'] = 'Logout realizado com sucesso!';
-        header('Location: ' . BASE_URL . 'login');
+        header('Location: ' . BASE_URL);
         exit;
     }
 
