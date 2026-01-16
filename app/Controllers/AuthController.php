@@ -6,6 +6,7 @@ use App\Core\Controller;
 use App\Core\Security;
 use App\Models\User;
 use App\Core\EmailService;
+use App\Services\GoogleOAuthService;
 
 class AuthController extends Controller
 {
@@ -572,6 +573,187 @@ class AuthController extends Controller
                 header('Location: ' . BASE_URL . 'dashboard');
         }
         exit;
+    }
+
+    /**
+     * Initiate Google OAuth authentication
+     */
+    public function googleAuth()
+    {
+        // If already logged in, redirect to dashboard
+        if (isset($_SESSION['user'])) {
+            $this->redirectToDashboard();
+            exit;
+        }
+
+        try {
+            $oauthService = new GoogleOAuthService();
+            $authUrl = $oauthService->getAuthUrl();
+            
+            // Store source (login or register) in session for redirect after callback
+            $source = $_GET['source'] ?? 'login';
+            $_SESSION['google_oauth_source'] = $source;
+            
+            header('Location: ' . $authUrl);
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['login_error'] = 'Erro ao iniciar autenticação Google: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'login');
+            exit;
+        }
+    }
+
+    /**
+     * Handle Google OAuth callback
+     */
+    public function googleCallback()
+    {
+        // If already logged in, redirect to dashboard
+        if (isset($_SESSION['user'])) {
+            $this->redirectToDashboard();
+            exit;
+        }
+
+        $code = $_GET['code'] ?? '';
+        $error = $_GET['error'] ?? '';
+
+        if (!empty($error)) {
+            $_SESSION['login_error'] = 'Autenticação Google cancelada ou falhou.';
+            $source = $_SESSION['google_oauth_source'] ?? 'login';
+            unset($_SESSION['google_oauth_source']);
+            header('Location: ' . BASE_URL . ($source === 'register' ? 'register' : 'login'));
+            exit;
+        }
+
+        if (empty($code)) {
+            $_SESSION['login_error'] = 'Código de autorização não recebido.';
+            $source = $_SESSION['google_oauth_source'] ?? 'login';
+            unset($_SESSION['google_oauth_source']);
+            header('Location: ' . BASE_URL . ($source === 'register' ? 'register' : 'login'));
+            exit;
+        }
+
+        try {
+            $oauthService = new GoogleOAuthService();
+            $userInfo = $oauthService->handleCallback($code);
+
+            $googleId = $userInfo['google_id'];
+            $email = $userInfo['email'];
+            $name = $userInfo['name'];
+            $source = $_SESSION['google_oauth_source'] ?? 'login';
+            unset($_SESSION['google_oauth_source']);
+
+            // Check if user exists by Google ID
+            $user = $this->userModel->findByGoogleId($googleId);
+
+            // If not found by Google ID, check by email
+            if (!$user) {
+                $user = $this->userModel->findByEmail($email);
+                
+                if ($user) {
+                    // User exists with this email but not linked to Google
+                    // Link the Google account
+                    if ($user['auth_provider'] === 'local') {
+                        // Link Google account to existing local account
+                        $this->userModel->linkGoogleAccount($user['id'], $googleId);
+                        $user = $this->userModel->findById($user['id']); // Refresh user data
+                    } else {
+                        // Email exists but with different provider - show error
+                        $_SESSION['login_error'] = 'Este email já está registado com outro método de autenticação.';
+                        header('Location: ' . BASE_URL . ($source === 'register' ? 'register' : 'login'));
+                        exit;
+                    }
+                }
+            }
+
+            // If user found, log them in
+            if ($user) {
+                // Check if user is active
+                if ($user['status'] !== 'active') {
+                    $_SESSION['login_error'] = 'A sua conta está suspensa ou inativa.';
+                    header('Location: ' . BASE_URL . 'login');
+                    exit;
+                }
+
+                // Set user session
+                $_SESSION['user'] = [
+                    'id' => $user['id'],
+                    'email' => $user['email'],
+                    'name' => $user['name'],
+                    'role' => $user['role']
+                ];
+
+                // Update last login
+                $this->userModel->updateLastLogin($user['id']);
+
+                // Log audit
+                $this->logAudit($user['id'], 'login', 'User logged in via Google OAuth');
+
+                $_SESSION['login_success'] = 'Login realizado com sucesso via Google!';
+                $this->redirectToDashboard();
+                exit;
+            }
+
+            // User doesn't exist - create new account (from register page)
+            if ($source === 'register') {
+                try {
+                    $userId = $this->userModel->create([
+                        'email' => $email,
+                        'name' => $name,
+                        'role' => 'admin', // Default to admin for new registrations
+                        'status' => 'active',
+                        'google_id' => $googleId,
+                        'auth_provider' => 'google'
+                    ]);
+
+                    // Log audit
+                    $this->logAudit($userId, 'register', 'User registered via Google OAuth');
+
+                    // Start trial subscription (default to START plan)
+                    $planModel = new \App\Models\Plan();
+                    $startPlan = $planModel->findBySlug('start');
+                    
+                    if ($startPlan) {
+                        $subscriptionService = new \App\Services\SubscriptionService();
+                        try {
+                            $subscriptionService->startTrial($userId, $startPlan['id'], 14);
+                        } catch (\Exception $e) {
+                            error_log("Trial start error: " . $e->getMessage());
+                        }
+                    }
+
+                    // Auto login after registration
+                    $user = $this->userModel->findById($userId);
+                    if ($user) {
+                        $_SESSION['user'] = [
+                            'id' => $user['id'],
+                            'email' => $user['email'],
+                            'name' => $user['name'],
+                            'role' => $user['role']
+                        ];
+                        
+                        $_SESSION['register_success'] = 'Conta criada com sucesso via Google! Período experimental de 14 dias iniciado.';
+                        header('Location: ' . BASE_URL . 'subscription/choose-plan');
+                        exit;
+                    }
+                } catch (\Exception $e) {
+                    $_SESSION['register_error'] = 'Erro ao criar conta: ' . $e->getMessage();
+                    header('Location: ' . BASE_URL . 'register');
+                    exit;
+                }
+            } else {
+                // Trying to login but account doesn't exist
+                $_SESSION['login_error'] = 'Conta não encontrada. Por favor, registe-se primeiro.';
+                header('Location: ' . BASE_URL . 'register');
+                exit;
+            }
+        } catch (\Exception $e) {
+            $_SESSION['login_error'] = 'Erro ao processar autenticação Google: ' . $e->getMessage();
+            $source = $_SESSION['google_oauth_source'] ?? 'login';
+            unset($_SESSION['google_oauth_source']);
+            header('Location: ' . BASE_URL . ($source === 'register' ? 'register' : 'login'));
+            exit;
+        }
     }
 
     protected function logAudit(int $userId, string $action, string $description): void

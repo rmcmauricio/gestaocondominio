@@ -44,6 +44,10 @@ $router->get('/reset-password', 'App\Controllers\AuthController@resetPassword');
 $router->post('/reset-password/process', 'App\Controllers\AuthController@processResetPassword');
 $router->get('/logout', 'App\Controllers\AuthController@logout');
 
+// Google OAuth routes
+$router->get('/auth/google', 'App\Controllers\AuthController@googleAuth');
+$router->get('/auth/google/callback', 'App\Controllers\AuthController@googleCallback');
+
 // Subscription routes
 $router->get('/subscription', 'App\Controllers\SubscriptionController@index');
 $router->get('/subscription/choose-plan', 'App\Controllers\SubscriptionController@choosePlan');
