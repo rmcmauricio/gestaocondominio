@@ -48,6 +48,12 @@ $router->get('/logout', 'App\Controllers\AuthController@logout');
 $router->get('/auth/google', 'App\Controllers\AuthController@googleAuth');
 $router->get('/auth/google/callback', 'App\Controllers\AuthController@googleCallback');
 
+// Account type and plan selection routes
+$router->get('/auth/select-account-type', 'App\Controllers\AuthController@selectAccountType');
+$router->post('/auth/select-account-type/process', 'App\Controllers\AuthController@processAccountType');
+$router->get('/auth/select-plan', 'App\Controllers\AuthController@selectPlanForAdmin');
+$router->post('/auth/select-plan/process', 'App\Controllers\AuthController@processPlanSelection');
+
 // Subscription routes
 $router->get('/subscription', 'App\Controllers\SubscriptionController@index');
 $router->get('/subscription/choose-plan', 'App\Controllers\SubscriptionController@choosePlan');

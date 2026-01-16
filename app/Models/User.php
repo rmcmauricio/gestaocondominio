@@ -42,6 +42,43 @@ class User extends Model
     }
 
     /**
+     * Find user by Google ID
+     */
+    public function findByGoogleId(string $googleId): ?array
+    {
+        if (!$this->db) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("SELECT * FROM users WHERE google_id = :google_id LIMIT 1");
+        $stmt->execute([':google_id' => $googleId]);
+        $user = $stmt->fetch();
+
+        return $user ?: null;
+    }
+
+    /**
+     * Link Google account to existing user
+     */
+    public function linkGoogleAccount(int $userId, string $googleId): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE users 
+            SET google_id = :google_id, auth_provider = 'google' 
+            WHERE id = :user_id
+        ");
+
+        return $stmt->execute([
+            ':google_id' => $googleId,
+            ':user_id' => $userId
+        ]);
+    }
+
+    /**
      * Create new user
      */
     public function create(array $data): int
@@ -50,20 +87,62 @@ class User extends Model
             throw new \Exception("Database connection not available");
         }
 
-        $stmt = $this->db->prepare("
-            INSERT INTO users (email, password, name, role, phone, nif, status)
-            VALUES (:email, :password, :name, :role, :phone, :nif, :status)
-        ");
+        // Build dynamic SQL based on provided fields
+        $fields = [];
+        $values = [];
+        $params = [];
 
-        $stmt->execute([
-            ':email' => $data['email'],
-            ':password' => Security::hashPassword($data['password']),
-            ':name' => $data['name'],
-            ':role' => $data['role'] ?? 'condomino',
-            ':phone' => $data['phone'] ?? null,
-            ':nif' => $data['nif'] ?? null,
-            ':status' => $data['status'] ?? 'active'
-        ]);
+        // Required fields
+        $fields[] = 'email';
+        $values[] = ':email';
+        $params[':email'] = $data['email'];
+
+        $fields[] = 'name';
+        $values[] = ':name';
+        $params[':name'] = $data['name'];
+
+        $fields[] = 'role';
+        $values[] = ':role';
+        $params[':role'] = $data['role'] ?? 'condomino';
+
+        $fields[] = 'status';
+        $values[] = ':status';
+        $params[':status'] = $data['status'] ?? 'active';
+
+        // Optional fields
+        if (isset($data['password']) && !empty($data['password'])) {
+            $fields[] = 'password';
+            $values[] = ':password';
+            $params[':password'] = Security::hashPassword($data['password']);
+        }
+
+        if (isset($data['phone'])) {
+            $fields[] = 'phone';
+            $values[] = ':phone';
+            $params[':phone'] = $data['phone'];
+        }
+
+        if (isset($data['nif'])) {
+            $fields[] = 'nif';
+            $values[] = ':nif';
+            $params[':nif'] = $data['nif'];
+        }
+
+        if (isset($data['google_id'])) {
+            $fields[] = 'google_id';
+            $values[] = ':google_id';
+            $params[':google_id'] = $data['google_id'];
+        }
+
+        if (isset($data['auth_provider'])) {
+            $fields[] = 'auth_provider';
+            $values[] = ':auth_provider';
+            $params[':auth_provider'] = $data['auth_provider'];
+        }
+
+        $sql = "INSERT INTO users (" . implode(', ', $fields) . ") VALUES (" . implode(', ', $values) . ")";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
 
         return (int)$this->db->lastInsertId();
     }

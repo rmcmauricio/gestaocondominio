@@ -127,6 +127,53 @@ class SubscriptionService
         return $this->upgrade($userId, $newPlanId);
     }
 
+    /**
+     * Check if trial is expired for user
+     */
+    public function isTrialExpired(int $userId): bool
+    {
+        $subscription = $this->subscriptionModel->getActiveSubscription($userId);
+        
+        if (!$subscription) {
+            return false; // No subscription means no trial to expire
+        }
+
+        // Only check trial expiration if status is 'trial'
+        if ($subscription['status'] !== 'trial') {
+            return false;
+        }
+
+        // Check if trial_ends_at has passed
+        if (isset($subscription['trial_ends_at']) && $subscription['trial_ends_at']) {
+            $trialEndsAt = strtotime($subscription['trial_ends_at']);
+            $now = time();
+            return $trialEndsAt < $now;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if user has active subscription (not trial, not expired)
+     */
+    public function hasActiveSubscription(int $userId): bool
+    {
+        $subscription = $this->subscriptionModel->getActiveSubscription($userId);
+        
+        if (!$subscription) {
+            return false;
+        }
+
+        // Active subscription must have status 'active' and not be expired
+        if ($subscription['status'] === 'active') {
+            $periodEnd = strtotime($subscription['current_period_end']);
+            $now = time();
+            return $periodEnd > $now;
+        }
+
+        return false;
+    }
+
     protected function getUserIdFromSubscription(int $subscriptionId): int
     {
         global $db;

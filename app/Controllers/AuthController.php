@@ -190,7 +190,7 @@ class AuthController extends Controller
             'viewName' => 'pages/register.html.twig',
             'page' => [
                 'titulo' => 'Criar Conta - MeuPrédio',
-                'description' => 'Crie a sua conta de administrador e comece a gerir o seu condomínio',
+                'description' => 'Crie a sua conta e comece a utilizar o MeuPrédio',
                 'keywords' => 'registro, criar conta, gestão condomínios'
             ],
             'error' => $_SESSION['register_error'] ?? null,
@@ -225,12 +225,18 @@ class AuthController extends Controller
         $name = Security::sanitize($_POST['name'] ?? '');
         $phone = Security::sanitize($_POST['phone'] ?? '');
         $nif = Security::sanitize($_POST['nif'] ?? '');
-        $role = Security::sanitize($_POST['role'] ?? 'admin'); // Default to admin for registration
+        $accountType = Security::sanitize($_POST['account_type'] ?? '');
         $terms = isset($_POST['terms']) && $_POST['terms'] === 'on';
 
         // Validation
         if (empty($email) || empty($password) || empty($name)) {
             $_SESSION['register_error'] = 'Por favor, preencha todos os campos obrigatórios.';
+            header('Location: ' . BASE_URL . 'register');
+            exit;
+        }
+
+        if (empty($accountType) || !in_array($accountType, ['user', 'admin'])) {
+            $_SESSION['register_error'] = 'Por favor, selecione o tipo de conta.';
             header('Location: ' . BASE_URL . 'register');
             exit;
         }
@@ -266,13 +272,28 @@ class AuthController extends Controller
             exit;
         }
 
-        // Create user
+        // If admin, store registration data in session and redirect to plan selection
+        if ($accountType === 'admin') {
+            $_SESSION['pending_registration'] = [
+                'email' => $email,
+                'password' => $password,
+                'name' => $name,
+                'phone' => $phone,
+                'nif' => $nif,
+                'role' => 'admin',
+                'account_type' => 'admin'
+            ];
+            header('Location: ' . BASE_URL . 'auth/select-plan');
+            exit;
+        }
+
+        // If user (condomino), create account directly without subscription
         try {
             $userId = $this->userModel->create([
                 'email' => $email,
                 'password' => $password,
                 'name' => $name,
-                'role' => $role, // admin for new registrations
+                'role' => 'condomino',
                 'phone' => $phone ?: null,
                 'nif' => $nif ?: null,
                 'status' => 'active'
@@ -280,19 +301,6 @@ class AuthController extends Controller
 
             // Log audit
             $this->logAudit($userId, 'register', 'User registered');
-
-            // Start trial subscription (default to START plan)
-            $planModel = new \App\Models\Plan();
-            $startPlan = $planModel->findBySlug('start');
-            
-            if ($startPlan) {
-                $subscriptionService = new \App\Services\SubscriptionService();
-                try {
-                    $subscriptionService->startTrial($userId, $startPlan['id'], 14);
-                } catch (\Exception $e) {
-                    error_log("Trial start error: " . $e->getMessage());
-                }
-            }
 
             // Auto login after registration
             $user = $this->userModel->findById($userId);
@@ -304,8 +312,8 @@ class AuthController extends Controller
                     'role' => $user['role']
                 ];
                 
-                $_SESSION['register_success'] = 'Conta criada com sucesso! Período experimental de 14 dias iniciado.';
-                header('Location: ' . BASE_URL . 'subscription/choose-plan');
+                $_SESSION['register_success'] = 'Conta criada com sucesso!';
+                $this->redirectToDashboard();
                 exit;
             }
 
@@ -694,53 +702,18 @@ class AuthController extends Controller
                 exit;
             }
 
-            // User doesn't exist - create new account (from register page)
+            // User doesn't exist - ask for account type
             if ($source === 'register') {
-                try {
-                    $userId = $this->userModel->create([
-                        'email' => $email,
-                        'name' => $name,
-                        'role' => 'admin', // Default to admin for new registrations
-                        'status' => 'active',
-                        'google_id' => $googleId,
-                        'auth_provider' => 'google'
-                    ]);
-
-                    // Log audit
-                    $this->logAudit($userId, 'register', 'User registered via Google OAuth');
-
-                    // Start trial subscription (default to START plan)
-                    $planModel = new \App\Models\Plan();
-                    $startPlan = $planModel->findBySlug('start');
-                    
-                    if ($startPlan) {
-                        $subscriptionService = new \App\Services\SubscriptionService();
-                        try {
-                            $subscriptionService->startTrial($userId, $startPlan['id'], 14);
-                        } catch (\Exception $e) {
-                            error_log("Trial start error: " . $e->getMessage());
-                        }
-                    }
-
-                    // Auto login after registration
-                    $user = $this->userModel->findById($userId);
-                    if ($user) {
-                        $_SESSION['user'] = [
-                            'id' => $user['id'],
-                            'email' => $user['email'],
-                            'name' => $user['name'],
-                            'role' => $user['role']
-                        ];
-                        
-                        $_SESSION['register_success'] = 'Conta criada com sucesso via Google! Período experimental de 14 dias iniciado.';
-                        header('Location: ' . BASE_URL . 'subscription/choose-plan');
-                        exit;
-                    }
-                } catch (\Exception $e) {
-                    $_SESSION['register_error'] = 'Erro ao criar conta: ' . $e->getMessage();
-                    header('Location: ' . BASE_URL . 'register');
-                    exit;
-                }
+                // Store Google OAuth data in session for account creation
+                $_SESSION['google_oauth_pending'] = [
+                    'email' => $email,
+                    'name' => $name,
+                    'google_id' => $googleId,
+                    'auth_provider' => 'google'
+                ];
+                // Redirect to account type selection
+                header('Location: ' . BASE_URL . 'auth/select-account-type');
+                exit;
             } else {
                 // Trying to login but account doesn't exist
                 $_SESSION['login_error'] = 'Conta não encontrada. Por favor, registe-se primeiro.';
@@ -752,6 +725,309 @@ class AuthController extends Controller
             $source = $_SESSION['google_oauth_source'] ?? 'login';
             unset($_SESSION['google_oauth_source']);
             header('Location: ' . BASE_URL . ($source === 'register' ? 'register' : 'login'));
+            exit;
+        }
+    }
+
+    /**
+     * Show account type selection page (for Google OAuth)
+     */
+    public function selectAccountType()
+    {
+        // If already logged in, redirect to dashboard
+        if (isset($_SESSION['user'])) {
+            $this->redirectToDashboard();
+            exit;
+        }
+
+        // Check if we have pending Google OAuth data
+        if (!isset($_SESSION['google_oauth_pending'])) {
+            $_SESSION['register_error'] = 'Dados de autenticação não encontrados. Por favor, tente novamente.';
+            header('Location: ' . BASE_URL . 'register');
+            exit;
+        }
+
+        $this->loadPageTranslations('login');
+        
+        $this->data += [
+            'viewName' => 'pages/auth/select-account-type.html.twig',
+            'page' => [
+                'titulo' => 'Selecionar Tipo de Conta',
+                'description' => 'Escolha o tipo de conta que deseja criar'
+            ],
+            'error' => $_SESSION['register_error'] ?? null,
+            'csrf_token' => Security::generateCSRFToken()
+        ];
+        
+        unset($_SESSION['register_error']);
+        
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Process account type selection
+     */
+    public function processAccountType()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'auth/select-account-type');
+            exit;
+        }
+
+        // Verify CSRF token
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['register_error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'auth/select-account-type');
+            exit;
+        }
+
+        // Check if we have pending Google OAuth data
+        if (!isset($_SESSION['google_oauth_pending'])) {
+            $_SESSION['register_error'] = 'Dados de autenticação não encontrados. Por favor, tente novamente.';
+            header('Location: ' . BASE_URL . 'register');
+            exit;
+        }
+
+        $accountType = Security::sanitize($_POST['account_type'] ?? '');
+
+        if (empty($accountType) || !in_array($accountType, ['user', 'admin'])) {
+            $_SESSION['register_error'] = 'Por favor, selecione o tipo de conta.';
+            header('Location: ' . BASE_URL . 'auth/select-account-type');
+            exit;
+        }
+
+        $googleData = $_SESSION['google_oauth_pending'];
+
+        // If user (condomino), create account directly
+        if ($accountType === 'user') {
+            try {
+                $userId = $this->userModel->create([
+                    'email' => $googleData['email'],
+                    'name' => $googleData['name'],
+                    'role' => 'condomino',
+                    'status' => 'active',
+                    'google_id' => $googleData['google_id'],
+                    'auth_provider' => $googleData['auth_provider']
+                ]);
+
+                // Log audit
+                $this->logAudit($userId, 'register', 'User registered via Google OAuth');
+
+                // Auto login
+                $user = $this->userModel->findById($userId);
+                if ($user) {
+                    unset($_SESSION['google_oauth_pending']);
+                    $_SESSION['user'] = [
+                        'id' => $user['id'],
+                        'email' => $user['email'],
+                        'name' => $user['name'],
+                        'role' => $user['role']
+                    ];
+                    
+                    $_SESSION['register_success'] = 'Conta criada com sucesso via Google!';
+                    $this->redirectToDashboard();
+                    exit;
+                }
+            } catch (\Exception $e) {
+                $_SESSION['register_error'] = 'Erro ao criar conta: ' . $e->getMessage();
+                header('Location: ' . BASE_URL . 'auth/select-account-type');
+                exit;
+            }
+        }
+
+        // If admin, store account type and redirect to plan selection
+        $_SESSION['google_oauth_pending']['account_type'] = 'admin';
+        $_SESSION['google_oauth_pending']['role'] = 'admin';
+        header('Location: ' . BASE_URL . 'auth/select-plan');
+        exit;
+    }
+
+    /**
+     * Show plan selection page (for admin registration)
+     */
+    public function selectPlanForAdmin()
+    {
+        // Check if we have pending registration data (from normal register or Google OAuth)
+        $hasPendingRegistration = isset($_SESSION['pending_registration']);
+        $hasGoogleOAuth = isset($_SESSION['google_oauth_pending']) && 
+                         isset($_SESSION['google_oauth_pending']['account_type']) && 
+                         $_SESSION['google_oauth_pending']['account_type'] === 'admin';
+
+        if (!$hasPendingRegistration && !$hasGoogleOAuth) {
+            $_SESSION['register_error'] = 'Dados de registo não encontrados. Por favor, tente novamente.';
+            header('Location: ' . BASE_URL . 'register');
+            exit;
+        }
+
+        // Get plans
+        $planModel = new \App\Models\Plan();
+        $plans = $planModel->getActivePlans();
+
+        // Convert features to readable format
+        $featureLabels = [
+            'financas_basicas' => 'Finanças Básicas',
+            'financas_completas' => 'Finanças Completas',
+            'documentos' => 'Gestão de Documentos',
+            'ocorrencias_simples' => 'Ocorrências Simples',
+            'votacoes_online' => 'Votações Online',
+            'reservas_espacos' => 'Reservas de Espaços',
+            'gestao_contratos' => 'Gestão de Contratos',
+            'gestao_fornecedores' => 'Gestão de Fornecedores',
+            'api' => 'API REST',
+            'branding_personalizado' => 'Branding Personalizado',
+            'app_mobile' => 'App Mobile',
+            'app_mobile_premium' => 'App Mobile Premium',
+            'todos_modulos' => 'Todos os Módulos',
+            'suporte_prioritario' => 'Suporte Prioritário'
+        ];
+        
+        foreach ($plans as &$plan) {
+            $featuresArray = [];
+            if (isset($plan['features']) && is_string($plan['features'])) {
+                $featuresJson = json_decode($plan['features'], true) ?: [];
+                foreach ($featuresJson as $key => $value) {
+                    if ($value === true && isset($featureLabels[$key])) {
+                        $featuresArray[] = $featureLabels[$key];
+                    }
+                }
+            }
+            $plan['features'] = $featuresArray;
+        }
+        unset($plan);
+
+        $this->loadPageTranslations('subscription');
+        
+        $this->data += [
+            'viewName' => 'pages/auth/select-plan.html.twig',
+            'page' => [
+                'titulo' => 'Escolher Plano de Subscrição',
+                'description' => 'Escolha o plano ideal para o seu condomínio'
+            ],
+            'plans' => $plans,
+            'error' => $_SESSION['register_error'] ?? null,
+            'csrf_token' => Security::generateCSRFToken()
+        ];
+        
+        unset($_SESSION['register_error']);
+        
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Process plan selection and create admin account
+     */
+    public function processPlanSelection()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'auth/select-plan');
+            exit;
+        }
+
+        // Verify CSRF token
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['register_error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'auth/select-plan');
+            exit;
+        }
+
+        $planId = (int)($_POST['plan_id'] ?? 0);
+        $planModel = new \App\Models\Plan();
+        $plan = $planModel->findById($planId);
+
+        if (!$plan) {
+            $_SESSION['register_error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'auth/select-plan');
+            exit;
+        }
+
+        // Check if we have pending registration data
+        $pendingData = null;
+        $isGoogleOAuth = false;
+
+        if (isset($_SESSION['google_oauth_pending']) && 
+            isset($_SESSION['google_oauth_pending']['account_type']) && 
+            $_SESSION['google_oauth_pending']['account_type'] === 'admin') {
+            $pendingData = $_SESSION['google_oauth_pending'];
+            $isGoogleOAuth = true;
+        } elseif (isset($_SESSION['pending_registration'])) {
+            $pendingData = $_SESSION['pending_registration'];
+        }
+
+        if (!$pendingData) {
+            $_SESSION['register_error'] = 'Dados de registo não encontrados. Por favor, tente novamente.';
+            header('Location: ' . BASE_URL . 'register');
+            exit;
+        }
+
+        // Check if email already exists (in case user refreshed page)
+        if ($this->userModel->findByEmail($pendingData['email'])) {
+            $_SESSION['register_error'] = 'Este email já está registado.';
+            header('Location: ' . BASE_URL . 'register');
+            exit;
+        }
+
+        try {
+            // Create user account
+            $userData = [
+                'email' => $pendingData['email'],
+                'name' => $pendingData['name'],
+                'role' => 'admin',
+                'status' => 'active'
+            ];
+
+            if ($isGoogleOAuth) {
+                $userData['google_id'] = $pendingData['google_id'];
+                $userData['auth_provider'] = $pendingData['auth_provider'];
+            } else {
+                $userData['password'] = $pendingData['password'];
+                if (isset($pendingData['phone'])) {
+                    $userData['phone'] = $pendingData['phone'];
+                }
+                if (isset($pendingData['nif'])) {
+                    $userData['nif'] = $pendingData['nif'];
+                }
+            }
+
+            $userId = $this->userModel->create($userData);
+
+            // Log audit
+            $this->logAudit($userId, 'register', 'Admin registered' . ($isGoogleOAuth ? ' via Google OAuth' : ''));
+
+            // Start trial subscription
+            $subscriptionService = new \App\Services\SubscriptionService();
+            try {
+                $subscriptionService->startTrial($userId, $planId, 14);
+            } catch (\Exception $e) {
+                error_log("Trial start error: " . $e->getMessage());
+            }
+
+            // Clear pending data
+            unset($_SESSION['pending_registration']);
+            unset($_SESSION['google_oauth_pending']);
+
+            // Auto login
+            $user = $this->userModel->findById($userId);
+            if ($user) {
+                $_SESSION['user'] = [
+                    'id' => $user['id'],
+                    'email' => $user['email'],
+                    'name' => $user['name'],
+                    'role' => $user['role']
+                ];
+                
+                $_SESSION['register_success'] = 'Conta criada com sucesso! Período experimental de 14 dias iniciado.';
+                header('Location: ' . BASE_URL . 'subscription');
+                exit;
+            }
+
+            $_SESSION['register_success'] = 'Registo realizado com sucesso! Pode fazer login agora.';
+            header('Location: ' . BASE_URL . 'login');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['register_error'] = 'Erro ao criar conta: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'auth/select-plan');
             exit;
         }
     }

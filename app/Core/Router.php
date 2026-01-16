@@ -142,6 +142,9 @@ class Router extends Controller
                     return;
                 }
 
+                // Check subscription middleware before calling controller
+                \App\Middleware\SubscriptionMiddleware::handle();
+
                 call_user_func_array([$controller, $action], $matches);
                 return;
             }
