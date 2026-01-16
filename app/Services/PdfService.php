@@ -855,8 +855,53 @@ class PdfService
 
         $condominiumName = htmlspecialchars($condominium['name'] ?? '');
         $condominiumAddress = htmlspecialchars($condominium['address'] ?? '');
+        $condominiumNif = htmlspecialchars($condominium['nif'] ?? '');
         $fractionIdentifier = htmlspecialchars($fraction['identifier'] ?? '');
         $feeReference = htmlspecialchars($fee['reference'] ?? '');
+
+        // Get payment information if not provided
+        $paymentDate = null;
+        $paymentMethod = null;
+        $paymentMethodLabel = null;
+        
+        if ($payment) {
+            $paymentDate = $payment['payment_date'] ?? null;
+            $paymentMethod = $payment['payment_method'] ?? null;
+        } else {
+            // Fetch the most recent payment for this fee
+            try {
+                global $db;
+                if ($db) {
+                    $stmt = $db->prepare("
+                        SELECT payment_date, payment_method 
+                        FROM fee_payments 
+                        WHERE fee_id = :fee_id 
+                        ORDER BY payment_date DESC, created_at DESC 
+                        LIMIT 1
+                    ");
+                    $stmt->execute([':fee_id' => $fee['id']]);
+                    $latestPayment = $stmt->fetch();
+                    if ($latestPayment) {
+                        $paymentDate = $latestPayment['payment_date'];
+                        $paymentMethod = $latestPayment['payment_method'];
+                    }
+                }
+            } catch (\Exception $e) {
+                // If database access fails, continue without payment info
+                error_log("Error fetching payment info for receipt: " . $e->getMessage());
+            }
+        }
+        
+        // Map payment method to label
+        $paymentMethodLabels = [
+            'multibanco' => 'Multibanco',
+            'mbway' => 'MB Way',
+            'transfer' => 'Transferência Bancária',
+            'cash' => 'Dinheiro',
+            'card' => 'Cartão',
+            'sepa' => 'SEPA'
+        ];
+        $paymentMethodLabel = $paymentMethod ? ($paymentMethodLabels[$paymentMethod] ?? ucfirst($paymentMethod)) : null;
 
         return "
         <!DOCTYPE html>
@@ -865,94 +910,94 @@ class PdfService
             <meta charset='UTF-8'>
             <title>Recibo de Quota</title>
             <style>
-                @page { margin: 1.5cm; }
+                @page { margin: 1cm; }
                 body { 
                     font-family: 'Times New Roman', serif; 
                     margin: 0;
-                    padding: 10px;
-                    line-height: 1.4;
+                    padding: 5px;
+                    line-height: 1.2;
                     color: #333;
-                    font-size: 11pt;
+                    font-size: 9pt;
                 }
                 .header { 
                     text-align: center; 
-                    margin-bottom: 20px;
+                    margin-bottom: 8px;
                     border-bottom: 2px solid #333;
-                    padding-bottom: 10px;
+                    padding-bottom: 5px;
                 }
                 .header h1 { 
                     color: #1a1a1a;
-                    font-size: 22px;
+                    font-size: 16px;
                     margin: 0;
                     text-transform: uppercase;
-                    letter-spacing: 1px;
+                    letter-spacing: 0.5px;
                     font-weight: bold;
                 }
                 .header .subtitle {
-                    font-size: 12px;
+                    font-size: 10px;
                     color: #666;
-                    margin-top: 5px;
+                    margin-top: 2px;
                     font-weight: normal;
                 }
                 .receipt-info {
-                    margin: 15px 0;
+                    margin: 8px 0;
                 }
                 .info-box {
                     background-color: #f9f9f9;
                     border: 1px solid #333;
-                    padding: 12px;
-                    margin: 12px 0;
+                    padding: 6px;
+                    margin: 6px 0;
                 }
                 .info-box h2 {
                     margin-top: 0;
-                    font-size: 14px;
+                    font-size: 11px;
                     border-bottom: 1px solid #333;
-                    padding-bottom: 5px;
-                    margin-bottom: 8px;
+                    padding-bottom: 2px;
+                    margin-bottom: 4px;
                 }
                 .info-row {
                     display: flex;
-                    margin: 5px 0;
-                    padding: 4px 0;
+                    margin: 2px 0;
+                    padding: 2px 0;
                     border-bottom: 1px dotted #ccc;
                 }
                 .info-label {
                     font-weight: bold;
-                    width: 140px;
+                    width: 120px;
                     flex-shrink: 0;
-                    font-size: 10pt;
+                    font-size: 8.5pt;
                 }
                 .info-value {
                     flex: 1;
-                    font-size: 10pt;
+                    font-size: 8.5pt;
                 }
                 .amount-box {
                     background-color: #e7f3ff;
                     border: 2px solid #007bff;
-                    padding: 15px;
-                    margin: 15px 0;
+                    padding: 8px;
+                    margin: 8px 0;
                     text-align: center;
                 }
                 .amount-box .label {
-                    font-size: 12px;
+                    font-size: 10px;
                     color: #666;
-                    margin-bottom: 5px;
+                    margin-bottom: 2px;
                 }
                 .amount-box .value {
-                    font-size: 28px;
+                    font-size: 20px;
                     font-weight: bold;
                     color: #007bff;
                 }
                 .footer { 
-                    margin-top: 25px;
-                    padding-top: 10px;
+                    margin-top: 10px;
+                    padding-top: 5px;
                     border-top: 1px solid #333;
-                    font-size: 9px;
+                    font-size: 7px;
                     color: #666;
                     text-align: center;
                 }
                 .signature-section {
-                    margin-top: 30px;
+                    margin-top: 12px;
                     display: flex;
                     justify-content: space-between;
                 }
@@ -960,15 +1005,15 @@ class PdfService
                     width: 45%;
                     text-align: center;
                     border-top: 1px solid #333;
-                    padding-top: 5px;
-                    margin-top: 40px;
-                    font-size: 9pt;
+                    padding-top: 3px;
+                    margin-top: 20px;
+                    font-size: 8pt;
                 }
                 .receipt-number {
                     text-align: right;
-                    font-size: 11px;
+                    font-size: 9px;
                     color: #666;
-                    margin-bottom: 10px;
+                    margin-bottom: 5px;
                 }
             </style>
         </head>
@@ -990,6 +1035,10 @@ class PdfService
                     <span class='info-label'>Morada:</span>
                     <span class='info-value'>{$condominiumAddress}</span>
                 </div>
+                " . ($condominiumNif ? "<div class='info-row'>
+                    <span class='info-label'>NIF:</span>
+                    <span class='info-value'>{$condominiumNif}</span>
+                </div>" : "") . "
             </div>
 
             <div class='info-box'>
@@ -1017,22 +1066,34 @@ class PdfService
                 <div class='value'>€" . number_format((float)$amount, 2, ',', '.') . "</div>
             </div>
 
-            <div class='info-box' style='background-color: #d4edda; border-color: #28a745;'>
-                <p style='margin: 0; text-align: center; font-size: 12px;'><strong>✓ Quota totalmente liquidada</strong></p>
+            " . ($paymentDate || $paymentMethodLabel ? "<div class='info-box'>
+                <h2>Dados do Pagamento</h2>
+                " . ($paymentDate ? "<div class='info-row'>
+                    <span class='info-label'>Data de Pagamento:</span>
+                    <span class='info-value'>" . date('d/m/Y', strtotime($paymentDate)) . "</span>
+                </div>" : "") . "
+                " . ($paymentMethodLabel ? "<div class='info-row'>
+                    <span class='info-label'>Meio de Pagamento:</span>
+                    <span class='info-value'>{$paymentMethodLabel}</span>
+                </div>" : "") . "
+            </div>" : "") . "
+
+            <div class='info-box' style='background-color: #d4edda; border-color: #28a745; padding: 4px;'>
+                <p style='margin: 0; text-align: center; font-size: 10px;'><strong>Quota totalmente liquidada</strong></p>
             </div>
 
             <div class='footer'>
-                <p style='margin: 3px 0;'>Este recibo foi gerado automaticamente pelo sistema de gestão de condomínios.</p>
-                <p style='margin: 3px 0;'>Data de geração: " . date('d/m/Y H:i') . "</p>
-                <p style='margin-top: 8px; margin-bottom: 0;'>Este documento tem valor fiscal e comprovativo do pagamento da quota de condomínio.</p>
+                <p style='margin: 2px 0;'>Este recibo foi gerado automaticamente pelo sistema de gestão de condomínios.</p>
+                <p style='margin: 2px 0;'>Data de geração: " . date('d/m/Y H:i') . "</p>
+                <p style='margin-top: 4px; margin-bottom: 0;'>Este documento tem valor fiscal e comprovativo do pagamento da quota de condomínio.</p>
             </div>
 
             <div class='signature-section'>
                 <div class='signature-box'>
-                    <p><strong>Condómino</strong></p>
+                    <p style='margin: 0;'><strong>Condómino</strong></p>
                 </div>
                 <div class='signature-box'>
-                    <p><strong>Administrador do Condomínio</strong></p>
+                    <p style='margin: 0;'><strong>Administrador do Condomínio</strong></p>
                 </div>
             </div>
         </body>

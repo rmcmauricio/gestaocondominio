@@ -49,6 +49,13 @@ class VoteController extends Controller
             exit;
         }
 
+        // Get vote options for condominium
+        $voteOptionModel = new \App\Models\VoteOption();
+        $voteOptions = $voteOptionModel->getByCondominium($condominiumId);
+        $defaultOptions = array_map(function($opt) {
+            return $opt['option_label'];
+        }, $voteOptions);
+
         $this->loadPageTranslations('votes');
         
         $this->data += [
@@ -56,6 +63,8 @@ class VoteController extends Controller
             'page' => ['titulo' => 'Criar Tópico de Votação'],
             'condominium' => $condominium,
             'assembly' => $assembly,
+            'vote_options' => $voteOptions,
+            'default_options' => $defaultOptions,
             'csrf_token' => Security::generateCSRFToken()
         ];
 
@@ -92,9 +101,34 @@ class VoteController extends Controller
                 }
             }
 
-            // Default options if none provided
+            // Default options from condominium vote_options if none provided
             if (empty($options)) {
-                $options = ['Sim', 'Não', 'Abstenção'];
+                $voteOptionModel = new \App\Models\VoteOption();
+                $voteOptions = $voteOptionModel->getByCondominium($condominiumId);
+                if (!empty($voteOptions)) {
+                    $options = array_map(function($opt) {
+                        return $opt['option_label'];
+                    }, $voteOptions);
+                } else {
+                    // Fallback to old defaults
+                    $options = ['A favor', 'Contra', 'Abstenção'];
+                }
+            }
+
+            // Validate options against condominium vote_options
+            $voteOptionModel = new \App\Models\VoteOption();
+            $validOptions = $voteOptionModel->getByCondominium($condominiumId);
+            $validOptionLabels = array_map(function($opt) {
+                return $opt['option_label'];
+            }, $validOptions);
+            
+            // Check if all provided options are valid
+            foreach ($options as $option) {
+                if (!in_array($option, $validOptionLabels)) {
+                    $_SESSION['error'] = 'Opção de voto inválida: ' . $option . '. Use apenas as opções configuradas para este condomínio.';
+                    header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId . '/votes/create-topic');
+                    exit;
+                }
             }
 
             // Get max order_index

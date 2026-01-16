@@ -261,6 +261,24 @@ $router->post('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/{to
 $router->post('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/{topic_id}/bulk', 'App\Controllers\VoteController@voteBulk');
 $router->get('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/{topic_id}/results', 'App\Controllers\VoteController@results');
 
+// Standalone Votes routes
+$router->get('/condominiums/{id}/votes', 'App\Controllers\StandaloneVoteController@index');
+$router->get('/condominiums/{id}/votes/create', 'App\Controllers\StandaloneVoteController@create');
+$router->post('/condominiums/{id}/votes', 'App\Controllers\StandaloneVoteController@store');
+$router->get('/condominiums/{id}/votes/{voteId}', 'App\Controllers\StandaloneVoteController@show');
+$router->get('/condominiums/{id}/votes/{voteId}/edit', 'App\Controllers\StandaloneVoteController@edit');
+$router->post('/condominiums/{id}/votes/{voteId}', 'App\Controllers\StandaloneVoteController@update');
+$router->post('/condominiums/{id}/votes/{voteId}/start', 'App\Controllers\StandaloneVoteController@start');
+$router->post('/condominiums/{id}/votes/{voteId}/close', 'App\Controllers\StandaloneVoteController@close');
+$router->post('/condominiums/{id}/votes/{voteId}/delete', 'App\Controllers\StandaloneVoteController@delete');
+$router->post('/condominiums/{id}/votes/{voteId}/vote', 'App\Controllers\StandaloneVoteController@vote');
+
+// Vote Options routes
+$router->get('/condominiums/{id}/vote-options', 'App\Controllers\VoteOptionController@index');
+$router->post('/condominiums/{id}/vote-options', 'App\Controllers\VoteOptionController@store');
+$router->post('/condominiums/{id}/vote-options/{optionId}', 'App\Controllers\VoteOptionController@update');
+$router->post('/condominiums/{id}/vote-options/{optionId}/delete', 'App\Controllers\VoteOptionController@delete');
+
 // Message routes
 $router->get('/condominiums/{condominium_id}/messages', 'App\Controllers\MessageController@index');
 $router->get('/condominiums/{condominium_id}/messages/create', 'App\Controllers\MessageController@create');

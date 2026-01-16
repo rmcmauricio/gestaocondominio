@@ -1,0 +1,80 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Criar Votação</h2>
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+
+            {% if error %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{ error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
+
+            <div class="card">
+                <div class="card-body">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Título <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="title" name="title" required maxlength="255" value="{{ old.title|default('') }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="description" name="description" rows="5">{{ old.description|default('') }}</textarea>
+                            <small class="form-text text-muted">Descreva o assunto da votação e forneça informações relevantes.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Opções de Resposta Permitidas <span class="text-danger">*</span></label>
+                            <small class="form-text text-muted d-block mb-2">Selecione quais opções de resposta estarão disponíveis nesta votação:</small>
+                            {% if vote_options %}
+                            <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                                {% for option in vote_options %}
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="allowed_options[]" value="{{ option.id }}" id="option_{{ option.id }}" 
+                                           {% if old.allowed_options is defined and option.id in old.allowed_options %}checked{% elseif not old.allowed_options is defined and option.is_default %}checked{% endif %}>
+                                    <label class="form-check-label" for="option_{{ option.id }}">
+                                        {{ option.option_label }}
+                                        {% if option.is_default %}
+                                        <span class="badge bg-info ms-2">Padrão</span>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="form-text text-muted mt-2">Pode selecionar uma ou mais opções. As opções padrão estão pré-selecionadas.</small>
+                            {% else %}
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i> 
+                                Nenhuma opção de resposta configurada. 
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/vote-options" class="alert-link">Configure as opções primeiro</a>.
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> 
+                            <strong>Nota:</strong> A votação será criada como rascunho. Após criar, poderá abrir a votação para que os condóminos possam votar.
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes" class="btn btn-outline-secondary">
+                                Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> Criar Votação
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

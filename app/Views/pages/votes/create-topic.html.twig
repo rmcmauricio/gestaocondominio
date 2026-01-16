@@ -35,25 +35,50 @@
 
                         <div class="mb-3">
                             <label class="form-label">Opções de Votação <span class="text-danger">*</span></label>
+                            <small class="form-text text-muted d-block mb-2">
+                                As opções padrão do condomínio são pré-preenchidas. Pode adicionar ou remover opções.
+                            </small>
                             <div id="options-container">
-                                <div class="input-group mb-2">
-                                    <input type="text" class="form-control" name="options[]" placeholder="Ex: Sim" required>
-                                    <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                                <div class="input-group mb-2">
-                                    <input type="text" class="form-control" name="options[]" placeholder="Ex: Não" required>
-                                    <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                                <div class="input-group mb-2">
-                                    <input type="text" class="form-control" name="options[]" placeholder="Ex: Abstenção" required>
-                                    <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
+                                {% if default_options %}
+                                    {% for option in default_options %}
+                                    <div class="input-group mb-2">
+                                        <input type="text" class="form-control" name="options[]" value="{{ option }}" required>
+                                        <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    {% if vote_options %}
+                                        {% for option in vote_options %}
+                                        <div class="input-group mb-2">
+                                            <input type="text" class="form-control" name="options[]" value="{{ option.option_label }}" required>
+                                            <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="input-group mb-2">
+                                            <input type="text" class="form-control" name="options[]" placeholder="Ex: A favor" required>
+                                            <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                        <div class="input-group mb-2">
+                                            <input type="text" class="form-control" name="options[]" placeholder="Ex: Contra" required>
+                                            <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                        <div class="input-group mb-2">
+                                            <input type="text" class="form-control" name="options[]" placeholder="Ex: Abstenção" required>
+                                            <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
                             </div>
                             <button type="button" class="btn btn-sm btn-outline-primary" onclick="addOption()">
                                 <i class="bi bi-plus"></i> Adicionar Opção

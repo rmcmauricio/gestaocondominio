@@ -5,15 +5,15 @@
                 <h2>Finanças</h2>
                 <p class="text-muted mb-0">{{ condominium.name }}</p>
             </div>
-            {% include 'blocks/help-button.html.twig' with {'section': 'finances', 'title': 'Ajuda com Finanças', 'show_text': false} %}
+            <button type="button" 
+                    class="btn btn-outline-info btn-sm p-1" 
+                    style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;"
+                    onclick="openHelpModal('finances'); return false;"
+                    title="Ajuda com Finanças"
+                    aria-label="Ajuda com Finanças">
+                <i class="bi bi-question-circle" style="font-size: 0.875rem;"></i>
+            </button>
         </div>
-        {% if is_admin %}
-        <div class="w-100 w-md-auto">
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create" class="btn btn-primary w-100 w-md-auto">
-                <i class="bi bi-plus-circle"></i> Nova Despesa
-            </a>
-        </div>
-        {% endif %}
     </div>
 
     {% if error %}
@@ -29,6 +29,86 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     {% endif %}
+
+    <!-- Menu de Ações -->
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <!-- Orçamentos -->
+        <div class="d-flex flex-wrap align-items-center gap-1 pe-3 border-end">
+            <span class="text-muted small fw-bold me-2">Orçamentos:</span>
+            {% if not budget %}
+                {% if is_admin %}
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create" class="btn btn-primary btn-sm py-1 px-2" style="font-size: 0.75rem;">
+                    <i class="bi bi-calendar-check"></i> Criar {{ current_year }}
+                </a>
+                {% endif %}
+            {% else %}
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}" class="btn btn-primary btn-sm py-1 px-2" style="font-size: 0.75rem;">
+                <i class="bi bi-eye"></i> {{ current_year }}
+            </a>
+            {% if budget.status == 'draft' and is_admin %}
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}/edit" class="btn btn-outline-warning btn-sm py-1 px-2" style="font-size: 0.75rem;">
+                <i class="bi bi-pencil"></i>
+            </a>
+            {% endif %}
+            {% endif %}
+            
+            {% if not next_year_budget %}
+                {% if is_admin %}
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create?year={{ current_year + 1 }}" class="btn btn-outline-info btn-sm py-1 px-2" style="font-size: 0.75rem;">
+                    <i class="bi bi-calendar-plus"></i> {{ current_year + 1 }}
+                </a>
+                {% endif %}
+            {% else %}
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ next_year_budget.id }}" class="btn btn-outline-info btn-sm py-1 px-2" style="font-size: 0.75rem;">
+                <i class="bi bi-eye"></i> {{ current_year + 1 }}
+            </a>
+            {% endif %}
+            
+            {% if all_budgets|length > 0 %}
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary btn-sm py-1 px-2 dropdown-toggle" type="button" data-bs-toggle="dropdown" style="font-size: 0.75rem;">
+                    <i class="bi bi-calendar3"></i>
+                </button>
+                <ul class="dropdown-menu">
+                    {% for budget_item in all_budgets %}
+                    <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget_item.id }}">Orçamento {{ budget_item.year }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Quotas -->
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="btn btn-success btn-sm py-1 px-2" style="font-size: 0.75rem;">
+            <i class="bi bi-receipt"></i> Quotas
+        </a>
+        
+        <!-- Receitas -->
+        {% if is_admin %}
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues" class="btn btn-success btn-sm py-1 px-2" style="font-size: 0.75rem;">
+            <i class="bi bi-cash-stack"></i> Receitas
+        </a>
+        {% endif %}
+        
+        <!-- Dívidas Históricas -->
+        {% if is_admin %}
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-debts" class="btn btn-warning btn-sm py-1 px-2" style="font-size: 0.75rem;">
+            <i class="bi bi-clock-history"></i> Dívidas
+        </a>
+        {% endif %}
+        
+        <!-- Relatórios -->
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports" class="btn btn-secondary btn-sm py-1 px-2" style="font-size: 0.75rem;">
+            <i class="bi bi-graph-up"></i> Relatórios
+        </a>
+        
+        <!-- Nova Despesa -->
+        {% if is_admin %}
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create" class="btn btn-primary btn-sm py-1 px-2" style="font-size: 0.75rem;">
+            <i class="bi bi-plus-circle"></i> Nova Despesa
+        </a>
+        {% endif %}
+    </div>
 
     <div class="row g-3 mb-4">
         <div class="col-12 col-sm-6 col-md-3">
@@ -147,7 +227,7 @@
     {% endif %}
 
     <div class="row g-3">
-        <div class="col-12 col-lg-8">
+        <div class="col-12">
             <div class="card shadow-sm mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
                     <h5 class="mb-2 mb-md-0">Últimas Despesas</h5>
@@ -184,80 +264,6 @@
                     {% else %}
                     <p class="text-muted text-center py-3">Nenhuma despesa registada este ano.</p>
                     {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12 col-lg-4">
-            <div class="card shadow-sm">
-                <div class="card-header">
-                    <h6 class="mb-0">Ações</h6>
-                </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <h6 class="mb-2">Orçamentos</h6>
-                        {% if not budget %}
-                            {% if is_admin %}
-                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create" class="btn btn-outline-primary">
-                                <i class="bi bi-calendar-check"></i> Criar Orçamento {{ current_year }}
-                            </a>
-                            {% else %}
-                            <span class="text-muted">Nenhum orçamento definido</span>
-                            {% endif %}
-                        {% else %}
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}" class="btn btn-outline-primary">
-                            <i class="bi bi-eye"></i> Ver Orçamento {{ current_year }}
-                        </a>
-                        {% if budget.status == 'draft' and is_admin %}
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}/edit" class="btn btn-outline-warning">
-                            <i class="bi bi-pencil"></i> Editar {{ current_year }}
-                        </a>
-                        {% endif %}
-                        {% endif %}
-                        
-                        {% if not next_year_budget %}
-                            {% if is_admin %}
-                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create?year={{ current_year + 1 }}" class="btn btn-outline-info">
-                                <i class="bi bi-calendar-plus"></i> Criar Orçamento {{ current_year + 1 }}
-                            </a>
-                            {% endif %}
-                        {% else %}
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ next_year_budget.id }}" class="btn btn-outline-info">
-                            <i class="bi bi-eye"></i> Ver Orçamento {{ current_year + 1 }}
-                        </a>
-                        {% endif %}
-                        
-                        {% if all_budgets|length > 0 %}
-                        <div class="dropdown mt-2">
-                            <button class="btn btn-outline-secondary btn-sm w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                <i class="bi bi-calendar3"></i> Todos os Orçamentos
-                            </button>
-                            <ul class="dropdown-menu">
-                                {% for budget_item in all_budgets %}
-                                <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget_item.id }}">Orçamento {{ budget_item.year }}</a></li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                        {% endif %}
-                        
-                        <hr class="my-2">
-                        
-                        <h6 class="mb-2">Outras Ações</h6>
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="btn btn-outline-primary">
-                            <i class="bi bi-receipt"></i> {% if is_admin %}Gerir{% else %}Ver{% endif %} Quotas
-                        </a>
-                        {% if is_admin %}
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues" class="btn btn-outline-success">
-                            <i class="bi bi-cash-stack"></i> Receitas
-                        </a>
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-debts" class="btn btn-outline-warning">
-                            <i class="bi bi-clock-history"></i> Dívidas Históricas
-                        </a>
-                        {% endif %}
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports" class="btn btn-outline-secondary">
-                            <i class="bi bi-graph-up"></i> Relatórios
-                        </a>
-                    </div>
                 </div>
             </div>
         </div>

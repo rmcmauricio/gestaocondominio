@@ -213,6 +213,105 @@ class DashboardController extends Controller
             }
         }
 
+        // Create a map of condominium_id to condominium_name
+        $condominiumNames = [];
+        foreach ($userCondominiums as $uc) {
+            if (!isset($condominiumNames[$uc['condominium_id']])) {
+                $condominiumNames[$uc['condominium_id']] = $uc['condominium_name'];
+            }
+        }
+
+        // Get open votes for user's condominiums
+        $standaloneVoteModel = new \App\Models\StandaloneVote();
+        $openVotes = [];
+        $recentVoteResults = [];
+        if (!empty($userCondominiums)) {
+            $condominiumIds = array_unique(array_column($userCondominiums, 'condominium_id'));
+            foreach ($condominiumIds as $condominiumId) {
+                $votes = $standaloneVoteModel->getOpenByCondominium($condominiumId);
+                foreach ($votes as $vote) {
+                    $vote['condominium_id'] = $condominiumId;
+                    $vote['condominium_name'] = $condominiumNames[$condominiumId] ?? '';
+                    $openVotes[] = $vote;
+                }
+                
+                // Get recent results (last 3 per condominium)
+                $results = $standaloneVoteModel->getRecentResults($condominiumId, 3);
+                foreach ($results as $result) {
+                    $result['condominium_id'] = $condominiumId;
+                    $result['condominium_name'] = $condominiumNames[$condominiumId] ?? '';
+                    $result['results'] = $standaloneVoteModel->getResults($result['id']);
+                    $recentVoteResults[] = $result;
+                }
+            }
+            
+            // Sort by voting_started_at DESC
+            usort($openVotes, function($a, $b) {
+                return strtotime($b['voting_started_at'] ?? '') - strtotime($a['voting_started_at'] ?? '');
+            });
+            
+            // Sort recent results by voting_ended_at DESC
+            usort($recentVoteResults, function($a, $b) {
+                return strtotime($b['voting_ended_at'] ?? '') - strtotime($a['voting_ended_at'] ?? '');
+            });
+            
+            // Limit to last 3 overall
+            $recentVoteResults = array_slice($recentVoteResults, 0, 3);
+        }
+
+        // Get vote options for each vote (filtered by allowed options)
+        $voteOptionModel = new \App\Models\VoteOption();
+        $voteOptionsByVote = [];
+        if (!empty($openVotes)) {
+            foreach ($openVotes as $vote) {
+                $allowedOptionIds = $vote['allowed_options'] ?? [];
+                $allOptions = $voteOptionModel->getByCondominium($vote['condominium_id']);
+                
+                // Filter to only allowed options
+                $options = [];
+                if (!empty($allowedOptionIds)) {
+                    foreach ($allOptions as $option) {
+                        if (in_array($option['id'], $allowedOptionIds)) {
+                            $options[] = $option;
+                        }
+                    }
+                } else {
+                    // Backward compatibility: if no allowed options specified, use all
+                    $options = $allOptions;
+                }
+                
+                $voteOptionsByVote[$vote['id']] = $options;
+            }
+        }
+
+        // Get user's votes for open votes
+        $standaloneVoteResponseModel = new \App\Models\StandaloneVoteResponse();
+        $userVotes = [];
+        if (!empty($openVotes) && !empty($userCondominiums)) {
+            foreach ($userCondominiums as $uc) {
+                if ($uc['fraction_id']) {
+                    foreach ($openVotes as $vote) {
+                        if ($vote['condominium_id'] == $uc['condominium_id']) {
+                            $userVote = $standaloneVoteResponseModel->getByFraction($vote['id'], $uc['fraction_id']);
+                            if ($userVote) {
+                                $userVotes[$vote['id']] = $userVote;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Get unread notifications
+        $notificationService = new \App\Services\NotificationService();
+        $allNotifications = $notificationService->getUnifiedNotifications($userId, 50);
+        $unreadNotifications = array_filter($allNotifications, function($notif) {
+            return isset($notif['is_read']) && !$notif['is_read'];
+        });
+        // Re-index array and limit to 10 most recent
+        $unreadNotifications = array_values($unreadNotifications);
+        $unreadNotifications = array_slice($unreadNotifications, 0, 10);
+
         $this->loadPageTranslations('dashboard');
         
         $this->data += [
@@ -225,6 +324,12 @@ class DashboardController extends Controller
             'recent_documents' => $recentDocuments,
             'user_reservations' => $userReservations,
             'user_occurrences' => $userOccurrences,
+            'open_votes' => $openVotes,
+            'recent_vote_results' => $recentVoteResults,
+            'vote_options_by_vote' => $voteOptionsByVote,
+            'user_votes' => $userVotes,
+            'unread_notifications' => $unreadNotifications,
+            'csrf_token' => \App\Core\Security::generateCSRFToken(),
             'user' => AuthMiddleware::user()
         ];
 

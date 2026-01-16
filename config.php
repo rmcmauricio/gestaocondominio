@@ -27,7 +27,7 @@ global $userInfo;
 global $db;
 
 // Framework version
-define("VERSION", "1.0.0");
+define("VERSION", "1.0.1");
 
 // Application environment
 if (!defined('APP_ENV')) {

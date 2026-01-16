@@ -24,6 +24,9 @@ use App\Models\Occurrence;
 use App\Models\Fee;
 use App\Models\FeePayment;
 use App\Models\Message;
+use App\Models\StandaloneVote;
+use App\Models\StandaloneVoteResponse;
+use App\Models\VoteOption;
 use App\Core\Security;
 use App\Services\FeeService;
 use App\Services\NotificationService;
@@ -38,6 +41,7 @@ class DemoSeeder
     protected $supplierIds = [];
     protected $accountIds = [];
     protected $spaceIds = [];
+    protected $savedDemoReceipts = []; // Store demo receipts data during restore to preserve them
 
     public function __construct($db)
     {
@@ -135,6 +139,11 @@ class DemoSeeder
 
                 // 16. Create notifications
                 $this->createNotifications($index);
+
+                // 17. Create standalone votes (only for Condominium 1)
+                if ($index === 0) {
+                    $this->createStandaloneVotes($index);
+                }
             }
 
             $this->db->commit();
@@ -229,9 +238,15 @@ class DemoSeeder
 
             if (!empty($duplicates)) {
                 foreach ($duplicates as $dup) {
-                    echo "   Removendo condomínio não-demo duplicado '{$data['name']}' (ID: {$dup['id']})...\n";
-                    $this->deleteCondominiumData($dup['id']);
-                    $this->db->exec("DELETE FROM condominiums WHERE id = {$dup['id']}");
+                    // Safety check: Only delete if it belongs to demo user and is not demo
+                    $checkStmt = $this->db->prepare("SELECT user_id, is_demo FROM condominiums WHERE id = :id LIMIT 1");
+                    $checkStmt->execute([':id' => $dup['id']]);
+                    $check = $checkStmt->fetch();
+                    if ($check && $check['user_id'] == $this->demoUserId && (!$check['is_demo'] || $check['is_demo'] == 0)) {
+                        echo "   Removendo condomínio não-demo duplicado '{$data['name']}' (ID: {$dup['id']})...\n";
+                        $this->deleteCondominiumData($dup['id']);
+                        $this->db->exec("DELETE FROM condominiums WHERE id = {$dup['id']}");
+                    }
                 }
             }
         }
@@ -298,11 +313,17 @@ class DemoSeeder
         if (count($existingCondominiums) > 2) {
             echo "   Removendo condomínios demo extras...\n";
             foreach ($existingCondominiums as $existing) {
-                if (!in_array($existing['id'], $this->demoCondominiumIds)) {
+            if (!in_array($existing['id'], $this->demoCondominiumIds)) {
+                // Safety check: Only delete if it's actually a demo condominium
+                $checkStmt = $this->db->prepare("SELECT is_demo FROM condominiums WHERE id = :id LIMIT 1");
+                $checkStmt->execute([':id' => $existing['id']]);
+                $check = $checkStmt->fetch();
+                if ($check && $check['is_demo']) {
                     echo "   Removendo condomínio demo extra '{$existing['name']}' (ID: {$existing['id']})...\n";
                     $this->deleteCondominiumData($existing['id']);
                     $this->db->exec("DELETE FROM condominiums WHERE id = {$existing['id']}");
                 }
+            }
             }
         }
         
@@ -315,6 +336,81 @@ class DemoSeeder
             $condominiumName = $firstCondominium ? $firstCondominium['name'] : 'Condomínio 1';
             echo "   Condomínio padrão definido: {$condominiumName} (ID: {$this->demoCondominiumIds[0]})\n";
         }
+
+        // Associate demo user as condomino to both demo condominiums
+        $this->associateDemoUserAsCondomino();
+    }
+
+    protected function associateDemoUserAsCondomino(): void
+    {
+        echo "2b. Associando utilizador demo como condómino aos condomínios demo...\n";
+
+        if (empty($this->demoCondominiumIds) || !$this->demoUserId) {
+            echo "   Aviso: Não é possível associar utilizador demo (condomínios ou utilizador não encontrados).\n";
+            return;
+        }
+
+        $condominiumUserModel = new CondominiumUser();
+
+        foreach ($this->demoCondominiumIds as $index => $condominiumId) {
+            // Get first fraction of this condominium
+            $stmt = $this->db->prepare("
+                SELECT id FROM fractions 
+                WHERE condominium_id = :condominium_id 
+                ORDER BY id ASC 
+                LIMIT 1
+            ");
+            $stmt->execute([':condominium_id' => $condominiumId]);
+            $fraction = $stmt->fetch();
+
+            if (!$fraction) {
+                echo "   Aviso: Nenhuma fração encontrada para condomínio ID {$condominiumId}. Pulando associação.\n";
+                continue;
+            }
+
+            $fractionId = $fraction['id'];
+
+            // Check if demo user is already associated
+            $checkStmt = $this->db->prepare("
+                SELECT id FROM condominium_users 
+                WHERE condominium_id = :condominium_id 
+                AND user_id = :user_id 
+                AND fraction_id = :fraction_id
+            ");
+            $checkStmt->execute([
+                ':condominium_id' => $condominiumId,
+                ':user_id' => $this->demoUserId,
+                ':fraction_id' => $fractionId
+            ]);
+            $existingAssociation = $checkStmt->fetch();
+
+            if ($existingAssociation) {
+                // Update existing association
+                $updateStmt = $this->db->prepare("
+                    UPDATE condominium_users 
+                    SET role = 'proprietario',
+                        is_primary = TRUE,
+                        can_view_finances = TRUE,
+                        can_vote = TRUE
+                    WHERE id = :id
+                ");
+                $updateStmt->execute([':id' => $existingAssociation['id']]);
+                echo "   Utilizador demo já associado como condómino ao condomínio ID {$condominiumId} (atualizado)\n";
+            } else {
+                // Associate demo user as condomino
+                $condominiumUserModel->associate([
+                    'condominium_id' => $condominiumId,
+                    'user_id' => $this->demoUserId,
+                    'fraction_id' => $fractionId,
+                    'role' => 'proprietario',
+                    'is_primary' => true,
+                    'can_view_finances' => true,
+                    'can_vote' => true,
+                    'started_at' => '2024-01-01'
+                ]);
+                echo "   Utilizador demo associado como condómino ao condomínio ID {$condominiumId}\n";
+            }
+        }
     }
 
     /**
@@ -322,6 +418,18 @@ class DemoSeeder
      */
     protected function deleteCondominiumData(int $condominiumId): void
     {
+        // IMPORTANT: This method ONLY deletes data for DEMO condominiums
+        // It is ONLY called for condominiums with is_demo = TRUE
+        // It will NEVER affect non-demo condominiums or real user data
+        
+        // Verify this is a demo condominium (safety check)
+        $checkStmt = $this->db->prepare("SELECT is_demo FROM condominiums WHERE id = :condominium_id LIMIT 1");
+        $checkStmt->execute([':condominium_id' => $condominiumId]);
+        $condominium = $checkStmt->fetch();
+        if (!$condominium || !$condominium['is_demo']) {
+            throw new \Exception("CRITICAL: Attempted to delete data from non-demo condominium ID {$condominiumId}. This should never happen!");
+        }
+        
         // Delete in correct order to respect foreign keys
         $this->db->exec("DELETE FROM minutes_signatures WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
         $this->db->exec("DELETE FROM assembly_votes WHERE topic_id IN (SELECT id FROM assembly_vote_topics WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId}))");
@@ -358,8 +466,47 @@ class DemoSeeder
         
         // Delete fractions
         $this->db->exec("DELETE FROM fractions WHERE condominium_id = {$condominiumId}");
-        // Delete receipts created by non-demo users (keep demo receipts)
-        // Only delete receipts where generated_by is not the demo user
+        
+        // IMPORTANT: Preserve demo receipts - we'll update their fee_id after recreating fees
+        // First, save demo receipts info (we'll use this to match them to new fees later)
+        $demoReceiptsData = [];
+        if ($this->demoUserId) {
+            $saveStmt = $this->db->prepare("
+                SELECT r.id, r.fee_id, r.fraction_id, r.receipt_number, r.file_path, 
+                       f.period_year, f.period_month, fr.identifier as fraction_identifier
+                FROM receipts r
+                INNER JOIN fees f ON f.id = r.fee_id
+                INNER JOIN fractions fr ON fr.id = r.fraction_id
+                WHERE r.condominium_id = :condominium_id 
+                AND r.generated_by = :demo_user_id
+                AND r.receipt_type = 'final'
+            ");
+            $saveStmt->execute([
+                ':condominium_id' => $condominiumId,
+                ':demo_user_id' => $this->demoUserId
+            ]);
+            $demoReceiptsData = $saveStmt->fetchAll();
+            
+            // Delete PDF files of demo receipts (we'll regenerate them if needed)
+            foreach ($demoReceiptsData as $receipt) {
+                if (!empty($receipt['file_path'])) {
+                    $filePath = $receipt['file_path'];
+                    if (strpos($filePath, 'condominiums/') === 0) {
+                        $fullPath = __DIR__ . '/../../storage/' . $filePath;
+                    } else {
+                        $fullPath = __DIR__ . '/../../storage/documents/' . $filePath;
+                    }
+                    if (file_exists($fullPath)) {
+                        @unlink($fullPath);
+                    }
+                }
+            }
+            
+            // Set fee_id to NULL temporarily (we'll update after recreating fees)
+            $this->db->exec("UPDATE receipts SET fee_id = NULL WHERE condominium_id = {$condominiumId} AND generated_by = {$this->demoUserId}");
+        }
+        
+        // Delete receipts created by non-demo users (test users)
         if ($this->demoUserId) {
             $receiptsStmt = $this->db->prepare("
                 SELECT file_path FROM receipts 
@@ -374,13 +521,10 @@ class DemoSeeder
             
             foreach ($receipts as $receipt) {
                 if (!empty($receipt['file_path'])) {
-                    // Handle both old and new path formats
                     $filePath = $receipt['file_path'];
                     if (strpos($filePath, 'condominiums/') === 0) {
-                        // New path format
                         $fullPath = __DIR__ . '/../../storage/' . $filePath;
                     } else {
-                        // Old path format
                         $fullPath = __DIR__ . '/../../storage/documents/' . $filePath;
                     }
                     if (file_exists($fullPath)) {
@@ -388,7 +532,7 @@ class DemoSeeder
                     }
                 }
             }
-            // Only delete receipts created by non-demo users
+            // Delete receipts created by non-demo users
             $deleteStmt = $this->db->prepare("DELETE FROM receipts WHERE condominium_id = :condominium_id AND (generated_by IS NULL OR generated_by != :demo_user_id)");
             $deleteStmt->execute([
                 ':condominium_id' => $condominiumId,
@@ -402,13 +546,10 @@ class DemoSeeder
             
             foreach ($receipts as $receipt) {
                 if (!empty($receipt['file_path'])) {
-                    // Handle both old and new path formats
                     $filePath = $receipt['file_path'];
                     if (strpos($filePath, 'condominiums/') === 0) {
-                        // New path format
                         $fullPath = __DIR__ . '/../../storage/' . $filePath;
                     } else {
-                        // Old path format
                         $fullPath = __DIR__ . '/../../storage/documents/' . $filePath;
                     }
                     if (file_exists($fullPath)) {
@@ -418,6 +559,15 @@ class DemoSeeder
             }
             $deleteStmt = $this->db->prepare("DELETE FROM receipts WHERE condominium_id = :condominium_id");
             $deleteStmt->execute([':condominium_id' => $condominiumId]);
+        }
+        
+        // Store demo receipts data for later matching (if we have it)
+        if (!empty($demoReceiptsData) && $this->demoUserId) {
+            // Store in a class property to use later
+            if (!isset($this->savedDemoReceipts)) {
+                $this->savedDemoReceipts = [];
+            }
+            $this->savedDemoReceipts[$condominiumId] = $demoReceiptsData;
         }
         
         // Delete message attachments (files and database records)
@@ -476,16 +626,36 @@ class DemoSeeder
         }
         $this->db->exec("DELETE FROM documents WHERE condominium_id = {$condominiumId}");
         
-        // Delete notifications
+        // Delete notifications (only for this demo condominium)
         $this->db->exec("DELETE FROM notifications WHERE condominium_id = {$condominiumId}");
 
+        // Delete standalone votes and related data
+        $this->db->exec("DELETE FROM standalone_vote_responses WHERE standalone_vote_id IN (SELECT id FROM standalone_votes WHERE condominium_id = {$condominiumId})");
+        $this->db->exec("DELETE FROM standalone_votes WHERE condominium_id = {$condominiumId}");
+        // Note: vote_options are kept as they might be shared, but we'll clean up orphaned ones in createStandaloneVotes if needed
+
         // Delete users associated with this condominium (but not demo user)
+        // IMPORTANT: Only delete users that are ONLY associated with demo condominiums
         $stmt = $this->db->prepare("SELECT user_id FROM condominium_users WHERE condominium_id = {$condominiumId}");
         $stmt->execute();
         $userIds = $stmt->fetchAll();
         foreach ($userIds as $row) {
             if ($row['user_id'] != $this->demoUserId) {
-                $this->db->exec("DELETE FROM users WHERE id = {$row['user_id']} AND is_demo = FALSE");
+                // Check if user is associated with any non-demo condominiums
+                $checkStmt = $this->db->prepare("
+                    SELECT COUNT(*) as count 
+                    FROM condominium_users cu
+                    INNER JOIN condominiums c ON c.id = cu.condominium_id
+                    WHERE cu.user_id = :user_id 
+                    AND (c.is_demo = FALSE OR c.is_demo IS NULL)
+                ");
+                $checkStmt->execute([':user_id' => $row['user_id']]);
+                $check = $checkStmt->fetch();
+                
+                // Only delete if user is NOT associated with any non-demo condominiums
+                if ($check && $check['count'] == 0) {
+                    $this->db->exec("DELETE FROM users WHERE id = {$row['user_id']} AND is_demo = FALSE");
+                }
             }
         }
     }
@@ -2521,6 +2691,30 @@ class DemoSeeder
             ]);
         }
 
+        // Add revenue item for works quota extra
+        $budgetItemModel->create([
+            'budget_id' => $budgetId,
+            'category' => 'Receita: Quota Extra - Obras',
+            'amount' => 1666.67,
+            'description' => 'Receita da quota extra para obras de renovação'
+        ]);
+
+        // Update budget total amount to include works revenue
+        $stmt = $this->db->prepare("
+            SELECT 
+                SUM(CASE WHEN category LIKE 'Receita:%' THEN amount ELSE 0 END) as total_revenue,
+                SUM(CASE WHEN category NOT LIKE 'Receita:%' THEN amount ELSE 0 END) as total_expenses
+            FROM budget_items 
+            WHERE budget_id = :budget_id
+        ");
+        $stmt->execute([':budget_id' => $budgetId]);
+        $totals = $stmt->fetch();
+        
+        if ($totals) {
+            $newTotalAmount = $totals['total_revenue'] - $totals['total_expenses'];
+            $this->db->exec("UPDATE budgets SET total_amount = {$newTotalAmount} WHERE id = {$budgetId}");
+        }
+
         echo "   Itens do orçamento 2026 criados\n";
     }
 
@@ -2686,14 +2880,14 @@ class DemoSeeder
             }
         }
 
-        // Generate extra fee for works (€5000 total, distributed across all months)
+        // Generate extra fee for works (€1666.67 total, distributed across all months)
         echo "   Gerando quota extra para obras...\n";
         try {
             $extraFeeIds = $feeService->generateExtraFees(
                 $this->demoCondominiumId,
                 2026,
                 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], // All months
-                5000.00, // Total amount
+                1666.67, // Total amount
                 'Quota Extra - Obras de Renovação',
                 [] // All fractions
             );
@@ -2838,8 +3032,10 @@ class DemoSeeder
 
         // Check which fees are fully paid and don't have receipts yet
         $stmt = $this->db->prepare("
-            SELECT f.id as fee_id, f.condominium_id, f.fraction_id, f.period_year, f.amount
+            SELECT f.id as fee_id, f.condominium_id, f.fraction_id, f.period_year, f.period_month, f.amount,
+                   fr.identifier as fraction_identifier
             FROM fees f
+            INNER JOIN fractions fr ON fr.id = f.fraction_id
             WHERE f.condominium_id = :condominium_id
             AND f.status = 'paid'
         ");
@@ -2848,28 +3044,114 @@ class DemoSeeder
 
         $receiptCount = 0;
         $existingCount = 0;
+        $updatedCount = 0;
+
+        // Get saved demo receipts for this condominium (if any)
+        $savedReceipts = $this->savedDemoReceipts[$this->demoCondominiumId] ?? [];
 
         foreach ($fees as $feeData) {
             $feeId = $feeData['fee_id'];
+            $fractionId = $feeData['fraction_id'];
+            $fractionIdentifier = $feeData['fraction_identifier'];
+            $periodYear = $feeData['period_year'];
+            $periodMonth = $feeData['period_month'] ?? null;
             
-            // Check if receipt already exists for this fee
+            // First, try to match with a saved demo receipt (from before restore)
+            // Match by fraction identifier + period (since IDs change after restore)
+            $matchedReceipt = null;
+            foreach ($savedReceipts as $savedReceipt) {
+                if ($savedReceipt['fraction_identifier'] == $fractionIdentifier 
+                    && $savedReceipt['period_year'] == $periodYear 
+                    && ($savedReceipt['period_month'] ?? null) == $periodMonth) {
+                    $matchedReceipt = $savedReceipt;
+                    break;
+                }
+            }
+            
+            if ($matchedReceipt) {
+                // Update existing receipt with new fee_id
+                $updateStmt = $this->db->prepare("
+                    UPDATE receipts 
+                    SET fee_id = :fee_id, 
+                        file_path = '', 
+                        file_name = '', 
+                        file_size = 0
+                    WHERE id = :receipt_id
+                ");
+                $updateStmt->execute([
+                    ':fee_id' => $feeId,
+                    ':receipt_id' => $matchedReceipt['id']
+                ]);
+                
+                // Regenerate PDF if file doesn't exist
+                $filePath = $matchedReceipt['file_path'] ?? '';
+                $fullPath = '';
+                if ($filePath) {
+                    if (strpos($filePath, 'condominiums/') === 0) {
+                        $fullPath = __DIR__ . '/../../storage/' . $filePath;
+                    } else {
+                        $fullPath = __DIR__ . '/../../storage/documents/' . $filePath;
+                    }
+                }
+                
+                if (!$filePath || !file_exists($fullPath)) {
+                    // Regenerate PDF
+                    try {
+                        $fee = $feeModel->findById($feeId);
+                        if ($fee) {
+                            $fractionModel = new Fraction();
+                            $fraction = $fractionModel->findById($fee['fraction_id']);
+                            if ($fraction) {
+                                $condominiumModel = new Condominium();
+                                $condominium = $condominiumModel->findById($this->demoCondominiumId);
+                                if ($condominium) {
+                                    $pdfService = new \App\Services\PdfService();
+                                    $htmlContent = $pdfService->generateReceiptReceipt($fee, $fraction, $condominium, null, 'final');
+                                    $newFilePath = $pdfService->generateReceiptPdf($htmlContent, $matchedReceipt['id'], $matchedReceipt['receipt_number'], $this->demoCondominiumId);
+                                    $newFullPath = __DIR__ . '/../../storage/' . $newFilePath;
+                                    $fileSize = file_exists($newFullPath) ? filesize($newFullPath) : 0;
+                                    $fileName = basename($newFilePath);
+                                    
+                                    $updateFileStmt = $this->db->prepare("
+                                        UPDATE receipts 
+                                        SET file_path = :file_path, file_name = :file_name, file_size = :file_size 
+                                        WHERE id = :id
+                                    ");
+                                    $updateFileStmt->execute([
+                                        ':file_path' => $newFilePath,
+                                        ':file_name' => $fileName,
+                                        ':file_size' => $fileSize,
+                                        ':id' => $matchedReceipt['id']
+                                    ]);
+                                }
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        echo "   Aviso: Erro ao regenerar PDF do recibo {$matchedReceipt['id']}: " . $e->getMessage() . "\n";
+                    }
+                }
+                
+                $updatedCount++;
+                $existingCount++;
+                continue;
+            }
+            
+            // Check if receipt already exists for this fee (generated by demo user)
             $existingReceipts = $receiptModel->getByFee($feeId);
-            $hasReceipt = false;
+            $hasDemoReceipt = false;
             foreach ($existingReceipts as $r) {
                 if ($r['receipt_type'] === 'final' && $r['generated_by'] == $this->demoUserId) {
-                    $hasReceipt = true;
+                    $hasDemoReceipt = true;
                     $existingCount++;
                     break;
                 }
             }
 
-            // Only create receipt if it doesn't exist and was generated by demo user
-            if (!$hasReceipt) {
+            // Only create receipt if it doesn't exist (generated by demo user)
+            if (!$hasDemoReceipt) {
                 // Verify fee is still fully paid
                 $totalPaid = $feePaymentModel->getTotalPaid($feeId);
                 if ($totalPaid >= (float)$feeData['amount']) {
-                    // Receipt will be created by the system when payment is registered
-                    // For demo, we'll create them only if missing
                     try {
                         $fee = $feeModel->findById($feeId);
                         if (!$fee) {
@@ -2908,7 +3190,7 @@ class DemoSeeder
                             'generated_by' => $this->demoUserId
                         ]);
 
-                        // Generate PDF
+                        // Generate PDF (only if receipt doesn't exist)
                         $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber, $this->demoCondominiumId);
                         $fullPath = __DIR__ . '/../../storage/' . $filePath;
                         $fileSize = file_exists($fullPath) ? filesize($fullPath) : 0;
@@ -2935,11 +3217,190 @@ class DemoSeeder
             }
         }
 
-        if ($receiptCount > 0) {
-            echo "   {$receiptCount} recibos criados, {$existingCount} já existiam\n";
+        if ($receiptCount > 0 || $updatedCount > 0) {
+            $message = [];
+            if ($receiptCount > 0) {
+                $message[] = "{$receiptCount} criados";
+            }
+            if ($updatedCount > 0) {
+                $message[] = "{$updatedCount} atualizados";
+            }
+            if ($existingCount > 0) {
+                $message[] = "{$existingCount} já existiam";
+            }
+            echo "   " . implode(", ", $message) . "\n";
         } else {
             echo "   {$existingCount} recibos demo já existem\n";
         }
+        
+        // Clear saved receipts for this condominium
+        if (isset($this->savedDemoReceipts[$this->demoCondominiumId])) {
+            unset($this->savedDemoReceipts[$this->demoCondominiumId]);
+        }
+    }
+
+    protected function createStandaloneVotes(int $condominiumIndex = 0): void
+    {
+        echo "17. Criando votações standalone...\n";
+
+        if (empty($this->fractionIds)) {
+            echo "   Aviso: Nenhuma fração encontrada. Pulando criação de votações.\n";
+            return;
+        }
+
+        $voteModel = new StandaloneVote();
+        $responseModel = new StandaloneVoteResponse();
+        $optionModel = new VoteOption();
+
+        // Get vote options for this condominium
+        $options = $optionModel->getByCondominium($this->demoCondominiumId);
+        if (empty($options)) {
+            echo "   Aviso: Nenhuma opção de voto encontrada. Criando opções padrão...\n";
+            // Create default options
+            $defaultOptions = [
+                ['label' => 'A favor', 'order' => 1, 'is_default' => true],
+                ['label' => 'Contra', 'order' => 2, 'is_default' => true],
+                ['label' => 'Abstenção', 'order' => 3, 'is_default' => true]
+            ];
+            foreach ($defaultOptions as $opt) {
+                $optionModel->create([
+                    'condominium_id' => $this->demoCondominiumId,
+                    'option_label' => $opt['label'],
+                    'order_index' => $opt['order'],
+                    'is_default' => $opt['is_default'],
+                    'is_active' => true
+                ]);
+            }
+            $options = $optionModel->getByCondominium($this->demoCondominiumId);
+        }
+
+        $optionIds = array_column($options, 'id');
+        $favorOptionId = $optionIds[0] ?? null;
+        $contraOptionId = $optionIds[1] ?? null;
+        $abstencaoOptionId = $optionIds[2] ?? null;
+
+        if (!$favorOptionId || !$contraOptionId || !$abstencaoOptionId) {
+            echo "   Aviso: Opções de voto insuficientes. Pulando criação de votações.\n";
+            return;
+        }
+
+        // Get fractions with users
+        $fractionsWithUsers = [];
+        foreach ($this->fractionIds as $fractionId) {
+            $stmt = $this->db->prepare("
+                SELECT cu.user_id, cu.fraction_id, f.identifier
+                FROM condominium_users cu
+                INNER JOIN fractions f ON f.id = cu.fraction_id
+                WHERE cu.condominium_id = :condominium_id AND cu.fraction_id = :fraction_id
+                LIMIT 1
+            ");
+            $stmt->execute([
+                ':condominium_id' => $this->demoCondominiumId,
+                ':fraction_id' => $fractionId
+            ]);
+            $result = $stmt->fetch();
+            if ($result) {
+                $fractionsWithUsers[] = $result;
+            }
+        }
+
+        if (empty($fractionsWithUsers)) {
+            echo "   Aviso: Nenhuma fração com utilizador encontrada. Pulando criação de votações.\n";
+            return;
+        }
+
+        // Vote 1: Closed - "Aprovação do Orçamento 2026"
+        $vote1Id = $voteModel->create([
+            'condominium_id' => $this->demoCondominiumId,
+            'title' => 'Aprovação do Orçamento 2026',
+            'description' => 'Votação para aprovação do orçamento anual de 2026, incluindo todas as despesas previstas e receitas estimadas.',
+            'allowed_options' => $optionIds,
+            'status' => 'closed',
+            'created_by' => $this->demoUserId,
+            'voting_started_at' => date('Y-m-d H:i:s', strtotime('-15 days')),
+            'voting_ended_at' => date('Y-m-d H:i:s', strtotime('-5 days'))
+        ]);
+
+        // Add votes for vote 1 (mostly "A favor")
+        $vote1Votes = 0;
+        foreach ($fractionsWithUsers as $index => $fraction) {
+            if ($vote1Votes >= 8) break; // Limit to 8 votes
+            
+            $optionId = ($index % 3 === 0) ? $contraOptionId : (($index % 3 === 1) ? $abstencaoOptionId : $favorOptionId);
+            
+            $responseModel->createOrUpdate([
+                'standalone_vote_id' => $vote1Id,
+                'fraction_id' => $fraction['fraction_id'],
+                'user_id' => $fraction['user_id'],
+                'vote_option_id' => $optionId,
+                'weighted_value' => 1.0,
+                'notes' => null
+            ]);
+            $vote1Votes++;
+        }
+        echo "   Votação 1 criada (Fechada): {$vote1Votes} votos\n";
+
+        // Vote 2: Closed - "Renovação da Piscina"
+        $vote2Id = $voteModel->create([
+            'condominium_id' => $this->demoCondominiumId,
+            'title' => 'Renovação da Piscina',
+            'description' => 'Votação para aprovar a renovação completa da piscina, incluindo sistema de filtragem e revestimento.',
+            'allowed_options' => $optionIds,
+            'status' => 'closed',
+            'created_by' => $this->demoUserId,
+            'voting_started_at' => date('Y-m-d H:i:s', strtotime('-10 days')),
+            'voting_ended_at' => date('Y-m-d H:i:s', strtotime('-2 days'))
+        ]);
+
+        // Add votes for vote 2 (mixed)
+        $vote2Votes = 0;
+        foreach ($fractionsWithUsers as $index => $fraction) {
+            if ($vote2Votes >= 7) break; // Limit to 7 votes
+            
+            $optionId = ($index % 4 === 0) ? $contraOptionId : (($index % 4 === 1) ? $abstencaoOptionId : $favorOptionId);
+            
+            $responseModel->createOrUpdate([
+                'standalone_vote_id' => $vote2Id,
+                'fraction_id' => $fraction['fraction_id'],
+                'user_id' => $fraction['user_id'],
+                'vote_option_id' => $optionId,
+                'weighted_value' => 1.0,
+                'notes' => null
+            ]);
+            $vote2Votes++;
+        }
+        echo "   Votação 2 criada (Fechada): {$vote2Votes} votos\n";
+
+        // Vote 3: Open - "Instalação de Painéis Solares"
+        $vote3Id = $voteModel->create([
+            'condominium_id' => $this->demoCondominiumId,
+            'title' => 'Instalação de Painéis Solares',
+            'description' => 'Votação para aprovar a instalação de painéis solares no telhado do edifício, visando reduzir os custos de energia elétrica.',
+            'allowed_options' => $optionIds,
+            'status' => 'open',
+            'created_by' => $this->demoUserId,
+            'voting_started_at' => date('Y-m-d H:i:s', strtotime('-3 days')),
+            'voting_ended_at' => null
+        ]);
+
+        // Add some votes for vote 3 (some users already voted)
+        $vote3Votes = 0;
+        foreach ($fractionsWithUsers as $index => $fraction) {
+            if ($vote3Votes >= 5) break; // Limit to 5 votes (some users haven't voted yet)
+            
+            $optionId = ($index % 3 === 0) ? $contraOptionId : (($index % 3 === 1) ? $abstencaoOptionId : $favorOptionId);
+            
+            $responseModel->createOrUpdate([
+                'standalone_vote_id' => $vote3Id,
+                'fraction_id' => $fraction['fraction_id'],
+                'user_id' => $fraction['user_id'],
+                'vote_option_id' => $optionId,
+                'weighted_value' => 1.0,
+                'notes' => null
+            ]);
+            $vote3Votes++;
+        }
+        echo "   Votação 3 criada (Aberta): {$vote3Votes} votos\n";
     }
 }
 

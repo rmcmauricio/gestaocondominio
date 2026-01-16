@@ -189,4 +189,22 @@ class VoteTopic extends Model
             'is_active' => false
         ]);
     }
+
+    /**
+     * Get options for condominium (from vote_options table)
+     */
+    public function getOptionsForCondominium(int $condominiumId): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $voteOptionModel = new VoteOption();
+        $options = $voteOptionModel->getByCondominium($condominiumId);
+        
+        // Return just the labels as array for backward compatibility
+        return array_map(function($option) {
+            return $option['option_label'];
+        }, $options);
+    }
 }

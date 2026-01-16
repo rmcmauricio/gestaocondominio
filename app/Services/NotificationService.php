@@ -305,6 +305,38 @@ class NotificationService
     }
 
     /**
+     * Notify vote opened
+     */
+    public function notifyVoteOpened(int $voteId, int $condominiumId, string $voteTitle): void
+    {
+        global $db;
+        if (!$db) {
+            return;
+        }
+
+        // Get all users in the condominium (condominos and admins)
+        $stmt = $db->prepare("
+            SELECT DISTINCT u.id
+            FROM users u
+            INNER JOIN condominium_users cu ON cu.user_id = u.id
+            WHERE cu.condominium_id = :condominium_id
+        ");
+        $stmt->execute([':condominium_id' => $condominiumId]);
+        $users = $stmt->fetchAll();
+
+        foreach ($users as $user) {
+            $this->createNotification(
+                $user['id'],
+                $condominiumId,
+                'vote',
+                'Nova Votação Aberta',
+                'Uma nova votação foi aberta: ' . $voteTitle,
+                BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId
+            );
+        }
+    }
+
+    /**
      * Get user notifications
      */
     public function getUserNotifications(int $userId, int $limit = 10): array
