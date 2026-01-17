@@ -50,7 +50,30 @@
                     </ul>
                 </div>
                 {% else %}
-                <span class="nav-section-title">{{ condominium.name }}</span>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="nav-section-title">{{ condominium.name }}</span>
+                    {% if current_condominium_role %}
+                    <span class="badge {% if current_condominium_role == 'admin' %}bg-primary{% else %}bg-info{% endif %} ms-2" style="font-size: 0.7rem;">
+                        {% if current_condominium_role == 'admin' %}Admin{% else %}Condómino{% endif %}
+                    </span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                {% if can_switch_view_mode %}
+                <li class="nav-item mt-2">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/switch-view-mode" class="mb-0">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary w-100" title="Alternar entre modo Admin e Condómino">
+                            <i class="bi bi-arrow-left-right"></i> 
+                            {% if current_condominium_role == 'admin' %}
+                                Ver como Condómino
+                            {% else %}
+                                Ver como Admin
+                            {% endif %}
+                        </button>
+                    </form>
+                </li>
                 {% endif %}
             </li>
             
@@ -85,7 +108,7 @@
             </li>
             
             <li class="nav-item">
-                <a class="nav-link" href="{{ BASE_URL }}{% if user.role == 'admin' or user.role == 'super_admin' %}condominiums/{{ condominium.id }}/receipts{% else %}receipts{% endif %}">
+                <a class="nav-link" href="{{ BASE_URL }}{% if current_condominium_role == 'admin' or not current_condominium_role %}condominiums/{{ condominium.id }}/receipts{% else %}receipts{% endif %}">
                     <i class="bi bi-receipt-cutoff"></i> Recibos
                 </a>
             </li>

@@ -40,18 +40,31 @@ class SubscriptionMiddleware
      */
     protected static function isAllowedRoute(string $route): bool
     {
-        // Remove BASE_URL if present
-        $route = str_replace(BASE_URL, '', $route);
+        // Normalize route - remove leading/trailing slashes
         $route = trim($route, '/');
         
-        // Check exact match
+        // Check exact match first
         if (in_array($route, self::$allowedRoutes)) {
             return true;
         }
 
         // Check if route starts with allowed prefix
         foreach (self::$allowedRoutes as $allowed) {
-            if ($allowed && (strpos($route, $allowed . '/') === 0 || $route === $allowed)) {
+            if (empty($allowed)) {
+                // Empty string means root/homepage
+                if ($route === '' || $route === false) {
+                    return true;
+                }
+                continue;
+            }
+            
+            // Exact match
+            if ($route === $allowed) {
+                return true;
+            }
+            
+            // Check if route starts with allowed prefix followed by /
+            if (strpos($route, $allowed . '/') === 0) {
                 return true;
             }
         }
@@ -64,8 +77,47 @@ class SubscriptionMiddleware
      */
     public static function handle(): bool
     {
+        // Get current route FIRST to check if it's allowed
+        // This prevents redirect loops
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+        $parsedUrl = parse_url($requestUri);
+        $route = $parsedUrl['path'] ?? '';
+        
+        // Remove BASE_PATH if defined (same logic as Router)
+        if (defined('BASE_PATH') && !empty(BASE_PATH)) {
+            $basePath = trim(BASE_PATH, '/');
+            if (!empty($basePath)) {
+                if (strpos($route, '/' . $basePath . '/') === 0) {
+                    $route = substr($route, strlen('/' . $basePath));
+                } elseif ($route === '/' . $basePath) {
+                    $route = '/';
+                }
+            }
+        } else {
+            // Auto-detect subdirectory from script name (same as Router)
+            $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+            if (!empty($scriptName)) {
+                $subfolder = str_replace('\\', '/', dirname($scriptName));
+                $subfolder = trim($subfolder, '/');
+                if (!empty($subfolder) && $subfolder !== '.') {
+                    if (strpos($route, '/' . $subfolder . '/') === 0) {
+                        $route = substr($route, strlen('/' . $subfolder));
+                    } elseif ($route === '/' . $subfolder) {
+                        $route = '/';
+                    }
+                }
+            }
+        }
+        
+        // Normalize route - remove leading/trailing slashes
+        $route = trim($route, '/');
+        
         // Only check for authenticated users
         if (!AuthMiddleware::handle()) {
+            // If route is allowed for guests (login, register, etc.), allow it
+            if (self::isAllowedRoute($route)) {
+                return true;
+            }
             return true; // Let AuthMiddleware handle unauthenticated users
         }
 
@@ -92,11 +144,6 @@ class SubscriptionMiddleware
             return true;
         }
 
-        // Get current route
-        $requestUri = $_SERVER['REQUEST_URI'] ?? '';
-        $parsedUrl = parse_url($requestUri);
-        $route = $parsedUrl['path'] ?? '';
-
         // Get subscription to check status
         $subscriptionModel = new \App\Models\Subscription();
         $subscription = $subscriptionModel->getActiveSubscription($user['id']);
@@ -109,13 +156,14 @@ class SubscriptionMiddleware
             return true;
         }
 
+        // Check if current route is allowed BEFORE blocking
+        // This prevents redirect loops
+        if (self::isAllowedRoute($route)) {
+            return true; // Allow access to subscription, payment, profile pages, etc.
+        }
+
         // If trial expired or no subscription, block access except allowed routes
         if ($trialExpired || $noSubscription) {
-            // Allow access to subscription, payment, and profile pages
-            if (self::isAllowedRoute($route)) {
-                return true;
-            }
-
             // Block access - redirect to subscription page
             if ($trialExpired) {
                 $_SESSION['error'] = 'O seu período experimental expirou. Por favor, escolha um plano para continuar a utilizar o serviço.';

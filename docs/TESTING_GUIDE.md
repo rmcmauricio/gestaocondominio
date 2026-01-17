@@ -128,7 +128,7 @@ SELECT id, email, role, google_id, auth_provider FROM users WHERE email = '[goog
 1. Criar conta admin com trial (usar Teste 2)
 2. Na base de dados, atualizar trial_ends_at para data passada:
    ```sql
-   UPDATE subscriptions 
+   UPDATE subscriptions
    SET trial_ends_at = DATE_SUB(NOW(), INTERVAL 1 DAY)
    WHERE user_id = [admin_user_id] AND status = 'trial';
    ```
@@ -182,8 +182,8 @@ SELECT id, email, role, google_id, auth_provider FROM users WHERE email = '[goog
 **Verificação na BD:**
 ```sql
 -- Criar notificações de teste
-INSERT INTO notifications (user_id, condominium_id, type, title, message) 
-VALUES 
+INSERT INTO notifications (user_id, condominium_id, type, title, message)
+VALUES
   ([user_id], [condominium_1_id], 'test', 'Notificação C1', 'Teste'),
   ([user_id], [condominium_2_id], 'test', 'Notificação C2', 'Teste');
 ```
@@ -254,9 +254,9 @@ VALUES
 
 **Solução:** Verificar que `trial_ends_at` está definido e é uma data válida:
 ```sql
-SELECT id, user_id, status, trial_ends_at, 
+SELECT id, user_id, status, trial_ends_at,
        DATEDIFF(NOW(), trial_ends_at) as days_expired
-FROM subscriptions 
+FROM subscriptions
 WHERE user_id = [user_id];
 ```
 
@@ -268,8 +268,8 @@ WHERE user_id = [user_id];
 SELECT id FROM condominiums WHERE user_id = [user_id] AND id = [condominium_id];
 
 -- Para condomino
-SELECT id FROM condominium_users 
-WHERE user_id = [user_id] 
+SELECT id FROM condominium_users
+WHERE user_id = [user_id]
 AND condominium_id = [condominium_id]
 AND (ended_at IS NULL OR ended_at > CURDATE());
 ```

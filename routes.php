@@ -89,6 +89,9 @@ $router->post('/condominiums/{id}', 'App\Controllers\CondominiumController@updat
 $router->post('/condominiums/{id}/delete', 'App\Controllers\CondominiumController@delete');
 $router->get('/condominiums/switch/{id}', 'App\Controllers\CondominiumController@switch');
 $router->post('/condominiums/{id}/set-default', 'App\Controllers\CondominiumController@setDefault');
+$router->get('/condominiums/{id}/assign-admin', 'App\Controllers\CondominiumController@assignAdmin');
+$router->post('/condominiums/{id}/assign-admin', 'App\Controllers\CondominiumController@processAssignAdmin');
+$router->post('/condominiums/{condominium_id}/switch-view-mode', 'App\Controllers\CondominiumController@switchViewMode');
 
 // Fraction routes
 $router->get('/condominiums/{condominium_id}/fractions', 'App\Controllers\FractionController@index');

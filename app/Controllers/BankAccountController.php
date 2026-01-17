@@ -51,7 +51,9 @@ class BankAccountController extends Controller
 
         $this->loadPageTranslations('finances');
         
-        $isAdmin = RoleMiddleware::isAdmin();
+        $userId = AuthMiddleware::userId();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin');
         
         $this->data += [
             'viewName' => 'pages/bank-accounts/index.html.twig',
@@ -72,7 +74,7 @@ class BankAccountController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -100,7 +102,7 @@ class BankAccountController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/bank-accounts');
@@ -182,7 +184,7 @@ class BankAccountController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -218,7 +220,7 @@ class BankAccountController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/bank-accounts');
@@ -309,7 +311,7 @@ class BankAccountController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/bank-accounts');

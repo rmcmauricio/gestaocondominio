@@ -34,6 +34,17 @@ if (!defined('APP_ENV')) {
     define('APP_ENV', $config['APP_ENV'] ?? 'development');
 }
 
+// Configure error logging for development
+if (APP_ENV !== 'production') {
+    $logDir = __DIR__ . '/logs';
+    if (!is_dir($logDir)) {
+        @mkdir($logDir, 0755, true);
+    }
+    $logFile = $logDir . '/php_error.log';
+    ini_set('log_errors', '1');
+    ini_set('error_log', $logFile);
+}
+
 // Base path configuration (set in .env or default to empty)
 define('BASE_PATH', $config['BASE_PATH'] ?? '');
 

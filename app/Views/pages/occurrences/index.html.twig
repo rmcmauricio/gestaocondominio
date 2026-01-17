@@ -7,9 +7,11 @@
             </div>
             {% include 'blocks/help-button.html.twig' with {'section': 'occurrences', 'title': 'Ajuda com Ocorrências', 'show_text': false} %}
         </div>
+        {% if current_condominium_role == 'admin' or not current_condominium_role %}
         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences/create" class="btn btn-primary">
             <i class="bi bi-plus-circle"></i> Nova Ocorrência
         </a>
+        {% endif %}
     </div>
 
     {% if error %}
@@ -203,9 +205,11 @@
                 {% endif %}
             </p>
             {% if not (current_search or current_status or current_priority or current_category) %}
+            {% if current_condominium_role == 'admin' or not current_condominium_role %}
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences/create" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> Reportar Ocorrência
             </a>
+            {% endif %}
             {% endif %}
         </div>
     </div>

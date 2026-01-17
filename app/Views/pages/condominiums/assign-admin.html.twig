@@ -1,0 +1,98 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Designar Administradores</h2>
+            <p class="text-muted mb-0">{{ condominium.name }}</p>
+        </div>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-shield-check"></i> Administradores Atuais</h5>
+                </div>
+                <div class="card-body">
+                    {% if current_admins %}
+                    <ul class="list-group list-group-flush">
+                        {% for admin in current_admins %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ admin.name }}</strong>
+                                <br>
+                                <small class="text-muted">{{ admin.email }}</small>
+                            </div>
+                            <span class="badge bg-primary">Admin</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted mb-0">Nenhum administrador designado.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-people"></i> Utilizadores do Condomínio</h5>
+                </div>
+                <div class="card-body">
+                    {% if condominium_users %}
+                    <ul class="list-group list-group-flush">
+                        {% for cu in condominium_users %}
+                        {% set isAdmin = false %}
+                        {% for admin in current_admins %}
+                        {% if admin.user_id == cu.user_id %}
+                        {% set isAdmin = true %}
+                        {% endif %}
+                        {% endfor %}
+                        
+                        {% if not isAdmin %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ cu.name }}</strong>
+                                <br>
+                                <small class="text-muted">{{ cu.email }}</small>
+                                {% if cu.fraction_identifier %}
+                                <br>
+                                <small class="text-muted">Fração: {{ cu.fraction_identifier }}</small>
+                                {% endif %}
+                            </div>
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/assign-admin" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="user_id" value="{{ cu.user_id }}">
+                                <button type="submit" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-shield-check"></i> Designar Admin
+                                </button>
+                            </form>
+                        </li>
+                        {% endif %}
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted mb-0">Nenhum utilizador associado ao condomínio.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

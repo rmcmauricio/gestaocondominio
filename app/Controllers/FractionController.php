@@ -56,7 +56,8 @@ class FractionController extends Controller
         
         $userId = AuthMiddleware::userId();
         $user = AuthMiddleware::user();
-        $isAdmin = RoleMiddleware::isAdmin();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin');
         
         $this->data += [
             'viewName' => 'pages/fractions/index.html.twig',
@@ -83,7 +84,7 @@ class FractionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -115,7 +116,7 @@ class FractionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
@@ -161,7 +162,7 @@ class FractionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         $fraction = $this->fractionModel->findById($id);
         if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
@@ -195,7 +196,7 @@ class FractionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
@@ -234,7 +235,7 @@ class FractionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
@@ -278,7 +279,7 @@ class FractionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');

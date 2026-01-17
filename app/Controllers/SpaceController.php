@@ -36,9 +36,10 @@ class SpaceController extends Controller
         // Get all spaces (including inactive) for management
         $spaces = $this->spaceModel->getAllByCondominium($condominiumId);
         
-        // Check if user is admin
-        $user = AuthMiddleware::user();
-        $isAdmin = ($user['role'] === 'admin' || $user['role'] === 'super_admin');
+        // Check if user is admin in this condominium
+        $userId = AuthMiddleware::userId();
+        $userRole = \App\Middleware\RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin');
         
         // Get user's first fraction for pre-selection in reservation
         $userId = AuthMiddleware::userId();
@@ -80,7 +81,7 @@ class SpaceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin(); // Only admins can manage spaces
+        RoleMiddleware::requireAdminInCondominium($condominiumId); // Only admins can manage spaces
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -110,7 +111,7 @@ class SpaceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin(); // Only admins can manage spaces
+        RoleMiddleware::requireAdminInCondominium($condominiumId); // Only admins can manage spaces
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
@@ -165,7 +166,7 @@ class SpaceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin(); // Only admins can manage spaces
+        RoleMiddleware::requireAdminInCondominium($condominiumId); // Only admins can manage spaces
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -208,7 +209,7 @@ class SpaceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin(); // Only admins can manage spaces
+        RoleMiddleware::requireAdminInCondominium($condominiumId); // Only admins can manage spaces
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
@@ -270,7 +271,7 @@ class SpaceController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin(); // Only admins can manage spaces
+        RoleMiddleware::requireAdminInCondominium($condominiumId); // Only admins can manage spaces
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');

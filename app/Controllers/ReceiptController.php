@@ -29,7 +29,12 @@ class ReceiptController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        $condominiumId = (int)($_GET['condominium_id'] ?? $_SESSION['current_condominium_id'] ?? 0);
+        if ($condominiumId) {
+            RoleMiddleware::requireAdminInCondominium($condominiumId);
+        } else {
+            RoleMiddleware::requireAdmin();
+        }
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {
@@ -124,6 +129,7 @@ class ReceiptController extends Controller
         
         // If user is admin, also get condominiums they own
         $user = AuthMiddleware::user();
+        // Note: This is a global check for receipts page, not per-condominium
         if (RoleMiddleware::isAdmin() || ($user['role'] ?? '') === 'super_admin') {
             $adminCondominiums = $this->condominiumModel->getByUserId($userId);
             foreach ($adminCondominiums as $condominium) {
@@ -170,8 +176,10 @@ class ReceiptController extends Controller
         // Check permissions: condomino can only see their own receipts
         $userId = AuthMiddleware::userId();
         $user = AuthMiddleware::user();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin');
         
-        if (!RoleMiddleware::isAdmin() && $user['role'] !== 'super_admin') {
+        if (!$isAdmin && $user['role'] !== 'super_admin') {
             // Check if user owns the fraction
             global $db;
             $stmt = $db->prepare("
@@ -223,8 +231,10 @@ class ReceiptController extends Controller
         // Check permissions: condomino can only download their own receipts
         $userId = AuthMiddleware::userId();
         $user = AuthMiddleware::user();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin');
         
-        if (!RoleMiddleware::isAdmin() && $user['role'] !== 'super_admin') {
+        if (!$isAdmin && $user['role'] !== 'super_admin') {
             // Check if user owns the fraction
             global $db;
             $stmt = $db->prepare("

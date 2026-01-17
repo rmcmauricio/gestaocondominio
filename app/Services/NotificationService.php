@@ -341,50 +341,9 @@ class NotificationService
      */
     protected function userHasAccessToCondominium(int $userId, int $condominiumId): bool
     {
-        global $db;
-        if (!$db) {
-            return false;
-        }
-
-        // Get user role
-        $stmt = $db->prepare("SELECT role FROM users WHERE id = :user_id LIMIT 1");
-        $stmt->execute([':user_id' => $userId]);
-        $user = $stmt->fetch();
-
-        if (!$user) {
-            return false;
-        }
-
-        $role = $user['role'];
-
-        // Super admin can access all
-        if ($role === 'super_admin') {
-            return true;
-        }
-
-        // Admin can access their own condominiums
-        if ($role === 'admin') {
-            $stmt = $db->prepare("SELECT id FROM condominiums WHERE user_id = :user_id AND id = :condominium_id LIMIT 1");
-            $stmt->execute([
-                ':user_id' => $userId,
-                ':condominium_id' => $condominiumId
-            ]);
-            return $stmt->fetch() !== false;
-        }
-
-        // Condomino can access if associated
-        $stmt = $db->prepare("
-            SELECT id FROM condominium_users 
-            WHERE user_id = :user_id 
-            AND condominium_id = :condominium_id
-            AND (ended_at IS NULL OR ended_at > CURDATE())
-            LIMIT 1
-        ");
-        $stmt->execute([
-            ':user_id' => $userId,
-            ':condominium_id' => $condominiumId
-        ]);
-        return $stmt->fetch() !== false;
+        // Use RoleMiddleware to check access based on role per condominium
+        $role = \App\Middleware\RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        return $role !== null;
     }
 
     /**

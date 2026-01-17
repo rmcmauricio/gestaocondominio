@@ -47,13 +47,14 @@ class StandaloneVoteController extends Controller
 
         $this->loadPageTranslations('votes');
         
+        $userId = AuthMiddleware::userId();
         $this->data += [
             'viewName' => 'pages/votes/index.html.twig',
             'page' => ['titulo' => 'Votações'],
             'condominium' => $condominium,
             'votes' => $votes,
             'current_status' => $status,
-            'is_admin' => RoleMiddleware::isAdmin(),
+            'is_admin' => RoleMiddleware::isAdminInCondominium($userId, $condominiumId),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
         ];
@@ -68,7 +69,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($id);
 
         $condominiumModel = new Condominium();
         $condominium = $condominiumModel->findById($condominiumId);
@@ -102,7 +103,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($id);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes');
@@ -228,7 +229,7 @@ class StandaloneVoteController extends Controller
             'results' => $results,
             'user_fraction' => $userFraction,
             'user_vote' => $userVote,
-            'is_admin' => RoleMiddleware::isAdmin(),
+            'is_admin' => RoleMiddleware::isAdminInCondominium($userId, $condominiumId),
             'csrf_token' => Security::generateCSRFToken()
         ];
 
@@ -239,7 +240,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($id);
 
         $condominiumModel = new Condominium();
         $condominium = $condominiumModel->findById($condominiumId);
@@ -279,7 +280,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($id);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -348,7 +349,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($id);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -381,7 +382,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($id);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -410,7 +411,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($id);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'DELETE' && ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['_method']) || $_POST['_method'] !== 'DELETE')) {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes');

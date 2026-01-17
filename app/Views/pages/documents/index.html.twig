@@ -7,6 +7,7 @@
             </div>
             {% include 'blocks/help-button.html.twig' with {'section': 'documents', 'title': 'Ajuda com Documentos', 'show_text': false} %}
         </div>
+        {% if current_condominium_role == 'admin' or not current_condominium_role %}
         <div>
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/manage-folders" class="btn btn-outline-secondary me-2">
                 <i class="bi bi-folder"></i> Gerir Pastas
@@ -15,6 +16,7 @@
                 <i class="bi bi-upload"></i> Upload Documento
             </a>
         </div>
+        {% endif %}
     </div>
 
     {% if error %}
@@ -180,6 +182,7 @@
                                     <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/download" class="btn btn-outline-primary" title="Download">
                                         <i class="bi bi-download"></i>
                                     </a>
+                                    {% if current_condominium_role == 'admin' or not current_condominium_role %}
                                     <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/edit" class="btn btn-outline-secondary" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </a>
@@ -189,6 +192,7 @@
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </form>
+                                    {% endif %}
                                 </div>
                             </td>
                         </tr>

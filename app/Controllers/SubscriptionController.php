@@ -93,6 +93,13 @@ class SubscriptionController extends Controller
 
     public function choosePlan()
     {
+        // Block demo user from accessing plan selection
+        if (AuthMiddleware::handle() && $this->isDemoUser()) {
+            $_SESSION['error'] = 'A conta demo não pode alterar a subscrição.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+        
         // Allow both guests and logged in users
         $plans = $this->planModel->getActivePlans();
         
@@ -114,11 +121,27 @@ class SubscriptionController extends Controller
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
     }
 
+    /**
+     * Check if current user is demo user
+     */
+    protected function isDemoUser(): bool
+    {
+        $user = AuthMiddleware::user();
+        return $user && isset($user['is_demo']) && $user['is_demo'] == true;
+    }
+
     public function startTrial()
     {
         AuthMiddleware::require();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        // Block demo user from changing subscription
+        if ($this->isDemoUser()) {
+            $_SESSION['error'] = 'A subscrição da conta demo não pode ser alterada.';
             header('Location: ' . BASE_URL . 'subscription');
             exit;
         }
@@ -170,6 +193,13 @@ class SubscriptionController extends Controller
             exit;
         }
 
+        // Block demo user from changing subscription
+        if ($this->isDemoUser()) {
+            $_SESSION['error'] = 'A subscrição da conta demo não pode ser alterada.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
             $_SESSION['error'] = 'Token de segurança inválido.';
@@ -209,6 +239,13 @@ class SubscriptionController extends Controller
             exit;
         }
 
+        // Block demo user from changing subscription
+        if ($this->isDemoUser()) {
+            $_SESSION['error'] = 'A subscrição da conta demo não pode ser cancelada.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
             $_SESSION['error'] = 'Token de segurança inválido.';
@@ -240,6 +277,13 @@ class SubscriptionController extends Controller
         AuthMiddleware::require();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        // Block demo user from changing subscription
+        if ($this->isDemoUser()) {
+            $_SESSION['error'] = 'A subscrição da conta demo não pode ser alterada.';
             header('Location: ' . BASE_URL . 'subscription');
             exit;
         }
@@ -293,6 +337,13 @@ class SubscriptionController extends Controller
         AuthMiddleware::require();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        // Block demo user from changing subscription
+        if ($this->isDemoUser()) {
+            $_SESSION['error'] = 'A subscrição da conta demo não pode ser alterada.';
             header('Location: ' . BASE_URL . 'subscription');
             exit;
         }

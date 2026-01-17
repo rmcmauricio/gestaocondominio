@@ -97,9 +97,15 @@ try {
 
     echo "\n";
 
+    $hasDemoCondominium = false;
+    
     foreach ($condominiumsToDelete as $condominium) {
         $id = $condominium['id'];
         $name = $condominium['name'];
+        
+        if ($condominium['is_demo']) {
+            $hasDemoCondominium = true;
+        }
         
         echo "--- Processando: {$name} (ID: {$id}) ---\n";
         
@@ -116,6 +122,23 @@ try {
         $stmt->execute([':id' => $id]);
         
         echo "  Condomínio removido com sucesso.\n";
+    }
+
+    // If we deleted demo condominiums, also delete the demo snapshot
+    if ($hasDemoCondominium && !$dryRun) {
+        echo "\nRemovendo snapshot da demo...\n";
+        $snapshotFile = __DIR__ . '/../storage/demo/original_ids.json';
+        if (file_exists($snapshotFile)) {
+            if (@unlink($snapshotFile)) {
+                echo "  Snapshot da demo removido: {$snapshotFile}\n";
+            } else {
+                echo "  AVISO: Não foi possível remover o snapshot da demo: {$snapshotFile}\n";
+            }
+        } else {
+            echo "  Snapshot da demo não encontrado (já foi removido ou nunca existiu).\n";
+        }
+    } elseif ($hasDemoCondominium && $dryRun) {
+        echo "\n[DRY RUN] Snapshot da demo seria removido.\n";
     }
 
     echo "\n========================================\n";
@@ -285,6 +308,14 @@ function deleteCondominiumData($db, int $condominiumId, bool $isDemo = false): v
     echo "  Removendo frações...\n";
     $db->exec("DELETE FROM fractions WHERE condominium_id = {$condominiumId}");
     
+    // Delete condominium storage folder
+    echo "  Removendo pasta de documentos do condomínio...\n";
+    $condominiumFolder = $basePath . '/condominiums/' . $condominiumId;
+    if (is_dir($condominiumFolder)) {
+        deleteDirectory($condominiumFolder);
+        echo "  Pasta de documentos removida: {$condominiumFolder}\n";
+    }
+    
     // Delete users that are ONLY associated with this condominium (but keep demo user)
     echo "  Removendo utilizadores órfãos...\n";
     $stmt = $db->prepare("SELECT user_id FROM condominium_users WHERE condominium_id = {$condominiumId}");
@@ -323,4 +354,30 @@ function deleteCondominiumData($db, int $condominiumId, bool $isDemo = false): v
             $db->exec("DELETE FROM users WHERE id = {$userId}");
         }
     }
+}
+
+/**
+ * Recursively delete a directory and all its contents
+ * 
+ * @param string $dir Directory path to delete
+ * @return bool True on success, false on failure
+ */
+function deleteDirectory(string $dir): bool
+{
+    if (!is_dir($dir)) {
+        return false;
+    }
+    
+    $files = array_diff(scandir($dir), ['.', '..']);
+    
+    foreach ($files as $file) {
+        $path = $dir . '/' . $file;
+        if (is_dir($path)) {
+            deleteDirectory($path);
+        } else {
+            @unlink($path);
+        }
+    }
+    
+    return @rmdir($dir);
 }

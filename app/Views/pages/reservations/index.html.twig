@@ -109,7 +109,7 @@
                                 </span>
                             </td>
                             <td>
-                                {% if reservation.status == 'pending' %}
+                                {% if reservation.status == 'pending' and (current_condominium_role == 'admin' or not current_condominium_role) %}
                                 <div class="btn-group btn-group-sm">
                                     <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations/{{ reservation.id }}/approve" class="d-inline">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

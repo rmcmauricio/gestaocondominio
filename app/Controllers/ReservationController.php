@@ -89,10 +89,10 @@ class ReservationController extends Controller
 
         $spaces = $this->spaceModel->getByCondominium($condominiumId);
         
-        // Get fractions based on user role
+        // Get fractions based on user role in condominium
         $userId = AuthMiddleware::userId();
-        $user = AuthMiddleware::user();
-        $isAdmin = ($user['role'] === 'admin' || $user['role'] === 'super_admin');
+        $userRole = \App\Middleware\RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin');
         
         $fractions = [];
         
@@ -176,8 +176,8 @@ class ReservationController extends Controller
         }
 
         $userId = AuthMiddleware::userId();
-        $user = AuthMiddleware::user();
-        $isAdmin = ($user['role'] === 'admin' || $user['role'] === 'super_admin');
+        $userRole = \App\Middleware\RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin');
         $spaceId = (int)$_POST['space_id'];
         $fractionId = (int)$_POST['fraction_id'];
         

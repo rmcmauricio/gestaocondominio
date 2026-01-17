@@ -7,6 +7,8 @@ use App\Core\Security;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Models\Condominium;
+use App\Models\CondominiumUser;
+use App\Models\Fraction;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\SubscriptionService;
@@ -33,12 +35,28 @@ class CondominiumController extends Controller
         exit;
     }
 
+    /**
+     * Check if current user is demo user
+     */
+    protected function isDemoUser(): bool
+    {
+        $user = AuthMiddleware::user();
+        return $user && isset($user['is_demo']) && $user['is_demo'] == true;
+    }
+
     public function create()
     {
         AuthMiddleware::require();
         RoleMiddleware::requireAnyRole(['admin', 'super_admin']);
 
         $userId = AuthMiddleware::userId();
+        
+        // Block demo user from creating additional condominiums
+        if ($this->isDemoUser()) {
+            $_SESSION['error'] = 'A conta demo não pode criar condomínios adicionais.';
+            header('Location: ' . BASE_URL . 'dashboard');
+            exit;
+        }
         
         // Check subscription limits
         if (!$this->subscriptionModel->canCreateCondominium($userId)) {
@@ -77,6 +95,13 @@ class CondominiumController extends Controller
 
         $userId = AuthMiddleware::userId();
         
+        // Block demo user from creating additional condominiums
+        if ($this->isDemoUser()) {
+            $_SESSION['error'] = 'A conta demo não pode criar condomínios adicionais.';
+            header('Location: ' . BASE_URL . 'dashboard');
+            exit;
+        }
+        
         if (!$this->subscriptionModel->canCreateCondominium($userId)) {
             $_SESSION['error'] = 'Limite de condomínios atingido.';
             header('Location: ' . BASE_URL . 'subscription');
@@ -98,6 +123,43 @@ class CondominiumController extends Controller
                 'type' => Security::sanitize($_POST['type'] ?? 'habitacional'),
                 'total_fractions' => (int)($_POST['total_fractions'] ?? 0),
                 'rules' => Security::sanitize($_POST['rules'] ?? '')
+            ]);
+
+            // Create entry in condominium_users with admin role (without fraction - admin entry)
+            $condominiumUserModel = new CondominiumUser();
+            $condominiumUserModel->associate([
+                'condominium_id' => $condominiumId,
+                'user_id' => $userId,
+                'fraction_id' => null, // Admin entry without fraction
+                'role' => 'admin',
+                'can_view_finances' => true,
+                'can_vote' => true,
+                'is_primary' => true,
+                'started_at' => date('Y-m-d')
+            ]);
+
+            // Create default fraction for admin and associate as proprietario
+            $fractionModel = new Fraction();
+            $fractionId = $fractionModel->create([
+                'condominium_id' => $condominiumId,
+                'identifier' => 'Admin',
+                'permillage' => 100, // Default permillage
+                'floor' => null,
+                'typology' => null,
+                'area' => null,
+                'notes' => 'Fração padrão do administrador'
+            ]);
+
+            // Associate admin as proprietario of this fraction
+            $condominiumUserModel->associate([
+                'condominium_id' => $condominiumId,
+                'user_id' => $userId,
+                'fraction_id' => $fractionId,
+                'role' => 'proprietario',
+                'can_view_finances' => true,
+                'can_vote' => true,
+                'is_primary' => true,
+                'started_at' => date('Y-m-d')
             ]);
 
             $_SESSION['success'] = 'Condomínio criado com sucesso!';
@@ -494,6 +556,230 @@ class CondominiumController extends Controller
         }
 
         header('Location: ' . BASE_URL . 'condominiums/' . $id);
+        exit;
+    }
+
+    public function assignAdmin(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($id);
+        
+        // Check if user is admin in this condominium
+        $userId = AuthMiddleware::userId();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $id);
+        
+        if ($userRole !== 'admin') {
+            $_SESSION['error'] = 'Apenas administradores podem designar outros administradores.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id);
+            exit;
+        }
+
+        $condominium = $this->condominiumModel->findById($id);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'dashboard');
+            exit;
+        }
+
+        // Get all users associated with this condominium
+        global $db;
+        $stmt = $db->prepare("
+            SELECT cu.*, u.name, u.email, f.identifier as fraction_identifier
+            FROM condominium_users cu
+            INNER JOIN users u ON u.id = cu.user_id
+            LEFT JOIN fractions f ON f.id = cu.fraction_id
+            WHERE cu.condominium_id = :condominium_id
+            AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+            ORDER BY u.name
+        ");
+        $stmt->execute([':condominium_id' => $id]);
+        $condominiumUsers = $stmt->fetchAll() ?: [];
+
+        // Get all users who are currently admins
+        global $db;
+        $stmt = $db->prepare("
+            SELECT cu.user_id, u.name, u.email, cu.role
+            FROM condominium_users cu
+            INNER JOIN users u ON u.id = cu.user_id
+            WHERE cu.condominium_id = :condominium_id
+            AND cu.role = 'admin'
+            AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+        ");
+        $stmt->execute([':condominium_id' => $id]);
+        $currentAdmins = $stmt->fetchAll() ?: [];
+
+        // Also include the owner if not already in the list
+        $ownerId = $condominium['user_id'];
+        $ownerInList = false;
+        foreach ($currentAdmins as $admin) {
+            if ($admin['user_id'] == $ownerId) {
+                $ownerInList = true;
+                break;
+            }
+        }
+        if (!$ownerInList) {
+            $userModel = new User();
+            $owner = $userModel->findById($ownerId);
+            if ($owner) {
+                $currentAdmins[] = [
+                    'user_id' => $ownerId,
+                    'name' => $owner['name'],
+                    'email' => $owner['email'],
+                    'role' => 'admin'
+                ];
+            }
+        }
+
+        $this->loadPageTranslations('condominiums');
+        
+        $this->data += [
+            'viewName' => 'pages/condominiums/assign-admin.html.twig',
+            'page' => ['titulo' => 'Designar Administradores'],
+            'condominium' => $condominium,
+            'condominium_users' => $condominiumUsers,
+            'current_admins' => $currentAdmins,
+            'csrf_token' => Security::generateCSRFToken()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    public function processAssignAdmin(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($id);
+        
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+            exit;
+        }
+
+        // Check if user is admin in this condominium
+        $userId = AuthMiddleware::userId();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $id);
+        
+        if ($userRole !== 'admin') {
+            $_SESSION['error'] = 'Apenas administradores podem designar outros administradores.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id);
+            exit;
+        }
+
+        $targetUserId = (int)($_POST['user_id'] ?? 0);
+        if (!$targetUserId) {
+            $_SESSION['error'] = 'Utilizador não especificado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+            exit;
+        }
+
+        $condominiumUserModel = new CondominiumUser();
+        if ($condominiumUserModel->assignAdmin($id, $targetUserId, $userId)) {
+            $_SESSION['success'] = 'Administrador designado com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao designar administrador.';
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+        exit;
+    }
+
+    /**
+     * Switch view mode between admin and condomino for a condominium
+     */
+    public function switchViewMode(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $userId = AuthMiddleware::userId();
+        $viewModeKey = "condominium_{$condominiumId}_view_mode";
+        
+        // Get current view mode
+        $currentMode = $_SESSION[$viewModeKey] ?? null;
+        
+        // Check if user has both admin and condomino roles
+        global $db;
+        $hasAdminRole = false;
+        $hasCondominoRole = false;
+        
+        // Check if user is owner
+        $stmt = $db->prepare("SELECT id FROM condominiums WHERE id = :condominium_id AND user_id = :user_id");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':user_id' => $userId
+        ]);
+        if ($stmt->fetch()) {
+            $hasAdminRole = true;
+        }
+        
+        // Check condominium_users table
+        $stmt = $db->prepare("
+            SELECT role, fraction_id
+            FROM condominium_users 
+            WHERE user_id = :user_id 
+            AND condominium_id = :condominium_id
+            AND (ended_at IS NULL OR ended_at > CURDATE())
+        ");
+        $stmt->execute([
+            ':user_id' => $userId,
+            ':condominium_id' => $condominiumId
+        ]);
+        $results = $stmt->fetchAll();
+        
+        foreach ($results as $result) {
+            if ($result['role'] === 'admin') {
+                $hasAdminRole = true;
+            }
+            if ($result['fraction_id'] !== null) {
+                $hasCondominoRole = true;
+            }
+        }
+        
+        // Only allow switching if user has both roles
+        if (!$hasAdminRole || !$hasCondominoRole) {
+            $_SESSION['error'] = 'Só pode alternar entre admin e condómino se tiver ambos os papéis neste condomínio.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId);
+            exit;
+        }
+        
+        // Toggle view mode: if currently admin (or null/default), switch to condomino; if condomino, switch to admin
+        // Use ONLY the session value, not the effective role (which would create a circular dependency)
+        if (defined('APP_ENV') && APP_ENV !== 'production') {
+            error_log("CondominiumController::switchViewMode - Current mode in session: " . ($currentMode ?? 'null'));
+        }
+        
+        if ($currentMode === 'condomino') {
+            // Currently viewing as condomino -> switch to admin
+            $_SESSION[$viewModeKey] = 'admin';
+            $_SESSION['success'] = 'Modo alterado para Administrador.';
+            if (defined('APP_ENV') && APP_ENV !== 'production') {
+                error_log("CondominiumController::switchViewMode - Setting view mode to 'admin' for condominium {$condominiumId}");
+            }
+        } else {
+            // Currently viewing as admin (or null/default) -> switch to condomino
+            $_SESSION[$viewModeKey] = 'condomino';
+            $_SESSION['success'] = 'Modo alterado para Condómino.';
+            if (defined('APP_ENV') && APP_ENV !== 'production') {
+                error_log("CondominiumController::switchViewMode - Setting view mode to 'condomino' for condominium {$condominiumId}");
+            }
+        }
+        
+        // Redirect back to the same page the user was on (or condominium overview if no referer)
+        $redirectUrl = $_SERVER['HTTP_REFERER'] ?? BASE_URL . 'condominiums/' . $condominiumId;
+        
+        // Ensure redirect is within the same condominium context
+        // If referer is from a different condominium, redirect to overview
+        if (strpos($redirectUrl, BASE_URL . 'condominiums/' . $condominiumId) === false) {
+            $redirectUrl = BASE_URL . 'condominiums/' . $condominiumId;
+        }
+        
+        header('Location: ' . $redirectUrl);
         exit;
     }
 }

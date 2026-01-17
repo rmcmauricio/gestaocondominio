@@ -128,6 +128,7 @@ class Controller
         $demoProfile = null;
         $condominium = null;
         $userCondominiums = [];
+        $currentCondominiumRole = null;
         
         if (!empty($_SESSION['user'])) {
             $demoBannerMessage = \App\Middleware\DemoProtectionMiddleware::getDemoBannerMessage();
@@ -256,10 +257,16 @@ class Controller
                     $condominium = $condominiumModel->findById($currentCondominiumId);
                     // Ensure session is always set with the current condominium
                     $_SESSION['current_condominium_id'] = $currentCondominiumId;
+                    
+                    // Get user's role in this condominium
+                    $currentCondominiumRole = \App\Middleware\RoleMiddleware::getUserRoleInCondominium($userId, $currentCondominiumId);
                 } elseif (isset($data['condominium'])) {
                     // Fallback: if no ID determined but we have condominium in data, use it
                     $condominium = $data['condominium'];
                     $_SESSION['current_condominium_id'] = $condominium['id'];
+                    
+                    // Get user's role in this condominium
+                    $currentCondominiumRole = \App\Middleware\RoleMiddleware::getUserRoleInCondominium($userId, $condominium['id']);
                 }
                 
                 // IMPORTANT: If data has a condominium with different ID, it means user explicitly selected it
@@ -284,6 +291,22 @@ class Controller
             $condominiumModel = new \App\Models\Condominium();
             $condominium = $condominiumModel->findById($dataCondominiumId);
             $_SESSION['current_condominium_id'] = $dataCondominiumId;
+            
+            // Get user's role in this condominium
+            if (isset($userId)) {
+                $currentCondominiumRole = \App\Middleware\RoleMiddleware::getUserRoleInCondominium($userId, $dataCondominiumId);
+            }
+        }
+        
+        // Initialize current_condominium_role if not set
+        if (!isset($currentCondominiumRole) && isset($currentCondominiumId) && isset($userId)) {
+            $currentCondominiumRole = \App\Middleware\RoleMiddleware::getUserRoleInCondominium($userId, $currentCondominiumId);
+        }
+        
+        // Check if user can switch between admin/condomino view
+        $canSwitchViewMode = false;
+        if (isset($currentCondominiumId) && isset($userId)) {
+            $canSwitchViewMode = \App\Middleware\RoleMiddleware::hasBothRolesInCondominium($userId, $currentCondominiumId);
         }
         
         $mergedData = array_merge([
@@ -297,10 +320,13 @@ class Controller
             'demo_banner_message' => $demoBannerMessage,
             'unread_notifications_count' => $unreadNotificationsCount,
             'unread_messages_count' => $unreadMessagesCount,
+            'current_condominium_role' => $currentCondominiumRole ?? null,
+            'can_switch_view_mode' => $canSwitchViewMode,
             'is_demo_user' => $isDemoUser,
             'demo_profile' => $demoProfile,
             'condominium' => $condominium ?? ($data['condominium'] ?? null),
             'user_condominiums' => $userCondominiums,
+            'csrf_token' => \App\Core\Security::generateCSRFToken(),
         ], $data);
         
         // Ensure condominium from data is used if present (URL parameter always wins)

@@ -8,17 +8,21 @@
                     <i class="bi bi-lightning-charge"></i> Ações Rápidas
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="quickActionsDropdown">
+                    {% if current_condominium_role == 'admin' %}
                     <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions"><i class="bi bi-house-door"></i> Gerir Frações</a></li>
                     <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances"><i class="bi bi-calculator"></i> Finanças</a></li>
                     <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts"><i class="bi bi-bank"></i> Contas Bancárias</a></li>
                     <li><hr class="dropdown-divider"></li>
+                    {% endif %}
                     <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces"><i class="bi bi-building"></i> Espaços Comuns</a></li>
                     <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations"><i class="bi bi-calendar-check"></i> Reservas</a></li>
+                    {% if current_condominium_role == 'admin' %}
                     <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents"><i class="bi bi-folder"></i> Documentos</a></li>
                     <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences"><i class="bi bi-exclamation-triangle"></i> Ocorrências</a></li>
+                    {% endif %}
                 </ul>
             </div>
-            {% set can_edit = (user.role == 'admin' or user.role == 'super_admin') and (demo_profile != 'condomino') %}
+            {% set can_edit = (current_condominium_role == 'admin' or user.role == 'super_admin') and (demo_profile != 'condomino') %}
             {% if can_edit %}
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/edit" class="btn btn-outline-primary">
                 <i class="bi bi-pencil"></i> Editar
@@ -88,6 +92,7 @@
                 </div>
 
                 <!-- Contas Bancárias e Caixa -->
+                {% if current_condominium_role == 'admin' %}
                 <div class="col-12 col-lg-6">
                     {% if bank_accounts %}
                     <div class="card shadow-sm mb-4 h-100 bank-accounts-summary-card">
@@ -133,6 +138,7 @@
                     </div>
                     {% endif %}
                 </div>
+                {% endif %}
             </div>
 
             <!-- Estatísticas -->

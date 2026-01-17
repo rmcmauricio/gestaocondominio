@@ -64,19 +64,25 @@ class DashboardController extends Controller
 
         $userId = AuthMiddleware::userId();
         
-        // Get user's condominiums
-        $condominiumModel = new \App\Models\Condominium();
-        $condominiums = $condominiumModel->getByUserId($userId);
+        // Get user's condominiums separated by role
+        $condominiumUserModel = new \App\Models\CondominiumUser();
+        $condominiumsByRole = $condominiumUserModel->getUserCondominiumsWithRoles($userId);
+        
+        $adminCondominiums = $condominiumsByRole['admin'] ?? [];
+        $condominoCondominiums = $condominiumsByRole['condomino'] ?? [];
+        
+        // Combine all condominiums for statistics
+        $allCondominiums = array_merge($adminCondominiums, $condominoCondominiums);
         
         // Get simple statistics
         $stats = [
-            'total_condominiums' => count($condominiums),
+            'total_condominiums' => count($allCondominiums),
             'total_fractions' => 0
         ];
 
         global $db;
-        if ($db && !empty($condominiums)) {
-            $condominiumIds = array_column($condominiums, 'id');
+        if ($db && !empty($allCondominiums)) {
+            $condominiumIds = array_column($allCondominiums, 'id');
             $placeholders = implode(',', array_fill(0, count($condominiumIds), '?'));
             
             // Count total fractions across all condominiums
@@ -91,7 +97,9 @@ class DashboardController extends Controller
         $this->data += [
             'viewName' => 'pages/condominiums/index.html.twig',
             'page' => ['titulo' => 'Dashboard'],
-            'condominiums' => $condominiums,
+            'admin_condominiums' => $adminCondominiums,
+            'condomino_condominiums' => $condominoCondominiums,
+            'condominiums' => $allCondominiums, // Keep for backward compatibility
             'stats' => $stats,
             'user' => AuthMiddleware::user()
         ];
