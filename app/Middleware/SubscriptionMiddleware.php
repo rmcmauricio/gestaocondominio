@@ -92,25 +92,40 @@ class SubscriptionMiddleware
             return true;
         }
 
-        // Check if trial is expired
-        if ($subscriptionService->isTrialExpired($user['id'])) {
-            // Get current route
-            $requestUri = $_SERVER['REQUEST_URI'] ?? '';
-            $parsedUrl = parse_url($requestUri);
-            $route = $parsedUrl['path'] ?? '';
+        // Get current route
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+        $parsedUrl = parse_url($requestUri);
+        $route = $parsedUrl['path'] ?? '';
 
+        // Get subscription to check status
+        $subscriptionModel = new \App\Models\Subscription();
+        $subscription = $subscriptionModel->getActiveSubscription($user['id']);
+        $hasTrial = $subscription && $subscription['status'] === 'trial';
+        $trialExpired = $hasTrial && $subscriptionService->isTrialExpired($user['id']);
+        $noSubscription = !$subscription;
+
+        // If trial is still active, allow access
+        if ($hasTrial && !$trialExpired) {
+            return true;
+        }
+
+        // If trial expired or no subscription, block access except allowed routes
+        if ($trialExpired || $noSubscription) {
             // Allow access to subscription, payment, and profile pages
             if (self::isAllowedRoute($route)) {
                 return true;
             }
 
             // Block access - redirect to subscription page
-            $_SESSION['error'] = 'O seu período experimental expirou. Por favor, escolha um plano para continuar a utilizar o serviço.';
+            if ($trialExpired) {
+                $_SESSION['error'] = 'O seu período experimental expirou. Por favor, escolha um plano para continuar a utilizar o serviço.';
+            } else {
+                $_SESSION['error'] = 'É necessário ter uma subscrição ativa para aceder a esta área. Por favor, escolha um plano.';
+            }
             header('Location: ' . BASE_URL . 'subscription');
             exit;
         }
 
-        // Trial is still active or no subscription yet
         return true;
     }
 
