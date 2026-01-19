@@ -9,7 +9,11 @@ if (file_exists($envFile)) {
     foreach ($lines as $line) {
         if (strpos($line, '=') !== false && strpos($line, '#') !== 0) {
             list($key, $value) = explode('=', $line, 2);
-            $config[trim($key)] = trim($value);
+            $key = trim($key);
+            $value = trim($value);
+            $config[$key] = $value;
+            // Also populate $_ENV for EmailService and other components
+            $_ENV[$key] = $value;
         }
     }
 }

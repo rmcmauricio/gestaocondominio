@@ -374,12 +374,21 @@ class AuthController extends Controller
         $token = $this->userModel->createPasswordResetToken($email);
         
         if ($token) {
-            // Send email with reset link
-            $resetLink = BASE_URL . 'reset-password?token=' . $token;
+            // Get user info to send personalized email
+            $user = $this->userModel->findByEmail($email);
+            if ($user) {
+                $emailService = new EmailService();
+                $nome = $user['name'] ?? 'Utilizador';
+                
+                // Send email with reset link
+                $emailSent = $emailService->sendPasswordResetEmail($email, $nome, $token);
+                
+                if (!$emailSent) {
+                    error_log("Failed to send password reset email to: " . $email);
+                }
+            }
             
-            // TODO: Send email using EmailService
-            // For now, just show success message
-            
+            // Always show success message (don't reveal if email exists for security)
             $_SESSION['forgot_success'] = 'Se o email existir, receberá um link para redefinir a senha.';
         } else {
             // Don't reveal if email exists for security
@@ -462,7 +471,30 @@ class AuthController extends Controller
             exit;
         }
 
+        // Get reset info before resetting password (token will be marked as used)
+        $resetInfo = $this->userModel->verifyPasswordResetToken($token);
+        $userEmail = null;
+        $userName = null;
+        
+        if ($resetInfo) {
+            $user = $this->userModel->findByEmail($resetInfo['email']);
+            if ($user) {
+                $userEmail = $resetInfo['email'];
+                $userName = $user['name'] ?? 'Utilizador';
+            }
+        }
+        
         if ($this->userModel->resetPassword($token, $password)) {
+            // Send success email if we have user info
+            if ($userEmail && $userName) {
+                $emailService = new EmailService();
+                $emailSent = $emailService->sendPasswordResetSuccessEmail($userEmail, $userName);
+                
+                if (!$emailSent) {
+                    error_log("Failed to send password reset success email to: " . $userEmail);
+                }
+            }
+            
             $_SESSION['login_success'] = 'Senha redefinida com sucesso! Pode fazer login agora.';
             header('Location: ' . BASE_URL . 'login');
             exit;

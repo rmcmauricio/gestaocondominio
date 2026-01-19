@@ -29,13 +29,13 @@ class EmailService
 
     public function __construct()
     {
-        // Load email configuration from constants (defined in .env)
-        $this->smtpHost = defined('SMTP_HOST') ? SMTP_HOST : 'smtp.gmail.com';
-        $this->smtpPort = defined('SMTP_PORT') ? (int)SMTP_PORT : 587;
-        $this->smtpUsername = defined('SMTP_USERNAME') ? SMTP_USERNAME : '';
-        $this->smtpPassword = defined('SMTP_PASSWORD') ? SMTP_PASSWORD : '';
-        $this->fromEmail = defined('FROM_EMAIL') ? FROM_EMAIL : 'noreply@sync2stage.com';
-        $this->fromName = defined('FROM_NAME') ? FROM_NAME : 'Sync2Stage';
+        // Load email configuration from .env (loaded into $_ENV)
+        $this->smtpHost = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
+        $this->smtpPort = isset($_ENV['SMTP_PORT']) ? (int)$_ENV['SMTP_PORT'] : 587;
+        $this->smtpUsername = $_ENV['SMTP_USERNAME'] ?? '';
+        $this->smtpPassword = $_ENV['SMTP_PASSWORD'] ?? '';
+        $this->fromEmail = $_ENV['FROM_EMAIL'] ?? 'noreply@example.com';
+        $this->fromName = $_ENV['FROM_NAME'] ?? 'Meu Prédio';
 
         // Load email translations
         $this->loadEmailTranslations();
@@ -43,31 +43,61 @@ class EmailService
 
     private function loadEmailTranslations(): void
     {
-        $lang = $_SESSION['lang'] ?? 'pt';
+        // Try to get language from session, but default to Portuguese
+        $lang = isset($_SESSION) && isset($_SESSION['lang']) ? $_SESSION['lang'] : 'pt';
         $emailFile = __DIR__ . "/../Metafiles/{$lang}/emails.json";
 
         if (file_exists($emailFile)) {
             $emailData = json_decode(file_get_contents($emailFile), true);
-            if (isset($emailData['t'])) {
+            if (isset($emailData['t']) && is_array($emailData['t'])) {
                 $this->emailTranslations = $emailData['t'];
             }
         }
 
-        // Fallback to Portuguese if translations not found
+        // Fallback to Portuguese if translations not found or empty
         if (empty($this->emailTranslations)) {
             $fallbackFile = __DIR__ . "/../Metafiles/pt/emails.json";
             if (file_exists($fallbackFile)) {
                 $fallbackData = json_decode(file_get_contents($fallbackFile), true);
-                if (isset($fallbackData['t'])) {
+                if (isset($fallbackData['t']) && is_array($fallbackData['t'])) {
                     $this->emailTranslations = $fallbackData['t'];
                 }
             }
+        }
+        
+        // If still empty, initialize as empty array to avoid errors
+        if (empty($this->emailTranslations)) {
+            $this->emailTranslations = [];
         }
     }
 
     private function t(string $key, array $replacements = []): string
     {
+        // Get translation or use key as fallback
         $text = $this->emailTranslations[$key] ?? $key;
+        
+        // If translation is empty or same as key, try to provide a default
+        if (empty($text) || $text === $key) {
+            // Provide some default Portuguese translations for common keys
+            $defaults = [
+                'password_reset_title' => 'Redefinir Senha',
+                'password_reset_subtitle' => 'Solicitação de redefinição de senha',
+                'password_reset_hello' => 'Olá {nome}!',
+                'password_reset_message' => 'Recebemos uma solicitação para redefinir a senha da sua conta.',
+                'password_reset_button' => 'Redefinir Senha',
+                'password_reset_important' => 'Importante',
+                'password_reset_warning_1' => 'Este link expira em 1 hora',
+                'password_reset_warning_2' => 'Se você não solicitou esta alteração, ignore este email',
+                'password_reset_warning_3' => 'A sua senha não será alterada até que você clique no link acima',
+                'password_reset_copy_link' => 'Se o botão não funcionar, copie e cole este link no seu navegador:',
+                'welcome_footer_made_with' => 'Feito com ❤️ para gestão de condomínios',
+                'welcome_footer_copyright' => '© O Meu Prédio - Todos os direitos reservados',
+            ];
+            
+            if (isset($defaults[$key])) {
+                $text = $defaults[$key];
+            }
+        }
 
         // Replace placeholders like {nome}
         foreach ($replacements as $placeholder => $value) {
@@ -156,11 +186,19 @@ class EmailService
                     'crypto_method' => STREAM_CRYPTO_METHOD_TLS_CLIENT,
                     'ciphers' => 'DEFAULT@SECLEVEL=1',
                     'disable_compression' => true,
-                    'peer_name' => 'mail.lyricsjam.com',
+                    'peer_name' => $this->smtpHost,
                     'capture_peer_cert' => false,
                     'capture_peer_cert_chain' => false
                 )
             );
+            
+            // Enable verbose debug output in development
+            if (defined('APP_ENV') && APP_ENV === 'development') {
+                $mail->SMTPDebug = SMTP::DEBUG_SERVER;
+                $mail->Debugoutput = function($str, $level) {
+                    error_log("PHPMailer Debug: " . $str);
+                };
+            }
 
             // Character encoding settings
             $mail->CharSet = 'UTF-8';
@@ -179,7 +217,14 @@ class EmailService
             $mail->send();
             return true;
         } catch (Exception $e) {
-            error_log("EmailService Error: " . $e->getMessage());
+            $errorMsg = "EmailService Error: " . $e->getMessage();
+            error_log($errorMsg);
+            // Log additional debug info in development
+            if (defined('APP_ENV') && APP_ENV === 'development') {
+                error_log("SMTP Host: " . $this->smtpHost);
+                error_log("SMTP Port: " . $this->smtpPort);
+                error_log("SMTP Username: " . $this->smtpUsername);
+            }
             return false;
         }
     }
@@ -455,52 +500,205 @@ Link: {$verificationUrl}
 
     private function getPasswordResetEmailTemplate(string $nome, string $resetUrl): string
     {
+        $logoBase64 = $this->getLogoBase64();
+        // Use logo if available, otherwise use text fallback
+        // Some email clients don't support SVG, so we provide a text fallback
+        $logoHtml = $logoBase64 
+            ? "<img src='{$logoBase64}' alt='O Meu Prédio' style='height: 50px; width: auto; max-width: 200px; object-fit: contain; display: block; margin: 0 auto;'>" 
+            : "<div style='font-size: 1.5rem; font-weight: 700; margin: 0;'>O Meu Prédio</div>";
+        
         return "
         <!DOCTYPE html>
         <html lang='pt'>
         <head>
             <meta charset='UTF-8'>
             <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
             <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #ffc107 0%, #ff8c00 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                .button { display: inline-block; background: #ffc107; color: #000; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0; box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3); }
-                .button:hover { background: #ff8c00; color: #000; }
-                .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-                .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin: 20px 0; }
-                .warning strong { color: #856404; }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+                    line-height: 1.6; 
+                    color: #1a1f3a; 
+                    background-color: #f5f5f5;
+                    margin: 0; 
+                    padding: 20px;
+                }
+                .email-wrapper {
+                    max-width: 600px; 
+                    margin: 0 auto; 
+                    background-color: #ffffff;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 4px 20px rgba(23, 74, 126, 0.1);
+                }
+                .header { 
+                    background: linear-gradient(135deg, #174A7E 0%, #2a5f9e 100%); 
+                    color: white; 
+                    padding: 40px 30px; 
+                    text-align: center;
+                    position: relative;
+                }
+                .header::before {
+                    content: '';
+                    position: absolute;
+                    top: -50px;
+                    right: -50px;
+                    width: 200px;
+                    height: 200px;
+                    background: rgba(249, 142, 19, 0.2);
+                    border-radius: 50%;
+                    filter: blur(60px);
+                }
+                .header-content {
+                    position: relative;
+                    z-index: 1;
+                }
+                .logo-container {
+                    margin-bottom: 20px;
+                }
+                .header h1 {
+                    font-size: 1.75rem;
+                    font-weight: 700;
+                    margin-bottom: 10px;
+                    color: white;
+                }
+                .header p {
+                    font-size: 1rem;
+                    opacity: 0.95;
+                    color: white;
+                }
+                .content { 
+                    background: #ffffff; 
+                    padding: 40px 30px; 
+                }
+                .greeting {
+                    font-size: 1.125rem;
+                    font-weight: 600;
+                    color: #1a1f3a;
+                    margin-bottom: 20px;
+                }
+                .message {
+                    font-size: 1rem;
+                    color: #6b7280;
+                    margin-bottom: 30px;
+                    line-height: 1.7;
+                }
+                .button-container {
+                    text-align: center;
+                    margin: 35px 0;
+                }
+                .button { 
+                    display: inline-block; 
+                    background: linear-gradient(135deg, #F98E13 0%, #ffa733 100%);
+                    color: #ffffff; 
+                    padding: 16px 40px; 
+                    text-decoration: none; 
+                    border-radius: 8px; 
+                    font-weight: 600;
+                    font-size: 1rem;
+                    box-shadow: 0 4px 14px rgba(249, 142, 19, 0.4);
+                    transition: all 0.3s ease;
+                }
+                .button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(249, 142, 19, 0.5);
+                }
+                .warning { 
+                    background: #fff8e1; 
+                    border-left: 4px solid #F98E13;
+                    padding: 20px; 
+                    border-radius: 8px; 
+                    margin: 30px 0;
+                }
+                .warning-title {
+                    font-weight: 700;
+                    color: #F98E13;
+                    margin-bottom: 12px;
+                    font-size: 1rem;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+                .warning ul {
+                    margin: 10px 0 0 0;
+                    padding-left: 20px;
+                    color: #856404;
+                }
+                .warning li {
+                    margin-bottom: 8px;
+                    line-height: 1.5;
+                }
+                .link-box {
+                    background: #f5f5f5;
+                    padding: 15px;
+                    border-radius: 8px;
+                    margin-top: 25px;
+                    word-break: break-all;
+                    font-family: 'Courier New', monospace;
+                    font-size: 0.875rem;
+                    color: #6b7280;
+                    border: 1px solid #e5e7eb;
+                }
+                .link-label {
+                    font-weight: 600;
+                    color: #1a1f3a;
+                    margin-bottom: 8px;
+                    font-size: 0.875rem;
+                }
+                .footer { 
+                    text-align: center; 
+                    padding: 30px;
+                    background: #f9fafb;
+                    border-top: 1px solid #e5e7eb;
+                    color: #6b7280; 
+                    font-size: 0.875rem;
+                }
+                .footer p {
+                    margin: 5px 0;
+                }
+                @media only screen and (max-width: 600px) {
+                    body { padding: 10px; }
+                    .header, .content { padding: 25px 20px; }
+                    .button { padding: 14px 30px; font-size: 0.9375rem; }
+                }
             </style>
         </head>
         <body>
-            <div class='container'>
+            <div class='email-wrapper'>
                 <div class='header'>
-                    <div style='margin-bottom: 20px;'>
-                        <img src='{$this->getLogoBase64()}' alt='Sync2Stage Logo' style='height: 60px; width: auto; filter: brightness(0) invert(1);'>
+                    <div class='header-content'>
+                        <div class='logo-container'>
+                            {$logoHtml}
+                        </div>
+                        <h1>🔐 " . $this->t('password_reset_title') . "</h1>
+                        <p>" . $this->t('password_reset_subtitle') . "</p>
                     </div>
-                    <h1>🔐 " . $this->t('password_reset_title') . "</h1>
-                    <p>" . $this->t('password_reset_subtitle') . "</p>
                 </div>
                 <div class='content'>
-                    <h2>" . $this->t('password_reset_hello', ['nome' => $nome]) . "</h2>
-                    <p>" . $this->t('password_reset_message') . "</p>
+                    <div class='greeting'>" . $this->t('password_reset_hello', ['nome' => $nome]) . "</div>
+                    <div class='message'>" . $this->t('password_reset_message') . "</div>
 
-                    <div style='text-align: center;'>
+                    <div class='button-container'>
                         <a href='{$resetUrl}' class='button'>" . $this->t('password_reset_button') . "</a>
                     </div>
 
                     <div class='warning'>
-                        <strong>⚠️ " . $this->t('password_reset_important') . "</strong>
-                        <ul style='margin: 10px 0; padding-left: 20px;'>
+                        <div class='warning-title'>
+                            <span>⚠️</span>
+                            <span>" . $this->t('password_reset_important') . "</span>
+                        </div>
+                        <ul>
                             <li>" . $this->t('password_reset_warning_1') . "</li>
                             <li>" . $this->t('password_reset_warning_2') . "</li>
                             <li>" . $this->t('password_reset_warning_3') . "</li>
                         </ul>
                     </div>
 
-                    <p><strong>" . $this->t('password_reset_copy_link') . "</strong></p>
-                    <p style='word-break: break-all; background: #f0f0f0; padding: 10px; border-radius: 5px; font-family: monospace;'>{$resetUrl}</p>
+                    <div class='link-box'>
+                        <div class='link-label'>" . $this->t('password_reset_copy_link') . "</div>
+                        {$resetUrl}
+                    </div>
                 </div>
                 <div class='footer'>
                     <p>" . $this->t('welcome_footer_made_with') . "</p>
@@ -532,47 +730,197 @@ Link: {$verificationUrl}
 
     private function getPasswordResetSuccessEmailTemplate(string $nome): string
     {
+        $logoBase64 = $this->getLogoBase64();
+        // Use logo if available, otherwise use text fallback
+        $logoHtml = $logoBase64 
+            ? "<img src='{$logoBase64}' alt='O Meu Prédio' style='height: 50px; width: auto; max-width: 200px; object-fit: contain; display: block; margin: 0 auto;'>" 
+            : "<div style='font-size: 1.5rem; font-weight: 700; margin: 0;'>O Meu Prédio</div>";
+        
         return "
         <!DOCTYPE html>
         <html lang='pt'>
         <head>
             <meta charset='UTF-8'>
             <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
             <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                .button { display: inline-block; background: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3); }
-                .button:hover { background: #20c997; }
-                .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-                .success { background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 8px; margin: 20px 0; }
-                .success strong { color: #155724; }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+                    line-height: 1.6; 
+                    color: #1a1f3a; 
+                    background-color: #f5f5f5;
+                    margin: 0; 
+                    padding: 20px;
+                }
+                .email-wrapper {
+                    max-width: 600px; 
+                    margin: 0 auto; 
+                    background-color: #ffffff;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 4px 20px rgba(23, 74, 126, 0.1);
+                }
+                .header { 
+                    background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
+                    color: white; 
+                    padding: 40px 30px; 
+                    text-align: center;
+                    position: relative;
+                }
+                .header::before {
+                    content: '';
+                    position: absolute;
+                    top: -50px;
+                    right: -50px;
+                    width: 200px;
+                    height: 200px;
+                    background: rgba(16, 185, 129, 0.2);
+                    border-radius: 50%;
+                    filter: blur(60px);
+                }
+                .header-content {
+                    position: relative;
+                    z-index: 1;
+                }
+                .logo-container {
+                    margin-bottom: 20px;
+                }
+                .header h1 {
+                    font-size: 1.75rem;
+                    font-weight: 700;
+                    margin-bottom: 10px;
+                    color: white;
+                }
+                .header p {
+                    font-size: 1rem;
+                    opacity: 0.95;
+                    color: white;
+                }
+                .content { 
+                    background: #ffffff; 
+                    padding: 40px 30px; 
+                }
+                .greeting {
+                    font-size: 1.125rem;
+                    font-weight: 600;
+                    color: #1a1f3a;
+                    margin-bottom: 20px;
+                }
+                .message {
+                    font-size: 1rem;
+                    color: #6b7280;
+                    margin-bottom: 30px;
+                    line-height: 1.7;
+                }
+                .success-box { 
+                    background: #d1fae5; 
+                    border-left: 4px solid #10b981;
+                    padding: 20px; 
+                    border-radius: 8px; 
+                    margin: 30px 0;
+                }
+                .success-box strong {
+                    color: #065f46;
+                    font-size: 1rem;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    margin-bottom: 8px;
+                }
+                .success-box p {
+                    color: #047857;
+                    margin: 0;
+                    line-height: 1.6;
+                }
+                .button-container {
+                    text-align: center;
+                    margin: 35px 0;
+                }
+                .button { 
+                    display: inline-block; 
+                    background: linear-gradient(135deg, #174A7E 0%, #2a5f9e 100%);
+                    color: #ffffff; 
+                    padding: 16px 40px; 
+                    text-decoration: none; 
+                    border-radius: 8px; 
+                    font-weight: 600;
+                    font-size: 1rem;
+                    box-shadow: 0 4px 14px rgba(23, 74, 126, 0.3);
+                    transition: all 0.3s ease;
+                }
+                .button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(23, 74, 126, 0.4);
+                }
+                .security-note {
+                    margin-top: 25px;
+                    padding: 20px;
+                    background: #f9fafb;
+                    border-radius: 8px;
+                    border: 1px solid #e5e7eb;
+                }
+                .security-note strong {
+                    color: #1a1f3a;
+                    display: block;
+                    margin-bottom: 8px;
+                    font-size: 0.9375rem;
+                }
+                .security-note p {
+                    color: #6b7280;
+                    margin: 0;
+                    font-size: 0.9375rem;
+                    line-height: 1.6;
+                }
+                .footer { 
+                    text-align: center; 
+                    padding: 30px;
+                    background: #f9fafb;
+                    border-top: 1px solid #e5e7eb;
+                    color: #6b7280; 
+                    font-size: 0.875rem;
+                }
+                .footer p {
+                    margin: 5px 0;
+                }
+                @media only screen and (max-width: 600px) {
+                    body { padding: 10px; }
+                    .header, .content { padding: 25px 20px; }
+                    .button { padding: 14px 30px; font-size: 0.9375rem; }
+                }
             </style>
         </head>
         <body>
-            <div class='container'>
+            <div class='email-wrapper'>
                 <div class='header'>
-                    <div style='margin-bottom: 20px;'>
-                        <img src='{$this->getLogoBase64()}' alt='Sync2Stage Logo' style='height: 60px; width: auto; filter: brightness(0) invert(1);'>
+                    <div class='header-content'>
+                        <div class='logo-container'>
+                            {$logoHtml}
+                        </div>
+                        <h1>✅ " . $this->t('password_reset_success_title') . "</h1>
+                        <p>" . $this->t('password_reset_success_subtitle') . "</p>
                     </div>
-                    <h1>✅ " . $this->t('password_reset_success_title') . "</h1>
-                    <p>" . $this->t('password_reset_success_subtitle') . "</p>
                 </div>
                 <div class='content'>
-                    <h2>" . $this->t('password_reset_success_hello', ['nome' => $nome]) . "</h2>
-                    <p>" . $this->t('password_reset_success_message') . "</p>
+                    <div class='greeting'>" . $this->t('password_reset_success_hello', ['nome' => $nome]) . "</div>
+                    <div class='message'>" . $this->t('password_reset_success_message') . "</div>
 
-                    <div class='success'>
-                        <strong>✅ " . $this->t('password_reset_success_security') . ":</strong> " . $this->t('password_reset_success_security_message') . "
+                    <div class='success-box'>
+                        <strong>
+                            <span>✅</span>
+                            <span>" . $this->t('password_reset_success_security') . ":</span>
+                        </strong>
+                        <p>" . $this->t('password_reset_success_security_message') . "</p>
                     </div>
 
-                    <div style='text-align: center;'>
+                    <div class='button-container'>
                         <a href='" . BASE_URL . "login' class='button'>" . $this->t('password_reset_success_login_button') . "</a>
                     </div>
 
-                    <p><strong>" . $this->t('password_reset_success_if_not_you') . "</strong></p>
-                    <p>" . $this->t('password_reset_success_contact') . "</p>
+                    <div class='security-note'>
+                        <strong>" . $this->t('password_reset_success_if_not_you') . "</strong>
+                        <p>" . $this->t('password_reset_success_contact') . "</p>
+                    </div>
                 </div>
                 <div class='footer'>
                     <p>" . $this->t('welcome_footer_made_with') . "</p>
@@ -604,9 +952,22 @@ Link: {$verificationUrl}
 
     private function getLogoBase64(): string
     {
-        $logoPath = __DIR__ . '/../../assets/images/sync2stage_logo.svg';
-        if (file_exists($logoPath)) {
-            return 'data:image/svg+xml;base64,' . base64_encode(file_get_contents($logoPath));
+        // Try project logo first
+        $logoPath = __DIR__ . '/../../assets/images/logo.svg';
+        if (file_exists($logoPath) && is_readable($logoPath)) {
+            $logoContent = file_get_contents($logoPath);
+            if ($logoContent !== false) {
+                // Encode SVG properly for email (URL encode instead of base64 for better compatibility)
+                return 'data:image/svg+xml;charset=utf-8,' . rawurlencode($logoContent);
+            }
+        }
+        // Fallback to old logo if exists
+        $oldLogoPath = __DIR__ . '/../../assets/images/sync2stage_logo.svg';
+        if (file_exists($oldLogoPath) && is_readable($oldLogoPath)) {
+            $logoContent = file_get_contents($oldLogoPath);
+            if ($logoContent !== false) {
+                return 'data:image/svg+xml;charset=utf-8,' . rawurlencode($logoContent);
+            }
         }
         return '';
     }
