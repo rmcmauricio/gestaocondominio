@@ -65,21 +65,40 @@ class InvitationController extends Controller
             exit;
         }
 
-        $email = Security::sanitize($_POST['email'] ?? '');
-        $name = Security::sanitize($_POST['name'] ?? '');
-        $fractionId = !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null;
+        $email = trim(Security::sanitize($_POST['email'] ?? ''));
+        $name = trim(Security::sanitize($_POST['name'] ?? ''));
+        $fractionId = !empty($_POST['fraction_id']) && $_POST['fraction_id'] !== '' ? (int)$_POST['fraction_id'] : null;
         $role = Security::sanitize($_POST['role'] ?? 'condomino');
 
+        error_log("InvitationController::store - Received data: email={$email}, name={$name}, fractionId=" . ($fractionId ?? 'null') . ", role={$role}");
+
         if (empty($email) || empty($name)) {
+            error_log("InvitationController::store - Validation failed: empty email or name");
             $_SESSION['error'] = 'Por favor, preencha todos os campos obrigatórios.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/invitations/create');
             exit;
         }
 
-        if ($this->invitationService->sendInvitation($condominiumId, $fractionId, $email, $name, $role)) {
-            $_SESSION['success'] = 'Convite enviado com sucesso!';
-        } else {
-            $_SESSION['error'] = 'Erro ao enviar convite.';
+        // Validate email format
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            error_log("InvitationController::store - Invalid email format: {$email}");
+            $_SESSION['error'] = 'Por favor, insira um email válido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/invitations/create');
+            exit;
+        }
+
+        try {
+            if ($this->invitationService->sendInvitation($condominiumId, $fractionId, $email, $name, $role)) {
+                $_SESSION['success'] = 'Convite enviado com sucesso!';
+            } else {
+                // Check logs for more details
+                error_log("InvitationController: Failed to send invitation for email: {$email}, fraction_id: " . ($fractionId ?? 'null'));
+                $_SESSION['error'] = 'Erro ao enviar convite. Verifique os logs para mais detalhes.';
+            }
+        } catch (\Exception $e) {
+            error_log("InvitationController exception: " . $e->getMessage());
+            error_log("InvitationController trace: " . $e->getTraceAsString());
+            $_SESSION['error'] = 'Erro ao enviar convite: ' . $e->getMessage();
         }
 
         // Redirect back to fractions page if fraction_id is provided, otherwise to condominium page
