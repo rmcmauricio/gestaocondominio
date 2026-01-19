@@ -67,6 +67,18 @@
         "new_user_action_3": "Contactar o utilizador",
         "new_user_action_4": "Ver todos os pedidos",
         "new_user_copy_link": "Link direto:",
-        "new_user_footer_auto": "Este é um email automático. Por favor, não responda."
+        "new_user_footer_auto": "Este é um email automático. Por favor, não responda.",
+        
+        "notification_email_subject": "Nova Notificação",
+        "notification_email_title": "Nova Notificação",
+        
+        "message_email_subject": "Nova Mensagem",
+        "message_email_private_title": "Nova Mensagem Privada",
+        "message_email_announcement_title": "Novo Anúncio",
+        
+        "fraction_assignment_subject": "Fração Atribuída",
+        "fraction_assignment_message": "Uma fração foi atribuída à sua conta no sistema. Agora pode gerir esta fração e aceder a todas as funcionalidades relacionadas.",
+        
+        "dev_email_redirect_notice": "Este email foi redirecionado para o ambiente de desenvolvimento"
     }
 }

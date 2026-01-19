@@ -71,6 +71,7 @@ $router->get('/admin', 'App\Controllers\DashboardController@admin');
 $router->get('/profile', 'App\Controllers\ProfileController@show');
 $router->post('/profile/update', 'App\Controllers\ProfileController@update');
 $router->post('/profile/password', 'App\Controllers\ProfileController@updatePassword');
+$router->post('/profile/email-preferences', 'App\Controllers\ProfileController@updateEmailPreferences');
 
 // Notification routes
 $router->get('/notifications', 'App\Controllers\NotificationController@index');
@@ -106,6 +107,7 @@ $router->post('/condominiums/{condominium_id}/fractions/{id}/remove-owner', 'App
 // Invitation routes
 $router->get('/condominiums/{condominium_id}/invitations/create', 'App\Controllers\InvitationController@create');
 $router->post('/condominiums/{condominium_id}/invitations', 'App\Controllers\InvitationController@store');
+$router->post('/condominiums/{condominium_id}/invitations/{invitation_id}/revoke', 'App\Controllers\InvitationController@revoke');
 $router->get('/invitation/accept', 'App\Controllers\InvitationController@accept');
 $router->post('/invitation/accept', 'App\Controllers\InvitationController@processAccept');
 

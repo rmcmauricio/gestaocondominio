@@ -3,18 +3,22 @@
 namespace App\Services;
 
 use App\Core\EmailService;
+use App\Middleware\DemoProtectionMiddleware;
+use App\Models\UserEmailPreference;
 
 class NotificationService
 {
     protected $emailService;
+    protected $preferenceModel;
 
     public function __construct()
     {
         $this->emailService = new EmailService();
+        $this->preferenceModel = new UserEmailPreference();
     }
 
     /**
-     * Create notification in database
+     * Create notification in database and send email
      */
     public function createNotification(int $userId, int $condominiumId, string $type, string $title, string $message, string $link = null): bool
     {
@@ -25,12 +29,47 @@ class NotificationService
         }
 
         try {
+            // Check if user is demo - demo users never receive emails
+            if (DemoProtectionMiddleware::isDemoUser($userId)) {
+                // Still create notification in database, but don't send email
+                $stmt = $db->prepare("
+                    INSERT INTO notifications (user_id, condominium_id, type, title, message, link)
+                    VALUES (:user_id, :condominium_id, :type, :title, :message, :link)
+                ");
+                return $stmt->execute([
+                    ':user_id' => $userId,
+                    ':condominium_id' => $condominiumId,
+                    ':type' => $type,
+                    ':title' => $title,
+                    ':message' => $message,
+                    ':link' => $link
+                ]);
+            }
+
+            // Check user preferences
+            if (!$this->preferenceModel->hasEmailEnabled($userId, 'notification')) {
+                // User has disabled notification emails, but still create notification
+                $stmt = $db->prepare("
+                    INSERT INTO notifications (user_id, condominium_id, type, title, message, link)
+                    VALUES (:user_id, :condominium_id, :type, :title, :message, :link)
+                ");
+                return $stmt->execute([
+                    ':user_id' => $userId,
+                    ':condominium_id' => $condominiumId,
+                    ':type' => $type,
+                    ':title' => $title,
+                    ':message' => $message,
+                    ':link' => $link
+                ]);
+            }
+
+            // Create notification in database
             $stmt = $db->prepare("
                 INSERT INTO notifications (user_id, condominium_id, type, title, message, link)
                 VALUES (:user_id, :condominium_id, :type, :title, :message, :link)
             ");
 
-            return $stmt->execute([
+            $result = $stmt->execute([
                 ':user_id' => $userId,
                 ':condominium_id' => $condominiumId,
                 ':type' => $type,
@@ -38,6 +77,33 @@ class NotificationService
                 ':message' => $message,
                 ':link' => $link
             ]);
+
+            // Send email notification (don't fail if email fails)
+            if ($result) {
+                try {
+                    // Get user email
+                    $userStmt = $db->prepare("SELECT email, name FROM users WHERE id = :user_id LIMIT 1");
+                    $userStmt->execute([':user_id' => $userId]);
+                    $user = $userStmt->fetch();
+
+                    if ($user && !empty($user['email'])) {
+                        $this->emailService->sendNotificationEmail(
+                            $user['email'],
+                            $user['name'] ?? 'Utilizador',
+                            $type,
+                            $title,
+                            $message,
+                            $link,
+                            $userId
+                        );
+                    }
+                } catch (\Exception $e) {
+                    // Log error but don't fail notification creation
+                    error_log("Failed to send notification email: " . $e->getMessage());
+                }
+            }
+
+            return $result;
         } catch (\Exception $e) {
             error_log("Notification error: " . $e->getMessage());
             return false;

@@ -425,7 +425,7 @@ class OccurrenceController extends Controller
 
         $userId = AuthMiddleware::userId();
         $comment = trim(Security::sanitize($_POST['comment'] ?? ''));
-        $isInternal = isset($_POST['is_internal']) && $_POST['is_internal'] === '1';
+        $isInternal = !empty($_POST['is_internal']) && $_POST['is_internal'] === '1';
 
         if (empty($comment)) {
             $_SESSION['error'] = 'O comentário não pode estar vazio.';

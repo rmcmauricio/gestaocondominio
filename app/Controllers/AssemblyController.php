@@ -149,6 +149,60 @@ class AssemblyController extends Controller
                 'created_by' => $userId
             ]);
 
+            // Get assembly details for notifications
+            $assembly = $this->assemblyModel->findById($assemblyId);
+            if (!$assembly) {
+                error_log("AssemblyController: Assembly not found after creation (ID: {$assemblyId})");
+            }
+            
+            // Get all users in the condominium (except demo users and ended associations)
+            global $db;
+            $stmt = $db->prepare("
+                SELECT DISTINCT u.id, u.email, u.name
+                FROM users u
+                INNER JOIN condominium_users cu ON cu.user_id = u.id
+                WHERE cu.condominium_id = :condominium_id
+                AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+                AND (u.is_demo = FALSE OR u.is_demo IS NULL)
+            ");
+            $stmt->execute([':condominium_id' => $condominiumId]);
+            $users = $stmt->fetchAll() ?: [];
+
+            // Create notifications and send emails for all users
+            $assemblyLink = BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId;
+            $assemblyTitle = $assembly['title'] ?? Security::sanitize($_POST['title'] ?? '');
+            $scheduledDate = $_POST['scheduled_date'] . ' ' . ($_POST['scheduled_time'] ?? '20:00');
+            $formattedDate = date('d/m/Y H:i', strtotime($scheduledDate));
+            $notificationMessage = "Uma assembleia foi agendada: {$assemblyTitle} em {$formattedDate}";
+            
+            error_log("AssemblyController: Creating notifications for " . count($users) . " users for assembly ID: {$assemblyId}");
+            
+            $notificationsCreated = 0;
+            foreach ($users as $user) {
+                try {
+                    // Create notification (this will also send email if preferences allow and not demo)
+                    $result = $this->notificationService->createNotification(
+                        $user['id'],
+                        $condominiumId,
+                        'assembly',
+                        'Nova Assembleia Agendada',
+                        $notificationMessage,
+                        $assemblyLink
+                    );
+                    if ($result) {
+                        $notificationsCreated++;
+                        error_log("AssemblyController: Notification created successfully for user ID: {$user['id']} ({$user['email']})");
+                    } else {
+                        error_log("AssemblyController: Failed to create notification for user ID: {$user['id']} ({$user['email']}) - createNotification returned false");
+                    }
+                } catch (\Exception $e) {
+                    // Log error but don't fail assembly creation
+                    error_log("AssemblyController: Exception creating notification for user ID {$user['id']} ({$user['email']}): " . $e->getMessage());
+                }
+            }
+            
+            error_log("AssemblyController: Created {$notificationsCreated} notifications out of " . count($users) . " users for assembly ID: {$assemblyId}");
+
             $_SESSION['success'] = 'Assembleia criada com sucesso!';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
             exit;

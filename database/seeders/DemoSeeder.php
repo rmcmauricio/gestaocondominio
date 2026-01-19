@@ -208,7 +208,10 @@ class DemoSeeder
 
         if ($user) {
             $this->demoUserId = $user['id'];
-            echo "   Utilizador demo já existe (ID: {$this->demoUserId})\n";
+            // Ensure demo user has is_demo flag set
+            $updateStmt = $this->db->prepare("UPDATE users SET is_demo = TRUE WHERE id = :id");
+            $updateStmt->execute([':id' => $this->demoUserId]);
+            echo "   Utilizador demo já existe (ID: {$this->demoUserId}) - flag is_demo atualizada\n";
         } else {
             $userModel = new User();
             $this->demoUserId = $userModel->create([
@@ -218,7 +221,10 @@ class DemoSeeder
                 'role' => 'admin',
                 'status' => 'active'
             ]);
-            echo "   Utilizador demo criado (ID: {$this->demoUserId})\n";
+            // Mark as demo user
+            $updateStmt = $this->db->prepare("UPDATE users SET is_demo = TRUE WHERE id = :id");
+            $updateStmt->execute([':id' => $this->demoUserId]);
+            echo "   Utilizador demo criado (ID: {$this->demoUserId}) - marcado como is_demo = TRUE\n";
         }
     }
 
@@ -1012,6 +1018,10 @@ class DemoSeeder
                     'status' => 'active'
                 ]);
             }
+            
+            // Mark all users associated with demo condominiums as demo users
+            $updateDemoStmt = $this->db->prepare("UPDATE users SET is_demo = TRUE WHERE id = :user_id");
+            $updateDemoStmt->execute([':user_id' => $userId]);
 
             // Check if association already exists
             $fractionId = $this->fractionIds[$userData['fraction']];

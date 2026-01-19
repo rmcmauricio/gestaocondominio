@@ -71,7 +71,7 @@ class InvitationService
             $invitationLink = BASE_URL . 'invitation/accept?token=' . $token;
             
             $subject = 'Convite para Condomínio';
-            $message = "
+            $html = "
                 <h2>Convite para Condomínio</h2>
                 <p>Olá {$name},</p>
                 <p>Foi convidado para fazer parte de um condomínio.</p>
@@ -79,8 +79,9 @@ class InvitationService
                 <p><a href='{$invitationLink}'>Aceitar Convite</a></p>
                 <p>Este link expira em 7 dias.</p>
             ";
+            $text = "Convite para Condomínio\n\nOlá {$name},\n\nFoi convidado para fazer parte de um condomínio.\n\nClique no link abaixo para criar a sua conta e aceitar o convite:\n{$invitationLink}\n\nEste link expira em 7 dias.";
 
-            return $this->emailService->send($email, $subject, $message);
+            return $this->emailService->sendEmail($email, $subject, $html, $text);
         } catch (\Exception $e) {
             error_log("Invitation error: " . $e->getMessage());
             return false;
@@ -216,6 +217,39 @@ class InvitationService
 
         $stmt->execute([':condominium_id' => $condominiumId]);
         return $stmt->fetchAll() ?: [];
+    }
+
+    /**
+     * Revoke (delete) an invitation
+     */
+    public function revokeInvitation(int $invitationId, int $condominiumId): bool
+    {
+        global $db;
+        
+        if (!$db) {
+            return false;
+        }
+
+        // Verify invitation belongs to condominium
+        $stmt = $db->prepare("
+            SELECT id FROM invitations 
+            WHERE id = :invitation_id 
+            AND condominium_id = :condominium_id
+            AND accepted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':invitation_id' => $invitationId,
+            ':condominium_id' => $condominiumId
+        ]);
+        
+        if (!$stmt->fetch()) {
+            return false; // Invitation not found or already accepted
+        }
+
+        // Delete invitation
+        $deleteStmt = $db->prepare("DELETE FROM invitations WHERE id = :invitation_id");
+        return $deleteStmt->execute([':invitation_id' => $invitationId]);
     }
 }
 

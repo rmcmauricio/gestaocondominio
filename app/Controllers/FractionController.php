@@ -11,6 +11,9 @@ use App\Models\Condominium;
 use App\Models\Subscription;
 use App\Models\CondominiumUser;
 use App\Services\InvitationService;
+use App\Core\EmailService;
+use App\Middleware\DemoProtectionMiddleware;
+use App\Models\UserEmailPreference;
 
 class FractionController extends Controller
 {
@@ -45,11 +48,28 @@ class FractionController extends Controller
         $fractions = $this->fractionModel->getByCondominiumId($condominiumId);
         $totalPermillage = $this->fractionModel->getTotalPermillage($condominiumId);
         
-        // Get owners for each fraction
+        // Get owners and pending invitations for each fraction
         foreach ($fractions as &$fraction) {
             $owners = $this->fractionModel->getOwners($fraction['id']);
             $fraction['owners'] = $owners;
             $fraction['primary_owner'] = !empty($owners) ? $owners[0] : null;
+            
+            // Get pending invitations for this fraction
+            global $db;
+            $stmt = $db->prepare("
+                SELECT id, email, name, role, created_at, expires_at
+                FROM invitations
+                WHERE fraction_id = :fraction_id
+                AND condominium_id = :condominium_id
+                AND accepted_at IS NULL
+                AND expires_at > NOW()
+                ORDER BY created_at DESC
+            ");
+            $stmt->execute([
+                ':fraction_id' => $fraction['id'],
+                ':condominium_id' => $condominiumId
+            ]);
+            $fraction['pending_invitations'] = $stmt->fetchAll() ?: [];
         }
 
         $this->loadPageTranslations('fractions');
@@ -335,6 +355,7 @@ class FractionController extends Controller
             ]);
             $existingAssociation = $stmt->fetch();
 
+            $associationCreated = false;
             if ($existingAssociation) {
                 // Update existing association to include fraction
                 $stmt = $db->prepare("
@@ -348,6 +369,7 @@ class FractionController extends Controller
                     ':fraction_id' => $fractionId,
                     ':id' => $existingAssociation['id']
                 ]);
+                $associationCreated = true;
             } else {
                 // Create new association
                 $this->condominiumUserModel->associate([
@@ -359,6 +381,43 @@ class FractionController extends Controller
                     'can_view_finances' => true,
                     'can_vote' => true
                 ]);
+                $associationCreated = true;
+            }
+
+            // Send email notification if association was created/updated
+            if ($associationCreated) {
+                try {
+                    // Check if user is demo - demo users never receive emails
+                    if (!DemoProtectionMiddleware::isDemoUser($userId)) {
+                        // Check user preferences
+                        $preferenceModel = new UserEmailPreference();
+                        if ($preferenceModel->hasEmailEnabled($userId, 'notification')) {
+                            // Get user and condominium info
+                            $userStmt = $db->prepare("SELECT email, name FROM users WHERE id = :user_id LIMIT 1");
+                            $userStmt->execute([':user_id' => $userId]);
+                            $user = $userStmt->fetch();
+
+                            $condominium = $this->condominiumModel->findById($condominiumId);
+                            
+                            if ($user && !empty($user['email']) && $condominium) {
+                                $emailService = new EmailService();
+                                $fractionLink = BASE_URL . 'condominiums/' . $condominiumId . '/fractions';
+                                
+                                $emailService->sendFractionAssignmentEmail(
+                                    $user['email'],
+                                    $user['name'] ?? 'Utilizador',
+                                    $condominium['name'],
+                                    $fraction['identifier'],
+                                    $fractionLink,
+                                    $userId
+                                );
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    // Log error but don't fail fraction assignment
+                    error_log("Failed to send fraction assignment email: " . $e->getMessage());
+                }
             }
 
             $_SESSION['success'] = 'Fração atribuída com sucesso!';
@@ -405,13 +464,9 @@ class FractionController extends Controller
             exit;
         }
 
-        // Check how many owners this fraction has
+        // Check how many owners this fraction has (allow removing even if only one, admin can reassign)
         $owners = $this->fractionModel->getOwners($fractionId);
-        if (count($owners) <= 1) {
-            $_SESSION['error'] = 'Não é possível remover o último condómino de uma fração.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
-            exit;
-        }
+        // Removed restriction - admin can remove any owner, even if it's the last one
 
         // Find the condominium_users entry
         global $db;

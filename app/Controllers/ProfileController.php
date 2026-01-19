@@ -7,6 +7,7 @@ use App\Core\Security;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\DemoProtectionMiddleware;
 use App\Models\User;
+use App\Models\UserEmailPreference;
 
 class ProfileController extends Controller
 {
@@ -37,6 +38,10 @@ class ProfileController extends Controller
         // Check if user is demo
         $isDemo = DemoProtectionMiddleware::isDemoUser($userId);
 
+        // Get email preferences
+        $preferenceModel = new UserEmailPreference();
+        $emailPreferences = $preferenceModel->getPreferences($userId);
+
         $this->loadPageTranslations('profile');
         
         $this->data += [
@@ -44,6 +49,7 @@ class ProfileController extends Controller
             'page' => ['titulo' => 'Meu Perfil'],
             'user' => $userData,
             'is_demo' => $isDemo,
+            'email_preferences' => $emailPreferences,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
@@ -242,6 +248,52 @@ class ProfileController extends Controller
             $_SESSION['success'] = 'Palavra-passe alterada com sucesso!';
         } else {
             $_SESSION['error'] = 'Erro ao alterar palavra-passe. Tente novamente.';
+        }
+
+        header('Location: ' . BASE_URL . 'profile');
+        exit;
+    }
+
+    public function updateEmailPreferences()
+    {
+        AuthMiddleware::require();
+
+        $userId = AuthMiddleware::userId();
+        
+        // Prevent demo users from updating preferences
+        if (DemoProtectionMiddleware::isDemoUser($userId)) {
+            $_SESSION['error'] = 'Não é possível alterar preferências de email para utilizadores demo.';
+            header('Location: ' . BASE_URL . 'profile');
+            exit;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'profile');
+            exit;
+        }
+
+        // Verify CSRF token
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'profile');
+            exit;
+        }
+
+        $preferenceModel = new UserEmailPreference();
+        
+        $preferences = [
+            'email_notifications_enabled' => isset($_POST['email_notifications_enabled']),
+            'email_messages_enabled' => isset($_POST['email_messages_enabled'])
+        ];
+
+        try {
+            if ($preferenceModel->updatePreferences($userId, $preferences)) {
+                $_SESSION['success'] = 'Preferências de email atualizadas com sucesso!';
+            } else {
+                $_SESSION['error'] = 'Erro ao atualizar preferências de email. Tente novamente.';
+            }
+        } catch (\Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
         }
 
         header('Location: ' . BASE_URL . 'profile');

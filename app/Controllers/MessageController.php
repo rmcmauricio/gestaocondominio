@@ -205,9 +205,83 @@ class MessageController extends Controller
                 }
             }
 
-            // Notify recipient if private message
-            // For announcements (to_user_id IS NULL), notifications are handled via unified notifications
-            // No need to create separate notification entries as messages appear in unified list
+            // Send email notifications
+            try {
+                $emailService = new \App\Core\EmailService();
+                $preferenceModel = new \App\Models\UserEmailPreference();
+                $sender = AuthMiddleware::user();
+                $senderName = $sender['name'] ?? 'Sistema';
+                $messageLink = BASE_URL . 'condominiums/' . $condominiumId . '/messages/' . $messageId;
+                $subject = Security::sanitize($_POST['subject'] ?? '');
+                $isAnnouncement = ($recipientId === null);
+
+                if ($isAnnouncement) {
+                    // Announcement: send to all users in condominium (except demo users)
+                    global $db;
+                    $stmt = $db->prepare("
+                        SELECT DISTINCT u.id, u.email, u.name
+                        FROM users u
+                        INNER JOIN condominium_users cu ON cu.user_id = u.id
+                        WHERE cu.condominium_id = :condominium_id
+                        AND u.id != :sender_id
+                    ");
+                    $stmt->execute([
+                        ':condominium_id' => $condominiumId,
+                        ':sender_id' => $userId
+                    ]);
+                    $recipients = $stmt->fetchAll();
+
+                    foreach ($recipients as $recipient) {
+                        // Skip demo users
+                        if (\App\Middleware\DemoProtectionMiddleware::isDemoUser($recipient['id'])) {
+                            continue;
+                        }
+
+                        // Check preferences
+                        if ($preferenceModel->hasEmailEnabled($recipient['id'], 'message')) {
+                            $emailService->sendMessageEmail(
+                                $recipient['email'],
+                                $recipient['name'] ?? 'Utilizador',
+                                $senderName,
+                                $subject,
+                                $messageContent,
+                                $messageLink,
+                                true, // isAnnouncement
+                                $recipient['id']
+                            );
+                        }
+                    }
+                } else {
+                    // Private message: send to recipient only
+                    // Check if recipient is demo
+                    if (!\App\Middleware\DemoProtectionMiddleware::isDemoUser($recipientId)) {
+                        // Get recipient info
+                        global $db;
+                        $stmt = $db->prepare("SELECT email, name FROM users WHERE id = :user_id LIMIT 1");
+                        $stmt->execute([':user_id' => $recipientId]);
+                        $recipient = $stmt->fetch();
+
+                        if ($recipient && !empty($recipient['email'])) {
+                            // Check preferences
+                            if ($preferenceModel->hasEmailEnabled($recipientId, 'message')) {
+                                $emailService->sendMessageEmail(
+                                    $recipient['email'],
+                                    $recipient['name'] ?? 'Utilizador',
+                                    $senderName,
+                                    $subject,
+                                    $messageContent,
+                                    $messageLink,
+                                    false, // isAnnouncement
+                                    $recipientId
+                                );
+                            }
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // Log error but don't fail message creation
+                error_log("Failed to send message email: " . $e->getMessage());
+            }
 
             $_SESSION['success'] = 'Mensagem enviada com sucesso!';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/messages');

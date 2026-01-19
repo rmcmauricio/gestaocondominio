@@ -174,5 +174,40 @@ class InvitationController extends Controller
         header('Location: ' . BASE_URL . 'invitation/accept?token=' . $token);
         exit;
     }
+
+    public function revoke(int $condominiumId, int $invitationId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $fractionId = !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null;
+
+        if ($this->invitationService->revokeInvitation($invitationId, $condominiumId)) {
+            $_SESSION['success'] = 'Convite revogado com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao revogar convite. Convite não encontrado ou já foi aceite.';
+        }
+
+        // Redirect back to fractions page if fraction_id is provided, otherwise to condominium page
+        if ($fractionId) {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+        } else {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId);
+        }
+        exit;
+    }
 }
 

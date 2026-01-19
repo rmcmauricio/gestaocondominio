@@ -157,14 +157,100 @@ class EmailService
 
     /**
      * Send generic email
+     * @param string $to Recipient email
+     * @param string $subject Email subject
+     * @param string $html HTML content
+     * @param string $text Plain text content
+     * @param string|null $emailType Type of email ('notification' or 'message')
+     * @param int|null $userId User ID for preference checking and demo protection
+     * @return bool
      */
-    public function sendEmail(string $to, string $subject, string $html, string $text = ''): bool
+    public function sendEmail(string $to, string $subject, string $html, string $text = '', ?string $emailType = null, ?int $userId = null): bool
     {
-        return $this->sendEmailInternal($to, $subject, $html, $text);
+        return $this->sendEmailInternal($to, $subject, $html, $text, $emailType, $userId);
     }
 
-    private function sendEmailInternal(string $to, string $subject, string $html, string $text): bool
+    private function sendEmailInternal(string $to, string $subject, string $html, string $text, ?string $emailType = null, ?int $userId = null): bool
     {
+        // Check if user is demo - demo users never receive emails
+        if ($userId !== null) {
+            if (\App\Middleware\DemoProtectionMiddleware::isDemoUser($userId)) {
+                error_log("EmailService: Skipping email to demo user (ID: {$userId})");
+                return false;
+            }
+
+            // Check user preferences if email type is provided
+            if ($emailType !== null && in_array($emailType, ['notification', 'message'])) {
+                $preferenceModel = new \App\Models\UserEmailPreference();
+                if (!$preferenceModel->hasEmailEnabled($userId, $emailType)) {
+                    error_log("EmailService: Email disabled by user preference (User ID: {$userId}, Type: {$emailType})");
+                    return false;
+                }
+            }
+        }
+
+        // Store original recipient for DEV redirection
+        $originalTo = $to;
+        
+        // Get APP_ENV from multiple sources
+        $appEnv = null;
+        if (defined('APP_ENV')) {
+            $appEnv = APP_ENV;
+        } elseif (isset($_ENV['APP_ENV'])) {
+            $appEnv = $_ENV['APP_ENV'];
+        } else {
+            $appEnv = 'development'; // Default to development
+        }
+        
+        // Get DEV_EMAIL
+        $devEmail = $_ENV['DEV_EMAIL'] ?? '';
+        
+        // Check if we're in development mode
+        $isDevelopment = (strtolower($appEnv) === 'development');
+        
+        // Log environment info for debugging
+        error_log("EmailService Debug: APP_ENV={$appEnv}, isDevelopment=" . ($isDevelopment ? 'YES' : 'NO') . ", DEV_EMAIL=" . ($devEmail ?: 'NOT SET') . ", Original recipient: {$originalTo}");
+        
+        // In development, if DEV_EMAIL is not set, block email sending
+        if ($isDevelopment && empty($devEmail)) {
+            error_log("EmailService: BLOCKED - Development mode but DEV_EMAIL not set. Email to {$originalTo} was blocked. Please set DEV_EMAIL in .env file.");
+            return false; // Don't send email in development if DEV_EMAIL is not configured
+        }
+
+        // Redirect to DEV_EMAIL in development environment
+        if ($isDevelopment && !empty($devEmail)) {
+            error_log("EmailService: Redirecting email from {$originalTo} to DEV_EMAIL: {$devEmail}");
+            $to = $devEmail;
+            
+            // Modify subject to indicate it's a dev redirect
+            $subject = '[DEV] [Original: ' . $originalTo . '] ' . $subject;
+            
+            // Add notice to email body about redirection
+            $devNotice = '
+            <div style="background: #F98E13; border: 2px solid #F98E13; padding: 15px; margin: 20px 0; border-radius: 8px; opacity: 0.9;">
+                <strong style="color: #ffffff;">⚠️ EMAIL DE DESENVOLVIMENTO</strong><br>
+                <p style="color: #ffffff; margin: 10px 0 0 0;">
+                    Este email foi redirecionado para o ambiente de desenvolvimento.<br>
+                    <strong>Destinatário original:</strong> ' . htmlspecialchars($originalTo) . '<br>
+                    <strong>Destinatário atual:</strong> ' . htmlspecialchars($devEmail) . '
+                </p>
+            </div>';
+            
+            // Insert notice after opening body tag or at the beginning of content
+            if (strpos($html, '<body') !== false) {
+                $html = preg_replace('/(<body[^>]*>)/', '$1' . $devNotice, $html, 1);
+            } else {
+                $html = $devNotice . $html;
+            }
+            
+            // Add notice to text version
+            $text = "⚠️ EMAIL DE DESENVOLVIMENTO\n\n" .
+                   "Este email foi redirecionado para o ambiente de desenvolvimento.\n" .
+                   "Destinatário original: {$originalTo}\n" .
+                   "Destinatário atual: {$devEmail}\n\n" .
+                   "---\n\n" . $text;
+        }
+
         try {
             $mail = new PHPMailer(true);
 
@@ -238,12 +324,12 @@ class EmailService
             <meta charset='UTF-8'>
             <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
             <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #1a1f3a; }
                 .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #fabd14 0%, #e6a700 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                .button { display: inline-block; background: #fabd14; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
-                .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+                .header { background: #a90f0f; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                .content { background: #f5f5f5; padding: 30px; border-radius: 0 0 10px 10px; }
+                .button { display: inline-block; background: #F98E13; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
+                .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
             </style>
         </head>
         <body>
@@ -262,7 +348,7 @@ class EmailService
                     <p><strong>" . $this->t('welcome_next_step') . "</strong> " . $this->t('welcome_confirm_email') . "</p>
 
                     <div style='text-align: center;'>
-                        <a href='{$verificationUrl}' class='button'>" . $this->t('welcome_confirm_button') . "</a>
+                        <a href='{$verificationUrl}' class='button' style='background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 15px 30px; border-radius: 5px; font-weight: bold; display: inline-block;'>" . $this->t('welcome_confirm_button') . "</a>
                     </div>
 
                     <p><strong>" . $this->t('welcome_what_happens') . "</strong></p>
@@ -274,7 +360,7 @@ class EmailService
                     </ul>
 
                     <p>" . $this->t('welcome_copy_link') . "</p>
-                    <p style='word-break: break-all; background: #eee; padding: 10px; border-radius: 5px;'>{$verificationUrl}</p>
+                    <p style='word-break: break-all; background: #f5f5f5; padding: 10px; border-radius: 5px; color: #1a1f3a;'>{$verificationUrl}</p>
                 </div>
                 <div class='footer'>
                     <p>" . $this->t('welcome_footer_made_with') . "</p>
@@ -317,12 +403,12 @@ Link: {$verificationUrl}
             <meta charset='UTF-8'>
             <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
             <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #1a1f3a; }
                 .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #fabd14 0%, #e6a700 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                .button { display: inline-block; background: #fabd14; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
-                .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+                .header { background: #a90f0f; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                .content { background: #f5f5f5; padding: 30px; border-radius: 0 0 10px 10px; }
+                .button { display: inline-block; background: #F98E13; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
+                .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
             </style>
         </head>
         <body>
@@ -336,7 +422,7 @@ Link: {$verificationUrl}
                     <p>" . $this->t('approval_message') . "</p>
 
                     <div style='text-align: center;'>
-                        <a href='" . BASE_URL . "login' class='button'>" . $this->t('approval_login_button') . "</a>
+                        <a href='" . BASE_URL . "login' class='button' style='background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 15px 30px; border-radius: 5px; font-weight: bold; display: inline-block;'>" . $this->t('approval_login_button') . "</a>
                     </div>
 
                     <p><strong>" . $this->t('approval_what_can_do') . "</strong></p>
@@ -391,13 +477,13 @@ Link: {$verificationUrl}
             <meta charset='UTF-8'>
             <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
             <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #1a1f3a; }
                 .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #fabd14 0%, #e6a700 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                .button { display: inline-block; background: #fabd14; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
-                .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-                .user-info { background: #e8f4fd; border: 1px solid #bee5eb; border-radius: 8px; padding: 20px; margin: 20px 0; }
+                .header { background: #a90f0f; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                .content { background: #f5f5f5; padding: 30px; border-radius: 0 0 10px 10px; }
+                .button { display: inline-block; background: #F98E13; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
+                .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+                .user-info { background: #f5f5f5; border: 1px solid #a90f0f; border-left: 4px solid #a90f0f; border-radius: 8px; padding: 20px; margin: 20px 0; }
             </style>
         </head>
         <body>
@@ -416,13 +502,13 @@ Link: {$verificationUrl}
                         <p><strong>" . $this->t('new_user_name') . "</strong> {$userName}</p>
                         <p><strong>" . $this->t('new_user_email') . "</strong> {$userEmail}</p>
                         <p><strong>" . $this->t('new_user_date') . "</strong> " . date('d/m/Y H:i') . "</p>
-                        <p><strong>" . $this->t('new_user_status') . "</strong> <span style='color: #ff9800; font-weight: bold;'>" . $this->t('new_user_pending') . "</span></p>
+                        <p><strong>" . $this->t('new_user_status') . "</strong> <span style='color: #F98E13; font-weight: bold;'>" . $this->t('new_user_pending') . "</span></p>
                     </div>
 
                     <p><strong>" . $this->t('new_user_next_step') . "</strong> " . $this->t('new_user_approve_message') . "</p>
 
                     <div style='text-align: center;'>
-                        <a href='{$adminUrl}' class='button'>" . $this->t('new_user_view_button') . "</a>
+                        <a href='{$adminUrl}' class='button' style='background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 15px 30px; border-radius: 5px; font-weight: bold; display: inline-block;'>" . $this->t('new_user_view_button') . "</a>
                     </div>
 
                     <p><strong>" . $this->t('new_user_what_can_do') . "</strong></p>
@@ -434,7 +520,7 @@ Link: {$verificationUrl}
                     </ul>
 
                     <p>" . $this->t('new_user_copy_link') . "</p>
-                    <p style='word-break: break-all; background: #eee; padding: 10px; border-radius: 5px;'>{$adminUrl}</p>
+                    <p style='word-break: break-all; background: #f5f5f5; padding: 10px; border-radius: 5px; color: #1a1f3a;'>{$adminUrl}</p>
                 </div>
                 <div class='footer'>
                     <p>" . $this->t('new_user_footer_auto') . "</p>
@@ -526,10 +612,10 @@ Link: {$verificationUrl}
                     background-color: #ffffff;
                     border-radius: 12px;
                     overflow: hidden;
-                    box-shadow: 0 4px 20px rgba(23, 74, 126, 0.1);
+                    box-shadow: 0 4px 20px rgba(169, 15, 15, 0.1);
                 }
                 .header { 
-                    background: linear-gradient(135deg, #174A7E 0%, #2a5f9e 100%); 
+                    background: #a90f0f; 
                     color: white; 
                     padding: 40px 30px; 
                     text-align: center;
@@ -586,7 +672,7 @@ Link: {$verificationUrl}
                 }
                 .button { 
                     display: inline-block; 
-                    background: linear-gradient(135deg, #F98E13 0%, #ffa733 100%);
+                    background: #F98E13;
                     color: #ffffff; 
                     padding: 16px 40px; 
                     text-decoration: none; 
@@ -601,7 +687,7 @@ Link: {$verificationUrl}
                     box-shadow: 0 6px 20px rgba(249, 142, 19, 0.5);
                 }
                 .warning { 
-                    background: #fff8e1; 
+                    background: #f5f5f5; 
                     border-left: 4px solid #F98E13;
                     padding: 20px; 
                     border-radius: 8px; 
@@ -619,7 +705,7 @@ Link: {$verificationUrl}
                 .warning ul {
                     margin: 10px 0 0 0;
                     padding-left: 20px;
-                    color: #856404;
+                    color: #1a1f3a;
                 }
                 .warning li {
                     margin-bottom: 8px;
@@ -634,7 +720,7 @@ Link: {$verificationUrl}
                     font-family: 'Courier New', monospace;
                     font-size: 0.875rem;
                     color: #6b7280;
-                    border: 1px solid #e5e7eb;
+                    border: 1px solid #f5f5f5;
                 }
                 .link-label {
                     font-weight: 600;
@@ -645,7 +731,7 @@ Link: {$verificationUrl}
                 .footer { 
                     text-align: center; 
                     padding: 30px;
-                    background: #f9fafb;
+                    background: #f5f5f5;
                     border-top: 1px solid #e5e7eb;
                     color: #6b7280; 
                     font-size: 0.875rem;
@@ -676,7 +762,7 @@ Link: {$verificationUrl}
                     <div class='message'>" . $this->t('password_reset_message') . "</div>
 
                     <div class='button-container'>
-                        <a href='{$resetUrl}' class='button'>" . $this->t('password_reset_button') . "</a>
+                        <a href='{$resetUrl}' class='button' style='background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; display: inline-block;'>" . $this->t('password_reset_button') . "</a>
                     </div>
 
                     <div class='warning'>
@@ -752,10 +838,10 @@ Link: {$verificationUrl}
                     background-color: #ffffff;
                     border-radius: 12px;
                     overflow: hidden;
-                    box-shadow: 0 4px 20px rgba(23, 74, 126, 0.1);
+                    box-shadow: 0 4px 20px rgba(169, 15, 15, 0.1);
                 }
                 .header { 
-                    background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
+                    background: #a90f0f; 
                     color: white; 
                     padding: 40px 30px; 
                     text-align: center;
@@ -768,7 +854,7 @@ Link: {$verificationUrl}
                     right: -50px;
                     width: 200px;
                     height: 200px;
-                    background: rgba(16, 185, 129, 0.2);
+                    background: rgba(249, 142, 19, 0.2);
                     border-radius: 50%;
                     filter: blur(60px);
                 }
@@ -807,14 +893,14 @@ Link: {$verificationUrl}
                     line-height: 1.7;
                 }
                 .success-box { 
-                    background: #d1fae5; 
-                    border-left: 4px solid #10b981;
+                    background: #f5f5f5; 
+                    border-left: 4px solid #F98E13;
                     padding: 20px; 
                     border-radius: 8px; 
                     margin: 30px 0;
                 }
                 .success-box strong {
-                    color: #065f46;
+                    color: #F98E13;
                     font-size: 1rem;
                     display: flex;
                     align-items: center;
@@ -822,7 +908,7 @@ Link: {$verificationUrl}
                     margin-bottom: 8px;
                 }
                 .success-box p {
-                    color: #047857;
+                    color: #1a1f3a;
                     margin: 0;
                     line-height: 1.6;
                 }
@@ -832,26 +918,26 @@ Link: {$verificationUrl}
                 }
                 .button { 
                     display: inline-block; 
-                    background: linear-gradient(135deg, #174A7E 0%, #2a5f9e 100%);
+                    background: #F98E13;
                     color: #ffffff; 
                     padding: 16px 40px; 
                     text-decoration: none; 
                     border-radius: 8px; 
                     font-weight: 600;
                     font-size: 1rem;
-                    box-shadow: 0 4px 14px rgba(23, 74, 126, 0.3);
+                    box-shadow: 0 4px 14px rgba(249, 142, 19, 0.4);
                     transition: all 0.3s ease;
                 }
                 .button:hover {
                     transform: translateY(-2px);
-                    box-shadow: 0 6px 20px rgba(23, 74, 126, 0.4);
+                    box-shadow: 0 6px 20px rgba(249, 142, 19, 0.5);
                 }
                 .security-note {
                     margin-top: 25px;
                     padding: 20px;
-                    background: #f9fafb;
+                    background: #f5f5f5;
                     border-radius: 8px;
-                    border: 1px solid #e5e7eb;
+                    border: 1px solid #f5f5f5;
                 }
                 .security-note strong {
                     color: #1a1f3a;
@@ -868,7 +954,7 @@ Link: {$verificationUrl}
                 .footer { 
                     text-align: center; 
                     padding: 30px;
-                    background: #f9fafb;
+                    background: #f5f5f5;
                     border-top: 1px solid #e5e7eb;
                     color: #6b7280; 
                     font-size: 0.875rem;
@@ -907,7 +993,7 @@ Link: {$verificationUrl}
                     </div>
 
                     <div class='button-container'>
-                        <a href='" . BASE_URL . "login' class='button'>" . $this->t('password_reset_success_login_button') . "</a>
+                        <a href='" . BASE_URL . "login' class='button' style='background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; display: inline-block;'>" . $this->t('password_reset_success_login_button') . "</a>
                     </div>
 
                     <div class='security-note'>
@@ -949,10 +1035,690 @@ Link: {$verificationUrl}
      * Gmail strips SVG, divs with CSS, and sometimes emojis
      * Solution: Pure HTML table with inline styles (Gmail-safe)
      */
+    /**
+     * Send notification email
+     */
+    public function sendNotificationEmail(string $email, string $nome, string $notificationType, string $title, string $message, string $link = null, ?int $userId = null): bool
+    {
+        $subject = $this->t('notification_email_subject') . ': ' . $title;
+        
+        $html = $this->getNotificationEmailTemplate($nome, $notificationType, $title, $message, $link);
+        $text = $this->getNotificationEmailText($nome, $notificationType, $title, $message, $link);
+        
+        return $this->sendEmail($email, $subject, $html, $text, 'notification', $userId);
+    }
+
+    /**
+     * Send message email
+     */
+    public function sendMessageEmail(string $email, string $nome, string $senderName, string $subject, string $messageContent, string $link, bool $isAnnouncement = false, ?int $userId = null): bool
+    {
+        $emailSubject = $isAnnouncement 
+            ? $this->t('message_email_announcement_title') . ': ' . $subject
+            : $this->t('message_email_private_title') . ': ' . $subject;
+        
+        $html = $this->getMessageEmailTemplate($nome, $senderName, $subject, $messageContent, $link, $isAnnouncement);
+        $text = $this->getMessageEmailText($nome, $senderName, $subject, $messageContent, $link, $isAnnouncement);
+        
+        return $this->sendEmail($email, $emailSubject, $html, $text, 'message', $userId);
+    }
+
+    /**
+     * Send fraction assignment email
+     */
+    public function sendFractionAssignmentEmail(string $email, string $nome, string $condominiumName, string $fractionIdentifier, string $link, ?int $userId = null): bool
+    {
+        $subject = $this->t('fraction_assignment_subject') . ': ' . $fractionIdentifier;
+        
+        $html = $this->getFractionAssignmentEmailTemplate($nome, $condominiumName, $fractionIdentifier, $link);
+        $text = $this->getFractionAssignmentEmailText($nome, $condominiumName, $fractionIdentifier, $link);
+        
+        return $this->sendEmail($email, $subject, $html, $text, 'notification', $userId);
+    }
+
+    private function getNotificationEmailTemplate(string $nome, string $notificationType, string $title, string $message, ?string $link = null): string
+    {
+        $logoHtml = $this->getLogoInline();
+        
+        // Map notification types to icons
+        $icons = [
+            'occurrence' => '⚠️',
+            'fee_overdue' => '💰',
+            'assembly' => '📋',
+            'vote' => '🗳️',
+            'occurrence_comment' => '💬',
+            'default' => '🔔'
+        ];
+        $icon = $icons[$notificationType] ?? $icons['default'];
+        
+        $linkHtml = '';
+        if ($link) {
+            $linkHtml = '
+                    <div class="button-container">
+                        <a href="' . htmlspecialchars($link) . '" class="button" style="background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; display: inline-block;">Ver Detalhes</a>
+                    </div>';
+        }
+        
+        return "
+        <!DOCTYPE html>
+        <html lang='pt'>
+        <head>
+            <meta charset='UTF-8'>
+            <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+                    line-height: 1.6; 
+                    color: #1a1f3a; 
+                    background-color: #f5f5f5;
+                    margin: 0; 
+                    padding: 20px;
+                }
+                .email-wrapper {
+                    max-width: 600px; 
+                    margin: 0 auto; 
+                    background-color: #ffffff;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 4px 20px rgba(169, 15, 15, 0.1);
+                }
+                .header { 
+                    background: #a90f0f; 
+                    color: white; 
+                    padding: 40px 30px; 
+                    text-align: center;
+                    position: relative;
+                }
+                .header::before {
+                    content: '';
+                    position: absolute;
+                    top: -50px;
+                    right: -50px;
+                    width: 200px;
+                    height: 200px;
+                    background: rgba(249, 142, 19, 0.2);
+                    border-radius: 50%;
+                    filter: blur(60px);
+                }
+                .header-content {
+                    position: relative;
+                    z-index: 1;
+                }
+                .logo-container {
+                    margin-bottom: 20px;
+                    padding: 10px 0;
+                }
+                .header h1 {
+                    font-size: 1.75rem;
+                    font-weight: 700;
+                    margin-bottom: 10px;
+                    color: white;
+                }
+                .header p {
+                    font-size: 1rem;
+                    opacity: 0.95;
+                    color: white;
+                }
+                .content { 
+                    background: #ffffff; 
+                    padding: 40px 30px; 
+                }
+                .greeting {
+                    font-size: 1.125rem;
+                    font-weight: 600;
+                    color: #1a1f3a;
+                    margin-bottom: 20px;
+                }
+                .notification-title {
+                    font-size: 1.25rem;
+                    font-weight: 700;
+                    color: #a90f0f;
+                    margin-bottom: 15px;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+                .message {
+                    font-size: 1rem;
+                    color: #6b7280;
+                    margin-bottom: 30px;
+                    line-height: 1.7;
+                }
+                .button-container {
+                    text-align: center;
+                    margin: 35px 0;
+                }
+                .button { 
+                    display: inline-block; 
+                    background: #F98E13;
+                    color: #ffffff; 
+                    padding: 16px 40px; 
+                    text-decoration: none; 
+                    border-radius: 8px; 
+                    font-weight: 600;
+                    font-size: 1rem;
+                    box-shadow: 0 4px 14px rgba(249, 142, 19, 0.4);
+                    transition: all 0.3s ease;
+                }
+                .button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(249, 142, 19, 0.5);
+                }
+                .footer { 
+                    text-align: center; 
+                    padding: 30px;
+                    background: #f5f5f5;
+                    border-top: 1px solid #e5e7eb;
+                    color: #6b7280; 
+                    font-size: 0.875rem;
+                }
+                .footer p {
+                    margin: 5px 0;
+                }
+                @media only screen and (max-width: 600px) {
+                    body { padding: 10px; }
+                    .header, .content { padding: 25px 20px; }
+                    .button { padding: 14px 30px; font-size: 0.9375rem; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class='email-wrapper'>
+                <div class='header'>
+                    <div class='header-content'>
+                        <div class='logo-container'>
+                            {$logoHtml}
+                        </div>
+                        <h1>{$icon} " . htmlspecialchars($title) . "</h1>
+                        <p>Nova Notificação</p>
+                    </div>
+                </div>
+                <div class='content'>
+                    <div class='greeting'>Olá " . htmlspecialchars($nome) . "!</div>
+                    
+                    <div class='notification-title'>
+                        <span>{$icon}</span>
+                        <span>" . htmlspecialchars($title) . "</span>
+                    </div>
+                    
+                    <div class='message'>" . nl2br(htmlspecialchars($message)) . "</div>
+                    
+                    {$linkHtml}
+                </div>
+                <div class='footer'>
+                    <p>" . $this->t('welcome_footer_made_with') . "</p>
+                    <p>" . $this->t('welcome_footer_copyright') . "</p>
+                </div>
+            </div>
+        </body>
+        </html>";
+    }
+
+    private function getNotificationEmailText(string $nome, string $notificationType, string $title, string $message, ?string $link = null): string
+    {
+        $text = "Olá {$nome}!\n\n";
+        $text .= htmlspecialchars($title) . "\n\n";
+        $text .= htmlspecialchars($message) . "\n\n";
+        
+        if ($link) {
+            $text .= "Ver detalhes: {$link}\n\n";
+        }
+        
+        $text .= $this->t('welcome_footer_made_with') . "\n";
+        $text .= $this->t('welcome_footer_copyright') . "\n";
+        
+        return $text;
+    }
+
+    private function getMessageEmailTemplate(string $nome, string $senderName, string $subject, string $messageContent, string $link, bool $isAnnouncement = false): string
+    {
+        $logoHtml = $this->getLogoInline();
+        $messageType = $isAnnouncement ? 'Anúncio' : 'Mensagem Privada';
+        $icon = $isAnnouncement ? '📢' : '✉️';
+        
+        return "
+        <!DOCTYPE html>
+        <html lang='pt'>
+        <head>
+            <meta charset='UTF-8'>
+            <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+                    line-height: 1.6; 
+                    color: #1a1f3a; 
+                    background-color: #f5f5f5;
+                    margin: 0; 
+                    padding: 20px;
+                }
+                .email-wrapper {
+                    max-width: 600px; 
+                    margin: 0 auto; 
+                    background-color: #ffffff;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 4px 20px rgba(169, 15, 15, 0.1);
+                }
+                .header { 
+                    background: #a90f0f; 
+                    color: white; 
+                    padding: 40px 30px; 
+                    text-align: center;
+                    position: relative;
+                }
+                .header::before {
+                    content: '';
+                    position: absolute;
+                    top: -50px;
+                    right: -50px;
+                    width: 200px;
+                    height: 200px;
+                    background: rgba(249, 142, 19, 0.2);
+                    border-radius: 50%;
+                    filter: blur(60px);
+                }
+                .header-content {
+                    position: relative;
+                    z-index: 1;
+                }
+                .logo-container {
+                    margin-bottom: 20px;
+                    padding: 10px 0;
+                }
+                .header h1 {
+                    font-size: 1.75rem;
+                    font-weight: 700;
+                    margin-bottom: 10px;
+                    color: white;
+                }
+                .header p {
+                    font-size: 1rem;
+                    opacity: 0.95;
+                    color: white;
+                }
+                .content { 
+                    background: #ffffff; 
+                    padding: 40px 30px; 
+                }
+                .greeting {
+                    font-size: 1.125rem;
+                    font-weight: 600;
+                    color: #1a1f3a;
+                    margin-bottom: 20px;
+                }
+                .message-info {
+                    background: #f5f5f5;
+                    border-left: 4px solid #a90f0f;
+                    padding: 20px;
+                    border-radius: 8px;
+                    margin-bottom: 25px;
+                }
+                .message-info-row {
+                    margin-bottom: 10px;
+                    font-size: 0.9375rem;
+                }
+                .message-info-label {
+                    font-weight: 600;
+                    color: #1a1f3a;
+                    display: inline-block;
+                    min-width: 100px;
+                }
+                .message-info-value {
+                    color: #6b7280;
+                }
+                .message-content {
+                    background: #ffffff;
+                    border: 1px solid #f5f5f5;
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin: 25px 0;
+                    font-size: 1rem;
+                    line-height: 1.7;
+                    color: #1a1f3a;
+                }
+                .button-container {
+                    text-align: center;
+                    margin: 35px 0;
+                }
+                .button { 
+                    display: inline-block; 
+                    background: #F98E13;
+                    color: #ffffff; 
+                    padding: 16px 40px; 
+                    text-decoration: none; 
+                    border-radius: 8px; 
+                    font-weight: 600;
+                    font-size: 1rem;
+                    box-shadow: 0 4px 14px rgba(249, 142, 19, 0.4);
+                    transition: all 0.3s ease;
+                }
+                .button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(249, 142, 19, 0.5);
+                }
+                .footer { 
+                    text-align: center; 
+                    padding: 30px;
+                    background: #f5f5f5;
+                    border-top: 1px solid #e5e7eb;
+                    color: #6b7280; 
+                    font-size: 0.875rem;
+                }
+                .footer p {
+                    margin: 5px 0;
+                }
+                @media only screen and (max-width: 600px) {
+                    body { padding: 10px; }
+                    .header, .content { padding: 25px 20px; }
+                    .button { padding: 14px 30px; font-size: 0.9375rem; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class='email-wrapper'>
+                <div class='header'>
+                    <div class='header-content'>
+                        <div class='logo-container'>
+                            {$logoHtml}
+                        </div>
+                        <h1>{$icon} Nova {$messageType}</h1>
+                        <p>Você recebeu uma nova mensagem</p>
+                    </div>
+                </div>
+                <div class='content'>
+                    <div class='greeting'>Olá " . htmlspecialchars($nome) . "!</div>
+                    
+                    <div class='message-info'>
+                        <div class='message-info-row'>
+                            <span class='message-info-label'>De:</span>
+                            <span class='message-info-value'>" . htmlspecialchars($senderName) . "</span>
+                        </div>
+                        <div class='message-info-row'>
+                            <span class='message-info-label'>Assunto:</span>
+                            <span class='message-info-value'>" . htmlspecialchars($subject) . "</span>
+                        </div>
+                        <div class='message-info-row'>
+                            <span class='message-info-label'>Tipo:</span>
+                            <span class='message-info-value'>{$messageType}</span>
+                        </div>
+                    </div>
+                    
+                    <div class='message-content'>" . $messageContent . "</div>
+                    
+                    <div class='button-container'>
+                        <a href='" . htmlspecialchars($link) . "' class='button' style='background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; display: inline-block;'>" . ($isAnnouncement ? 'Ver Anúncio' : 'Responder Mensagem') . "</a>
+                    </div>
+                </div>
+                <div class='footer'>
+                    <p>" . $this->t('welcome_footer_made_with') . "</p>
+                    <p>" . $this->t('welcome_footer_copyright') . "</p>
+                </div>
+            </div>
+        </body>
+        </html>";
+    }
+
+    private function getMessageEmailText(string $nome, string $senderName, string $subject, string $messageContent, string $link, bool $isAnnouncement = false): string
+    {
+        $messageType = $isAnnouncement ? 'Anúncio' : 'Mensagem Privada';
+        $text = "Olá {$nome}!\n\n";
+        $text .= "Você recebeu uma nova {$messageType}.\n\n";
+        $text .= "De: {$senderName}\n";
+        $text .= "Assunto: {$subject}\n\n";
+        $text .= strip_tags($messageContent) . "\n\n";
+        $text .= ($isAnnouncement ? 'Ver anúncio' : 'Responder mensagem') . ": {$link}\n\n";
+        $text .= $this->t('welcome_footer_made_with') . "\n";
+        $text .= $this->t('welcome_footer_copyright') . "\n";
+        
+        return $text;
+    }
+
+    private function getFractionAssignmentEmailTemplate(string $nome, string $condominiumName, string $fractionIdentifier, string $link): string
+    {
+        $logoHtml = $this->getLogoInline();
+        
+        return "
+        <!DOCTYPE html>
+        <html lang='pt'>
+        <head>
+            <meta charset='UTF-8'>
+            <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+                    line-height: 1.6; 
+                    color: #1a1f3a; 
+                    background-color: #f5f5f5;
+                    margin: 0; 
+                    padding: 20px;
+                }
+                .email-wrapper {
+                    max-width: 600px; 
+                    margin: 0 auto; 
+                    background-color: #ffffff;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 4px 20px rgba(169, 15, 15, 0.1);
+                }
+                .header { 
+                    background: #a90f0f; 
+                    color: white; 
+                    padding: 40px 30px; 
+                    text-align: center;
+                    position: relative;
+                }
+                .header::before {
+                    content: '';
+                    position: absolute;
+                    top: -50px;
+                    right: -50px;
+                    width: 200px;
+                    height: 200px;
+                    background: rgba(249, 142, 19, 0.2);
+                    border-radius: 50%;
+                    filter: blur(60px);
+                }
+                .header-content {
+                    position: relative;
+                    z-index: 1;
+                }
+                .logo-container {
+                    margin-bottom: 20px;
+                    padding: 10px 0;
+                }
+                .header h1 {
+                    font-size: 1.75rem;
+                    font-weight: 700;
+                    margin-bottom: 10px;
+                    color: white;
+                }
+                .header p {
+                    font-size: 1rem;
+                    opacity: 0.95;
+                    color: white;
+                }
+                .content { 
+                    background: #ffffff; 
+                    padding: 40px 30px; 
+                }
+                .greeting {
+                    font-size: 1.125rem;
+                    font-weight: 600;
+                    color: #1a1f3a;
+                    margin-bottom: 20px;
+                }
+                .info-box {
+                    background: #f5f5f5;
+                    border-left: 4px solid #a90f0f;
+                    padding: 20px;
+                    border-radius: 8px;
+                    margin-bottom: 25px;
+                }
+                .info-row {
+                    margin-bottom: 12px;
+                    font-size: 1rem;
+                }
+                .info-label {
+                    font-weight: 600;
+                    color: #1a1f3a;
+                    display: inline-block;
+                    min-width: 120px;
+                }
+                .info-value {
+                    color: #a90f0f;
+                    font-weight: 600;
+                }
+                .message {
+                    font-size: 1rem;
+                    color: #6b7280;
+                    margin-bottom: 30px;
+                    line-height: 1.7;
+                }
+                .button-container {
+                    text-align: center;
+                    margin: 35px 0;
+                }
+                .button { 
+                    display: inline-block; 
+                    background: #F98E13;
+                    color: #ffffff; 
+                    padding: 16px 40px; 
+                    text-decoration: none; 
+                    border-radius: 8px; 
+                    font-weight: 600;
+                    font-size: 1rem;
+                    box-shadow: 0 4px 14px rgba(249, 142, 19, 0.4);
+                    transition: all 0.3s ease;
+                }
+                .button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(249, 142, 19, 0.5);
+                }
+                .footer { 
+                    text-align: center; 
+                    padding: 30px;
+                    background: #f5f5f5;
+                    border-top: 1px solid #e5e7eb;
+                    color: #6b7280; 
+                    font-size: 0.875rem;
+                }
+                .footer p {
+                    margin: 5px 0;
+                }
+                @media only screen and (max-width: 600px) {
+                    body { padding: 10px; }
+                    .header, .content { padding: 25px 20px; }
+                    .button { padding: 14px 30px; font-size: 0.9375rem; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class='email-wrapper'>
+                <div class='header'>
+                    <div class='header-content'>
+                        <div class='logo-container'>
+                            {$logoHtml}
+                        </div>
+                        <h1>🏠 Fração Atribuída</h1>
+                        <p>Uma fração foi atribuída à sua conta</p>
+                    </div>
+                </div>
+                <div class='content'>
+                    <div class='greeting'>Olá " . htmlspecialchars($nome) . "!</div>
+                    
+                    <div class='message'>
+                        " . $this->t('fraction_assignment_message') . "
+                    </div>
+                    
+                    <div class='info-box'>
+                        <div class='info-row'>
+                            <span class='info-label'>Condomínio:</span>
+                            <span class='info-value'>" . htmlspecialchars($condominiumName) . "</span>
+                        </div>
+                        <div class='info-row'>
+                            <span class='info-label'>Fração:</span>
+                            <span class='info-value'>" . htmlspecialchars($fractionIdentifier) . "</span>
+                        </div>
+                    </div>
+                    
+                    <div class='button-container'>
+                        <a href='" . htmlspecialchars($link) . "' class='button' style='background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; display: inline-block;'>Ver Fração</a>
+                    </div>
+                </div>
+                <div class='footer'>
+                    <p>" . $this->t('welcome_footer_made_with') . "</p>
+                    <p>" . $this->t('welcome_footer_copyright') . "</p>
+                </div>
+            </div>
+        </body>
+        </html>";
+    }
+
+    private function getFractionAssignmentEmailText(string $nome, string $condominiumName, string $fractionIdentifier, string $link): string
+    {
+        $text = "Olá {$nome}!\n\n";
+        $text .= $this->t('fraction_assignment_message') . "\n\n";
+        $text .= "Condomínio: {$condominiumName}\n";
+        $text .= "Fração: {$fractionIdentifier}\n\n";
+        $text .= "Ver fração: {$link}\n\n";
+        $text .= $this->t('welcome_footer_made_with') . "\n";
+        $text .= $this->t('welcome_footer_copyright') . "\n";
+        
+        return $text;
+    }
+
     private function getLogoInline(): string
     {
-        // Pure HTML table with inline styles - Gmail-safe approach
-        // Tables are the most reliable HTML element in email clients
+        // Get APP_ENV to determine if we should use URL or base64
+        $appEnv = null;
+        if (defined('APP_ENV')) {
+            $appEnv = APP_ENV;
+        } elseif (isset($_ENV['APP_ENV'])) {
+            $appEnv = $_ENV['APP_ENV'];
+        } else {
+            $appEnv = 'development';
+        }
+        
+        $isDevelopment = (strtolower($appEnv) === 'development');
+        
+        // In development, try URL first (better for local testing)
+        if ($isDevelopment && defined('BASE_URL')) {
+            $logoUrl = rtrim(BASE_URL, '/') . '/assets/images/logo.png';
+            // Verify URL is accessible (optional check)
+            $logoPngPath = __DIR__ . '/../../assets/images/logo.png';
+            if (file_exists($logoPngPath) && is_readable($logoPngPath)) {
+                error_log("EmailService: Using logo URL for development: {$logoUrl}");
+                return '
+                <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                    <tr>
+                        <td align="center" style="padding: 15px 0 10px 0;">
+                            <img src="' . htmlspecialchars($logoUrl) . '" alt="O Meu Prédio" style="max-width: 200px; height: auto; display: block; margin: 0 auto; width: auto;" width="200" />
+                        </td>
+                    </tr>
+                </table>';
+            }
+        }
+        
+        // Try to use PNG logo as base64 (better email client compatibility for production)
+        $pngLogo = $this->getLogoPngBase64();
+        if (!empty($pngLogo)) {
+            return '
+            <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                <tr>
+                    <td align="center" style="padding: 15px 0 10px 0;">
+                        <img src="' . htmlspecialchars($pngLogo) . '" alt="O Meu Prédio" style="max-width: 200px; height: auto; display: block; margin: 0 auto; width: auto;" width="200" />
+                    </td>
+                </tr>
+            </table>';
+        }
+        
+        // Fallback to text-based logo if PNG not available
         return '
         <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
             <tr>
@@ -972,6 +1738,26 @@ Link: {$verificationUrl}
                 </td>
             </tr>
         </table>';
+    }
+    
+    private function getLogoPngBase64(): string
+    {
+        // Try to load PNG logo
+        $logoPngPath = __DIR__ . '/../../assets/images/logo.png';
+        if (file_exists($logoPngPath) && is_readable($logoPngPath)) {
+            $logoContent = file_get_contents($logoPngPath);
+            if ($logoContent !== false && strlen($logoContent) > 0) {
+                // Encode PNG as base64 for email
+                $base64 = base64_encode($logoContent);
+                error_log("EmailService: PNG logo loaded successfully, size: " . strlen($logoContent) . " bytes, base64 length: " . strlen($base64));
+                return 'data:image/png;base64,' . $base64;
+            } else {
+                error_log("EmailService: PNG logo file exists but content is empty or unreadable");
+            }
+        } else {
+            error_log("EmailService: PNG logo not found at: {$logoPngPath}");
+        }
+        return '';
     }
     
     private function getLogoBase64(): string

@@ -8,7 +8,7 @@
    Based on template reference HSL system
    ============================================ */
 :root {
-  --homepage-dark-blue: #174A7E;
+  --homepage-dark-blue: #a90f0f;
   --homepage-orange: #F98E13;
   --homepage-light-gray: #f5f5f5;
   --homepage-text-dark: #1a1f3a;
@@ -1096,12 +1096,12 @@ body:has(.header-homepage) .main-content-full {
     margin-left: auto;
     margin-right: auto;
   }
-  
+
   .footer-homepage .row > div {
     flex: 0 0 30%;
     max-width: 30%;
   }
-  
+
   .footer-homepage .row > div:first-child {
     flex: 0 0 35%;
     max-width: 35%;
@@ -1273,28 +1273,28 @@ body:has(.header-homepage) .main-content-full {
   .footer-homepage {
     padding: 3.5rem 0 2rem;
   }
-  
+
   .footer-homepage .row {
     text-align: center;
   }
-  
+
   .footer-homepage .row > div {
     margin-bottom: 2.5rem;
   }
-  
+
   .footer-homepage .row > div:last-child {
     margin-bottom: 0;
   }
-  
+
   .footer-logo {
     margin-bottom: 1.25rem;
     justify-content: center;
   }
-  
+
   .footer-logo-img {
     height: 3rem;
   }
-  
+
   .footer-description {
     margin-bottom: 1.5rem;
     font-size: 0.9rem;
@@ -1302,25 +1302,25 @@ body:has(.header-homepage) .main-content-full {
     margin-right: auto;
     max-width: 100%;
   }
-  
+
   .footer-contact-item {
     justify-content: center;
   }
-  
+
   .footer-column-title {
     font-size: 1rem;
     margin-bottom: 1rem;
   }
-  
+
   .footer-column-links {
     display: inline-block;
     text-align: left;
   }
-  
+
   .footer-column-links li {
     margin-bottom: 0.75rem;
   }
-  
+
   .footer-column-links a {
     font-size: 0.9rem;
   }
@@ -1330,20 +1330,20 @@ body:has(.header-homepage) .main-content-full {
   .footer-homepage {
     padding: 5rem 0 2.5rem;
   }
-  
+
   .footer-homepage .row {
     justify-content: center;
     max-width: 700px;
     margin-left: auto;
     margin-right: auto;
   }
-  
+
   .footer-homepage .row > div {
     margin-bottom: 2rem;
     flex: 0 0 48%;
     max-width: 48%;
   }
-  
+
   .footer-homepage .row > div:last-child {
     margin-bottom: 0;
     flex: 0 0 100%;
