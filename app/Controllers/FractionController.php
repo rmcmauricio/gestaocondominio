@@ -369,5 +369,88 @@ class FractionController extends Controller
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
         exit;
     }
+
+    /**
+     * Remove a user from a fraction
+     */
+    public function removeOwner(int $condominiumId, int $fractionId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $userId = (int)($_POST['user_id'] ?? 0);
+        if (!$userId) {
+            $_SESSION['error'] = 'Utilizador não especificado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $fraction = $this->fractionModel->findById($fractionId);
+        if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Fração não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        // Check how many owners this fraction has
+        $owners = $this->fractionModel->getOwners($fractionId);
+        if (count($owners) <= 1) {
+            $_SESSION['error'] = 'Não é possível remover o último condómino de uma fração.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        // Find the condominium_users entry
+        global $db;
+        $stmt = $db->prepare("
+            SELECT id FROM condominium_users 
+            WHERE user_id = :user_id 
+            AND fraction_id = :fraction_id 
+            AND condominium_id = :condominium_id
+            AND (ended_at IS NULL OR ended_at > CURDATE())
+        ");
+        $stmt->execute([
+            ':user_id' => $userId,
+            ':fraction_id' => $fractionId,
+            ':condominium_id' => $condominiumId
+        ]);
+        $association = $stmt->fetch();
+
+        if (!$association) {
+            $_SESSION['error'] = 'Associação não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        try {
+            // Remove the association by setting ended_at
+            $condominiumUserModel = new \App\Models\CondominiumUser();
+            $success = $condominiumUserModel->removeAssociation($association['id']);
+
+            if ($success) {
+                $_SESSION['success'] = 'Condómino removido da fração com sucesso!';
+            } else {
+                $_SESSION['error'] = 'Erro ao remover condómino da fração.';
+            }
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao remover condómino: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+        exit;
+    }
 }
 

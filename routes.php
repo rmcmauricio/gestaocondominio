@@ -101,6 +101,7 @@ $router->get('/condominiums/{condominium_id}/fractions/{id}/edit', 'App\Controll
 $router->post('/condominiums/{condominium_id}/fractions/{id}', 'App\Controllers\FractionController@update');
 $router->post('/condominiums/{condominium_id}/fractions/{id}/delete', 'App\Controllers\FractionController@delete');
 $router->post('/condominiums/{condominium_id}/fractions/{id}/assign-self', 'App\Controllers\FractionController@assignToSelf');
+$router->post('/condominiums/{condominium_id}/fractions/{id}/remove-owner', 'App\Controllers\FractionController@removeOwner');
 
 // Invitation routes
 $router->get('/condominiums/{condominium_id}/invitations/create', 'App\Controllers\InvitationController@create');

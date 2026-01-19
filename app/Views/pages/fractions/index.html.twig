@@ -63,13 +63,30 @@
                             <td>{{ fraction.area|default('-') }}</td>
                             <td>{{ fraction.permillage|default(0) }}‰</td>
                             <td>
-                                {% if fraction.primary_owner %}
+                                {% if fraction.owners|length > 0 %}
                                     <div>
-                                        <strong>{{ fraction.primary_owner.name }}</strong><br>
-                                        <small class="text-muted">{{ fraction.primary_owner.email }}</small>
-                                        {% if fraction.owners|length > 1 %}
-                                            <br><small class="text-info">+{{ fraction.owners|length - 1 }} outro(s)</small>
-                                        {% endif %}
+                                        {% for owner in fraction.owners %}
+                                            <div class="mb-2 {% if not loop.last %}border-bottom pb-2{% endif %}">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div class="flex-grow-1">
+                                                        <strong>{{ owner.name }}</strong>
+                                                        {% if owner.is_primary %}<span class="badge bg-primary ms-1" style="font-size: 0.65rem;">Principal</span>{% endif %}
+                                                        <br>
+                                                        <small class="text-muted">{{ owner.email }}</small>
+                                                        {% if owner.phone %}<br><small class="text-muted"><i class="bi bi-telephone"></i> {{ owner.phone }}</small>{% endif %}
+                                                    </div>
+                                                    {% if is_admin and fraction.owners|length > 1 %}
+                                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/remove-owner" class="d-inline ms-2">
+                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                            <input type="hidden" name="user_id" value="{{ owner.user_id }}">
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover condómino" onclick="return confirm('Tem certeza que deseja remover {{ owner.name }} desta fração?');">
+                                                                <i class="bi bi-x"></i>
+                                                            </button>
+                                                        </form>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        {% endfor %}
                                     </div>
                                 {% else %}
                                     <span class="text-muted">Não atribuída</span>
