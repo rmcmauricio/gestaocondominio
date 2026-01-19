@@ -28,14 +28,30 @@ class CondominiumUser extends Model
             )
         ");
 
+        // Ensure boolean values are properly converted to integers for MySQL
+        $isPrimary = false;
+        if (isset($data['is_primary'])) {
+            $isPrimary = filter_var($data['is_primary'], FILTER_VALIDATE_BOOLEAN);
+        }
+        
+        $canViewFinances = true;
+        if (isset($data['can_view_finances'])) {
+            $canViewFinances = filter_var($data['can_view_finances'], FILTER_VALIDATE_BOOLEAN);
+        }
+        
+        $canVote = true;
+        if (isset($data['can_vote'])) {
+            $canVote = filter_var($data['can_vote'], FILTER_VALIDATE_BOOLEAN);
+        }
+        
         $stmt->execute([
             ':condominium_id' => $data['condominium_id'],
             ':user_id' => $data['user_id'],
             ':fraction_id' => $data['fraction_id'] ?? null,
             ':role' => $data['role'] ?? 'condomino',
-            ':can_view_finances' => $data['can_view_finances'] ?? true,
-            ':can_vote' => $data['can_vote'] ?? true,
-            ':is_primary' => $data['is_primary'] ?? false,
+            ':can_view_finances' => $canViewFinances ? 1 : 0,
+            ':can_vote' => $canVote ? 1 : 0,
+            ':is_primary' => $isPrimary ? 1 : 0,
             ':started_at' => $data['started_at'] ?? date('Y-m-d')
         ]);
 

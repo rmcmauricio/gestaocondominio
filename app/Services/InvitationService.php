@@ -23,7 +23,7 @@ class InvitationService
     /**
      * Send invitation to condomino
      */
-    public function sendInvitation(int $condominiumId, int $fractionId, string $email, string $name, string $role = 'condomino'): bool
+    public function sendInvitation(int $condominiumId, ?int $fractionId, string $email, string $name, string $role = 'condomino'): bool
     {
         global $db;
         
@@ -58,7 +58,7 @@ class InvitationService
         try {
             $stmt->execute([
                 ':condominium_id' => $condominiumId,
-                ':fraction_id' => $fractionId,
+                ':fraction_id' => $fractionId ?? null,
                 ':email' => $email,
                 ':name' => $name,
                 ':role' => $role,
@@ -159,13 +159,13 @@ class InvitationService
     /**
      * Associate existing user with fraction
      */
-    protected function associateExistingUser(int $condominiumId, int $fractionId, int $userId, string $role): bool
+    protected function associateExistingUser(int $condominiumId, ?int $fractionId, int $userId, string $role): bool
     {
         try {
             $this->condominiumUserModel->associate([
                 'condominium_id' => $condominiumId,
                 'user_id' => $userId,
-                'fraction_id' => $fractionId,
+                'fraction_id' => $fractionId ?? null,
                 'role' => $role,
                 'is_primary' => false
             ]);

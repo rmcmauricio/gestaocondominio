@@ -4,3 +4,4 @@ storage/
 vendor/
 .env.env
 .env
+logs/
