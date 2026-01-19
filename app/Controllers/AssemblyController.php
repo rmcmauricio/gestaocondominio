@@ -235,22 +235,29 @@ class AssemblyController extends Controller
         
         // Get user's fractions in this condominium
         $userId = AuthMiddleware::userId();
-        global $db;
-        $stmt = $db->prepare("
-            SELECT DISTINCT f.*
-            FROM fractions f
-            INNER JOIN condominium_users cu ON cu.fraction_id = f.id
-            WHERE cu.condominium_id = :condominium_id
-            AND cu.user_id = :user_id
-            AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
-            AND f.is_active = TRUE
-            ORDER BY f.identifier ASC
-        ");
-        $stmt->execute([':condominium_id' => $condominiumId, ':user_id' => $userId]);
-        $userFractions = $stmt->fetchAll() ?: [];
         
-        // Use user's fractions if available, otherwise use all fractions (for admin)
-        $fractions = !empty($userFractions) ? $userFractions : $allFractions;
+        // Check if user is admin in this condominium
+        $isAdmin = RoleMiddleware::isAdminInCondominium($userId, $condominiumId);
+        
+        if ($isAdmin) {
+            // Admin should see all fractions
+            $fractions = $allFractions;
+        } else {
+            // Non-admin users only see their own fractions
+            global $db;
+            $stmt = $db->prepare("
+                SELECT DISTINCT f.*
+                FROM fractions f
+                INNER JOIN condominium_users cu ON cu.fraction_id = f.id
+                WHERE cu.condominium_id = :condominium_id
+                AND cu.user_id = :user_id
+                AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+                AND f.is_active = TRUE
+                ORDER BY f.identifier ASC
+            ");
+            $stmt->execute([':condominium_id' => $condominiumId, ':user_id' => $userId]);
+            $fractions = $stmt->fetchAll() ?: [];
+        }
         
         // Get attendance status for each fraction
         $attendanceStatus = [];
