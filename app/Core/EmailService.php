@@ -250,7 +250,7 @@ class EmailService
             <div class='container'>
                 <div class='header'>
                     <div style='margin-bottom: 20px;'>
-                        <img src='{$this->getLogoBase64()}' alt='Sync2Stage Logo' style='height: 60px; width: auto; filter: brightness(0) invert(1);'>
+                        {$this->getLogoInline()}
                     </div>
                     <h1>🎵 " . $this->t('welcome_title') . "</h1>
                     <p>Revolucionário! A tua conta foi criada com sucesso.</p>
@@ -404,7 +404,7 @@ Link: {$verificationUrl}
             <div class='container'>
                 <div class='header'>
                     <div style='margin-bottom: 20px;'>
-                        <img src='{$this->getLogoBase64()}' alt='Sync2Stage Logo' style='height: 60px; width: auto; filter: brightness(0) invert(1);'>
+                        {$this->getLogoInline()}
                     </div>
                     <h1>🔔 " . $this->t('new_user_title') . "</h1>
                     <p>" . $this->t('new_user_subtitle') . "</p>
@@ -500,12 +500,8 @@ Link: {$verificationUrl}
 
     private function getPasswordResetEmailTemplate(string $nome, string $resetUrl): string
     {
-        $logoBase64 = $this->getLogoBase64();
-        // Use logo if available, otherwise use text fallback
-        // Some email clients don't support SVG, so we provide a text fallback
-        $logoHtml = $logoBase64 
-            ? "<img src='{$logoBase64}' alt='O Meu Prédio' style='height: 50px; width: auto; max-width: 200px; object-fit: contain; display: block; margin: 0 auto;'>" 
-            : "<div style='font-size: 1.5rem; font-weight: 700; margin: 0;'>O Meu Prédio</div>";
+        // Use inline SVG for better email client compatibility
+        $logoHtml = $this->getLogoInline();
         
         return "
         <!DOCTYPE html>
@@ -730,11 +726,8 @@ Link: {$verificationUrl}
 
     private function getPasswordResetSuccessEmailTemplate(string $nome): string
     {
-        $logoBase64 = $this->getLogoBase64();
-        // Use logo if available, otherwise use text fallback
-        $logoHtml = $logoBase64 
-            ? "<img src='{$logoBase64}' alt='O Meu Prédio' style='height: 50px; width: auto; max-width: 200px; object-fit: contain; display: block; margin: 0 auto;'>" 
-            : "<div style='font-size: 1.5rem; font-weight: 700; margin: 0;'>O Meu Prédio</div>";
+        // Use inline SVG for better email client compatibility
+        $logoHtml = $this->getLogoInline();
         
         return "
         <!DOCTYPE html>
@@ -950,6 +943,37 @@ Link: {$verificationUrl}
         ";
     }
 
+    /**
+     * Get logo as HTML - works in all email clients including Gmail
+     * Uses HTML table with styled text - most compatible approach
+     * Gmail strips SVG, divs with CSS, and sometimes emojis
+     * Solution: Pure HTML table with inline styles (Gmail-safe)
+     */
+    private function getLogoInline(): string
+    {
+        // Pure HTML table with inline styles - Gmail-safe approach
+        // Tables are the most reliable HTML element in email clients
+        return '
+        <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+            <tr>
+                <td align="center" style="padding: 15px 0 10px 0;">
+                    <table border="0" cellpadding="0" cellspacing="0">
+                        <tr>
+                            <td align="center" style="font-family: Arial, Helvetica, sans-serif; font-size: 26px; font-weight: bold; color: #ffffff; letter-spacing: 1px; line-height: 1.2;">
+                                O MEU PRÉDIO
+                            </td>
+                        </tr>
+                        <tr>
+                            <td align="center" style="font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #ffffff; letter-spacing: 0.5px; padding-top: 5px; opacity: 0.9;">
+                                Gestão de Condomínios
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>';
+    }
+    
     private function getLogoBase64(): string
     {
         // Try project logo first
