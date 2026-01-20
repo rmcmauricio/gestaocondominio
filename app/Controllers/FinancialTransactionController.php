@@ -92,7 +92,7 @@ class FinancialTransactionController extends Controller
             $allAccountTransactions = $this->transactionModel->getByAccount($accountId, []);
             
             // Sort by date and time (chronological order - oldest first)
-            // Reverse the DESC order from SQL to ASC for balance calculation
+            // Use multiple criteria to ensure consistent ordering
             usort($allAccountTransactions, function($a, $b) {
                 // Compare dates (ASC - oldest first)
                 $dateA = strtotime($a['transaction_date']);
@@ -103,7 +103,11 @@ class FinancialTransactionController extends Controller
                 // If same date, compare by created_at (ASC - oldest first)
                 $timeA = strtotime($a['created_at'] ?? $a['transaction_date'] . ' 00:00:00');
                 $timeB = strtotime($b['created_at'] ?? $b['transaction_date'] . ' 00:00:00');
-                return $timeA <=> $timeB;
+                if ($timeA != $timeB) {
+                    return $timeA <=> $timeB;
+                }
+                // If same date and time, use ID as final tiebreaker (ASC - oldest first)
+                return ($a['id'] ?? 0) <=> ($b['id'] ?? 0);
             });
             
             // Calculate running balance chronologically
@@ -136,6 +140,26 @@ class FinancialTransactionController extends Controller
             }
         }
 
+        // Sort transactions for display (newest first, but with consistent ordering for same-day transactions)
+        // The balance is already calculated correctly above, we just need to ensure display order is consistent
+        usort($transactions, function($a, $b) {
+            // Compare dates (DESC - newest first)
+            $dateA = strtotime($a['transaction_date']);
+            $dateB = strtotime($b['transaction_date']);
+            if ($dateA != $dateB) {
+                return $dateB <=> $dateA; // DESC - newest first
+            }
+            // If same date, compare by created_at (DESC - newest first)
+            $timeA = strtotime($a['created_at'] ?? $a['transaction_date'] . ' 00:00:00');
+            $timeB = strtotime($b['created_at'] ?? $b['transaction_date'] . ' 00:00:00');
+            if ($timeA != $timeB) {
+                return $timeB <=> $timeA; // DESC - newest first
+            }
+            // If same date and time, use ID as final tiebreaker (DESC - newest first)
+            // This ensures consistent ordering even when transactions are created in bulk
+            return ($b['id'] ?? 0) <=> ($a['id'] ?? 0); // DESC - newest first
+        });
+        
         $this->loadPageTranslations('finances');
         
         $userId = AuthMiddleware::userId();
