@@ -1386,6 +1386,11 @@ a:hover .card-hover .text-primary {
   justify-content: center;
 }
 
+/* Tab "Menu" à esquerda: oculto por defeito; só visível quando sidebar está fechado em viewport <= 1320px */
+.sidebar-menu-tab {
+  display: none;
+}
+
 /* Mobile and small tablets */
 @media (max-width: 1320px) {
   .main-wrapper {
@@ -1431,6 +1436,52 @@ a:hover .card-hover .text-primary {
   .sidebar.show ~ .sidebar-overlay {
     display: block;
     opacity: 1;
+  }
+
+  /* Tab "Menu" encostado à esquerda: texto vertical + seta; escondido quando sidebar está aberto */
+  .sidebar-menu-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    margin: 0;
+    padding: 0.6rem 0.3rem 0.6rem 0;
+    background: var(--color-primary);
+    color: #fff;
+    border: none;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.18);
+    cursor: pointer;
+    z-index: 997;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .sidebar-menu-tab:hover {
+    background: var(--color-primary-dark);
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.22);
+  }
+  .sidebar-menu-tab:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+  .sidebar-menu-tab-text {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+  }
+  .sidebar-menu-tab .bi-chevron-right {
+    font-size: 1rem;
+    opacity: 0.95;
+  }
+  .sidebar.show ~ .sidebar-menu-tab {
+    display: none !important;
   }
 
   /* Sidebar navigation items - better touch targets */

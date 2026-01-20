@@ -289,28 +289,22 @@
     }
   }
 
-  // Toggle sidebar on mobile
+  // Breakpoint aligned with CSS: sidebar hidden when <= 1320px
+  var SIDEBAR_HIDDEN_BREAKPOINT = 1320;
+
+  // Toggle sidebar when it is hidden (viewport <= SIDEBAR_HIDDEN_BREAKPOINT)
   function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
-    const toggleHeader = document.querySelector('.sidebar-toggle-header');
-    const overlay = document.querySelector('.sidebar-overlay');
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
     
     if (sidebar) {
       const isShowing = sidebar.classList.contains('show');
       sidebar.classList.toggle('show');
+      // Overlay visibility: CSS .sidebar.show ~ .sidebar-overlay handles it
       
-      // Toggle overlay
-      if (overlay) {
-        if (isShowing) {
-          overlay.classList.remove('show');
-        } else {
-          overlay.classList.add('show');
-        }
-      }
-      
-      // Update icon on header button
-      if (toggleHeader) {
-        const icon = toggleHeader.querySelector('i');
+      // Update icon on menu button
+      if (toggleBtn) {
+        const icon = toggleBtn.querySelector('i');
         if (icon) {
           if (isShowing) {
             icon.classList.remove('bi-x-lg');
@@ -322,8 +316,8 @@
         }
       }
       
-      // Prevent body scroll when sidebar is open on mobile
-      if (window.innerWidth <= 991) {
+      // Prevent body scroll when sidebar is open (sidebar hidden breakpoint)
+      if (window.innerWidth <= SIDEBAR_HIDDEN_BREAKPOINT) {
         if (!isShowing) {
           document.body.style.overflow = 'hidden';
         } else {
@@ -336,25 +330,21 @@
   // Make toggleSidebar available globally
   window.toggleSidebar = toggleSidebar;
 
-  // Close sidebar when clicking outside on mobile
+  // Close sidebar when clicking outside (at sidebar-hidden breakpoint)
   document.addEventListener('click', function(event) {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.querySelector('.sidebar-overlay');
-    const toggleHeader = document.querySelector('.sidebar-toggle-header');
-    const isToggleButton = event.target.closest('.sidebar-toggle-header') ||
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
+    const isToggleButton = event.target.closest('#sidebarToggleBtn') ||
                           event.target.closest('[onclick*="toggleSidebar"]');
     
-    if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= 991) {
+    if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= SIDEBAR_HIDDEN_BREAKPOINT) {
       if (!sidebar.contains(event.target) && !isToggleButton && event.target !== overlay) {
         sidebar.classList.remove('show');
-        if (overlay) {
-          overlay.classList.remove('show');
-        }
         document.body.style.overflow = '';
         
-        // Reset icon
-        if (toggleHeader) {
-          const icon = toggleHeader.querySelector('i');
+        if (toggleBtn) {
+          const icon = toggleBtn.querySelector('i');
           if (icon) {
             icon.classList.remove('bi-x-lg');
             icon.classList.add('bi-list');
@@ -367,21 +357,16 @@
   // Close sidebar when clicking a link inside it
   document.addEventListener('click', function(event) {
     const sidebar = document.getElementById('sidebar');
-    const overlay = document.querySelector('.sidebar-overlay');
-    const toggleHeader = document.querySelector('.sidebar-toggle-header');
-    if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= 991) {
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
+    if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= SIDEBAR_HIDDEN_BREAKPOINT) {
       const link = event.target.closest('.sidebar-nav a');
       if (link) {
         setTimeout(function() {
           sidebar.classList.remove('show');
-          if (overlay) {
-            overlay.classList.remove('show');
-          }
           document.body.style.overflow = '';
           
-          // Reset icon
-          if (toggleHeader) {
-            const icon = toggleHeader.querySelector('i');
+          if (toggleBtn) {
+            const icon = toggleBtn.querySelector('i');
             if (icon) {
               icon.classList.remove('bi-x-lg');
               icon.classList.add('bi-list');

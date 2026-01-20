@@ -1,11 +1,14 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2>Dívidas Históricas</h2>
-            <p class="text-muted mb-0">{{ condominium.name }}</p>
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <div>
+                <h2 class="mb-0">Dívidas Históricas</h2>
+                <p class="text-muted mb-0">{{ condominium.name }}</p>
+            </div>
+            {% include 'blocks/help-button.html.twig' with {'section': 'finances-historical-debts', 'title': 'Ajuda com Dívidas Históricas', 'show_text': false} %}
         </div>
         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Voltar
+            <i class="bi bi-arrow-left"></i> Voltar às Finanças
         </a>
     </div>
 

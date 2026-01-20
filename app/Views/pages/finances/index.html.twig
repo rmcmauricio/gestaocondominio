@@ -5,14 +5,7 @@
                 <h2>Finanças</h2>
                 <p class="text-muted mb-0">{{ condominium.name }}</p>
             </div>
-            <button type="button" 
-                    class="btn btn-outline-info btn-sm p-1" 
-                    style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;"
-                    onclick="openHelpModal('finances'); return false;"
-                    title="Ajuda com Finanças"
-                    aria-label="Ajuda com Finanças">
-                <i class="bi bi-question-circle" style="font-size: 0.875rem;"></i>
-            </button>
+            {% include 'blocks/help-button.html.twig' with {'section': 'finances', 'title': 'Ajuda com Finanças', 'show_text': false} %}
         </div>
     </div>
 

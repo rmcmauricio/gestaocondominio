@@ -33,6 +33,11 @@
             {% include 'blocks/sidebar.html.twig' %}
             <!-- Overlay when sidebar is open -->
             <div class="sidebar-overlay" onclick="toggleSidebar(); return false;"></div>
+            <!-- Tab "Menu" encostado à esquerda quando o menu está fechado (só visível em viewport <= 1320px) -->
+            <button type="button" class="sidebar-menu-tab" id="sidebarMenuTab" onclick="toggleSidebar(); return false;" aria-label="Abrir menu" title="Abrir menu">
+                <span class="sidebar-menu-tab-text">Menu</span>
+                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            </button>
         {% endif %}
 
         <main class="main-content {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName or viewName == 'pages/help/index.html.twig' %}main-content-full{% endif %}">

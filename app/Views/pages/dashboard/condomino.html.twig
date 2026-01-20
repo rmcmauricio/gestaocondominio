@@ -15,7 +15,10 @@
                 </div>
             </div>
             
-            <h1 class="mb-4">Painel Condómino</h1>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="mb-0">Painel Condómino</h1>
+                {% include 'blocks/help-button.html.twig' with {'section': 'dashboard', 'title': 'Ajuda com Dashboard', 'show_text': false} %}
+            </div>
             
             {% if unread_notifications %}
             <div class="row mb-4">
