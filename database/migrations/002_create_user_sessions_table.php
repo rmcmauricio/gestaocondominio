@@ -22,7 +22,7 @@ class CreateUserSessionsTable
             INDEX idx_user_id (user_id),
             INDEX idx_last_activity (last_activity)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-        
+
         $this->db->exec($sql);
     }
 
