@@ -1077,6 +1077,17 @@ class DemoSeeder
     {
         echo "5. Criando contas bancárias...\n";
 
+        $bankAccountModel = new BankAccount();
+        
+        // Check if accounts already exist for this condominium
+        $existingAccounts = $bankAccountModel->getByCondominium($this->demoCondominiumId);
+        
+        if (!empty($existingAccounts)) {
+            echo "   Contas já existem para este condomínio, a saltar criação.\n";
+            $this->accountIds = array_column($existingAccounts, 'id');
+            return;
+        }
+
         // Different bank accounts for each condominium
         $accountsData = [
             // Condominium 0: Residencial Sol Nascente
@@ -1087,7 +1098,7 @@ class DemoSeeder
                     'bank_name' => 'Banco BPI',
                     'iban' => 'PT50000000000000000000001',
                     'swift' => 'BBPIPTPL',
-                    'initial_balance' => 5000.00
+                    'initial_balance' => 20000.00
                 ],
                 [
                     'name' => 'Poupança',
@@ -1101,15 +1112,15 @@ class DemoSeeder
             // Condominium 1: Edifício Mar Atlântico
             [
                 [
-                    'name' => 'Conta Corrente',
+                    'name' => 'Conta Principal',
                     'account_type' => 'bank',
                     'bank_name' => 'Caixa Geral de Depósitos',
                     'iban' => 'PT50000000000000000000011',
                     'swift' => 'CGDIPTPL',
-                    'initial_balance' => 7500.00
+                    'initial_balance' => 25000.00
                 ],
                 [
-                    'name' => 'Conta Poupança',
+                    'name' => 'Poupança',
                     'account_type' => 'bank',
                     'bank_name' => 'Caixa Geral de Depósitos',
                     'iban' => 'PT50000000000000000000012',
@@ -1121,7 +1132,6 @@ class DemoSeeder
 
         $accounts = $accountsData[$condominiumIndex] ?? $accountsData[0];
 
-        $bankAccountModel = new BankAccount();
         $this->accountIds = [];
 
         foreach ($accounts as $account) {
