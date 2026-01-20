@@ -15,7 +15,12 @@ use App\Models\Condominium;
 use App\Models\Revenue;
 use App\Models\BankAccount;
 use App\Models\FinancialTransaction;
+use App\Models\Fraction;
+use App\Models\FractionAccount;
+use App\Models\FractionAccountMovement;
 use App\Services\FeeService;
+use App\Services\LiquidationService;
+use App\Services\ReceiptService;
 
 class FinanceController extends Controller
 {
@@ -998,86 +1003,27 @@ class FinanceController extends Controller
         exit;
     }
 
+    private function feeLabelForLiquidation(array $f): string
+    {
+        if (($f['fee_type'] ?? '') === 'extra' && !empty($f['reference'])) {
+            return 'Quota extra: ' . $f['reference'];
+        }
+        if (!empty($f['period_month']) && !empty($f['period_year'])) {
+            return 'Quota ' . sprintf('%02d/%d', $f['period_month'], $f['period_year']);
+        }
+        return 'Quota ' . ($f['period_year'] ?? '');
+    }
+
     /**
      * Generate receipts for a payment
      */
     private function generateReceipts(int $feeId, int $paymentId, int $condominiumId, int $userId, bool $isFullyPaid): void
     {
         try {
-            $fee = $this->feeModel->findById($feeId);
-            if (!$fee) {
-                return;
-            }
-
-            $fractionModel = new \App\Models\Fraction();
-            $fraction = $fractionModel->findById($fee['fraction_id']);
-            if (!$fraction) {
-                return;
-            }
-
-            $condominium = $this->condominiumModel->findById($condominiumId);
-            if (!$condominium) {
-                return;
-            }
-
-            $receiptModel = new \App\Models\Receipt();
-            $pdfService = new \App\Services\PdfService();
-
-            // Generate final receipt only if fully paid
             if ($isFullyPaid) {
-                // Check if final receipt already exists
-                $existingReceipts = $receiptModel->getByFee($feeId);
-                $hasFinalReceipt = false;
-                foreach ($existingReceipts as $r) {
-                    if ($r['receipt_type'] === 'final') {
-                        $hasFinalReceipt = true;
-                        break;
-                    }
-                }
-
-                if (!$hasFinalReceipt) {
-                    $receiptNumber = $receiptModel->generateReceiptNumber($condominiumId, (int)$fee['period_year']);
-                    $htmlContent = $pdfService->generateReceiptReceipt($fee, $fraction, $condominium, null, 'final');
-                    
-                    // Create receipt record
-                    $receiptId = $receiptModel->create([
-                        'fee_id' => $feeId,
-                        'fee_payment_id' => null,
-                        'condominium_id' => $condominiumId,
-                        'fraction_id' => $fee['fraction_id'],
-                        'receipt_number' => $receiptNumber,
-                        'receipt_type' => 'final',
-                        'amount' => $fee['amount'],
-                        'file_path' => '',
-                        'file_name' => '',
-                        'file_size' => 0,
-                        'generated_at' => date('Y-m-d H:i:s'),
-                        'generated_by' => $userId
-                    ]);
-
-                    // Generate PDF
-                    $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber, $condominiumId);
-                    $fullPath = __DIR__ . '/../../storage/' . $filePath;
-                    $fileSize = file_exists($fullPath) ? filesize($fullPath) : 0;
-                    $fileName = basename($filePath);
-
-                    // Update receipt with file info
-                    global $db;
-                    $stmt = $db->prepare("
-                        UPDATE receipts 
-                        SET file_path = :file_path, file_name = :file_name, file_size = :file_size 
-                        WHERE id = :id
-                    ");
-                    $stmt->execute([
-                        ':file_path' => $filePath,
-                        ':file_name' => $fileName,
-                        ':file_size' => $fileSize,
-                        ':id' => $receiptId
-                    ]);
-                }
+                (new ReceiptService())->generateForFullyPaidFee($feeId, $paymentId, $condominiumId, $userId);
             }
         } catch (\Exception $e) {
-            // Log error but don't fail the payment
             error_log("Error generating receipt: " . $e->getMessage());
         }
     }
@@ -1368,6 +1314,17 @@ class FinanceController extends Controller
                 $fee['calculated_status'] = 'pending';
             }
         }
+        unset($fee);
+
+        $fractionModel = new \App\Models\Fraction();
+        $feeFids = array_unique(array_filter(array_column($fees, 'fraction_id')));
+        $feeInfo = $fractionModel->getOwnerAndFloorByFractionIds($feeFids);
+        foreach ($fees as &$fee) {
+            $x = $feeInfo[(int)($fee['fraction_id'] ?? 0)] ?? [];
+            $fee['owner_name'] = $x['owner_name'] ?? '';
+            $fee['fraction_floor'] = $x['floor'] ?? '';
+        }
+        unset($fee);
 
         // Calculate summary
         $summary = [
@@ -1425,7 +1382,14 @@ class FinanceController extends Controller
         
         // Get fractions for the condominium
         $fractions = $fractionModel->getByCondominiumId($condominiumId);
-        
+        $fracInfo = $fractionModel->getOwnerAndFloorByFractionIds(array_column($fractions, 'id'));
+        foreach ($fractions as &$fr) {
+            $x = $fracInfo[(int)($fr['id'] ?? 0)] ?? [];
+            $fr['owner_name'] = $x['owner_name'] ?? '';
+            $fr['floor'] = $fr['floor'] ?? $x['floor'] ?? '';
+        }
+        unset($fr);
+
         // Get fees map for selected year
         $feesMap = $feeModel->getFeesMapByYear($condominiumId, $selectedFeesYear);
         
@@ -1481,6 +1445,422 @@ class FinanceController extends Controller
         unset($_SESSION['success']);
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Liquidar quotas: regista um pagamento na conta da fração e aplica às quotas em atraso.
+     * Equivalente a criar um movimento financeiro de entrada Quotas para a fração.
+     */
+    public function liquidateQuotas(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $fractionId = (int)($_POST['fraction_id'] ?? 0);
+        $amount = (float)($_POST['amount'] ?? 0);
+        $paymentMethod = Security::sanitize($_POST['payment_method'] ?? '');
+        $bankAccountId = (int)($_POST['bank_account_id'] ?? 0);
+        $paymentDate = $_POST['payment_date'] ?? date('Y-m-d');
+        $reference = Security::sanitize($_POST['reference'] ?? '');
+        $notes = Security::sanitize($_POST['notes'] ?? '');
+
+        if ($fractionId <= 0) {
+            $_SESSION['error'] = 'Selecione a fração.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+        if ($amount <= 0) {
+            $_SESSION['error'] = 'O valor deve ser maior que zero.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+        if (!in_array($paymentMethod, ['multibanco', 'mbway', 'transfer', 'cash', 'card', 'sepa'])) {
+            $_SESSION['error'] = 'Método de pagamento inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+        if ($bankAccountId <= 0) {
+            $_SESSION['error'] = 'Selecione a conta bancária.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $bankAccountModel = new BankAccount();
+        $account = $bankAccountModel->findById($bankAccountId);
+        if (!$account || $account['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Conta bancária inválida.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        $fractionModel = new Fraction();
+        $fraction = $fractionModel->findById($fractionId);
+        if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Fração inválida.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+
+        try {
+            global $db;
+            $db->beginTransaction();
+            $userId = AuthMiddleware::userId();
+
+            $description = 'Liquidação de quotas - Fração ' . $fraction['identifier'];
+            if ($notes) {
+                $description .= ' - ' . $notes;
+            }
+
+            $ref = $reference ?: ('REF' . $condominiumId . $fractionId . date('YmdHis'));
+
+            $faModel = new FractionAccount();
+            $fa = $faModel->getOrCreate($fractionId, $condominiumId);
+            $accountId = (int)$fa['id'];
+
+            $transactionModel = new FinancialTransaction();
+            $transactionId = $transactionModel->create([
+                'condominium_id' => $condominiumId,
+                'bank_account_id' => $bankAccountId,
+                'fraction_id' => $fractionId,
+                'transaction_type' => 'income',
+                'amount' => $amount,
+                'transaction_date' => $paymentDate,
+                'description' => $description,
+                'category' => 'Quotas',
+                'income_entry_type' => 'quota',
+                'reference' => $ref,
+                'related_type' => 'fraction_account',
+                'related_id' => $accountId,
+                'transfer_to_account_id' => null,
+                'created_by' => $userId
+            ]);
+
+            $movementId = $faModel->addCredit($accountId, $amount, 'quota_payment', $transactionId, $description);
+            $result = (new LiquidationService())->liquidate($fractionId, $userId, $paymentDate, $transactionId);
+
+            $parts = [];
+            foreach ($result['fully_paid'] ?? [] as $fid) {
+                $f = $this->feeModel->findById($fid);
+                $parts[] = $f ? $this->feeLabelForLiquidation($f) : ('Quota #' . $fid);
+            }
+            foreach (array_keys($result['partially_paid'] ?? []) as $fid) {
+                $f = $this->feeModel->findById($fid);
+                $parts[] = ($f ? $this->feeLabelForLiquidation($f) : ('Quota #' . $fid)) . ' (parcial)';
+            }
+            $builtDesc = implode(', ', $parts);
+            if ($builtDesc !== '') {
+                $transactionModel->update($transactionId, ['description' => $builtDesc]);
+                (new FractionAccountMovement())->update($movementId, ['description' => $builtDesc]);
+            }
+
+            $receiptSvc = new ReceiptService();
+            foreach ($result['fully_paid'] ?? [] as $fid) {
+                $receiptSvc->generateForFullyPaidFee($fid, $result['fully_paid_payments'][$fid] ?? null, $condominiumId, $userId);
+            }
+
+            $db->commit();
+            $_SESSION['success'] = 'Pagamento registado. O valor foi aplicado às quotas em atraso da fração ' . $fraction['identifier'] . '.';
+        } catch (\Exception $e) {
+            if (isset($db)) {
+                $db->rollBack();
+            }
+            $_SESSION['error'] = 'Erro ao liquidar quotas: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+        exit;
+    }
+
+    /**
+     * Lista contas por fração: frações com saldo corrente.
+     */
+    public function fractionAccounts(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $userId = AuthMiddleware::userId();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin');
+
+        $fractionModel = new Fraction();
+        $faModel = new FractionAccount();
+        $allFractions = $fractionModel->getByCondominiumId($condominiumId);
+        $accounts = $faModel->getByCondominium($condominiumId);
+        $byFraction = [];
+        foreach ($accounts as $a) {
+            $byFraction[(int)$a['fraction_id']] = $a;
+        }
+
+        // Condómino: filtrar pelas suas frações
+        if (!$isAdmin) {
+            $cuModel = new \App\Models\CondominiumUser();
+            $ucs = $cuModel->getUserCondominiums($userId);
+            $userFractionIds = array_filter(array_unique(array_column(
+                array_filter($ucs, fn($u) => (int)($u['condominium_id'] ?? 0) === $condominiumId && !empty($u['fraction_id'])),
+                'fraction_id'
+            )));
+            $allFractions = array_filter($allFractions, fn($f) => in_array((int)$f['id'], $userFractionIds));
+        }
+
+        $rows = [];
+        foreach ($allFractions as $f) {
+            $fid = (int)$f['id'];
+            $acc = $byFraction[$fid] ?? null;
+            $bal = $acc ? (float)$acc['balance'] : 0.0;
+            $due = $this->feeModel->getTotalDueByFraction($fid);
+            $rows[] = [
+                'fraction' => $f,
+                'fraction_id' => $fid,
+                'balance' => $bal,
+                'due' => $due,
+                'situacao' => $bal - $due,
+                'fraction_account_id' => $acc ? (int)$acc['id'] : null
+            ];
+        }
+        $info = $fractionModel->getOwnerAndFloorByFractionIds(array_column($rows, 'fraction_id'));
+        foreach ($rows as &$r) {
+            $x = $info[$r['fraction_id']] ?? [];
+            $r['owner_name'] = $x['owner_name'] ?? '';
+            $r['floor'] = $x['floor'] ?? '';
+        }
+        unset($r);
+
+        $this->loadPageTranslations('finances');
+        $this->data += [
+            'viewName' => 'pages/finances/fraction-accounts/index.html.twig',
+            'page' => ['titulo' => 'Contas por fração'],
+            'condominium' => $condominium,
+            'rows' => $rows,
+            'is_admin' => $isAdmin,
+            'error' => $_SESSION['error'] ?? null,
+            'success' => $_SESSION['success'] ?? null
+        ];
+        unset($_SESSION['error'], $_SESSION['success']);
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Detalhe da conta de uma fração: pagamentos (créditos), quotas liquidadas (débitos) e saldo.
+     */
+    public function fractionAccountShow(int $condominiumId, int $fractionId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $fractionModel = new Fraction();
+        $fraction = $fractionModel->findById($fractionId);
+        if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Fração não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fraction-accounts');
+            exit;
+        }
+
+        $userId = AuthMiddleware::userId();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin');
+        if (!$isAdmin) {
+            $cuModel = new \App\Models\CondominiumUser();
+            $ucs = $cuModel->getUserCondominiums($userId);
+            $allowed = in_array($fractionId, array_filter(array_unique(array_column(
+                array_filter($ucs, fn($u) => (int)($u['condominium_id'] ?? 0) === $condominiumId && !empty($u['fraction_id'])),
+                'fraction_id'
+            ))));
+            if (!$allowed) {
+                $_SESSION['error'] = 'Sem acesso a esta fração.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fraction-accounts');
+                exit;
+            }
+        }
+
+        $faModel = new FractionAccount();
+        $account = $faModel->getByFraction($fractionId);
+        $balance = $account ? (float)$account['balance'] : 0.0;
+        $fractionAccountId = $account ? (int)$account['id'] : null;
+        $emFalta = $this->feeModel->getTotalDueByFraction($fractionId);
+        $feesEmFalta = $this->feeModel->getOutstandingByFraction($fractionId);
+
+        $movements = [];
+        $quotaDebitFeeIds = [];
+        if ($fractionAccountId) {
+            $movementModel = new \App\Models\FractionAccountMovement();
+            $raw = $movementModel->getByFractionAccountWithFeeInfo($fractionAccountId);
+            foreach ($raw as $m) {
+                $q = $m['description'] ?? '';
+                if (($m['fee_type'] ?? '') === 'extra' && !empty($m['fee_reference'])) {
+                    $q = 'Quota extra: ' . $m['fee_reference'];
+                } elseif (!empty($m['fee_period_year'])) {
+                    $q = 'Quota ' . (isset($m['fee_period_month']) && $m['fee_period_month'] ? sprintf('%02d/%d', $m['fee_period_month'], $m['fee_period_year']) : $m['fee_period_year']);
+                }
+                $isQuotaDebit = ($m['type'] ?? '') === 'debit' && ($m['source_type'] ?? '') === 'quota_application';
+                $pid = $isQuotaDebit ? (int)($m['source_reference_id'] ?? 0) : 0;
+                $ftId = !empty($m['ft_id']) ? (int)$m['ft_id'] : null;
+                $pref = null;
+                if ($isQuotaDebit) {
+                    if (!empty($m['ft_reference'])) {
+                        $pref = trim((string)$m['ft_reference']);
+                    } elseif (!empty($m['fee_payment_reference'])) {
+                        $pref = trim((string)$m['fee_payment_reference']);
+                    } elseif ($pid) {
+                        $pref = '#' . $pid;
+                    }
+                }
+                $feeAmt = (float)($m['fee_amount'] ?? 0);
+                $feePaid = (float)($m['fee_total_paid'] ?? 0);
+                $isPartial = $isQuotaDebit && $feeAmt > 0 && ($feeAmt - $feePaid) > 0;
+                if ($isQuotaDebit && !empty($m['fee_id'])) {
+                    $quotaDebitFeeIds[(int)$m['fee_id']] = true;
+                }
+                $movements[] = [
+                    'id' => $m['id'],
+                    'type' => $m['type'],
+                    'amount' => (float)$m['amount'],
+                    'source_type' => $m['source_type'] ?? null,
+                    'description' => $m['description'] ?? null,
+                    'created_at' => $m['created_at'] ?? null,
+                    'quota_label' => $q,
+                    'fee_id' => $isQuotaDebit ? (int)($m['fee_id'] ?? 0) : null,
+                    'fee_payment_id' => $pid ?: null,
+                    'financial_transaction_id' => $ftId,
+                    'payment_reference' => $pref,
+                    'is_partial' => $isPartial
+                ];
+            }
+            $refsMap = $this->feeModel->getPaymentRefsByFeeIds(array_keys($quotaDebitFeeIds));
+            foreach ($movements as &$mov) {
+                $fid = $mov['fee_id'] ?? 0;
+                $mov['payment_refs'] = $fid ? ($refsMap[$fid] ?? []) : [];
+            }
+            unset($mov);
+        }
+
+        $refsByFee = $this->feeModel->getPaymentRefsByFeeIds(array_map(fn($x) => (int)($x['id'] ?? 0), $feesEmFalta));
+        foreach ($feesEmFalta as &$q) {
+            $q['payment_refs'] = array_map(fn($x) => $x['ref'], $refsByFee[(int)($q['id'] ?? 0)] ?? []);
+        }
+        unset($q);
+
+        $this->loadPageTranslations('finances');
+        $this->data += [
+            'viewName' => 'pages/finances/fraction-accounts/show.html.twig',
+            'page' => ['titulo' => 'Conta da fração ' . $fraction['identifier']],
+            'condominium' => $condominium,
+            'fraction' => $fraction,
+            'balance' => $balance,
+            'em_falta' => $emFalta,
+            'situacao' => $balance - $emFalta,
+            'fees_em_falta' => $feesEmFalta,
+            'movements' => $movements,
+            'is_admin' => $isAdmin,
+            'error' => $_SESSION['error'] ?? null,
+            'success' => $_SESSION['success'] ?? null
+        ];
+        unset($_SESSION['error'], $_SESSION['success']);
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * JSON: dados do pagamento (fee_payment) para mostrar em modal na conta da fração.
+     * Acesso: admin ou condómino com a fração.
+     */
+    public function getFractionAccountPaymentInfo(int $condominiumId, int $fractionId, int $paymentId)
+    {
+        header('Content-Type: application/json');
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Condomínio não encontrado']);
+            exit;
+        }
+        $fractionModel = new \App\Models\Fraction();
+        $fraction = $fractionModel->findById($fractionId);
+        if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Fração não encontrada']);
+            exit;
+        }
+        $userId = AuthMiddleware::userId();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin');
+        if (!$isAdmin) {
+            $cuModel = new \App\Models\CondominiumUser();
+            $ucs = $cuModel->getUserCondominiums($userId);
+            $allowed = in_array($fractionId, array_filter(array_unique(array_column(
+                array_filter($ucs, fn($u) => (int)($u['condominium_id'] ?? 0) === $condominiumId && !empty($u['fraction_id'])),
+                'fraction_id'
+            ))));
+            if (!$allowed) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Sem acesso a esta fração']);
+                exit;
+            }
+        }
+
+        $payment = $this->feePaymentModel->findById($paymentId);
+        if (!$payment) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Pagamento não encontrado']);
+            exit;
+        }
+        $fee = $this->feeModel->findById($payment['fee_id']);
+        if (!$fee || $fee['fraction_id'] != $fractionId || $fee['condominium_id'] != $condominiumId) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Pagamento não encontrado']);
+            exit;
+        }
+
+        $quotaLabel = 'Quota ';
+        if (($fee['fee_type'] ?? '') === 'extra' && !empty($fee['reference'])) {
+            $quotaLabel .= 'extra: ' . $fee['reference'];
+        } elseif (!empty($fee['period_month']) && !empty($fee['period_year'])) {
+            $quotaLabel .= sprintf('%02d/%d', $fee['period_month'], $fee['period_year']);
+        } else {
+            $quotaLabel .= $fee['period_year'] ?? '';
+        }
+
+        echo json_encode([
+            'payment' => $payment,
+            'fee' => $fee,
+            'quota_label' => $quotaLabel
+        ]);
+        exit;
     }
 
     public function markFeeAsPaid(int $condominiumId, int $id)

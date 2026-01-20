@@ -206,24 +206,26 @@ class FinancialTransaction extends Model
 
         $stmt = $this->db->prepare("
             INSERT INTO financial_transactions (
-                condominium_id, bank_account_id, transfer_to_account_id, transaction_type, amount, transaction_date,
-                description, category, reference, related_type, related_id, created_by
+                condominium_id, bank_account_id, fraction_id, transfer_to_account_id, transaction_type, amount, transaction_date,
+                description, category, income_entry_type, reference, related_type, related_id, created_by
             )
             VALUES (
-                :condominium_id, :bank_account_id, :transfer_to_account_id, :transaction_type, :amount, :transaction_date,
-                :description, :category, :reference, :related_type, :related_id, :created_by
+                :condominium_id, :bank_account_id, :fraction_id, :transfer_to_account_id, :transaction_type, :amount, :transaction_date,
+                :description, :category, :income_entry_type, :reference, :related_type, :related_id, :created_by
             )
         ");
 
         $stmt->execute([
             ':condominium_id' => $data['condominium_id'],
             ':bank_account_id' => $data['bank_account_id'],
+            ':fraction_id' => $data['fraction_id'] ?? null,
             ':transfer_to_account_id' => $data['transfer_to_account_id'] ?? null,
             ':transaction_type' => $data['transaction_type'],
             ':amount' => $data['amount'],
             ':transaction_date' => $data['transaction_date'],
             ':description' => $data['description'],
             ':category' => $data['category'] ?? null,
+            ':income_entry_type' => $data['income_entry_type'] ?? null,
             ':reference' => $data['reference'] ?? null,
             ':related_type' => $data['related_type'] ?? 'manual',
             ':related_id' => $data['related_id'] ?? null,

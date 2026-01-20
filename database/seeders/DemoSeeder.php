@@ -23,6 +23,7 @@ use App\Models\Reservation;
 use App\Models\Occurrence;
 use App\Models\Fee;
 use App\Models\FeePayment;
+use App\Models\FractionAccount;
 use App\Models\Message;
 use App\Models\StandaloneVote;
 use App\Models\StandaloneVoteResponse;
@@ -31,6 +32,7 @@ use App\Models\Plan;
 use App\Models\Subscription;
 use App\Core\Security;
 use App\Services\FeeService;
+use App\Services\LiquidationService;
 use App\Services\NotificationService;
 use App\Services\SubscriptionService;
 
@@ -59,6 +61,8 @@ class DemoSeeder
         'fees' => [],
         'fee_payments' => [],
         'fee_payment_history' => [],
+        'fraction_accounts' => [],
+        'fraction_account_movements' => [],
         'financial_transactions' => [],
         'assemblies' => [],
         'assembly_attendees' => [],
@@ -637,6 +641,9 @@ class DemoSeeder
         $this->db->exec("DELETE FROM assemblies WHERE condominium_id = {$condominiumId}");
         // Delete fee payment history first (references fee_payments)
         $this->db->exec("DELETE FROM fee_payment_history WHERE fee_id IN (SELECT id FROM fees WHERE condominium_id = {$condominiumId})");
+        // Delete fraction account data (movements first, then accounts)
+        $this->db->exec("DELETE FROM fraction_account_movements WHERE fraction_account_id IN (SELECT id FROM fraction_accounts WHERE condominium_id = {$condominiumId})");
+        $this->db->exec("DELETE FROM fraction_accounts WHERE condominium_id = {$condominiumId}");
         // Update fee_payments to remove foreign key constraint
         $this->db->exec("UPDATE fee_payments SET financial_transaction_id = NULL WHERE fee_id IN (SELECT id FROM fees WHERE condominium_id = {$condominiumId})");
         // Delete fee payments
@@ -1611,9 +1618,22 @@ class DemoSeeder
         }
     }
 
+    protected function ensureFractionAccounts(): void
+    {
+        $faModel = new FractionAccount();
+        $stmt = $this->db->prepare("SELECT id FROM fractions WHERE condominium_id = :condominium_id");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $rows = $stmt->fetchAll();
+        foreach ($rows as $r) {
+            $faModel->getOrCreate((int)$r['id'], $this->demoCondominiumId);
+        }
+    }
+
     protected function generateFees2025(int $condominiumIndex = 0): void
     {
         echo "9. Gerando quotas 2025...\n";
+
+        $this->ensureFractionAccounts();
 
         $feeService = new FeeService();
         $feeModel = new Fee();
@@ -1771,199 +1791,90 @@ class DemoSeeder
             });
         }
 
-        if ($condominiumIndex === 0) {
-            // Condominium 1: Different payment logic
-            // Fraction 1A: No payments (all year in debt)
-            // Fractions 2A, 2B: Partial payments (first 6 months paid)
-            // Fractions 1B, 3A, 3B, 4A, 4B: All fees paid (100%)
-            // Other fractions: 75% paid (first months paid)
+        $faModel = new FractionAccount();
+        $liquidationService = new LiquidationService();
 
+        if ($condominiumIndex === 0) {
+            // Condominium 1: Fraction 1A: no payments; 2A/2B: 6 months; 1B,3A,3B,4A,4B: 100%; others: 75%
             $fraction1AId = $this->fractionIds['1A'] ?? null;
             $fraction1BId = $this->fractionIds['1B'] ?? null;
             $fraction2AId = $this->fractionIds['2A'] ?? null;
             $fraction2BId = $this->fractionIds['2B'] ?? null;
-            $fraction3AId = $this->fractionIds['3A'] ?? null;
-            $fraction3BId = $this->fractionIds['3B'] ?? null;
-            $fraction4AId = $this->fractionIds['4A'] ?? null;
-            $fraction4BId = $this->fractionIds['4B'] ?? null;
-
-            // 5 fractions with all fees paid: 1B, 3A, 3B, 4A, 4B
             $fullyPaidFractionIds = [
-                $fraction1BId,
-                $fraction3AId,
-                $fraction3BId,
-                $fraction4AId,
-                $fraction4BId
+                $fraction1BId, $this->fractionIds['3A'] ?? null, $this->fractionIds['3B'] ?? null,
+                $this->fractionIds['4A'] ?? null, $this->fractionIds['4B'] ?? null
             ];
+        }
 
-            foreach ($feesByFraction as $fractionId => $fractionFees) {
-                $totalFeesForFraction = count($fractionFees);
+        foreach ($feesByFraction as $fractionId => $fractionFees) {
+            $totalFeesForFraction = count($fractionFees);
 
-                // Fraction 1A: No payments
-                if ($fractionId == $fraction1AId) {
+            if ($condominiumIndex === 0) {
+                if ($fractionId == ($this->fractionIds['1A'] ?? null)) {
                     $paidCountForFraction = 0;
-                }
-                // Fractions 2A, 2B: First 6 months paid (50%)
-                elseif ($fractionId == $fraction2AId || $fractionId == $fraction2BId) {
-                    $paidCountForFraction = 6; // First 6 months
-                }
-                // 5 fractions: All fees paid (100%)
-                elseif (in_array($fractionId, $fullyPaidFractionIds)) {
-                    $paidCountForFraction = $totalFeesForFraction; // All months
-                }
-                // Other fractions: 75% paid (first months)
-                else {
+                } elseif ($fractionId == ($this->fractionIds['2A'] ?? null) || $fractionId == ($this->fractionIds['2B'] ?? null)) {
+                    $paidCountForFraction = 6;
+                } elseif (in_array($fractionId, $fullyPaidFractionIds ?? [])) {
+                    $paidCountForFraction = $totalFeesForFraction;
+                } else {
                     $paidCountForFraction = (int)($totalFeesForFraction * 0.75);
                 }
-
-                // Pay first N fees for this fraction
-                for ($i = 0; $i < $paidCountForFraction && $i < $totalFeesForFraction; $i++) {
-                    $fee = $fractionFees[$i];
-                    
-                    // Check if payment already exists for this fee
-                    $existingPayments = $feePaymentModel->getByFee($fee['id']);
-                    if (!empty($existingPayments)) {
-                        // Payment already exists, skip
-                        continue;
-                    }
-                    
-                    $paymentDate = "2025-" . str_pad($fee['period_month'], 2, '0', STR_PAD_LEFT) . "-" . rand(5, 25);
-
-                    // Create payment
-                    $paymentId = $feePaymentModel->create([
-                        'fee_id' => $fee['id'],
-                        'amount' => $fee['amount'],
-                        'payment_method' => ['transfer', 'cash'][rand(0, 1)],
-                        'payment_date' => $paymentDate,
-                        'reference' => 'REF' . $this->demoCondominiumId . $fee['fraction_id'] . $fee['id'],
-                        'created_by' => $this->demoUserId,
-                        'financial_transaction_id' => null
-                    ]);
-
-                    // Check if financial transaction already exists for this payment
-                    $existingTransaction = $transactionModel->getByRelated('fee_payment', $paymentId);
-                    if (!$existingTransaction) {
-                        // Also check if transaction with same description and date already exists (extra safety)
-                        $desc = "Pagamento quota {$fee['reference']}";
-                        $checkStmt = $this->db->prepare("
-                            SELECT id FROM financial_transactions
-                            WHERE condominium_id = :condominium_id
-                            AND transaction_type = 'income'
-                            AND description = :description
-                            AND transaction_date = :transaction_date
-                            AND related_type = 'fee_payment'
-                            LIMIT 1
-                        ");
-                        $checkStmt->execute([
-                            ':condominium_id' => $this->demoCondominiumId,
-                            ':description' => $desc,
-                            ':transaction_date' => $paymentDate
-                        ]);
-                        $duplicateTransaction = $checkStmt->fetch();
-                        
-                        if (!$duplicateTransaction) {
-                            // Create financial transaction
-                            $transactionId = $transactionModel->create([
-                                'condominium_id' => $this->demoCondominiumId,
-                                'bank_account_id' => $this->accountIds[0], // Main account
-                                'transaction_type' => 'income',
-                                'amount' => $fee['amount'],
-                                'transaction_date' => $paymentDate,
-                                'description' => $desc,
-                                'category' => 'Quotas',
-                                'reference' => 'REF' . rand(100000, 999999),
-                                'related_type' => 'fee_payment',
-                                'related_id' => $paymentId,
-                                'created_by' => $this->demoUserId
-                            ]);
-
-                            // Update payment with transaction
-                            $this->db->exec("UPDATE fee_payments SET financial_transaction_id = {$transactionId} WHERE id = {$paymentId}");
-                        }
-                    }
-
-                    // Mark fee as paid
-                    $feeModel->markAsPaid($fee['id']);
-                    $paidCount++;
-                }
-            }
-        } else {
-            // Condominium 2: 75% paid (first months for each fraction)
-            foreach ($feesByFraction as $fractionId => $fractionFees) {
-                $totalFeesForFraction = count($fractionFees);
+            } else {
                 $paidCountForFraction = (int)($totalFeesForFraction * 0.75);
+            }
 
-                // Pay first N fees for this fraction
-                for ($i = 0; $i < $paidCountForFraction && $i < $totalFeesForFraction; $i++) {
-                    $fee = $fractionFees[$i];
-                    
-                    // Check if payment already exists for this fee
-                    $existingPayments = $feePaymentModel->getByFee($fee['id']);
-                    if (!empty($existingPayments)) {
-                        // Payment already exists, skip
-                        continue;
-                    }
-                    
-                    $paymentDate = "2025-" . str_pad($fee['period_month'], 2, '0', STR_PAD_LEFT) . "-" . rand(5, 25);
+            if ($paidCountForFraction <= 0) {
+                continue;
+            }
 
-                    // Create payment
-                    $paymentId = $feePaymentModel->create([
-                        'fee_id' => $fee['id'],
-                        'amount' => $fee['amount'],
-                        'payment_method' => ['multibanco', 'transfer', 'mbway'][rand(0, 2)],
-                        'payment_date' => $paymentDate,
-                        'reference' => 'REF' . rand(100000, 999999),
-                        'created_by' => $this->demoUserId,
-                        'financial_transaction_id' => null
-                    ]);
-
-                    // Check if financial transaction already exists for this payment
-                    $existingTransaction = $transactionModel->getByRelated('fee_payment', $paymentId);
-                    if (!$existingTransaction) {
-                        // Also check if transaction with same description and date already exists (extra safety)
-                        $desc = "Pagamento quota {$fee['reference']}";
-                        $checkStmt = $this->db->prepare("
-                            SELECT id FROM financial_transactions
-                            WHERE condominium_id = :condominium_id
-                            AND transaction_type = 'income'
-                            AND description = :description
-                            AND transaction_date = :transaction_date
-                            AND related_type = 'fee_payment'
-                            LIMIT 1
-                        ");
-                        $checkStmt->execute([
-                            ':condominium_id' => $this->demoCondominiumId,
-                            ':description' => $desc,
-                            ':transaction_date' => $paymentDate
-                        ]);
-                        $duplicateTransaction = $checkStmt->fetch();
-                        
-                        if (!$duplicateTransaction) {
-                            // Create financial transaction
-                            $transactionId = $transactionModel->create([
-                                'condominium_id' => $this->demoCondominiumId,
-                                'bank_account_id' => $this->accountIds[0], // Main account
-                                'transaction_type' => 'income',
-                                'amount' => $fee['amount'],
-                                'transaction_date' => $paymentDate,
-                                'description' => $desc,
-                                'category' => 'Quotas',
-                                'reference' => 'REF' . rand(100000, 999999),
-                                'related_type' => 'fee_payment',
-                                'related_id' => $paymentId,
-                                'created_by' => $this->demoUserId
-                            ]);
-
-                            // Update payment with transaction
-                            $this->db->exec("UPDATE fee_payments SET financial_transaction_id = {$transactionId} WHERE id = {$paymentId}");
-                        }
-                    }
-
-                    // Mark fee as paid
-                    $feeModel->markAsPaid($fee['id']);
-                    $paidCount++;
+            $feesToPay = [];
+            $totalAmount = 0.0;
+            for ($i = 0; $i < $paidCountForFraction && $i < $totalFeesForFraction; $i++) {
+                $fee = $fractionFees[$i];
+                $remaining = (float)$fee['amount'] - $feePaymentModel->getTotalPaid($fee['id']);
+                if ($remaining > 0) {
+                    $feesToPay[] = $fee;
+                    $totalAmount += $remaining;
                 }
             }
+
+            if ($totalAmount <= 0 || empty($feesToPay)) {
+                $paidCount += $paidCountForFraction;
+                continue;
+            }
+
+            $firstFee = $feesToPay[0];
+            $paymentDate = "2025-" . str_pad($firstFee['period_month'], 2, '0', STR_PAD_LEFT) . "-" . rand(5, 25);
+
+            $account = $faModel->getOrCreate($fractionId, $this->demoCondominiumId);
+            $accountId = (int)$account['id'];
+
+            $lastFee = $feesToPay[count($feesToPay) - 1];
+            $monthsRange = count($feesToPay) === 1
+                ? (int)$firstFee['period_month']
+                : (int)$firstFee['period_month'] . '-' . (int)$lastFee['period_month'];
+            $desc = "Pagamento quotas 2025 (meses {$monthsRange})";
+
+            $transactionId = $transactionModel->create([
+                'condominium_id' => $this->demoCondominiumId,
+                'bank_account_id' => $this->accountIds[0],
+                'fraction_id' => $fractionId,
+                'transaction_type' => 'income',
+                'amount' => $totalAmount,
+                'transaction_date' => $paymentDate,
+                'description' => $desc,
+                'category' => 'Quotas',
+                'income_entry_type' => 'quota',
+                'reference' => 'REF' . $this->demoCondominiumId . $fractionId . rand(1000, 9999),
+                'related_type' => 'fraction_account',
+                'related_id' => $accountId,
+                'created_by' => $this->demoUserId
+            ]);
+
+            $faModel->addCredit($accountId, $totalAmount, 'quota_payment', $transactionId, $desc);
+            $liquidationService->liquidate($fractionId, $this->demoUserId, $paymentDate, $transactionId);
+
+            $paidCount += count($feesToPay);
         }
 
         // Update account balances
@@ -3222,6 +3133,8 @@ class DemoSeeder
         $feeModel = new Fee();
         $feePaymentModel = new FeePayment();
         $transactionModel = new FinancialTransaction();
+        $faModel = new FractionAccount();
+        $liquidationService = new LiquidationService();
 
         // Generate regular fees for all months in 2026
         for ($month = 1; $month <= 12; $month++) {
@@ -3308,92 +3221,59 @@ class DemoSeeder
             // Only pay 2026 fees if there are no pending debts from 2025
             if (empty($pendingDebts)) {
                 // Determine how many months to pay
-                // 5 fractions get all months up to current month, others get first 4 months (but not beyond current month)
                 if (in_array($fractionId, $fullyPaidFractionIds2026)) {
-                    // For fully paid fractions, pay up to current month (if year is 2026)
                     $monthsToPay = ($currentYear == 2026) ? min($currentMonth, count($fractionFees)) : count($fractionFees);
                 } else {
-                    // For other fractions, pay first 4 months (but not beyond current month if year is 2026)
                     $monthsToPay = ($currentYear == 2026) ? min(4, $currentMonth, count($fractionFees)) : min(4, count($fractionFees));
                 }
 
-                // Pay fees for this fraction (only up to monthsToPay)
+                $feesToPay = [];
+                $totalAmount = 0.0;
                 for ($i = 0; $i < $monthsToPay && $i < count($fractionFees); $i++) {
                     $fee = $fractionFees[$i];
-
-                    // Skip if fee month is beyond current month (for current year)
                     if ($currentYear == 2026 && $fee['period_month'] > $currentMonth) {
                         continue;
                     }
-                    
-                    // Check if payment already exists for this fee
-                    $existingPayments = $feePaymentModel->getByFee($fee['id']);
-                    if (!empty($existingPayments)) {
-                        // Payment already exists, skip
-                        continue;
+                    $remaining = (float)$fee['amount'] - $feePaymentModel->getTotalPaid($fee['id']);
+                    if ($remaining > 0) {
+                        $feesToPay[] = $fee;
+                        $totalAmount += $remaining;
                     }
-                    
-                    $paymentDate = "2026-" . str_pad($fee['period_month'], 2, '0', STR_PAD_LEFT) . "-" . rand(5, 25);
+                }
 
-                    // Create payment
-                    $paymentId = $feePaymentModel->create([
-                        'fee_id' => $fee['id'],
-                        'amount' => $fee['amount'],
-                        'payment_method' => ['transfer', 'cash'][rand(0, 1)],
-                        'payment_date' => $paymentDate,
-                        'reference' => 'REF' . $this->demoCondominiumId . $fee['fraction_id'] . $fee['id'],
-                        'created_by' => $this->demoUserId,
-                        'financial_transaction_id' => null
+                if ($totalAmount > 0 && !empty($feesToPay)) {
+                    $firstFee = $feesToPay[0];
+                    $lastFee = $feesToPay[count($feesToPay) - 1];
+                    $paymentDate = "2026-" . str_pad($firstFee['period_month'], 2, '0', STR_PAD_LEFT) . "-" . rand(5, 25);
+                    $monthsRange = count($feesToPay) === 1
+                        ? (int)$firstFee['period_month']
+                        : (int)$firstFee['period_month'] . '-' . (int)$lastFee['period_month'];
+                    $desc = "Pagamento quotas regulares 2026 (meses {$monthsRange})";
+
+                    $account = $faModel->getOrCreate($fractionId, $this->demoCondominiumId);
+                    $accountId = (int)$account['id'];
+
+                    $transactionId = $transactionModel->create([
+                        'condominium_id' => $this->demoCondominiumId,
+                        'bank_account_id' => $this->accountIds[0],
+                        'fraction_id' => $fractionId,
+                        'transaction_type' => 'income',
+                        'amount' => $totalAmount,
+                        'transaction_date' => $paymentDate,
+                        'description' => $desc,
+                        'category' => 'Quotas',
+                        'income_entry_type' => 'quota',
+                        'reference' => 'REF' . $this->demoCondominiumId . $fractionId . 'R' . rand(1000, 9999),
+                        'related_type' => 'fraction_account',
+                        'related_id' => $accountId,
+                        'created_by' => $this->demoUserId
                     ]);
 
-                    // Check if financial transaction already exists for this payment
-                    $existingTransaction = $transactionModel->getByRelated('fee_payment', $paymentId);
-                    if (!$existingTransaction) {
-                        // Also check if transaction with same description and date already exists (extra safety)
-                        $desc = "Pagamento quota {$fee['reference']}";
-                        $checkStmt = $this->db->prepare("
-                            SELECT id FROM financial_transactions
-                            WHERE condominium_id = :condominium_id
-                            AND transaction_type = 'income'
-                            AND description = :description
-                            AND transaction_date = :transaction_date
-                            AND related_type = 'fee_payment'
-                            LIMIT 1
-                        ");
-                        $checkStmt->execute([
-                            ':condominium_id' => $this->demoCondominiumId,
-                            ':description' => $desc,
-                            ':transaction_date' => $paymentDate
-                        ]);
-                        $duplicateTransaction = $checkStmt->fetch();
-                        
-                        if (!$duplicateTransaction) {
-                            // Create financial transaction
-                            $transactionId = $transactionModel->create([
-                                'condominium_id' => $this->demoCondominiumId,
-                                'bank_account_id' => $this->accountIds[0], // Main account
-                                'transaction_type' => 'income',
-                                'amount' => $fee['amount'],
-                                'transaction_date' => $paymentDate,
-                                'description' => $desc,
-                                'category' => 'Quotas',
-                                'reference' => 'REF' . rand(100000, 999999),
-                                'related_type' => 'fee_payment',
-                                'related_id' => $paymentId,
-                                'created_by' => $this->demoUserId
-                            ]);
-
-                            // Update payment with transaction
-                            $this->db->exec("UPDATE fee_payments SET financial_transaction_id = {$transactionId} WHERE id = {$paymentId}");
-                        }
-                    }
-
-                    // Mark fee as paid
-                    $feeModel->markAsPaid($fee['id']);
-                    $paidCount++;
+                    $faModel->addCredit($accountId, $totalAmount, 'quota_payment', $transactionId, $desc);
+                    $liquidationService->liquidate($fractionId, $this->demoUserId, $paymentDate, $transactionId);
+                    $paidCount += count($feesToPay);
                 }
             } else {
-                // Get fraction identifier for logging
                 $fractionStmt = $this->db->prepare("SELECT identifier FROM fractions WHERE id = :fraction_id");
                 $fractionStmt->execute([':fraction_id' => $fractionId]);
                 $fraction = $fractionStmt->fetch();
@@ -3472,92 +3352,59 @@ class DemoSeeder
 
             // Only pay extra fees if there are no pending debts from 2025
             if (empty($pendingDebts)) {
-                // Determine how many months to pay
-                // 5 fractions get all months up to current month, others get first 3 months (but not beyond current month)
                 if (in_array($fractionId, $fullyPaidFractionIds2026)) {
-                    // For fully paid fractions, pay up to current month (if year is 2026)
                     $monthsToPay = ($currentYear == 2026) ? min($currentMonth, count($fractionFees)) : count($fractionFees);
                 } else {
-                    // For other fractions, pay first 3 months (but not beyond current month if year is 2026)
                     $monthsToPay = ($currentYear == 2026) ? min(3, $currentMonth, count($fractionFees)) : min(3, count($fractionFees));
                 }
 
-                // Pay extra fees for this fraction (only up to monthsToPay)
+                $feesToPay = [];
+                $totalAmount = 0.0;
                 for ($i = 0; $i < $monthsToPay && $i < count($fractionFees); $i++) {
                     $fee = $fractionFees[$i];
-
-                    // Skip if fee month is beyond current month (for current year)
                     if ($currentYear == 2026 && $fee['period_month'] > $currentMonth) {
                         continue;
                     }
-                    // Check if payment already exists for this fee
-                    $existingPayments = $feePaymentModel->getByFee($fee['id']);
-                    if (!empty($existingPayments)) {
-                        // Payment already exists, skip
-                        continue;
+                    $remaining = (float)$fee['amount'] - $feePaymentModel->getTotalPaid($fee['id']);
+                    if ($remaining > 0) {
+                        $feesToPay[] = $fee;
+                        $totalAmount += $remaining;
                     }
-                    
-                    $paymentDate = "2026-" . str_pad($fee['period_month'], 2, '0', STR_PAD_LEFT) . "-" . rand(5, 25);
+                }
 
-                    // Create payment
-                    $paymentId = $feePaymentModel->create([
-                        'fee_id' => $fee['id'],
-                        'amount' => $fee['amount'],
-                        'payment_method' => ['transfer', 'cash'][rand(0, 1)],
-                        'payment_date' => $paymentDate,
-                        'reference' => 'REF' . $this->demoCondominiumId . $fee['fraction_id'] . $fee['id'],
-                        'created_by' => $this->demoUserId,
-                        'financial_transaction_id' => null
+                if ($totalAmount > 0 && !empty($feesToPay)) {
+                    $firstFee = $feesToPay[0];
+                    $lastFee = $feesToPay[count($feesToPay) - 1];
+                    $paymentDate = "2026-" . str_pad($firstFee['period_month'], 2, '0', STR_PAD_LEFT) . "-" . rand(5, 25);
+                    $monthsRange = count($feesToPay) === 1
+                        ? (int)$firstFee['period_month']
+                        : (int)$firstFee['period_month'] . '-' . (int)$lastFee['period_month'];
+                    $desc = "Pagamento quotas extras 2026 (meses {$monthsRange})";
+
+                    $account = $faModel->getOrCreate($fractionId, $this->demoCondominiumId);
+                    $accountId = (int)$account['id'];
+
+                    $transactionId = $transactionModel->create([
+                        'condominium_id' => $this->demoCondominiumId,
+                        'bank_account_id' => $this->accountIds[0],
+                        'fraction_id' => $fractionId,
+                        'transaction_type' => 'income',
+                        'amount' => $totalAmount,
+                        'transaction_date' => $paymentDate,
+                        'description' => $desc,
+                        'category' => 'Quotas',
+                        'income_entry_type' => 'quota',
+                        'reference' => 'REF' . $this->demoCondominiumId . $fractionId . 'E' . rand(1000, 9999),
+                        'related_type' => 'fraction_account',
+                        'related_id' => $accountId,
+                        'created_by' => $this->demoUserId
                     ]);
 
-                    // Check if financial transaction already exists for this payment
-                    $existingTransaction = $transactionModel->getByRelated('fee_payment', $paymentId);
-                    if (!$existingTransaction) {
-                        // Also check if transaction with same description and date already exists (extra safety)
-                        $desc = "Pagamento quota extra {$fee['reference']}";
-                        $checkStmt = $this->db->prepare("
-                            SELECT id FROM financial_transactions
-                            WHERE condominium_id = :condominium_id
-                            AND transaction_type = 'income'
-                            AND description = :description
-                            AND transaction_date = :transaction_date
-                            AND related_type = 'fee_payment'
-                            LIMIT 1
-                        ");
-                        $checkStmt->execute([
-                            ':condominium_id' => $this->demoCondominiumId,
-                            ':description' => $desc,
-                            ':transaction_date' => $paymentDate
-                        ]);
-                        $duplicateTransaction = $checkStmt->fetch();
-                        
-                        if (!$duplicateTransaction) {
-                            // Create financial transaction
-                            $transactionId = $transactionModel->create([
-                                'condominium_id' => $this->demoCondominiumId,
-                                'bank_account_id' => $this->accountIds[0], // Main account
-                                'transaction_type' => 'income',
-                                'amount' => $fee['amount'],
-                                'transaction_date' => $paymentDate,
-                                'description' => $desc,
-                                'category' => 'Quotas',
-                                'reference' => 'REF' . rand(100000, 999999),
-                                'related_type' => 'fee_payment',
-                                'related_id' => $paymentId,
-                                'created_by' => $this->demoUserId
-                            ]);
-
-                            // Update payment with transaction
-                            $this->db->exec("UPDATE fee_payments SET financial_transaction_id = {$transactionId} WHERE id = {$paymentId}");
-                        }
-                    }
-
-                    // Mark fee as paid
-                    $feeModel->markAsPaid($fee['id']);
-                    $extraPaidCount++;
+                    $faModel->addCredit($accountId, $totalAmount, 'quota_payment', $transactionId, $desc);
+                    $liquidationService->liquidate($fractionId, $this->demoUserId, $paymentDate, $transactionId);
+                    $extraPaidCount += count($feesToPay);
                 }
             } else {
-                // Get fraction identifier for logging
                 $fractionStmt = $this->db->prepare("SELECT identifier FROM fractions WHERE id = :fraction_id");
                 $fractionStmt->execute([':fraction_id' => $fractionId]);
                 $fraction = $fractionStmt->fetch();
@@ -3568,8 +3415,8 @@ class DemoSeeder
 
         // Update account balances
         $bankAccountModel = new BankAccount();
-        foreach ($this->accountIds as $accountId) {
-            $bankAccountModel->updateBalance($accountId);
+        foreach ($this->accountIds as $baId) {
+            $bankAccountModel->updateBalance($baId);
         }
 
         echo "   {$paidCount} quotas regulares pagas, {$extraPaidCount} quotas extras pagas\n";

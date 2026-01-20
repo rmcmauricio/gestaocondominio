@@ -199,5 +199,40 @@ class Fraction extends Model
         $stmt->execute([':fraction_id' => $fractionId]);
         return $stmt->fetchAll() ?: [];
     }
+
+    /**
+     * Para cada fraction_id: owner_name (1.º condómino) e floor.
+     * Retorna [fraction_id => ['owner_name'=>string, 'floor'=>string], ...].
+     */
+    public function getOwnerAndFloorByFractionIds(array $fractionIds): array
+    {
+        if (!$this->db || empty($fractionIds)) {
+            return [];
+        }
+        $ids = array_values(array_unique(array_map('intval', $fractionIds)));
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare("
+            SELECT f.id,
+                   f.floor,
+                   (SELECT u.name FROM condominium_users cu
+                    INNER JOIN users u ON u.id = cu.user_id
+                    WHERE cu.fraction_id = f.id
+                      AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+                    ORDER BY cu.is_primary DESC, cu.created_at ASC
+                    LIMIT 1) AS owner_name
+            FROM fractions f
+            WHERE f.id IN ({$placeholders})
+        ");
+        $stmt->execute($ids);
+        $rows = $stmt->fetchAll() ?: [];
+        $out = [];
+        foreach ($rows as $r) {
+            $out[(int)$r['id']] = [
+                'owner_name' => trim((string)($r['owner_name'] ?? '')) ?: null,
+                'floor' => trim((string)($r['floor'] ?? '')) ?: null
+            ];
+        }
+        return $out;
+    }
 }
 

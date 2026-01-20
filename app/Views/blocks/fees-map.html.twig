@@ -59,7 +59,7 @@
                         {% for fraction in fractions %}
                         <tr>
                             <td class="fw-bold text-center">
-                                <span class="badge bg-secondary">{{ fraction.identifier }}</span>
+                                {% include 'blocks/fraction-popover.html.twig' with { identifier: fraction.identifier, owner_name: fraction.owner_name, floor: fraction.floor, extra_class: 'badge bg-secondary' } only %}
                             </td>
                             {% set fraction_total = 0 %}
                             {% set fraction_paid = 0 %}

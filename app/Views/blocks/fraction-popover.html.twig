@@ -1,0 +1,12 @@
+{# Mostra o identificador da fração; ao clicar abre popover com condómino e andar. Fecha ao clicar fora. #}
+{# Parâmetros: identifier, owner_name, floor, stop_propagation (opcional), extra_class (opcional) #}
+<span class="fraction-popover {{ extra_class|default('') }}"
+      tabindex="0"
+      role="button"
+      style="cursor: pointer;"
+      data-bs-toggle="popover"
+      data-bs-trigger="focus"
+      data-bs-placement="auto"
+      data-bs-html="true"
+      data-bs-content="<strong>{{ owner_name|default('-')|e('html') }}</strong> ({{ floor|default('-')|e('html') }})"
+      {% if stop_propagation|default(false) %}onclick="event.stopPropagation()"{% endif %}>{{ identifier }}</span>

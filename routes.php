@@ -133,9 +133,13 @@ $router->post('/condominiums/{condominium_id}/budgets/{id}/approve', 'App\Contro
 $router->get('/condominiums/{condominium_id}/expenses/create', 'App\Controllers\FinanceController@createExpense');
 $router->post('/condominiums/{condominium_id}/expenses', 'App\Controllers\FinanceController@storeExpense');
 $router->get('/condominiums/{condominium_id}/fees', 'App\Controllers\FinanceController@fees');
+$router->get('/condominiums/{condominium_id}/fraction-accounts', 'App\Controllers\FinanceController@fractionAccounts');
+$router->get('/condominiums/{condominium_id}/fraction-accounts/{fraction_id}', 'App\Controllers\FinanceController@fractionAccountShow');
+$router->get('/condominiums/{condominium_id}/fraction-accounts/{fraction_id}/payments/{payment_id}', 'App\Controllers\FinanceController@getFractionAccountPaymentInfo');
 $router->post('/condominiums/{condominium_id}/fees/generate', 'App\Controllers\FinanceController@generateFees');
 $router->post('/condominiums/{condominium_id}/fees/{id}/mark-paid', 'App\Controllers\FinanceController@markFeeAsPaid');
 $router->post('/condominiums/{condominium_id}/fees/bulk-mark-paid', 'App\Controllers\FinanceController@bulkMarkFeesAsPaid');
+$router->post('/condominiums/{condominium_id}/fees/liquidate-quotas', 'App\Controllers\FinanceController@liquidateQuotas');
 $router->post('/condominiums/{condominium_id}/fees/{id}/add-payment', 'App\Controllers\FinanceController@addPayment');
 $router->get('/condominiums/{condominium_id}/fees/{fee_id}/payments/{payment_id}', 'App\Controllers\FinanceController@getPayment');
 $router->post('/condominiums/{condominium_id}/fees/{fee_id}/payments/{payment_id}/update', 'App\Controllers\FinanceController@updatePayment');
@@ -260,6 +264,7 @@ $router->post('/condominiums/{condominium_id}/bank-accounts/{id}/delete', 'App\C
 $router->get('/condominiums/{condominium_id}/financial-transactions', 'App\Controllers\FinancialTransactionController@index');
 $router->get('/condominiums/{condominium_id}/financial-transactions/create', 'App\Controllers\FinancialTransactionController@create');
 $router->post('/condominiums/{condominium_id}/financial-transactions', 'App\Controllers\FinancialTransactionController@store');
+$router->get('/condominiums/{condominium_id}/financial-transactions/{id}/info', 'App\Controllers\FinancialTransactionController@getTransactionInfo');
 $router->get('/condominiums/{condominium_id}/financial-transactions/{id}/edit', 'App\Controllers\FinancialTransactionController@edit');
 $router->post('/condominiums/{condominium_id}/financial-transactions/{id}/update', 'App\Controllers\FinancialTransactionController@update');
 $router->post('/condominiums/{condominium_id}/financial-transactions/{id}/delete', 'App\Controllers\FinancialTransactionController@delete');

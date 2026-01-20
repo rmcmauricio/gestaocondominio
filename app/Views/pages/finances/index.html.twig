@@ -82,6 +82,11 @@
         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="btn btn-success btn-sm py-1 px-2" style="font-size: 0.75rem;">
             <i class="bi bi-receipt"></i> Quotas
         </a>
+
+        <!-- Contas por fração -->
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fraction-accounts" class="btn btn-outline-success btn-sm py-1 px-2" style="font-size: 0.75rem;">
+            <i class="bi bi-wallet2"></i> Contas por fração
+        </a>
         
         <!-- Receitas -->
         {% if is_admin %}

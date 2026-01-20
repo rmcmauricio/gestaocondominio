@@ -8,7 +8,10 @@
             {% include 'blocks/help-button.html.twig' with {'section': 'finances-fees', 'title': 'Ajuda com Quotas', 'show_text': false} %}
         </div>
         {% if is_admin %}
-        <div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#liquidateQuotasModal">
+                <i class="bi bi-cash-coin"></i> <span class="d-none d-sm-inline">Liquidar Quotas</span>
+            </button>
             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateFeesModal">
                 <i class="bi bi-calculator"></i> <span class="d-none d-sm-inline">Gerar Quotas</span>
             </button>
@@ -168,7 +171,7 @@
                         {% set pending_amount = fee.pending_amount|default(fee.amount) %}
                         {% set calculated_status = fee.calculated_status|default(fee.status) %}
                         <tr style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})" title="Clique para ver detalhes">
-                            <td><strong>{{ fee.fraction_identifier }}</strong></td>
+                            <td><strong>{% include 'blocks/fraction-popover.html.twig' with { identifier: fee.fraction_identifier, owner_name: fee.owner_name, floor: fee.fraction_floor, stop_propagation: true } only %}</strong></td>
                             <td>
                                 {% if fee.period_month %}
                                     {{ fee.period_month }}/{{ fee.period_year }}
@@ -252,7 +255,7 @@
             <div class="card-body">
                 <div class="mb-3">
                     <h6 class="mb-1 d-flex align-items-center gap-2">
-                        <span class="badge bg-secondary">{{ fee.fraction_identifier }}</span>
+                        {% include 'blocks/fraction-popover.html.twig' with { identifier: fee.fraction_identifier, owner_name: fee.owner_name, floor: fee.fraction_floor, extra_class: 'badge bg-secondary', stop_propagation: true } only %}
                         {% if calculated_status == 'paid' %}
                             <i class="bi bi-check-circle-fill text-success" style="font-size: 1.2rem;" title="Pago"></i>
                         {% elseif calculated_status == 'overdue' %}
@@ -432,6 +435,77 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                         <button type="submit" class="btn btn-primary">Gerar Quotas</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Liquidar Quotas -->
+    <div class="modal fade" id="liquidateQuotasModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Liquidar Quotas</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/liquidate-quotas">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="modal-body">
+                        <p class="text-muted small">Regista um pagamento na conta da fração e aplica-o às quotas em atraso (o mesmo que um movimento de entrada «Quotas» para a fração).</p>
+                        <div class="mb-3">
+                            <label for="lq_fraction_id" class="form-label">Fração <span class="text-danger">*</span></label>
+                            <select class="form-select" id="lq_fraction_id" name="fraction_id" required>
+                                <option value="">Selecione a fração...</option>
+                                {% for fraction in fractions %}
+                                <option value="{{ fraction.id }}">{{ fraction.identifier }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="lq_amount" class="form-label">Valor (€) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">€</span>
+                                <input type="number" class="form-control" id="lq_amount" name="amount" step="0.01" min="0.01" required placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="lq_payment_method" class="form-label">Método de Pagamento <span class="text-danger">*</span></label>
+                            <select class="form-select" id="lq_payment_method" name="payment_method" required>
+                                <option value="">Selecione...</option>
+                                <option value="transfer">Transferência</option>
+                                <option value="cash">Dinheiro</option>
+                                <option value="multibanco">Multibanco</option>
+                                <option value="mbway">MB Way</option>
+                                <option value="card">Cartão</option>
+                                <option value="sepa">SEPA</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="lq_bank_account_id" class="form-label">Conta Bancária <span class="text-danger">*</span></label>
+                            <select class="form-select" id="lq_bank_account_id" name="bank_account_id" required>
+                                <option value="">Selecione...</option>
+                                {% for account in bank_accounts %}
+                                <option value="{{ account.id }}" {% if account.account_type == 'bank' and loop.first %}data-is-main-bank="true"{% endif %} {% if account.account_type == 'cash' %}data-is-cash="true"{% endif %}>{{ account.name }}{% if account.account_type == 'cash' %} (Caixa){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="lq_payment_date" class="form-label">Data <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="lq_payment_date" name="payment_date" value="{{ "now"|date("Y-m-d") }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="lq_reference" class="form-label">Referência</label>
+                            <input type="text" class="form-control" id="lq_reference" name="reference" placeholder="Opcional">
+                        </div>
+                        <div class="mb-3">
+                            <label for="lq_notes" class="form-label">Notas</label>
+                            <textarea class="form-control" id="lq_notes" name="notes" rows="2" placeholder="Opcional"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-cash-coin"></i> Liquidar Quotas</button>
                     </div>
                 </form>
             </div>
@@ -908,6 +982,10 @@ document.getElementById('editPaymentModal')?.addEventListener('show.bs.modal', f
     const feeId = document.getElementById('edit_payment_fee_id').value;
     const paymentId = document.getElementById('edit_payment_id').value;
     document.getElementById('editPaymentForm').action = `{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/payments/${paymentId}/update`;
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.fraction-popover').forEach(function(el) { new bootstrap.Popover(el, { trigger: 'focus' }); });
 });
 </script>
 

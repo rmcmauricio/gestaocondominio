@@ -10,6 +10,11 @@ use App\Models\FinancialTransaction;
 use App\Models\BankAccount;
 use App\Models\Condominium;
 use App\Models\Fee;
+use App\Models\Fraction;
+use App\Models\FractionAccount;
+use App\Models\FractionAccountMovement;
+use App\Services\LiquidationService;
+use App\Services\ReceiptService;
 
 class FinancialTransactionController extends Controller
 {
@@ -199,6 +204,9 @@ class FinancialTransactionController extends Controller
 
         $accounts = $this->bankAccountModel->getActiveAccounts($condominiumId);
         $pendingFees = $this->feeModel->getByCondominium($condominiumId, ['status' => 'pending']);
+
+        $fractionModel = new Fraction();
+        $fractions = $fractionModel->getByCondominiumId($condominiumId);
         
         // Get preselected account from query parameter
         $preselectedAccountId = !empty($_GET['bank_account_id']) ? (int)$_GET['bank_account_id'] : null;
@@ -210,6 +218,7 @@ class FinancialTransactionController extends Controller
             'page' => ['titulo' => 'Criar Movimento Financeiro'],
             'condominium' => $condominium,
             'accounts' => $accounts,
+            'fractions' => $fractions,
             'pendingFees' => $pendingFees,
             'preselected_account_id' => $preselectedAccountId,
             'csrf_token' => Security::generateCSRFToken(),
@@ -253,6 +262,20 @@ class FinancialTransactionController extends Controller
         $description = Security::sanitize($_POST['description'] ?? '');
         $category = Security::sanitize($_POST['category'] ?? '');
         $reference = Security::sanitize($_POST['reference'] ?? '');
+        $incomeEntryType = Security::sanitize($_POST['income_entry_type'] ?? '');
+        $fractionId = !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null;
+
+        // When income_entry_type is set, fraction_id is required (and vice versa)
+        if (in_array($incomeEntryType, ['quota', 'reserva_espaco', 'outros']) && (!$fractionId || $fractionId <= 0)) {
+            $_SESSION['error'] = 'Selecione a fração para este tipo de entrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create');
+            exit;
+        }
+        if ($fractionId && $fractionId > 0 && !in_array($incomeEntryType, ['quota', 'reserva_espaco', 'outros'])) {
+            $_SESSION['error'] = 'Selecione o tipo de entrada (Quotas, Reservas de espaço ou Outros) quando atribui uma fração.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create');
+            exit;
+        }
 
         // Validation
         if ($bankAccountId <= 0) {
@@ -366,8 +389,63 @@ class FinancialTransactionController extends Controller
 
                 $db->commit();
                 $_SESSION['success'] = 'Transferência realizada com sucesso!';
+            } elseif ($transactionType === 'income' && $fractionId && in_array($incomeEntryType, ['quota', 'reserva_espaco', 'outros'])) {
+                // Entrada atribuída a fração: conta da fração + liquidação se Quotas
+                $faModel = new FractionAccount();
+                $account = $faModel->getOrCreate($fractionId, $condominiumId);
+                $accountId = (int)$account['id'];
+
+                $categoryMap = ['quota' => 'Quotas', 'reserva_espaco' => 'Reservas de espaço', 'outros' => 'Outros'];
+                $sourceTypeMap = ['quota' => 'quota_payment', 'reserva_espaco' => 'space_reservation', 'outros' => 'other'];
+
+                // Referência automática para Quotas
+                $ref = ($incomeEntryType === 'quota') ? ('REF' . $condominiumId . $fractionId . date('YmdHis')) : $reference;
+
+                $transactionId = $this->transactionModel->create([
+                    'condominium_id' => $condominiumId,
+                    'bank_account_id' => $bankAccountId,
+                    'fraction_id' => $fractionId,
+                    'transaction_type' => 'income',
+                    'amount' => $amount,
+                    'transaction_date' => $transactionDate,
+                    'description' => $description,
+                    'category' => $categoryMap[$incomeEntryType],
+                    'income_entry_type' => $incomeEntryType,
+                    'reference' => $ref,
+                    'related_type' => 'fraction_account',
+                    'related_id' => $accountId,
+                    'transfer_to_account_id' => null,
+                    'created_by' => $userId
+                ]);
+
+                $movementId = $faModel->addCredit($accountId, $amount, $sourceTypeMap[$incomeEntryType], $transactionId, $description);
+
+                if ($incomeEntryType === 'quota') {
+                    $result = (new LiquidationService())->liquidate($fractionId, $userId, $transactionDate, $transactionId);
+                    $parts = [];
+                    foreach ($result['fully_paid'] ?? [] as $fid) {
+                        $f = $this->feeModel->findById($fid);
+                        $parts[] = $f ? self::feeLabel($f) : ('Quota #' . $fid);
+                    }
+                    foreach (array_keys($result['partially_paid'] ?? []) as $fid) {
+                        $f = $this->feeModel->findById($fid);
+                        $parts[] = ($f ? self::feeLabel($f) : ('Quota #' . $fid)) . ' (parcial)';
+                    }
+                    $builtDesc = implode(', ', $parts);
+                    if ($builtDesc !== '') {
+                        $this->transactionModel->update($transactionId, ['description' => $builtDesc]);
+                        (new FractionAccountMovement())->update($movementId, ['description' => $builtDesc]);
+                    }
+                    $receiptSvc = new ReceiptService();
+                    foreach ($result['fully_paid'] ?? [] as $fid) {
+                        $receiptSvc->generateForFullyPaidFee($fid, $result['fully_paid_payments'][$fid] ?? null, $condominiumId, $userId);
+                    }
+                }
+
+                $db->commit();
+                $_SESSION['success'] = 'Movimento financeiro criado com sucesso. O valor foi atribuído à fração e ' . ($incomeEntryType === 'quota' ? 'as quotas em atraso foram liquidadas automaticamente.' : 'registado na conta da fração.');
             } else {
-                // Regular transaction
+                // Regular transaction (income sem fração, ou expense)
                 $this->transactionModel->create([
                     'condominium_id' => $condominiumId,
                     'bank_account_id' => $bankAccountId,
@@ -399,6 +477,26 @@ class FinancialTransactionController extends Controller
         }
     }
 
+    /**
+     * JSON: dados do movimento financeiro (para modal na conta da fração).
+     */
+    public function getTransactionInfo(int $condominiumId, int $id)
+    {
+        header('Content-Type: application/json');
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $transaction = $this->transactionModel->findById($id);
+        if (!$transaction || (int)($transaction['condominium_id'] ?? 0) != $condominiumId) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Movimento não encontrado']);
+            exit;
+        }
+
+        echo json_encode(['transaction' => $transaction]);
+        exit;
+    }
+
     public function edit(int $condominiumId, int $id)
     {
         AuthMiddleware::require();
@@ -419,9 +517,14 @@ class FinancialTransactionController extends Controller
             exit;
         }
 
-        // Don't allow editing transactions linked to fee payments
+        // Don't allow editing transactions linked to fee payments or fraction account flow
         if ($this->transactionModel->isLinkedToFeePayment($id)) {
             $_SESSION['error'] = 'Não é possível editar movimentos associados a pagamentos de quotas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
+            exit;
+        }
+        if (($transaction['related_type'] ?? '') === 'fraction_account') {
+            $_SESSION['error'] = 'Não é possível editar movimentos de liquidação de quotas (conta da fração).';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
             exit;
         }
@@ -470,9 +573,14 @@ class FinancialTransactionController extends Controller
             exit;
         }
 
-        // Don't allow editing transactions linked to fee payments
+        // Don't allow editing transactions linked to fee payments or fraction account flow
         if ($this->transactionModel->isLinkedToFeePayment($id)) {
             $_SESSION['error'] = 'Não é possível editar movimentos associados a pagamentos de quotas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
+            exit;
+        }
+        if (($transaction['related_type'] ?? '') === 'fraction_account') {
+            $_SESSION['error'] = 'Não é possível editar movimentos de liquidação de quotas (conta da fração).';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
             exit;
         }
@@ -563,9 +671,14 @@ class FinancialTransactionController extends Controller
             exit;
         }
 
-        // Don't allow deleting transactions linked to fee payments
+        // Don't allow deleting transactions linked to fee payments or fraction account flow
         if ($this->transactionModel->isLinkedToFeePayment($id)) {
             $_SESSION['error'] = 'Não é possível eliminar movimentos associados a pagamentos de quotas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
+            exit;
+        }
+        if (($transaction['related_type'] ?? '') === 'fraction_account') {
+            $_SESSION['error'] = 'Não é possível eliminar movimentos de liquidação de quotas (conta da fração).';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
             exit;
         }
@@ -636,5 +749,16 @@ class FinancialTransactionController extends Controller
             'formatted_balance' => '€' . number_format($balance, 2, ',', '.')
         ]);
         exit;
+    }
+
+    private static function feeLabel(array $f): string
+    {
+        if (($f['fee_type'] ?? '') === 'extra' && !empty($f['reference'])) {
+            return 'Quota extra: ' . $f['reference'];
+        }
+        if (!empty($f['period_month']) && !empty($f['period_year'])) {
+            return 'Quota ' . sprintf('%02d/%d', $f['period_month'], $f['period_year']);
+        }
+        return 'Quota ' . ($f['period_year'] ?? '');
     }
 }
