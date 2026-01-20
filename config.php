@@ -118,6 +118,9 @@ if (($config['APP_ENV'] ?? 'development') !== 'production') {
 $twig->addGlobal('BASE_URL', BASE_URL);
 $twig->addGlobal('VERSION', VERSION);
 
+// Breadcrumbs: needs_context to receive full Twig context
+$twig->addFunction(new \Twig\TwigFunction('get_breadcrumbs', [\App\Services\BreadcrumbService::class, 'getBreadcrumbs'], ['needs_context' => true]));
+
 // Make Twig available globally
 $GLOBALS['twig'] = $twig;
 

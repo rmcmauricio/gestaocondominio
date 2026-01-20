@@ -36,6 +36,11 @@
         {% endif %}
 
         <main class="main-content {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName or viewName == 'pages/help/index.html.twig' %}main-content-full{% endif %}">
+            {% if viewName != 'pages/home.html.twig' %}
+            <div class="container py-2 py-md-1">
+                {% include 'blocks/breadcrumbs.html.twig' %}
+            </div>
+            {% endif %}
             {% if demo_banner_message %}
             <div class="alert alert-warning alert-dismissible fade show mb-0" role="alert" style="border-radius: 0; border-left: 4px solid #ffc107;">
                 <div class="container">

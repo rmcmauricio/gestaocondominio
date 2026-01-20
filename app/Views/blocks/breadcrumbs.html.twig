@@ -1,0 +1,16 @@
+{% set items = get_breadcrumbs() %}
+{% if items|length > 0 %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0 flex-wrap">
+        {% for b in items %}
+        <li class="breadcrumb-item {% if b.url is null %}active{% endif %}" {% if loop.last and b.url is null %}aria-current="page"{% endif %}>
+            {% if b.url is not null %}
+            <a href="{{ b.url }}">{{ b.label }}</a>
+            {% else %}
+            {{ b.label }}
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ol>
+</nav>
+{% endif %}
