@@ -81,7 +81,11 @@
                             </tfoot>
                         </table>
                     </div>
-
+                    {% if results.winning_option %}
+                    <div class="alert alert-success mb-4">
+                        <strong>Resultado (por permilagem):</strong> <strong>{{ results.winning_option }}</strong> ganhou com {{ results.winning_percentage_by_millage }}% da permilagem dos votos expressos.
+                    </div>
+                    {% endif %}
                     {# Charts #}
                     <div class="row">
                         <div class="col-md-6 mb-4">

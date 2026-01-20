@@ -248,8 +248,10 @@ $router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/ge
 $router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/edit', 'App\Controllers\AssemblyController@editMinutesTemplate');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/update', 'App\Controllers\AssemblyController@updateMinutesTemplate');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/approve', 'App\Controllers\AssemblyController@approveMinutes');
-$router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/signatures', 'App\Controllers\AssemblyController@manageSignatures');
-$router->post('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/signatures/mark', 'App\Controllers\AssemblyController@markSignature');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/send-for-review', 'App\Controllers\AssemblyController@sendForReview');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/cancel-review', 'App\Controllers\AssemblyController@cancelReview');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/submit-revision', 'App\Controllers\AssemblyController@submitRevision');
+$router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/revisions', 'App\Controllers\AssemblyController@revisions');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/change-status', 'App\Controllers\AssemblyController@changeStatus');
 
 // Bank Accounts routes

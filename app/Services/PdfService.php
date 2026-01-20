@@ -226,6 +226,13 @@ class PdfService
                     $votesSection .= '</tbody>';
                     $votesSection .= '<tfoot><tr style="background-color: #f8f9fa; font-weight: bold;"><td style="padding: 8px; border: 1px solid #ddd;">Total</td><td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . $results['total_votes'] . '</td><td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . $results['total_millage'] . '‰</td><td style="padding: 8px; border: 1px solid #ddd; text-align: center;">100%</td></tr></tfoot>';
                     $votesSection .= '</table>';
+                    if (!empty($results['winning_option'])) {
+                        $votesSection .= '<p style="margin-top: 12px;"><strong>Resultado (por permilagem):</strong> <strong>' . htmlspecialchars($results['winning_option']) . '</strong> ganhou com ' . number_format($results['winning_percentage_by_millage'], 2) . '% da permilagem dos votos expressos.</p>';
+                    }
+                    $chartHtml = $this->generateVoteChartImageHtml($results);
+                    if ($chartHtml !== '') {
+                        $votesSection .= '<div style="margin:12px 0;">' . $chartHtml . '</div>';
+                    }
                 } else {
                     $votesSection .= '<p><em>Nenhum voto registado para este tópico.</em></p>';
                 }
@@ -357,6 +364,56 @@ class PdfService
             </div>
         </body>
         </html>";
+    }
+
+    /**
+     * Generate vote chart as inline image (SVG in data URI) for embedding in minutes PDF.
+     * Pie chart by percentage_by_millage. Returns empty string if no votes.
+     */
+    protected function generateVoteChartImageHtml(array $results): string
+    {
+        if (empty($results['options']) || ($results['total_votes'] ?? 0) <= 0) {
+            return '';
+        }
+        $colors = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc948'];
+        $cx = 75;
+        $cy = 70;
+        $r = 55;
+        $startAngle = -90; // 12 o'clock
+        $segments = '';
+        $legend = '';
+        $idx = 0;
+        foreach ($results['options'] as $option => $data) {
+            $pct = (float)($data['percentage_by_millage'] ?? 0);
+            if ($pct <= 0) {
+                continue;
+            }
+            $arcDeg = ($pct / 100) * 360;
+            $endAngle = $startAngle + $arcDeg;
+            $startRad = $startAngle * M_PI / 180;
+            $endRad = $endAngle * M_PI / 180;
+            $x1 = $cx + $r * cos($startRad);
+            $y1 = $cy + $r * sin($startRad);
+            $x2 = $cx + $r * cos($endRad);
+            $y2 = $cy + $r * sin($endRad);
+            $largeArc = ($arcDeg > 180) ? 1 : 0;
+            $segments .= sprintf('<path d="M %s %s L %s %s A %s %s 0 %d 1 %s %s Z" fill="%s" />',
+                $cx, $cy, round($x1, 2), round($y1, 2), $r, $r, $largeArc, round($x2, 2), round($y2, 2),
+                $colors[$idx % count($colors)]
+            );
+            $label = str_replace(['&', '<', '>'], ['&amp;', '&lt;', '&gt;'], $option) . ': ' . number_format($pct, 1) . '%';
+            $ly = 25 + $idx * 18;
+            $legend .= sprintf('<rect x="160" y="%d" width="10" height="10" fill="%s" /><text x="175" y="%d" font-size="11" font-family="sans-serif">%s</text>',
+                $ly, $colors[$idx % count($colors)], $ly + 9, $label
+            );
+            $startAngle = $endAngle;
+            $idx++;
+        }
+        if ($segments === '') {
+            return '';
+        }
+        $svg = '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 140" width="320" height="140">' . $segments . $legend . '</svg>';
+        return '<img src="data:image/svg+xml;base64,' . base64_encode($svg) . '" alt="Gráfico por permilagem" style="max-width:100%; height:auto; margin:10px 0;" />';
     }
 
     /**
@@ -545,6 +602,11 @@ class PdfService
                 }
                 
                 $topicsSections .= '<p>por maioria de <span class="underline">' . number_format($winningPercentage, 2) . '%</span> do valor do prédio.</p>';
+                $topicsSections .= '<p><strong>Resultado (por permilagem):</strong> <strong>' . htmlspecialchars($winningOption) . '</strong> ganhou com ' . number_format($winningPercentage, 2) . '% da permilagem dos votos expressos.</p>';
+                $chartHtml = $this->generateVoteChartImageHtml($results);
+                if ($chartHtml !== '') {
+                    $topicsSections .= '<div style="margin:12px 0;">' . $chartHtml . '</div>';
+                }
             } else {
                 $topicsSections .= '<p>Foi apresentado o tema para discussão.</p>';
                 $topicsSections .= '<p>Após análise e esclarecimentos, foi deliberado:</p>';
@@ -686,6 +748,11 @@ class PdfService
                     }
                     
                     $topicsSections .= '<p>por maioria de <span class="underline">' . number_format($winningPercentage, 2) . '%</span> do valor do prédio.</p>';
+                    $topicsSections .= '<p><strong>Resultado (por permilagem):</strong> <strong>' . htmlspecialchars($winningOption) . '</strong> ganhou com ' . number_format($winningPercentage, 2) . '% da permilagem dos votos expressos.</p>';
+                    $chartHtml = $this->generateVoteChartImageHtml($results);
+                    if ($chartHtml !== '') {
+                        $topicsSections .= '<div style="margin:12px 0;">' . $chartHtml . '</div>';
+                    }
                 } else {
                     $topicsSections .= '<p>Foi apresentado o tema para discussão.</p>';
                     $topicsSections .= '<p>Após análise e esclarecimentos, foi deliberado:</p>';

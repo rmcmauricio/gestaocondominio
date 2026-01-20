@@ -93,7 +93,7 @@ class BreadcrumbService
         'pages/assemblies/show.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Assembleias', 'condominiums/{condominium_id}/assemblies'], ['page.titulo', null] ],
         'pages/assemblies/edit.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Assembleias', 'condominiums/{condominium_id}/assemblies'], ['Editar assembleia', null] ],
         'pages/assemblies/edit-minutes-template.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Assembleias', 'condominiums/{condominium_id}/assemblies'], ['page.titulo', null] ],
-        'pages/assemblies/manage-signatures.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Assembleias', 'condominiums/{condominium_id}/assemblies'], ['Assinaturas', null] ],
+        'pages/assemblies/revisions.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Assembleias', 'condominiums/{condominium_id}/assemblies'], ['page.titulo', 'condominiums/{condominium_id}/assemblies/{id}'], ['Revisões', null] ],
 
         'pages/votes/index.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Votações', null] ],
         'pages/votes/create.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Votações', 'condominiums/{condominium_id}/votes'], ['Nova votação', null] ],

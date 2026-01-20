@@ -167,22 +167,13 @@ class Document extends Model
         $hasAssemblyId = $stmt->rowCount() > 0;
         $stmt = $this->db->query("SHOW COLUMNS FROM documents LIKE 'status'");
         $hasStatus = $stmt->rowCount() > 0;
+        $stmt = $this->db->query("SHOW COLUMNS FROM documents LIKE 'review_deadline'");
+        $hasReview = $stmt->rowCount() > 0;
 
         if ($hasAssemblyId && $hasStatus) {
-            $stmt = $this->db->prepare("
-                INSERT INTO documents (
-                    condominium_id, assembly_id, fraction_id, folder, title, description,
-                    file_path, file_name, file_size, mime_type, visibility,
-                    document_type, status, version, parent_document_id, uploaded_by
-                )
-                VALUES (
-                    :condominium_id, :assembly_id, :fraction_id, :folder, :title, :description,
-                    :file_path, :file_name, :file_size, :mime_type, :visibility,
-                    :document_type, :status, :version, :parent_document_id, :uploaded_by
-                )
-            ");
-
-            $stmt->execute([
+            $cols = "condominium_id, assembly_id, fraction_id, folder, title, description, file_path, file_name, file_size, mime_type, visibility, document_type, status, version, parent_document_id, uploaded_by";
+            $vals = ":condominium_id, :assembly_id, :fraction_id, :folder, :title, :description, :file_path, :file_name, :file_size, :mime_type, :visibility, :document_type, :status, :version, :parent_document_id, :uploaded_by";
+            $exec = [
                 ':condominium_id' => $data['condominium_id'],
                 ':assembly_id' => $data['assembly_id'] ?? null,
                 ':fraction_id' => $data['fraction_id'] ?? null,
@@ -199,7 +190,15 @@ class Document extends Model
                 ':version' => $version,
                 ':parent_document_id' => $parentDocumentId,
                 ':uploaded_by' => $data['uploaded_by']
-            ]);
+            ];
+            if ($hasReview) {
+                $cols .= ", review_deadline, review_sent_at";
+                $vals .= ", :review_deadline, :review_sent_at";
+                $exec[':review_deadline'] = $data['review_deadline'] ?? null;
+                $exec[':review_sent_at'] = $data['review_sent_at'] ?? null;
+            }
+            $stmt = $this->db->prepare("INSERT INTO documents ({$cols}) VALUES ({$vals})");
+            $stmt->execute($exec);
         } else {
             $stmt = $this->db->prepare("
                 INSERT INTO documents (
@@ -295,13 +294,19 @@ class Document extends Model
         $fields = [];
         $params = [':id' => $id];
 
-        // Check if status column exists
+        // Check if status and review columns exist
         $stmt = $this->db->query("SHOW COLUMNS FROM documents LIKE 'status'");
         $hasStatus = $stmt->rowCount() > 0;
+        $stmt = $this->db->query("SHOW COLUMNS FROM documents LIKE 'review_deadline'");
+        $hasReview = $stmt->rowCount() > 0;
 
         $allowedFields = ['title', 'description', 'folder', 'document_type', 'visibility', 'fraction_id'];
         if ($hasStatus) {
             $allowedFields[] = 'status';
+        }
+        if ($hasReview) {
+            $allowedFields[] = 'review_deadline';
+            $allowedFields[] = 'review_sent_at';
         }
         
         foreach ($allowedFields as $field) {
