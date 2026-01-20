@@ -759,7 +759,9 @@ class AssemblyController extends Controller
         // Get vote results for each topic
         $voteResults = [];
         foreach ($topics as $topic) {
-            $voteResults[$topic['id']] = $this->voteModel->calculateResults($topic['id']);
+            $res = $this->voteModel->calculateResults($topic['id']);
+            $res['votes_by_fraction'] = $this->voteModel->getByTopic($topic['id']);
+            $voteResults[$topic['id']] = $res;
         }
 
         // Populate template

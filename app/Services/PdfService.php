@@ -233,14 +233,27 @@ class PdfService
                     if ($chartHtml !== '') {
                         $votesSection .= '<div style="margin:12px 0;">' . $chartHtml . '</div>';
                     }
+                    $votesByFraction = $voteModel->getByTopic($topic['id']);
+                    if (!empty($votesByFraction)) {
+                        usort($votesByFraction, function ($a, $b) { return strcmp($a['fraction_identifier'] ?? '', $b['fraction_identifier'] ?? ''); });
+                        $votesSection .= '<p><strong>Registo de votações por fração</strong></p>';
+                        $votesSection .= '<table style="width: 100%; border-collapse: collapse; margin-top: 10px;"><thead><tr style="background-color: #e9ecef;"><th style="padding: 8px; border: 1px solid #ddd;">Fração</th><th style="padding: 8px; border: 1px solid #ddd;">Condómino</th><th style="padding: 8px; border: 1px solid #ddd;">Voto</th><th style="padding: 8px; border: 1px solid #ddd;">Permilagem</th><th style="padding: 8px; border: 1px solid #ddd;">Observações</th></tr></thead><tbody>';
+                        foreach ($votesByFraction as $row) {
+                            $obs = isset($row['notes']) && trim((string)$row['notes']) !== '' ? htmlspecialchars($row['notes']) : '—';
+                            $voto = $row['vote_option'] ?? $row['vote_value'] ?? '—';
+                            $perm = isset($row['fraction_millage']) ? $row['fraction_millage'] . '‰' : '—';
+                            $votesSection .= '<tr><td style="padding: 8px; border: 1px solid #ddd;">' . htmlspecialchars($row['fraction_identifier'] ?? '') . '</td><td style="padding: 8px; border: 1px solid #ddd;">' . htmlspecialchars($row['user_name'] ?? '') . '</td><td style="padding: 8px; border: 1px solid #ddd;">' . htmlspecialchars($voto) . '</td><td style="padding: 8px; border: 1px solid #ddd;">' . $perm . '</td><td style="padding: 8px; border: 1px solid #ddd;">' . $obs . '</td></tr>';
+                        }
+                        $votesSection .= '</tbody></table>';
+                    }
                 } else {
                     $votesSection .= '<p><em>Nenhum voto registado para este tópico.</em></p>';
                 }
-                
+
                 $votesSection .= '</div>';
             }
         }
-        
+
         $minutesText = $assembly['minutes'] ?? $assembly['description'] ?? $assembly['agenda'] ?? '';
         
         return "
@@ -607,6 +620,19 @@ class PdfService
                 if ($chartHtml !== '') {
                     $topicsSections .= '<div style="margin:12px 0;">' . $chartHtml . '</div>';
                 }
+                if (!empty($results['votes_by_fraction'])) {
+                    $vf = $results['votes_by_fraction'];
+                    usort($vf, function ($a, $b) { return strcmp($a['fraction_identifier'] ?? '', $b['fraction_identifier'] ?? ''); });
+                    $topicsSections .= '<p><strong>Registo de votações por fração</strong></p>';
+                    $topicsSections .= '<table style="width:100%; border-collapse:collapse; margin:10px 0;"><thead><tr style="background-color:#e9ecef;"><th style="padding:8px; border:1px solid #ddd;">Fração</th><th style="padding:8px; border:1px solid #ddd;">Condómino</th><th style="padding:8px; border:1px solid #ddd;">Voto</th><th style="padding:8px; border:1px solid #ddd;">Permilagem</th><th style="padding:8px; border:1px solid #ddd;">Observações</th></tr></thead><tbody>';
+                    foreach ($vf as $row) {
+                        $obs = isset($row['notes']) && trim((string)$row['notes']) !== '' ? htmlspecialchars($row['notes']) : '—';
+                        $voto = $row['vote_option'] ?? $row['vote_value'] ?? '—';
+                        $perm = isset($row['fraction_millage']) ? $row['fraction_millage'] . '‰' : '—';
+                        $topicsSections .= '<tr><td style="padding:8px; border:1px solid #ddd;">' . htmlspecialchars($row['fraction_identifier'] ?? '') . '</td><td style="padding:8px; border:1px solid #ddd;">' . htmlspecialchars($row['user_name'] ?? '') . '</td><td style="padding:8px; border:1px solid #ddd;">' . htmlspecialchars($voto) . '</td><td style="padding:8px; border:1px solid #ddd;">' . $perm . '</td><td style="padding:8px; border:1px solid #ddd;">' . $obs . '</td></tr>';
+                    }
+                    $topicsSections .= '</tbody></table>';
+                }
             } else {
                 $topicsSections .= '<p>Foi apresentado o tema para discussão.</p>';
                 $topicsSections .= '<p>Após análise e esclarecimentos, foi deliberado:</p>';
@@ -753,6 +779,19 @@ class PdfService
                     if ($chartHtml !== '') {
                         $topicsSections .= '<div style="margin:12px 0;">' . $chartHtml . '</div>';
                     }
+                    if (!empty($results['votes_by_fraction'])) {
+                        $vf = $results['votes_by_fraction'];
+                        usort($vf, function ($a, $b) { return strcmp($a['fraction_identifier'] ?? '', $b['fraction_identifier'] ?? ''); });
+                        $topicsSections .= '<p><strong>Registo de votações por fração</strong></p>';
+                        $topicsSections .= '<table style="width:100%; border-collapse:collapse; margin:10px 0;"><thead><tr style="background-color:#e9ecef;"><th style="padding:8px; border:1px solid #ddd;">Fração</th><th style="padding:8px; border:1px solid #ddd;">Condómino</th><th style="padding:8px; border:1px solid #ddd;">Voto</th><th style="padding:8px; border:1px solid #ddd;">Permilagem</th><th style="padding:8px; border:1px solid #ddd;">Observações</th></tr></thead><tbody>';
+                        foreach ($vf as $row) {
+                            $obs = isset($row['notes']) && trim((string)$row['notes']) !== '' ? htmlspecialchars($row['notes']) : '—';
+                            $voto = $row['vote_option'] ?? $row['vote_value'] ?? '—';
+                            $perm = isset($row['fraction_millage']) ? $row['fraction_millage'] . '‰' : '—';
+                            $topicsSections .= '<tr><td style="padding:8px; border:1px solid #ddd;">' . htmlspecialchars($row['fraction_identifier'] ?? '') . '</td><td style="padding:8px; border:1px solid #ddd;">' . htmlspecialchars($row['user_name'] ?? '') . '</td><td style="padding:8px; border:1px solid #ddd;">' . htmlspecialchars($voto) . '</td><td style="padding:8px; border:1px solid #ddd;">' . $perm . '</td><td style="padding:8px; border:1px solid #ddd;">' . $obs . '</td></tr>';
+                        }
+                        $topicsSections .= '</tbody></table>';
+                    }
                 } else {
                     $topicsSections .= '<p>Foi apresentado o tema para discussão.</p>';
                     $topicsSections .= '<p>Após análise e esclarecimentos, foi deliberado:</p>';
@@ -760,11 +799,11 @@ class PdfService
                     $topicsSections .= '<p>☐ Rejeitado</p>';
                     $topicsSections .= '<p>por maioria de ______% do valor do prédio.</p>';
                 }
-                
+
                 $topicsSections .= '</div>';
                 $topicNumber++;
             }
-            
+
             while ($topicNumber <= 6) {
                 $emoji = $emojiNumbers[$topicNumber - 3] ?? '•';
                 $pointTitle = '';

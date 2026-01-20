@@ -32,7 +32,7 @@ Criar um sistema robusto para gerir dados demo que evita regeneração desnecess
 
 **Tabelas a limpar** (em ordem de dependência):
 
-- `minutes_signatures` → `assembly_votes` → `assembly_vote_topics` → `assembly_attendees` → `assemblies`
+- `minutes_revisions` → `assembly_votes` → `assembly_vote_topics` → `assembly_attendees` → `assemblies`
 - `standalone_vote_responses` → `standalone_votes`
 - `vote_options` (apenas se não usado por outros condomínios)
 - `fee_payment_history` → `fee_payments` → `fees`

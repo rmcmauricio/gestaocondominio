@@ -68,7 +68,7 @@ class DemoSeeder
         'assembly_attendees' => [],
         'assembly_vote_topics' => [],
         'assembly_votes' => [],
-        'minutes_signatures' => [],
+        'minutes_revisions' => [],
         'spaces' => [],
         'reservations' => [],
         'messages' => [],
@@ -634,7 +634,7 @@ class DemoSeeder
         }
 
         // Delete in correct order to respect foreign keys
-        $this->db->exec("DELETE FROM minutes_signatures WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
+        $this->db->exec("DELETE FROM minutes_revisions WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
         $this->db->exec("DELETE FROM assembly_votes WHERE topic_id IN (SELECT id FROM assembly_vote_topics WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId}))");
         $this->db->exec("DELETE FROM assembly_vote_topics WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
         $this->db->exec("DELETE FROM assembly_attendees WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
@@ -3911,10 +3911,10 @@ class DemoSeeder
         $stmt->execute();
         $ids['assembly_votes'] = array_column($stmt->fetchAll(), 'id');
 
-        // Minutes signatures
-        $stmt = $this->db->prepare("SELECT id FROM minutes_signatures WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id IN ({$condominiumIdsList}))");
+        // Minutes revisions
+        $stmt = $this->db->prepare("SELECT id FROM minutes_revisions WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id IN ({$condominiumIdsList}))");
         $stmt->execute();
-        $ids['minutes_signatures'] = array_column($stmt->fetchAll(), 'id');
+        $ids['minutes_revisions'] = array_column($stmt->fetchAll(), 'id');
 
         // Spaces
         $stmt = $this->db->prepare("SELECT id FROM spaces WHERE condominium_id IN ({$condominiumIdsList})");

@@ -173,7 +173,7 @@ try {
         'assembly_vote_topics' => [false, 'assemblies', 'assembly_id'],
         'assembly_votes' => [false, 'assembly_vote_topics', 'topic_id', 'assemblies', 'assembly_id'], // Two-level join
         'assembly_attendees' => [false, 'assemblies', 'assembly_id'],
-        'minutes_signatures' => [false, 'assemblies', 'assembly_id'],
+        'minutes_revisions' => [false, 'assemblies', 'assembly_id'],
         'fee_payment_history' => [false, 'fees', 'fee_id'],
         'fee_payments' => [false, 'fees', 'fee_id'],
         'budget_items' => [false, 'budgets', 'budget_id'],
