@@ -6,7 +6,7 @@ class PdfService
 {
     /**
      * Get template path for document type
-     * @param int|null $templateId Template ID (1-7), null for default template
+     * @param int|null $templateId Template ID (1-9), null for default template
      * @param string $documentType Type: 'receipt', 'minutes', 'convocation'
      * @return string Template file path
      */
@@ -18,7 +18,7 @@ class PdfService
         }
         
         // Validate template ID
-        if ($templateId < 1 || $templateId > 7) {
+        if ($templateId < 1 || $templateId > 8) {
             $templateId = 1; // Fallback to default
         }
         
@@ -1188,15 +1188,15 @@ class PdfService
         ];
         $paymentMethodLabel = $paymentMethod ? ($paymentMethodLabels[$paymentMethod] ?? ucfirst($paymentMethod)) : null;
         
-        // Prepare payment info HTML
+        // Prepare payment info HTML (compact version)
         $paymentInfo = '';
         if ($paymentDate || $paymentMethodLabel) {
-            $paymentInfo = '<div class="info-box"><h2>Dados do Pagamento</h2>';
+            $paymentInfo = '<div class="info-box" style="padding: 4px; margin: 4px 0;"><h2 style="font-size: 9px; margin-bottom: 2px; padding-bottom: 1px;">Dados do Pagamento</h2>';
             if ($paymentDate) {
-                $paymentInfo .= '<div class="info-row"><span class="info-label">Data de Pagamento:</span><span class="info-value">' . date('d/m/Y', strtotime($paymentDate)) . '</span></div>';
+                $paymentInfo .= '<div class="info-row" style="margin: 1px 0; padding: 1px 0;"><span class="info-label" style="font-size: 8pt;">Data de Pagamento:</span><span class="info-value" style="font-size: 8pt;">' . date('d/m/Y', strtotime($paymentDate)) . '</span></div>';
             }
             if ($paymentMethodLabel) {
-                $paymentInfo .= '<div class="info-row"><span class="info-label">Meio de Pagamento:</span><span class="info-value">' . htmlspecialchars($paymentMethodLabel) . '</span></div>';
+                $paymentInfo .= '<div class="info-row" style="margin: 1px 0; padding: 1px 0;"><span class="info-label" style="font-size: 8pt;">Meio de Pagamento:</span><span class="info-value" style="font-size: 8pt;">' . htmlspecialchars($paymentMethodLabel) . '</span></div>';
             }
             $paymentInfo .= '</div>';
         }

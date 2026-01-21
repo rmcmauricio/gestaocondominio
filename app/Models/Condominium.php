@@ -185,7 +185,7 @@ class Condominium extends Model
     /**
      * Get document template ID for condominium
      * @param int $id Condominium ID
-     * @return int Template ID (1-7), default 1
+     * @return int Template ID (1-9), default 1
      */
     public function getDocumentTemplate(int $id): ?int
     {
@@ -199,8 +199,8 @@ class Condominium extends Model
         
         if ($result && isset($result['document_template']) && $result['document_template'] !== null) {
             $templateId = (int)$result['document_template'];
-            // Validate template ID is between 1-7
-            if ($templateId >= 1 && $templateId <= 7) {
+            // Validate template ID is between 1-9
+            if ($templateId >= 1 && $templateId <= 9) {
                 return $templateId;
             }
         }

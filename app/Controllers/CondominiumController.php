@@ -457,6 +457,27 @@ class CondominiumController extends Controller
             $logoUrl = $fileStorageService->getFileUrl($logoPath);
         }
 
+        // Check for preview template parameter
+        $previewTemplate = null;
+        $hasPreviewParam = isset($_GET['preview_template']);
+        
+        if ($hasPreviewParam) {
+            $previewValue = $_GET['preview_template'];
+            if ($previewValue === '' || $previewValue === '0' || $previewValue === null) {
+                // Empty string, '0', or null means default template (preview of default)
+                $previewTemplate = null;
+            } else {
+                $previewTemplateId = (int)$previewValue;
+                // Validate template ID is between 1-9
+                if ($previewTemplateId >= 1 && $previewTemplateId <= 9) {
+                    $previewTemplate = $previewTemplateId;
+                }
+            }
+        }
+        
+        // Debug: Uncomment to see preview values
+        // error_log("Preview Debug - GET[preview_template]: " . var_export($_GET['preview_template'] ?? 'NOT SET', true) . ", hasPreviewParam: " . ($hasPreviewParam ? 'YES' : 'NO') . ", previewTemplate: " . var_export($previewTemplate, true));
+
         // Template options with descriptions
         $templateOptions = [
             null => ['name' => 'Padrão', 'description' => 'Template padrão do sistema'],
@@ -466,20 +487,49 @@ class CondominiumController extends Controller
             4 => ['name' => 'Minimalista', 'description' => 'Design simples, muito espaço em branco'],
             5 => ['name' => 'Corporativo', 'description' => 'Estilo empresarial, cores formais'],
             6 => ['name' => 'Colorido', 'description' => 'Design vibrante, cores chamativas'],
-            7 => ['name' => 'Profissional (Dark Mode)', 'description' => 'Estilo conservador, tema escuro profissional']
+            7 => ['name' => 'Profissional (Dark Mode)', 'description' => 'Estilo conservador, tema escuro profissional'],
+            8 => ['name' => 'Acogedor (Laranja Pastel)', 'description' => 'Estilo intermediário, fundo laranja pastel acolhedor'],
+            9 => ['name' => 'Natureza Verde', 'description' => 'Estilo natural com cores verdes e acentos amarelos']
         ];
         
+        // Use preview template for rendering if set, otherwise use current template
+        // If preview_template is explicitly set (even if null), use it; otherwise use current
+        if ($hasPreviewParam) {
+            // Preview is active - use previewTemplate (can be null for default template preview)
+            $templateIdForRendering = $previewTemplate;
+        } else {
+            // No preview - use current template from database
+            $templateIdForRendering = $currentTemplate;
+        }
+        
+        // Debug: Log preview values (uncomment to debug)
+        // error_log("CondominiumController Debug - hasPreviewParam: " . ($hasPreviewParam ? 'YES' : 'NO') . ", previewTemplate: " . var_export($previewTemplate, true) . ", currentTemplate: " . var_export($currentTemplate, true) . ", templateIdForRendering: " . var_export($templateIdForRendering, true));
+        
+        // Build data array - IMPORTANT: template_id must be set for preview to work
         $this->data += [
             'viewName' => 'pages/condominiums/edit.html.twig',
             'page' => ['titulo' => 'Editar Condomínio'],
             'condominium' => $condominium,
             'current_template' => $currentTemplate,
+            'preview_template' => $hasPreviewParam ? $previewTemplate : false, // false means no preview, null means preview of default
             'logo_url' => $logoUrl,
             'template_options' => $templateOptions,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
         ];
+        
+        // CRITICAL: Set template_id AFTER building data array to ensure it's not overwritten
+        // This MUST be set for preview to work
+        if ($hasPreviewParam) {
+            // Preview is active - set template_id to preview value (can be null)
+            $this->data['template_id'] = $previewTemplate;
+        } else {
+            // No preview - set template_id to current template from database
+            $this->data['template_id'] = $currentTemplate;
+        }
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        // Merge global data to ensure template_id is properly processed
+        $mergedData = $this->mergeGlobalData($this->data);
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $mergedData);
     }
 
     public function update(int $id)
@@ -547,7 +597,7 @@ class CondominiumController extends Controller
                 $updateData['document_template'] = null;
             } else {
                 $templateId = (int)$templateValue;
-                if ($templateId >= 1 && $templateId <= 7) {
+                if ($templateId >= 1 && $templateId <= 9) {
                     $updateData['document_template'] = $templateId;
                 } else {
                     // Invalid template ID, set to null (default)

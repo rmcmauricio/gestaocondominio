@@ -329,27 +329,43 @@ class Controller
             $canSwitchViewMode = \App\Middleware\RoleMiddleware::hasBothRolesInCondominium($userId, $currentCondominiumId);
         }
         
+        // CRITICAL: Check for preview template_id FIRST, before any database queries
+        // This takes ABSOLUTE priority over database template
+        $hasPreviewTemplateId = array_key_exists('template_id', $data);
+        $previewTemplateId = $hasPreviewTemplateId ? $data['template_id'] : null;
+        
         // Get template and logo for current condominium
         $templateId = null; // Default template (null means use system default, no custom CSS)
         $logoUrl = null;
         $condominiumForTemplate = $condominium ?? ($data['condominium'] ?? null);
         
+        // Always load logo from condominium if available
         if ($condominiumForTemplate && isset($condominiumForTemplate['id'])) {
             $condominiumModel = new \App\Models\Condominium();
-            $templateId = $condominiumModel->getDocumentTemplate($condominiumForTemplate['id']);
-            // Only set template ID if it's valid (1-7), otherwise keep as null (default)
-            if ($templateId !== null && ($templateId < 1 || $templateId > 7)) {
-                $templateId = null;
-            }
-            $logoPath = $condominiumModel->getLogoPath($condominiumForTemplate['id']);
             
+            // Only get template from database if NOT doing a preview
+            // If hasPreviewTemplateId is true, we will use the preview template instead
+            if (!$hasPreviewTemplateId) {
+                $templateId = $condominiumModel->getDocumentTemplate($condominiumForTemplate['id']);
+                // Only set template ID if it's valid (1-9), otherwise keep as null (default)
+                if ($templateId !== null && ($templateId < 1 || $templateId > 9)) {
+                    $templateId = null;
+                }
+            }
+            
+            // Always load logo
+            $logoPath = $condominiumModel->getLogoPath($condominiumForTemplate['id']);
             if ($logoPath) {
                 $fileStorageService = new \App\Services\FileStorageService();
                 $logoUrl = $fileStorageService->getFileUrl($logoPath);
             }
         }
         
-        $mergedData = array_merge([
+        // Use preview template if available, otherwise use database template
+        $finalTemplateId = $hasPreviewTemplateId ? $previewTemplateId : $templateId;
+        
+        // Prepare base merged data
+        $baseMergedData = [
             't' => new \App\Core\Translator($currentLang),
             'user' => $_SESSION['user'] ?? null,
             'session' => array_merge($_SESSION ?? [], ['lang' => $currentLang]),
@@ -366,10 +382,23 @@ class Controller
             'demo_profile' => $demoProfile,
             'condominium' => $condominiumForTemplate,
             'user_condominiums' => $userCondominiums,
-            'template_id' => $templateId,
+            'template_id' => $finalTemplateId, // Use preview if available, otherwise database template
             'logo_url' => $logoUrl,
             'csrf_token' => \App\Core\Security::generateCSRFToken(),
-        ], $data);
+        ];
+        
+        // Merge with data - data comes LAST so it overrides baseMergedData
+        $mergedData = array_merge($baseMergedData, $data);
+        
+        // CRITICAL: If template_id was explicitly set in data (preview), FORCE it to be used
+        // This ensures preview always wins, even if something else tried to override it
+        if ($hasPreviewTemplateId) {
+            // Preview is active - use the preview template_id (can be null for default template preview)
+            $mergedData['template_id'] = $previewTemplateId;
+        }
+        
+        // Debug: Log template_id for troubleshooting (remove in production)
+        // error_log("Template ID Debug - hasPreviewInData: " . ($hasPreviewInData ? 'YES' : 'NO') . ", previewTemplateId: " . var_export($previewTemplateId, true) . ", baseMergedData[template_id]: " . var_export($baseMergedData['template_id'] ?? 'NOT SET', true) . ", mergedData[template_id]: " . var_export($mergedData['template_id'] ?? 'NOT SET', true));
         
         // Ensure condominium from data is used if present (URL parameter always wins)
         if (isset($mergedData['condominium']) && isset($mergedData['condominium']['id'])) {
