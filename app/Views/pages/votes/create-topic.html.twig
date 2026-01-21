@@ -12,6 +12,11 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     {% endif %}
+    {% if point_title|default('') %}
+    <div class="alert alert-info">
+        <i class="bi bi-link-45deg"></i> Esta votação será associada ao ponto de ordem <strong>«{{ point_title }}»</strong>.
+    </div>
+    {% endif %}
 
     <div class="row">
         <div class="col-lg-8">
@@ -22,8 +27,8 @@
                 <div class="card-body">
                     <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/topics">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        {% if return_to_edit|default(false) %}<input type="hidden" name="return" value="edit">{% endif %}
-                        {% if (return_to_show|default(false) or (point_id|default(0)) > 0) %}
+                        {% if return_to_edit|default(false) and not (return_to_show|default(false) or (point_id|default(0)) > 0) %}<input type="hidden" name="return" value="edit">{% endif %}
+                        {% if return_to_show|default(false) or (point_id|default(0)) > 0 %}
                         <input type="hidden" name="return" value="show">
                         <input type="hidden" name="point_id" value="{{ point_id|default(0) }}">
                         {% endif %}

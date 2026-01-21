@@ -63,6 +63,11 @@ class VoteController extends Controller
         $return = $_GET['return'] ?? '';
         $returnToEdit = ($return === 'edit');
         $returnToShow = ($return === 'show' || $pointId > 0);
+        $pointTitle = '';
+        if ($pointId > 0) {
+            $pt = $this->agendaPointModel->findById($pointId);
+            $pointTitle = ($pt && (int)($pt['assembly_id'] ?? 0) === (int)$assemblyId) ? ($pt['title'] ?? '') : '';
+        }
         $backUrl = $returnToShow
             ? BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId
             : ($returnToEdit
@@ -82,6 +87,7 @@ class VoteController extends Controller
             'return_to_edit' => $returnToEdit,
             'return_to_show' => $returnToShow,
             'point_id' => $pointId,
+            'point_title' => $pointTitle,
             'back_url' => $backUrl
         ];
 

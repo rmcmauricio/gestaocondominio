@@ -594,6 +594,13 @@ class AssemblyController extends Controller
             exit;
         }
 
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
         $point = $this->agendaPointModel->findById($pointId);
         if (!$point || (int)$point['assembly_id'] !== $id) {
             $_SESSION['error'] = 'Ponto de ordem não encontrado.';
