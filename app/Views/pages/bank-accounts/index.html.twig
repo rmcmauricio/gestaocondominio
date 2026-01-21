@@ -105,20 +105,20 @@
                             </td>
                             <td>
                                 {% if is_admin %}
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions?bank_account_id={{ account.id }}" class="btn btn-outline-info" title="Ver Movimentos">
+                                <div class="d-flex gap-1">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions?bank_account_id={{ account.id }}" class="btn btn-outline-info btn-sm" title="Ver Movimentos">
                                         <i class="bi bi-list-ul"></i>
                                     </a>
-                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/create?bank_account_id={{ account.id }}" class="btn btn-outline-success" title="Novo Movimento">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/create?bank_account_id={{ account.id }}" class="btn btn-outline-success btn-sm" title="Novo Movimento">
                                         <i class="bi bi-plus-circle"></i>
                                     </a>
-                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts/{{ account.id }}/edit" class="btn btn-outline-primary" title="Editar">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts/{{ account.id }}/edit" class="btn btn-outline-primary btn-sm" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                     {% if not account.has_transactions %}
                                     <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts/{{ account.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar esta conta?');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="submit" class="btn btn-outline-danger" title="Eliminar">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </form>

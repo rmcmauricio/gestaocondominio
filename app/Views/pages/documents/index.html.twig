@@ -174,15 +174,15 @@
                             <td>{{ document.uploaded_by_name|default('N/A') }}</td>
                             <td>{{ document.created_at|date('d/m/Y') }}</td>
                             <td>
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/view" class="btn btn-outline-info" title="Visualizar">
+                                <div class="d-flex gap-1">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/view" class="btn btn-outline-info btn-sm" title="Visualizar">
                                         <i class="bi bi-eye"></i>
                                     </a>
-                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/download" class="btn btn-outline-primary" title="Download">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/download" class="btn btn-outline-primary btn-sm" title="Download">
                                         <i class="bi bi-download"></i>
                                     </a>
                                     {% if current_condominium_role == 'admin' or not current_condominium_role %}
-                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/edit" class="btn btn-outline-secondary" title="Editar">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/edit" class="btn btn-outline-secondary btn-sm" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                     <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover este documento?');">

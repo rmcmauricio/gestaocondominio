@@ -159,13 +159,13 @@
                                         </button>
                                     </form>
                                     {% else %}
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/edit" class="btn btn-outline-primary" title="Editar">
+                                    <div class="d-flex gap-1">
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/edit" class="btn btn-outline-primary btn-sm" title="Editar">
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                         <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar este movimento?');">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                            <button type="submit" class="btn btn-outline-danger" title="Eliminar">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>

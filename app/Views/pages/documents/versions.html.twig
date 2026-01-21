@@ -57,11 +57,11 @@
                             <td>{{ version.uploaded_by_name|default('N/A') }}</td>
                             <td>{{ version.created_at|date('d/m/Y H:i') }}</td>
                             <td>
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/view" class="btn btn-outline-info" title="Visualizar">
+                                <div class="d-flex gap-1">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/view" class="btn btn-outline-info btn-sm" title="Visualizar">
                                         <i class="bi bi-eye"></i>
                                     </a>
-                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/download" class="btn btn-outline-primary" title="Download">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/download" class="btn btn-outline-primary btn-sm" title="Download">
                                         <i class="bi bi-download"></i>
                                     </a>
                                 </div>

@@ -285,11 +285,22 @@ class ReceiptController extends Controller
         $isView = isset($_GET['view']) && $_GET['view'] === '1';
         $disposition = $isView ? 'inline' : 'attachment';
         
+        // Headers para permitir visualização em iframes e mobile
         header('Content-Type: application/pdf');
         header('Content-Disposition: ' . $disposition . '; filename="' . $fileName . '"');
         header('Content-Length: ' . filesize($filePath));
-        header('Cache-Control: private, max-age=0, must-revalidate');
+        header('Cache-Control: private, max-age=3600, must-revalidate');
         header('Pragma: public');
+        
+        // Headers para permitir iframe e melhorar compatibilidade mobile
+        if ($isView) {
+            // Permitir que seja visualizado em iframe da mesma origem
+            header('X-Frame-Options: SAMEORIGIN');
+            // Permitir acesso cross-origin se necessário
+            header('Access-Control-Allow-Origin: *');
+            header('Access-Control-Allow-Methods: GET');
+        }
+        
         readfile($filePath);
         exit;
     }

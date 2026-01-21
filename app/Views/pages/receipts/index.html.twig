@@ -74,7 +74,8 @@
 
     <!-- Receipts List -->
     {% if receipts %}
-    <div class="card shadow-sm">
+    {# Desktop: Tabela #}
+    <div class="card shadow-sm d-none d-md-block">
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
@@ -86,7 +87,6 @@
                             <th>Condomínio</th>
                             {% endif %}
                             <th>Período</th>
-                            <th>Tipo</th>
                             <th>Valor</th>
                             <th>Data de Geração</th>
                             <th class="text-center">Ações</th>
@@ -112,23 +112,20 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <span class="badge bg-success">Final</span>
-                            </td>
-                            <td>
                                 <strong>€{{ receipt.amount|number_format(2, ',', '.') }}</strong>
                             </td>
                             <td>
                                 {{ receipt.generated_at|date('d/m/Y H:i') }}
                             </td>
                             <td class="text-center">
-                                <div class="btn-group btn-group-sm">
+                                <div class="d-flex gap-1 justify-content-center">
                                     <a href="{{ BASE_URL }}condominiums/{{ receipt.condominium_id }}/receipts/{{ receipt.id }}"
-                                       class="btn btn-outline-info"
+                                       class="btn btn-outline-info btn-sm"
                                        title="Visualizar">
                                         <i class="bi bi-eye"></i>
                                     </a>
                                     <a href="{{ BASE_URL }}condominiums/{{ receipt.condominium_id }}/receipts/{{ receipt.id }}/download"
-                                       class="btn btn-outline-primary"
+                                       class="btn btn-outline-primary btn-sm"
                                        title="Descarregar PDF">
                                         <i class="bi bi-download"></i>
                                     </a>
@@ -140,6 +137,60 @@
                 </table>
             </div>
         </div>
+    </div>
+
+    {# Mobile: Cards #}
+    <div class="d-md-none">
+        {% for receipt in receipts %}
+        <div class="card shadow-sm mb-2">
+            <div class="card-body p-3">
+                {# Header: Número do recibo, fração, período e valor inline #}
+                <div class="d-flex align-items-center mb-2" style="flex-wrap: nowrap; gap: 0.5rem;">
+                    <code class="small mb-0">{{ receipt.receipt_number }}</code>
+                    <span class="badge bg-secondary">{{ receipt.fraction_identifier }}</span>
+                    <span class="small text-muted">
+                        {% if receipt.period_month %}
+                            {{ receipt.period_month }}/{{ receipt.period_year }}
+                        {% else %}
+                            {{ receipt.period_year }}
+                        {% endif %}
+                    </span>
+                    <div style="flex: 1;"></div>
+                    <strong class="text-primary fs-6">€{{ receipt.amount|number_format(2, ',', '.') }}</strong>
+                </div>
+
+                {# Informações: Condomínio e Data #}
+                <div class="row g-2 mb-2">
+                    {% if not is_admin %}
+                    <div class="col-12">
+                        <div class="d-flex align-items-center gap-2">
+                            <small class="text-muted" style="min-width: 80px;">Condomínio:</small>
+                            <span class="small">{{ receipt.condominium_name }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="col-12">
+                        <div class="d-flex align-items-center gap-2">
+                            <small class="text-muted">Emitido a:</small>
+                            <span class="small">{{ receipt.generated_at|date('d/m/Y H:i') }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {# Botões lado a lado #}
+                <div class="d-flex gap-2">
+                    <a href="{{ BASE_URL }}condominiums/{{ receipt.condominium_id }}/receipts/{{ receipt.id }}"
+                       class="btn btn-outline-info btn-sm flex-fill">
+                        <i class="bi bi-eye"></i> Ver
+                    </a>
+                    <a href="{{ BASE_URL }}condominiums/{{ receipt.condominium_id }}/receipts/{{ receipt.id }}/download"
+                       class="btn btn-primary btn-sm flex-fill">
+                        <i class="bi bi-download"></i> PDF
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
     </div>
     {% else %}
     <div class="card shadow">

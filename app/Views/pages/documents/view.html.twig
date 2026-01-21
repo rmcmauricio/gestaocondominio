@@ -95,11 +95,11 @@
                                 <br>
                                 <small class="text-muted">{{ version.created_at|date('d/m/Y H:i') }}</small>
                             </div>
-                            <div class="btn-group btn-group-sm">
-                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/view" class="btn btn-outline-info">
+                            <div class="d-flex gap-1">
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/view" class="btn btn-outline-info btn-sm">
                                     <i class="bi bi-eye"></i>
                                 </a>
-                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/download" class="btn btn-outline-primary">
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/download" class="btn btn-outline-primary btn-sm">
                                     <i class="bi bi-download"></i>
                                 </a>
                             </div>

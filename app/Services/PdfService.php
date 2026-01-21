@@ -34,16 +34,43 @@ class PdfService
 
     /**
      * Generate logo HTML for templates
-     * @param string|null $logoUrl Logo URL or null
+     * @param string|null $logoPath Logo path relative to storage folder (e.g., 'condominiums/1/logo/logo.jpg') or null
      * @return string HTML for logo or empty string
      */
-    protected function getLogoHtml(?string $logoUrl): string
+    protected function getLogoHtml(?string $logoPath): string
     {
-        if (!$logoUrl) {
+        if (!$logoPath) {
             return '';
         }
         
-        return '<img src="' . htmlspecialchars($logoUrl) . '" alt="Logo" class="header-logo">';
+        // Convert logo to base64 for DomPDF compatibility
+        $fileStorageService = new \App\Services\FileStorageService();
+        $fullPath = $fileStorageService->getFilePath($logoPath);
+        
+        if (!file_exists($fullPath)) {
+            return '';
+        }
+        
+        // Read file and convert to base64
+        $imageData = file_get_contents($fullPath);
+        if ($imageData === false) {
+            return '';
+        }
+        
+        // Get MIME type from file extension
+        $extension = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+        $mimeTypes = [
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp'
+        ];
+        
+        $mimeType = $mimeTypes[$extension] ?? 'image/jpeg';
+        $base64 = base64_encode($imageData);
+        
+        return '<img src="data:' . $mimeType . ';base64,' . $base64 . '" alt="Logo" class="header-logo">';
     }
 
     /**
@@ -105,13 +132,8 @@ class PdfService
             $templateId = 1; // Default template
         }
         
-        // Get logo URL
+        // Get logo path
         $logoPath = $condominium ? $condominiumModel->getLogoPath($assembly['condominium_id']) : null;
-        $logoUrl = null;
-        if ($logoPath) {
-            $fileStorageService = new \App\Services\FileStorageService();
-            $logoUrl = $fileStorageService->getFileUrl($logoPath);
-        }
         
         // Load template
         $templatePath = $this->getTemplatePath($templateId, 'convocation');
@@ -127,7 +149,7 @@ class PdfService
         $generationDate = date('d/m/Y H:i');
         
         // Replace placeholders
-        $template = str_replace('{{LOGO_HTML}}', $this->getLogoHtml($logoUrl), $template);
+        $template = str_replace('{{LOGO_HTML}}', $this->getLogoHtml($logoPath), $template);
         $template = str_replace('{{ASSEMBLY_TITLE}}', htmlspecialchars($assembly['title'] ?? ''), $template);
         $template = str_replace('{{ASSEMBLY_TYPE}}', $type, $template);
         $template = str_replace('{{ASSEMBLY_DATE}}', $date, $template);
@@ -496,13 +518,8 @@ class PdfService
             $templateId = 1; // Default template
         }
         
-        // Get logo URL
+        // Get logo path
         $logoPath = $condominium ? $condominiumModel->getLogoPath($assembly['condominium_id']) : null;
-        $logoUrl = null;
-        if ($logoPath) {
-            $fileStorageService = new \App\Services\FileStorageService();
-            $logoUrl = $fileStorageService->getFileUrl($logoPath);
-        }
         
         // Load template
         $templatePath = $this->getTemplatePath($templateId, 'minutes');
@@ -1099,13 +1116,8 @@ class PdfService
             $templateId = 1; // Default template
         }
         
-        // Get logo URL
+        // Get logo path
         $logoPath = $condominiumModel->getLogoPath($condominium['id']);
-        $logoUrl = null;
-        if ($logoPath) {
-            $fileStorageService = new \App\Services\FileStorageService();
-            $logoUrl = $fileStorageService->getFileUrl($logoPath);
-        }
         
         // Load template
         $templatePath = $this->getTemplatePath($templateId, 'receipt');
@@ -1196,7 +1208,7 @@ class PdfService
         }
         
         // Replace placeholders in template
-        $template = str_replace('{{LOGO_HTML}}', $this->getLogoHtml($logoUrl), $template);
+        $template = str_replace('{{LOGO_HTML}}', $this->getLogoHtml($logoPath), $template);
         $template = str_replace('{{RECEIPT_NUMBER}}', '{{RECEIPT_NUMBER}}', $template); // Keep placeholder for later replacement
         $template = str_replace('{{CONDOMINIUM_NAME}}', $condominiumName, $template);
         $template = str_replace('{{CONDOMINIUM_ADDRESS}}', $condominiumAddress, $template);

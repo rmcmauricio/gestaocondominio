@@ -61,11 +61,11 @@
                                 <br>
                                 <small class="text-muted">{{ folder.document_count }} documento(s)</small>
                             </div>
-                            <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#renameModal{{ loop.index }}" title="Renomear">
+                            <div class="d-flex gap-1">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#renameModal{{ loop.index }}" title="Renomear">
                                     <i class="bi bi-pencil"></i>
                                 </button>
-                                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ loop.index }}" title="Eliminar">
+                                <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal{{ loop.index }}" title="Eliminar">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
