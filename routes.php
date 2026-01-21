@@ -140,6 +140,7 @@ $router->get('/condominiums/{condominium_id}/fraction-accounts/{fraction_id}/pay
 $router->post('/condominiums/{condominium_id}/fees/generate', 'App\Controllers\FinanceController@generateFees');
 $router->post('/condominiums/{condominium_id}/fees/{id}/mark-paid', 'App\Controllers\FinanceController@markFeeAsPaid');
 $router->post('/condominiums/{condominium_id}/fees/bulk-mark-paid', 'App\Controllers\FinanceController@bulkMarkFeesAsPaid');
+$router->get('/condominiums/{condominium_id}/fees/liquidate', 'App\Controllers\FinanceController@createLiquidateQuotas');
 $router->post('/condominiums/{condominium_id}/fees/liquidate-quotas', 'App\Controllers\FinanceController@liquidateQuotas');
 $router->post('/condominiums/{condominium_id}/fees/{id}/add-payment', 'App\Controllers\FinanceController@addPayment');
 $router->get('/condominiums/{condominium_id}/fees/{fee_id}/payments/{payment_id}', 'App\Controllers\FinanceController@getPayment');

@@ -1,15 +1,17 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2>Contratos</h2>
-            <p class="text-muted mb-0">{{ condominium.name }}</p>
-        </div>
+    {% set page_actions %}
         {% if is_admin %}
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/contracts/create" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Novo Contrato
-        </a>
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/contracts/create" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle"></i> Novo Contrato
+            </a>
+        </div>
         {% endif %}
-    </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Contratos',
+        'actions': page_actions
+    } %}
 
     {% if error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">

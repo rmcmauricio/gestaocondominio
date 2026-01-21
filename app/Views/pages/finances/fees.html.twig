@@ -1,23 +1,22 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-            <div>
-                <h2 class="mb-0">Quotas</h2>
-                <p class="text-muted mb-0">{{ condominium.name }}</p>
-            </div>
-            {% include 'blocks/help-button.html.twig' with {'section': 'finances-fees', 'title': 'Ajuda com Quotas', 'show_text': false} %}
-        </div>
+    {% set page_actions %}
         {% if is_admin %}
-        <div class="d-flex gap-2 flex-wrap">
-            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#liquidateQuotasModal">
+        <div class="page-header-actions">
+            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#liquidateQuotasModal">
                 <i class="bi bi-cash-coin"></i> <span class="d-none d-sm-inline">Liquidar Quotas</span>
             </button>
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateFeesModal">
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#generateFeesModal">
                 <i class="bi bi-calculator"></i> <span class="d-none d-sm-inline">Gerar Quotas</span>
             </button>
         </div>
         {% endif %}
-    </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Quotas',
+        'help_section': 'finances-fees',
+        'help_title': 'Ajuda com Quotas',
+        'actions': page_actions
+    } %}
 
     {% if error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">

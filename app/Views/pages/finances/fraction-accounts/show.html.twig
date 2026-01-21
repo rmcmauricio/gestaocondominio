@@ -1,13 +1,15 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
-        <div>
-            <h2 class="mb-0">Conta da fração {{ fraction.identifier }}</h2>
-            <p class="text-muted mb-0">{{ condominium.name }}</p>
+    {% set page_actions %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fraction-accounts" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Contas por fração
+            </a>
         </div>
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fraction-accounts" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Contas por fração
-        </a>
-    </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Conta da fração ' ~ fraction.identifier,
+        'actions': page_actions
+    } %}
 
     {% if error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">

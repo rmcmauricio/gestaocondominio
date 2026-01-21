@@ -1,13 +1,9 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
-        <div class="mb-2 mb-md-0 d-flex align-items-center gap-2">
-            <div>
-                <h2>Finanças</h2>
-                <p class="text-muted mb-0">{{ condominium.name }}</p>
-            </div>
-            {% include 'blocks/help-button.html.twig' with {'section': 'finances', 'title': 'Ajuda com Finanças', 'show_text': false} %}
-        </div>
-    </div>
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Finanças',
+        'help_section': 'finances',
+        'help_title': 'Ajuda com Finanças'
+    } %}
 
     {% if error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">

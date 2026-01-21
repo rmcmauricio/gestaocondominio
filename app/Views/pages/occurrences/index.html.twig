@@ -1,18 +1,19 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div class="d-flex align-items-center gap-2">
-            <div>
-                <h2>Ocorrências</h2>
-                <p class="text-muted mb-0">{{ condominium.name }}</p>
-            </div>
-            {% include 'blocks/help-button.html.twig' with {'section': 'occurrences', 'title': 'Ajuda com Ocorrências', 'show_text': false} %}
-        </div>
+    {% set page_actions %}
         {% if current_condominium_role == 'admin' or not current_condominium_role %}
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences/create" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Nova Ocorrência
-        </a>
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences/create" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle"></i> Nova Ocorrência
+            </a>
+        </div>
         {% endif %}
-    </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Ocorrências',
+        'help_section': 'occurrences',
+        'help_title': 'Ajuda com Ocorrências',
+        'actions': page_actions
+    } %}
 
     {% if error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -140,22 +141,49 @@
 
     <!-- Quick Status Filters -->
     <div class="mb-3">
-        <div class="btn-group" role="group">
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences" class="btn btn-outline-secondary {% if not current_status %}active{% endif %}">
-                Todas
-            </a>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences?status=open" class="btn btn-outline-danger {% if current_status == 'open' %}active{% endif %}">
-                Abertas
-            </a>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences?status=in_analysis" class="btn btn-outline-warning {% if current_status == 'in_analysis' %}active{% endif %}">
-                Em Análise
-            </a>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences?status=assigned" class="btn btn-outline-info {% if current_status == 'assigned' %}active{% endif %}">
-                Atribuídas
-            </a>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences?status=completed" class="btn btn-outline-success {% if current_status == 'completed' %}active{% endif %}">
-                Resolvidas
-            </a>
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="occurrenceStatusFilter" data-bs-toggle="dropdown" aria-expanded="false">
+                {% if not current_status %}
+                    Todas
+                {% elseif current_status == 'open' %}
+                    Abertas
+                {% elseif current_status == 'in_analysis' %}
+                    Em Análise
+                {% elseif current_status == 'assigned' %}
+                    Atribuídas
+                {% elseif current_status == 'completed' %}
+                    Resolvidas
+                {% else %}
+                    Todas
+                {% endif %}
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="occurrenceStatusFilter">
+                <li>
+                    <a class="dropdown-item {% if not current_status %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences">
+                        Todas
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if current_status == 'open' %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences?status=open">
+                        Abertas
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if current_status == 'in_analysis' %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences?status=in_analysis">
+                        Em Análise
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if current_status == 'assigned' %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences?status=assigned">
+                        Atribuídas
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if current_status == 'completed' %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences?status=completed">
+                        Resolvidas
+                    </a>
+                </li>
+            </ul>
         </div>
     </div>
 

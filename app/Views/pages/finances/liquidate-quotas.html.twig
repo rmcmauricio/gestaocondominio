@@ -1,0 +1,87 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Liquidar Quotas</h4>
+                    <small>{{ condominium.name }}</small>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <p class="text-muted mb-4">Regista um pagamento na conta da fração e aplica-o às quotas em atraso (o mesmo que um movimento de entrada «Quotas» para a fração).</p>
+
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/liquidate-quotas">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="fraction_id" class="form-label">Fração <span class="text-danger">*</span></label>
+                            <select class="form-select" id="fraction_id" name="fraction_id" required autofocus>
+                                <option value="">Selecione a fração...</option>
+                                {% for fraction in fractions %}
+                                <option value="{{ fraction.id }}">{{ fraction.identifier }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="amount" class="form-label">Valor (€) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">€</span>
+                                <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0.01" required placeholder="0.00">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="payment_method" class="form-label">Método de Pagamento <span class="text-danger">*</span></label>
+                            <select class="form-select" id="payment_method" name="payment_method" required>
+                                <option value="">Selecione...</option>
+                                <option value="transfer">Transferência</option>
+                                <option value="cash">Dinheiro</option>
+                                <option value="multibanco">Multibanco</option>
+                                <option value="mbway">MB Way</option>
+                                <option value="card">Cartão</option>
+                                <option value="sepa">SEPA</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="bank_account_id" class="form-label">Conta Bancária <span class="text-danger">*</span></label>
+                            <select class="form-select" id="bank_account_id" name="bank_account_id" required>
+                                <option value="">Selecione...</option>
+                                {% for account in bank_accounts %}
+                                <option value="{{ account.id }}" {% if account.account_type == 'bank' and loop.first %}data-is-main-bank="true"{% endif %} {% if account.account_type == 'cash' %}data-is-cash="true"{% endif %}>{{ account.name }}{% if account.account_type == 'cash' %} (Caixa){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="payment_date" class="form-label">Data <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="payment_date" name="payment_date" value="{{ "now"|date("Y-m-d") }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="reference" class="form-label">Referência</label>
+                            <input type="text" class="form-control" id="reference" name="reference" placeholder="Opcional">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notas</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="Opcional"></textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-cash-coin"></i> Liquidar Quotas</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

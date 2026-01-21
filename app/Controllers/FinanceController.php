@@ -1451,6 +1451,41 @@ class FinanceController extends Controller
      * Liquidar quotas: regista um pagamento na conta da fração e aplica às quotas em atraso.
      * Equivalente a criar um movimento financeiro de entrada Quotas para a fração.
      */
+    public function createLiquidateQuotas(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        // Get fractions for dropdown
+        $fractionModel = new \App\Models\Fraction();
+        $fractions = $fractionModel->getByCondominiumId($condominiumId);
+
+        // Get bank accounts for dropdown
+        $bankAccountModel = new BankAccount();
+        $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
+
+        $this->loadPageTranslations('finances');
+        
+        $this->data += [
+            'viewName' => 'pages/finances/liquidate-quotas.html.twig',
+            'page' => ['titulo' => 'Liquidar Quotas'],
+            'condominium' => $condominium,
+            'fractions' => $fractions,
+            'bank_accounts' => $bankAccounts,
+            'csrf_token' => Security::generateCSRFToken()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
     public function liquidateQuotas(int $condominiumId)
     {
         AuthMiddleware::require();
@@ -1458,7 +1493,7 @@ class FinanceController extends Controller
         RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
             exit;
         }
 
@@ -1486,22 +1521,22 @@ class FinanceController extends Controller
 
         if ($fractionId <= 0) {
             $_SESSION['error'] = 'Selecione a fração.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
             exit;
         }
         if ($amount <= 0) {
             $_SESSION['error'] = 'O valor deve ser maior que zero.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
             exit;
         }
         if (!in_array($paymentMethod, ['multibanco', 'mbway', 'transfer', 'cash', 'card', 'sepa'])) {
             $_SESSION['error'] = 'Método de pagamento inválido.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
             exit;
         }
         if ($bankAccountId <= 0) {
             $_SESSION['error'] = 'Selecione a conta bancária.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
             exit;
         }
 
@@ -1580,15 +1615,16 @@ class FinanceController extends Controller
 
             $db->commit();
             $_SESSION['success'] = 'Pagamento registado. O valor foi aplicado às quotas em atraso da fração ' . $fraction['identifier'] . '.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
         } catch (\Exception $e) {
             if (isset($db)) {
                 $db->rollBack();
             }
             $_SESSION['error'] = 'Erro ao liquidar quotas: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
+            exit;
         }
-
-        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
-        exit;
     }
 
     /**

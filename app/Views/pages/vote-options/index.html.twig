@@ -1,13 +1,15 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2>Opções de Resposta</h2>
-            <p class="text-muted mb-0">{{ condominium.name }}</p>
+    {% set page_actions %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
         </div>
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Voltar
-        </a>
-    </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Opções de Resposta',
+        'actions': page_actions
+    } %}
 
     {% if error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">

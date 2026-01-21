@@ -1,17 +1,21 @@
 <div class="container mt-4">
     <div class="row">
         <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                <div class="d-flex align-items-center gap-2">
-                    <h1 class="mb-0">Receitas</h1>
-                    {% include 'blocks/help-button.html.twig' with {'section': 'finances', 'title': 'Ajuda com Receitas', 'show_text': false} %}
-                </div>
+            {% set page_actions %}
                 {% if is_admin %}
-                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/create" class="btn btn-primary">
-                    <i class="bi bi-plus-circle"></i> Registar Receita
-                </a>
+                <div class="page-header-actions">
+                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/create" class="btn btn-primary btn-sm">
+                        <i class="bi bi-plus-circle"></i> Registar Receita
+                    </a>
+                </div>
                 {% endif %}
-            </div>
+            {% endset %}
+            {% include 'blocks/page-header.html.twig' with {
+                'title': 'Receitas',
+                'help_section': 'finances',
+                'help_title': 'Ajuda com Receitas',
+                'actions': page_actions
+            } %}
 
             {% if error %}
             <div class="alert alert-danger alert-dismissible fade show" role="alert">

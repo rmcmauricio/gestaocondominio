@@ -1,20 +1,20 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2>Votações</h2>
-            <p class="text-muted mb-0">{{ condominium.name }}</p>
-        </div>
+    {% set page_actions %}
         {% if is_admin %}
-        <div class="d-flex gap-2">
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/vote-options" class="btn btn-outline-secondary">
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/vote-options" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-gear"></i> Opções de Resposta
             </a>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes/create" class="btn btn-primary">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes/create" class="btn btn-primary btn-sm">
                 <i class="bi bi-plus-circle"></i> Nova Votação
             </a>
         </div>
         {% endif %}
-    </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Votações',
+        'actions': page_actions
+    } %}
 
     {% if error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -31,19 +31,42 @@
     {% endif %}
 
     <div class="mb-3">
-        <div class="btn-group" role="group">
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes" class="btn btn-outline-secondary {% if not current_status %}active{% endif %}">
-                Todas
-            </a>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes?status=draft" class="btn btn-outline-secondary {% if current_status == 'draft' %}active{% endif %}">
-                Rascunho
-            </a>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes?status=open" class="btn btn-outline-primary {% if current_status == 'open' %}active{% endif %}">
-                Em Aberto
-            </a>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes?status=closed" class="btn btn-outline-success {% if current_status == 'closed' %}active{% endif %}">
-                Encerradas
-            </a>
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="voteStatusFilter" data-bs-toggle="dropdown" aria-expanded="false">
+                {% if not current_status %}
+                    Todas
+                {% elseif current_status == 'draft' %}
+                    Rascunho
+                {% elseif current_status == 'open' %}
+                    Em Aberto
+                {% elseif current_status == 'closed' %}
+                    Encerradas
+                {% else %}
+                    Todas
+                {% endif %}
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="voteStatusFilter">
+                <li>
+                    <a class="dropdown-item {% if not current_status %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes">
+                        Todas
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if current_status == 'draft' %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes?status=draft">
+                        Rascunho
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if current_status == 'open' %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes?status=open">
+                        Em Aberto
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if current_status == 'closed' %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes?status=closed">
+                        Encerradas
+                    </a>
+                </li>
+            </ul>
         </div>
     </div>
 
