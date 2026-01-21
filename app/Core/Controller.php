@@ -140,60 +140,7 @@ class Controller
             // If demo_profile is set, we're in demo mode regardless of current user
             $isDemoUser = $currentUserIsDemo || isset($_SESSION['demo_profile']);
             
-            // Get unread notifications count (system notifications only)
-            global $db;
-            if ($db) {
-                $userId = $_SESSION['user']['id'] ?? null;
-                if ($userId) {
-                    try {
-                        // Use NotificationService to get filtered notifications (only from condominiums user has access to)
-                        $notificationService = new \App\Services\NotificationService();
-                        $notifications = $notificationService->getUserNotifications($userId, 1000); // Get all to count
-                        $systemNotificationsCount = count(array_filter($notifications, function($n) {
-                            return !$n['is_read'];
-                        }));
-                    } catch (\Exception $e) {
-                        // Silently fail if notifications table doesn't exist or other error
-                        $systemNotificationsCount = 0;
-                    }
-                    
-                    // Get unread messages count (all condominiums user has access to)
-                    try {
-                        $unreadMessagesCount = 0;
-                        // Get all condominiums user has access to
-                        $userRole = $_SESSION['user']['role'] ?? 'condomino';
-                        if ($userRole === 'admin' || $userRole === 'super_admin') {
-                            $condominiumModel = new \App\Models\Condominium();
-                            $userCondominiums = $condominiumModel->getByUserId($userId);
-                        } else {
-                            $condominiumUserModel = new \App\Models\CondominiumUser();
-                            $userCondominiumsList = $condominiumUserModel->getUserCondominiums($userId);
-                            $condominiumModel = new \App\Models\Condominium();
-                            $userCondominiums = [];
-                            foreach ($userCondominiumsList as $uc) {
-                                $condo = $condominiumModel->findById($uc['condominium_id']);
-                                if ($condo) {
-                                    $userCondominiums[] = $condo;
-                                }
-                            }
-                        }
-                        
-                        // Count unread messages across all condominiums
-                        $messageModel = new \App\Models\Message();
-                        foreach ($userCondominiums as $condo) {
-                            $unreadMessagesCount += $messageModel->getUnreadCount($condo['id'], $userId);
-                        }
-                    } catch (\Exception $e) {
-                        // Silently fail if messages table doesn't exist or other error
-                        $unreadMessagesCount = 0;
-                    }
-                    
-                    // Unified count includes both notifications and messages
-                    $unreadNotificationsCount = $systemNotificationsCount + $unreadMessagesCount;
-                }
-            }
-
-            // Determine current condominium
+            // Determine current condominium first (needed for filtering counts)
             $userId = $_SESSION['user']['id'] ?? null;
             $userRole = $_SESSION['user']['role'] ?? 'condomino';
             
@@ -279,6 +226,79 @@ class Controller
                         $condominium = $condominiumModel->findById($dataCondominiumId);
                         $_SESSION['current_condominium_id'] = $dataCondominiumId;
                     }
+                }
+            }
+            
+            // Get unread notifications and messages count (filtered by current condominium if set)
+            global $db;
+            $unreadMessagesCount = 0;
+            $unreadNotificationsCount = 0;
+            $systemNotificationsCount = 0;
+            
+            if ($db) {
+                $userId = $_SESSION['user']['id'] ?? null;
+                if ($userId) {
+                    $currentCondominiumId = $_SESSION['current_condominium_id'] ?? null;
+                    
+                    try {
+                        // Get notifications filtered by current condominium if set
+                        $notificationService = new \App\Services\NotificationService();
+                        if ($currentCondominiumId) {
+                            // Get notifications only for current condominium
+                            $notifications = $notificationService->getUserNotifications($userId, 1000);
+                            $notifications = array_filter($notifications, function($n) use ($currentCondominiumId) {
+                                return isset($n['condominium_id']) && $n['condominium_id'] == $currentCondominiumId;
+                            });
+                        } else {
+                            // If no condominium selected, get all notifications
+                            $notifications = $notificationService->getUserNotifications($userId, 1000);
+                        }
+                        
+                        $systemNotificationsCount = count(array_filter($notifications, function($n) {
+                            return !$n['is_read'];
+                        }));
+                    } catch (\Exception $e) {
+                        // Silently fail if notifications table doesn't exist or other error
+                        $systemNotificationsCount = 0;
+                    }
+                    
+                    // Get unread messages count for current condominium only
+                    try {
+                        if ($currentCondominiumId) {
+                            // Count unread messages only for current condominium
+                            $messageModel = new \App\Models\Message();
+                            $unreadMessagesCount = $messageModel->getUnreadCount($currentCondominiumId, $userId);
+                        } else {
+                            // If no condominium selected, count messages from all condominiums user has access to
+                            $userRole = $_SESSION['user']['role'] ?? 'condomino';
+                            if ($userRole === 'admin' || $userRole === 'super_admin') {
+                                $condominiumModel = new \App\Models\Condominium();
+                                $userCondominiums = $condominiumModel->getByUserId($userId);
+                            } else {
+                                $condominiumUserModel = new \App\Models\CondominiumUser();
+                                $userCondominiumsList = $condominiumUserModel->getUserCondominiums($userId);
+                                $condominiumModel = new \App\Models\Condominium();
+                                $userCondominiums = [];
+                                foreach ($userCondominiumsList as $uc) {
+                                    $condo = $condominiumModel->findById($uc['condominium_id']);
+                                    if ($condo) {
+                                        $userCondominiums[] = $condo;
+                                    }
+                                }
+                            }
+                            
+                            $messageModel = new \App\Models\Message();
+                            foreach ($userCondominiums as $condo) {
+                                $unreadMessagesCount += $messageModel->getUnreadCount($condo['id'], $userId);
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        // Silently fail if messages table doesn't exist or other error
+                        $unreadMessagesCount = 0;
+                    }
+                    
+                    // Unified count includes both notifications and messages
+                    $unreadNotificationsCount = $systemNotificationsCount + $unreadMessagesCount;
                 }
             }
         }
