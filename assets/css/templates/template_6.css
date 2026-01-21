@@ -23,6 +23,11 @@
   /* Border Colors - Roxos vibrantes */
   --color-border: #e9d5ff;
   --color-border-dark: #d8b4fe;
+
+  /* Text Colors */
+  --color-text: #1e1b4b;
+  --color-text-light: #4c1d95;
+  --color-text-muted: #6b21a8;
 }
 
 /* Bootstrap Override Variables */

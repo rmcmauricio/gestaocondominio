@@ -3,16 +3,16 @@
  * Styles for individual help pages (not the main index)
  */
 
-/* Ensure CSS variables are available, with fallbacks */
+/* Use template CSS variables with fallbacks */
 :root {
-    --help-border: var(--border, #e5e7eb);
-    --help-foreground: var(--foreground, #1a1f3a);
-    --help-muted-foreground: var(--muted-foreground, #6b7280);
-    --help-card: var(--card, #ffffff);
-    --help-primary: var(--primary, #F98E13);
-    --help-primary-foreground: var(--primary-foreground, #ffffff);
-    --help-muted: var(--muted, #f5f5f5);
-    --help-accent: var(--accent, #fff5e6);
+    --help-border: var(--color-border, #e5e7eb);
+    --help-foreground: var(--color-text, #1a1f3a);
+    --help-muted-foreground: var(--color-text-muted, #6b7280);
+    --help-card: var(--color-bg-light, #ffffff);
+    --help-primary: var(--color-primary, #F98E13);
+    --help-primary-foreground: var(--color-text, #ffffff);
+    --help-muted: var(--color-bg-light, #f5f5f5);
+    --help-accent: var(--color-bg-light, #fff5e6);
 }
 
 .help-page {
@@ -22,19 +22,19 @@
 .help-page-header {
     margin-bottom: 3rem;
     padding-bottom: 2rem;
-    border-bottom: 2px solid hsl(var(--help-border));
+    border-bottom: 2px solid var(--help-border);
 }
 
 .help-page-title {
     font-size: 2.5rem;
     font-weight: 700;
-    color: hsl(var(--help-foreground));
+    color: var(--help-foreground);
     margin-bottom: 1rem;
 }
 
 .help-page-description {
     font-size: 1.125rem;
-    color: hsl(var(--help-muted-foreground));
+    color: var(--help-muted-foreground);
     line-height: 1.7;
 }
 
@@ -45,10 +45,10 @@
 .help-section-title {
     font-size: 1.75rem;
     font-weight: 600;
-    color: hsl(var(--help-foreground));
+    color: var(--help-foreground);
     margin-bottom: 1.5rem;
     padding-bottom: 0.75rem;
-    border-bottom: 1px solid hsl(var(--help-border));
+    border-bottom: 1px solid var(--help-border);
 }
 
 .help-step {
@@ -100,40 +100,40 @@
 .help-image-placeholder {
     margin: 1.5rem 0;
     padding: 3rem 2rem;
-    background: hsl(var(--help-muted));
-    border: 2px dashed hsl(var(--help-border));
+    background: var(--help-muted);
+    border: 2px dashed var(--help-border);
     border-radius: 0.5rem;
     text-align: center;
 }
 
 .help-image-placeholder .placeholder-content i {
     font-size: 3rem;
-    color: hsl(var(--help-muted-foreground));
+    color: var(--help-muted-foreground);
     margin-bottom: 1rem;
 }
 
 .help-image-placeholder .placeholder-content p {
     font-size: 1rem;
     font-weight: 500;
-    color: hsl(var(--help-foreground));
+    color: var(--help-foreground);
     margin-bottom: 0.5rem;
 }
 
 .help-image-placeholder .placeholder-content small {
-    color: hsl(var(--help-muted-foreground));
+    color: var(--help-muted-foreground);
 }
 
 .help-tip {
     margin: 1.5rem 0;
     padding: 1.25rem;
-    background: hsl(var(--help-accent));
-    border-left: 4px solid hsl(var(--help-primary));
+    background: var(--help-accent);
+    border-left: 4px solid var(--help-primary);
     border-radius: 0.375rem;
 }
 
 .help-tip-title {
     font-weight: 600;
-    color: hsl(var(--help-foreground));
+    color: var(--help-foreground);
     margin-bottom: 0.5rem;
     display: flex;
     align-items: center;
@@ -141,24 +141,24 @@
 }
 
 .help-tip-title i {
-    color: hsl(var(--help-primary));
+    color: var(--help-primary);
 }
 
 .help-tip-content {
-    color: hsl(var(--help-muted-foreground));
+    color: var(--help-muted-foreground);
     line-height: 1.7;
 }
 
 .help-related-links {
     margin-top: 3rem;
     padding-top: 2rem;
-    border-top: 2px solid hsl(var(--help-border));
+    border-top: 2px solid var(--help-border);
 }
 
 .help-related-links-title {
     font-size: 1.25rem;
     font-weight: 600;
-    color: hsl(var(--help-foreground));
+    color: var(--help-foreground);
     margin-bottom: 1rem;
 }
 
@@ -173,7 +173,7 @@
 }
 
 .help-related-links-list a {
-    color: hsl(var(--help-primary));
+    color: var(--help-primary);
     text-decoration: none;
     display: flex;
     align-items: center;
@@ -182,14 +182,14 @@
 }
 
 .help-related-links-list a:hover {
-    color: hsl(var(--help-primary) / 0.8);
+    opacity: 0.8;
     text-decoration: underline;
 }
 
 .help-navigation {
     margin-top: 3rem;
     padding-top: 2rem;
-    border-top: 2px solid hsl(var(--border));
+    border-top: 2px solid var(--help-border);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -202,7 +202,7 @@
     padding-top: 0;
     border-top: none;
     padding-bottom: 1.5rem;
-    border-bottom: 2px solid hsl(var(--border));
+    border-bottom: 2px solid var(--help-border);
     margin-bottom: 2rem !important;
 }
 
@@ -210,14 +210,14 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    color: hsl(var(--primary));
+    color: var(--help-primary);
     text-decoration: none;
     font-weight: 500;
     transition: color 0.2s ease;
 }
 
 .help-nav-link:hover {
-    color: hsl(var(--primary) / 0.8);
+    opacity: 0.8;
     text-decoration: underline;
 }
 
@@ -226,8 +226,36 @@
 }
 
 /* Modal specific styles */
+#helpModal .modal-content {
+    background-color: var(--color-bg-light, #ffffff) !important;
+    color: var(--color-text, #1a1f3a) !important;
+    border-color: var(--color-border, #e5e7eb) !important;
+}
+
+#helpModal .modal-header {
+    background-color: var(--color-bg-light, #ffffff) !important;
+    border-bottom-color: var(--color-border, #e5e7eb) !important;
+    color: var(--color-text, #1a1f3a) !important;
+}
+
+#helpModal .modal-header .modal-title {
+    color: var(--color-text, #1a1f3a) !important;
+}
+
+#helpModal .modal-body {
+    background-color: var(--color-bg-light, #ffffff) !important;
+    color: var(--color-text, #1a1f3a) !important;
+}
+
+#helpModal .modal-footer {
+    background-color: var(--color-bg-light, #f8f9fa) !important;
+    border-top-color: var(--color-border, #e5e7eb) !important;
+}
+
 #helpModalContent {
     padding: 1.5rem !important;
+    background-color: var(--color-bg-light, #ffffff) !important;
+    color: var(--color-text, #1a1f3a) !important;
 }
 
 #helpModalContent .help-page {
@@ -341,7 +369,7 @@
 #helpModalContent .help-navigation {
     margin-top: 1.5rem;
     padding-top: 1rem;
-    border-top: 2px solid hsl(var(--help-border));
+    border-top: 2px solid var(--help-border);
     display: flex;
     justify-content: space-between;
     align-items: center;

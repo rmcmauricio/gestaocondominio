@@ -14,6 +14,20 @@
   --color-danger: #ef4444;
   --color-warning: #f59e0b;
   --color-info: #3b82f6;
+
+  /* Background Colors */
+  --color-bg: #ffffff;
+  --color-bg-light: #f8f9fa;
+  --color-bg-dark: #e9ecef;
+
+  /* Text Colors */
+  --color-text: #1a1f3a;
+  --color-text-light: #4a5568;
+  --color-text-muted: #6b7280;
+
+  /* Border Colors */
+  --color-border: #e5e7eb;
+  --color-border-dark: #d1d5db;
 }
 
 /* Bootstrap Override Variables */

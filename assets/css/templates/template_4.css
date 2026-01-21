@@ -23,6 +23,11 @@
   /* Border Colors - Muito suave */
   --color-border: #e5e7eb;
   --color-border-dark: #d1d5db;
+
+  /* Text Colors */
+  --color-text: #1f2937;
+  --color-text-light: #4b5563;
+  --color-text-muted: #6b7280;
 }
 
 /* Bootstrap Override Variables */
