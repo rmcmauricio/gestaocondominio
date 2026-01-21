@@ -186,7 +186,7 @@ class PdfService
         $attendeesList = '';
         foreach ($attendees as $attendee) {
             $millage = $attendee['fraction_millage'] ?? 0;
-            $totalMillage += $millage;
+            $totalMillage += (float) $millage;
             $typeLabel = $attendee['attendance_type'] === 'proxy' ? ' (por procuração)' : '';
             $attendeesList .= "<tr><td>{$attendee['fraction_identifier']}</td><td>{$attendee['user_name']}</td><td>{$millage}‰</td><td>{$typeLabel}</td></tr>";
         }
@@ -196,9 +196,68 @@ class PdfService
         $voteTopicModel = new \App\Models\VoteTopic();
         $voteModel = new \App\Models\Vote();
         $topics = $voteTopicModel->getByAssembly($assembly['id']);
-        
+        $agendaPointModel = new \App\Models\AssemblyAgendaPoint();
+        $agendaPoints = $agendaPointModel->getByAssembly($assembly['id']);
+
+        $ordemTrabalhos = nl2br(htmlspecialchars($assembly['description'] ?? $assembly['agenda'] ?? ''));
         $votesSection = '';
-        if (!empty($topics)) {
+
+        if (!empty($agendaPoints)) {
+            $ordemTrabalhos = '<ul style="list-style-type: none; padding-left: 0;">';
+            foreach ($agendaPoints as $p) {
+                $ordemTrabalhos .= '<li style="margin: 8px 0;">• ' . htmlspecialchars($p['title'] ?? '') . '</li>';
+            }
+            $ordemTrabalhos .= '</ul>';
+            $topicsById = [];
+            foreach ($topics as $t) {
+                $topicsById[(int)($t['id'] ?? 0)] = $t;
+            }
+            $endTime = !empty($assembly['ended_at']) ? date('H:i', strtotime($assembly['ended_at'])) : date('H:i');
+            foreach ($agendaPoints as $i => $p) {
+                $votesSection .= '<div style="margin: 20px 0; padding: 15px; background-color: #f9f9f9; border-left: 4px solid #007bff;">';
+                $votesSection .= '<h4 style="margin-top: 0;">Ponto ' . ($i + 1) . ' – ' . htmlspecialchars($p['title'] ?? '') . '</h4>';
+                if (!empty(trim($p['body'] ?? ''))) {
+                    $votesSection .= '<p>' . nl2br(htmlspecialchars($p['body'])) . '</p>';
+                }
+                if (!empty($p['vote_topic_id'])) {
+                    $res = $voteModel->calculateResults((int)$p['vote_topic_id']);
+                    $topic = $topicsById[(int)$p['vote_topic_id']] ?? null;
+                    if ($topic) {
+                        $res['votes_by_fraction'] = $voteModel->getByTopic((int)$p['vote_topic_id']);
+                    }
+                    if ($topic && $res && ($res['total_votes'] ?? 0) > 0) {
+                        $votesSection .= '<table style="width: 100%; border-collapse: collapse; margin-top: 10px;"><thead><tr style="background-color: #e9ecef;"><th style="padding: 8px; border: 1px solid #ddd;">Opção</th><th style="padding: 8px; border: 1px solid #ddd;">Votos</th><th style="padding: 8px; border: 1px solid #ddd;">Permilagem</th><th style="padding: 8px; border: 1px solid #ddd;">%</th></tr></thead><tbody>';
+                        foreach ($res['options'] as $option => $data) {
+                            $votesSection .= '<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>' . htmlspecialchars($option) . '</strong></td><td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . $data['count'] . '</td><td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . $data['millage'] . '‰</td><td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . $data['percentage_by_millage'] . '%</td></tr>';
+                        }
+                        $votesSection .= '</tbody></table>';
+                        if (!empty($res['winning_option'])) {
+                            $votesSection .= '<p style="margin-top: 12px;"><strong>Resultado (por permilagem):</strong> <strong>' . htmlspecialchars($res['winning_option']) . '</strong> ganhou com ' . number_format($res['winning_percentage_by_millage'] ?? 0, 2) . '%.</p>';
+                        }
+                        $ch = $this->generateVoteChartImageHtml($res);
+                        if ($ch !== '') {
+                            $votesSection .= '<div style="margin:12px 0;">' . $ch . '</div>';
+                        }
+                        if (!empty($res['votes_by_fraction'])) {
+                            $vf = $res['votes_by_fraction'];
+                            usort($vf, function ($a, $b) { return strcmp($a['fraction_identifier'] ?? '', $b['fraction_identifier'] ?? ''); });
+                            $votesSection .= '<p><strong>Registo de votações por fração</strong></p><table style="width: 100%; border-collapse: collapse; margin-top: 10px;"><thead><tr style="background-color: #e9ecef;"><th style="padding: 8px; border: 1px solid #ddd;">Fração</th><th style="padding: 8px; border: 1px solid #ddd;">Condómino</th><th style="padding: 8px; border: 1px solid #ddd;">Voto</th><th style="padding: 8px; border: 1px solid #ddd;">Permilagem</th><th style="padding: 8px; border: 1px solid #ddd;">Observações</th></tr></thead><tbody>';
+                            foreach ($vf as $row) {
+                                $obs = isset($row['notes']) && trim((string)($row['notes'] ?? '')) !== '' ? htmlspecialchars($row['notes']) : '—';
+                                $voto = $row['vote_option'] ?? $row['vote_value'] ?? '—';
+                                $perm = isset($row['fraction_millage']) ? $row['fraction_millage'] . '‰' : '—';
+                                $votesSection .= '<tr><td style="padding: 8px; border: 1px solid #ddd;">' . htmlspecialchars($row['fraction_identifier'] ?? '') . '</td><td style="padding: 8px; border: 1px solid #ddd;">' . htmlspecialchars($row['user_name'] ?? '') . '</td><td style="padding: 8px; border: 1px solid #ddd;">' . htmlspecialchars($voto) . '</td><td style="padding: 8px; border: 1px solid #ddd;">' . $perm . '</td><td style="padding: 8px; border: 1px solid #ddd;">' . $obs . '</td></tr>';
+                            }
+                            $votesSection .= '</tbody></table>';
+                        }
+                    }
+                }
+                $votesSection .= '</div>';
+            }
+            $minutesText = $assembly['minutes'] ?? '';
+            $votesSection .= '<div style="margin: 20px 0;"><h4>Outros assuntos</h4><p>' . (!empty(trim($minutesText)) ? nl2br(htmlspecialchars($minutesText)) : 'Não foram discutidos outros assuntos.') . '</p></div>';
+            $votesSection .= '<div style="margin: 20px 0;"><h4>Encerramento</h4><p>Nada mais havendo a tratar, foi a reunião encerrada pelas ' . htmlspecialchars($endTime) . ' horas, sendo lavrada a presente acta que, depois de lida e aprovada, vai ser assinada por todos os presentes.</p></div>';
+        } elseif (!empty($topics)) {
             $votesSection = '<h3 style="margin-top: 30px; border-top: 2px solid #333; padding-top: 20px;">Votações Realizadas</h3>';
             foreach ($topics as $topic) {
                 $results = $voteModel->calculateResults($topic['id']);
@@ -365,11 +424,11 @@ class PdfService
                 </table>
                 
                 <h3>Ordem de Trabalhos</h3>
-                <div class='minutes-text'>" . nl2br(htmlspecialchars($assembly['description'] ?? $assembly['agenda'] ?? '')) . "</div>
+                <div class='minutes-text'>{$ordemTrabalhos}</div>
                 
                 {$votesSection}
                 
-                " . (!empty($minutesText) ? "<h3>Resumo e Decisões</h3><div class='minutes-text'>" . nl2br(htmlspecialchars($minutesText)) . "</div>" : "") . "
+                " . (empty($agendaPoints) && !empty($minutesText) ? "<h3>Resumo e Decisões</h3><div class='minutes-text'>" . nl2br(htmlspecialchars($minutesText)) . "</div>" : "") . "
             </div>
             <div class='footer'>
                 <p>Atas geradas automaticamente pelo sistema de gestão de condomínios.</p>
@@ -432,7 +491,7 @@ class PdfService
     /**
      * Populate minutes template with assembly data
      */
-    public function populateMinutesTemplate(array $assembly, array $attendees, array $topics, array $voteResults): string
+    public function populateMinutesTemplate(array $assembly, array $attendees, array $topics, array $voteResults, array $agendaPoints = []): string
     {
         // Load template base
         $templatePath = __DIR__ . '/../Templates/minutes_template.html';
@@ -482,7 +541,7 @@ class PdfService
         $attendeesList = '';
         foreach ($attendees as $attendee) {
             $millage = $attendee['fraction_millage'] ?? 0;
-            $totalMillage += $millage;
+            $totalAttendeesMillage += (float) $millage;
             $typeLabel = $attendee['attendance_type'] === 'proxy' ? ' (por procuração)' : '';
             $notes = !empty($attendee['notes']) ? htmlspecialchars($attendee['notes']) : '';
             $attendeesList .= "<tr><td>{$attendee['fraction_identifier']}</td><td>{$attendee['user_name']}</td><td>{$millage}‰</td><td>{$typeLabel} {$notes}</td></tr>";
@@ -554,6 +613,77 @@ class PdfService
         $template = str_replace('{{total_attendees_millage}}', number_format($totalAttendeesMillage, 4), $template);
         $template = str_replace('{{attendees_list}}', $attendeesList, $template);
         
+        $endTime = !empty($assembly['ended_at']) ? date('H:i', strtotime($assembly['ended_at'])) : date('H:i');
+
+        if (!empty($agendaPoints)) {
+            // Assembly agenda from points
+            $agendaFormatted = '<ul style="list-style-type: none; padding-left: 0;">';
+            foreach ($agendaPoints as $p) {
+                $agendaFormatted .= '<li style="margin: 8px 0;">• ' . htmlspecialchars($p['title'] ?? '') . '</li>';
+            }
+            $agendaFormatted .= '</ul>';
+            $topicsById = [];
+            foreach ($topics as $t) {
+                $topicsById[(int)($t['id'] ?? 0)] = $t;
+            }
+            $topicsSections = '';
+            $emojiN = ['3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣'];
+            foreach ($agendaPoints as $i => $p) {
+                $k = $i + 3;
+                $emoji = $emojiN[$i] ?? '•';
+                $topicsSections .= '<div class="section"><div class="section-number">' . $emoji . ' Ponto ' . $k . ' – ' . htmlspecialchars($p['title'] ?? '') . '</div>';
+                if (!empty(trim($p['body'] ?? ''))) {
+                    $topicsSections .= '<p>' . nl2br(htmlspecialchars($p['body'])) . '</p>';
+                }
+                if (!empty($p['vote_topic_id'])) {
+                    $res = $voteResults[(int)$p['vote_topic_id']] ?? null;
+                    $topic = $topicsById[(int)$p['vote_topic_id']] ?? null;
+                    if ($res && $res['total_votes'] > 0 && $topic) {
+                        $winningOption = '';
+                        $winningPercentage = 0;
+                        foreach ($res['options'] as $option => $data) {
+                            if ($data['percentage_by_millage'] > $winningPercentage) {
+                                $winningPercentage = $data['percentage_by_millage'];
+                                $winningOption = $option;
+                            }
+                        }
+                        $topicsSections .= '<p>Após discussão e votação, foi deliberado:</p>';
+                        foreach ($res['options'] as $option => $data) {
+                            $checked = ($option === $winningOption) ? '☑' : '☐';
+                            $topicsSections .= '<p>' . $checked . ' ' . htmlspecialchars($option) . ' (' . $data['count'] . ' votos, ' . number_format($data['millage'], 4) . '‰, ' . number_format($data['percentage_by_millage'], 2) . '%)</p>';
+                        }
+                        $topicsSections .= '<p>por maioria de <span class="underline">' . number_format($winningPercentage, 2) . '%</span> do valor do prédio.</p>';
+                        $topicsSections .= '<p><strong>Resultado (por permilagem):</strong> <strong>' . htmlspecialchars($winningOption) . '</strong> ganhou com ' . number_format($winningPercentage, 2) . '% da permilagem dos votos expressos.</p>';
+                        $chartHtml = $this->generateVoteChartImageHtml($res);
+                        if ($chartHtml !== '') {
+                            $topicsSections .= '<div style="margin:12px 0;">' . $chartHtml . '</div>';
+                        }
+                        if (!empty($res['votes_by_fraction'])) {
+                            $vf = $res['votes_by_fraction'];
+                            usort($vf, function ($a, $b) { return strcmp($a['fraction_identifier'] ?? '', $b['fraction_identifier'] ?? ''); });
+                            $topicsSections .= '<p><strong>Registo de votações por fração</strong></p><table style="width:100%; border-collapse:collapse; margin:10px 0;"><thead><tr style="background-color:#e9ecef;"><th style="padding:8px; border:1px solid #ddd;">Fração</th><th style="padding:8px; border:1px solid #ddd;">Condómino</th><th style="padding:8px; border:1px solid #ddd;">Voto</th><th style="padding:8px; border:1px solid #ddd;">Permilagem</th><th style="padding:8px; border:1px solid #ddd;">Observações</th></tr></thead><tbody>';
+                            foreach ($vf as $row) {
+                                $obs = isset($row['notes']) && trim((string)($row['notes'] ?? '')) !== '' ? htmlspecialchars($row['notes']) : '—';
+                                $voto = $row['vote_option'] ?? $row['vote_value'] ?? '—';
+                                $perm = isset($row['fraction_millage']) ? $row['fraction_millage'] . '‰' : '—';
+                                $topicsSections .= '<tr><td style="padding:8px; border:1px solid #ddd;">' . htmlspecialchars($row['fraction_identifier'] ?? '') . '</td><td style="padding:8px; border:1px solid #ddd;">' . htmlspecialchars($row['user_name'] ?? '') . '</td><td style="padding:8px; border:1px solid #ddd;">' . htmlspecialchars($voto) . '</td><td style="padding:8px; border:1px solid #ddd;">' . $perm . '</td><td style="padding:8px; border:1px solid #ddd;">' . $obs . '</td></tr>';
+                            }
+                            $topicsSections .= '</tbody></table>';
+                        }
+                    } else {
+                        $topicsSections .= '<p>Foi apresentado o tema para discussão.</p><p>Após análise e esclarecimentos, foi deliberado:</p><p>☐ Aprovado</p><p>☐ Rejeitado</p><p>por maioria de ______% do valor do prédio.</p>';
+                    }
+                } else {
+                    $topicsSections .= '<p>Foi apresentado o tema para discussão.</p><p>Após análise e esclarecimentos, foi deliberado:</p><p>☐ Aprovado</p><p>☐ Rejeitado</p><p>por maioria de ______% do valor do prédio.</p>';
+                }
+                $topicsSections .= '</div>';
+            }
+            $n = count($agendaPoints);
+            $ot = !empty(trim($assembly['minutes'] ?? '')) ? nl2br(htmlspecialchars($assembly['minutes'])) : '<p>Não foram discutidos outros assuntos.</p>';
+            $od = '<p>Não foram tomadas outras deliberações.</p>';
+            $topicsSections .= '<div class="section"><div class="section-number">• Ponto ' . (3 + $n) . ' – Outros assuntos</div><p>Foram discutidos os seguintes temas:</p>' . $ot . '<p>Tendo sido deliberado:</p>' . $od . '</div>';
+            $topicsSections .= '<div class="section"><div class="section-number">• Ponto ' . (4 + $n) . ' – Encerramento</div><p>Nada mais havendo a tratar, foi a reunião encerrada pelas <span class="underline">' . htmlspecialchars($endTime) . '</span> horas, sendo lavrada a presente acta que, depois de lida e aprovada, vai ser assinada por todos os presentes.</p></div>';
+        } else {
         // Format assembly agenda
         $agendaText = $assembly['description'] ?? $assembly['agenda'] ?? '';
         $agendaLines = explode("\n", $agendaText);
@@ -873,12 +1003,16 @@ class PdfService
                 $endTime = date('H:i', strtotime($assembly['ended_at']));
             }
         }
+
+            // Append Outros and Encerramento to topics_sections (old path)
+            $ot = $otherTopics ?? '';
+            $od = $otherDecisions ?? '';
+            $topicsSections .= '<div class="section"><div class="section-number">7️⃣ Ponto 5 – Outros assuntos</div><p>Foram discutidos os seguintes temas:</p><p>' . ($ot ?: '<p>Não foram discutidos outros assuntos.</p>') . '</p><p>Tendo sido deliberado:</p><p>' . ($od ?: '<p>Não foram tomadas outras deliberações.</p>') . '</p></div>';
+            $topicsSections .= '<div class="section"><div class="section-number">8️⃣ Encerramento</div><p>Nada mais havendo a tratar, foi a reunião encerrada pelas <span class="underline">' . htmlspecialchars($endTime) . '</span> horas, sendo lavrada a presente acta que, depois de lida e aprovada, vai ser assinada por todos os presentes.</p></div>';
+        }
         
         $template = str_replace('{{assembly_agenda}}', $agendaFormatted, $template);
         $template = str_replace('{{topics_sections}}', $topicsSections, $template);
-        $template = str_replace('{{other_topics}}', $otherTopics ?: '<p>Não foram discutidos outros assuntos.</p>', $template);
-        $template = str_replace('{{other_decisions}}', $otherDecisions ?: '<p>Não foram tomadas outras deliberações.</p>', $template);
-        $template = str_replace('{{end_time}}', $endTime, $template);
         $template = str_replace('{{generation_date}}', $generationDate, $template);
         
         return $template;

@@ -12,6 +12,7 @@ use App\Models\Condominium;
 use App\Models\Fraction;
 use App\Models\VoteTopic;
 use App\Models\Vote;
+use App\Models\AssemblyAgendaPoint;
 use App\Services\NotificationService;
 use App\Services\PdfService;
 use App\Core\EmailService;
@@ -23,6 +24,7 @@ class AssemblyController extends Controller
     protected $condominiumModel;
     protected $topicModel;
     protected $voteModel;
+    protected $agendaPointModel;
     protected $notificationService;
     protected $pdfService;
     protected $emailService;
@@ -35,6 +37,7 @@ class AssemblyController extends Controller
         $this->condominiumModel = new Condominium();
         $this->topicModel = new VoteTopic();
         $this->voteModel = new Vote();
+        $this->agendaPointModel = new AssemblyAgendaPoint();
         $this->notificationService = new NotificationService();
         $this->pdfService = new PdfService();
         $this->emailService = new EmailService();
@@ -277,6 +280,7 @@ class AssemblyController extends Controller
         
         // Get vote results for each topic
         $topicsWithResults = [];
+        $topicDataById = [];
         foreach ($topics as $topic) {
             $results = $this->voteModel->calculateResults($topic['id']);
             $votes = $this->voteModel->getByTopic($topic['id']);
@@ -293,14 +297,37 @@ class AssemblyController extends Controller
                 $fractionVotes[$fraction['id']] = $vote;
             }
             
-            $topicsWithResults[] = [
+            $item = [
                 'topic' => $topic,
                 'results' => $results,
                 'votes' => $votes,
                 'present_fractions' => array_values($presentFractionsForTopic),
-                'fraction_votes' => $fractionVotes
+                'fraction_votes' => $fractionVotes,
+                'voted_fractions' => [],
+                'available_fractions' => array_values($presentFractionsForTopic)
             ];
+            $topicsWithResults[] = $item;
+            $topicDataById[(int)$topic['id']] = $item;
         }
+
+        // Agenda points and orphan topics
+        $agenda_points = $this->agendaPointModel->getByAssembly($id);
+        $pointVoteIds = $this->agendaPointModel->getPointVoteTopicIdsForAssembly($id);
+        $usedTopicIds = $this->agendaPointModel->getTopicIdsInUse($id);
+        foreach ($agenda_points as &$p) {
+            $p['vote_topic_ids'] = $pointVoteIds[(int)($p['id'] ?? 0)] ?? [];
+            $p['vote_items'] = [];
+            foreach ($p['vote_topic_ids'] as $tid) {
+                $it = $topicDataById[(int)$tid] ?? null;
+                if ($it) {
+                    $p['vote_items'][] = $it;
+                }
+            }
+        }
+        unset($p);
+        $orphanTopicsWithResults = array_values(array_filter($topicsWithResults, function($x) use ($usedTopicIds) {
+            return !in_array((int)$x['topic']['id'], $usedTopicIds, true);
+        }));
 
         // Get template and approved minutes documents
         $documentModel = new \App\Models\Document();
@@ -427,7 +454,10 @@ class AssemblyController extends Controller
             'quorum' => $quorum,
             'fractions' => $fractions,
             'attendance_status' => $attendanceStatus,
-            'topics' => $topicsWithResults,
+            'agenda_points' => $agenda_points,
+            'topics' => $orphanTopicsWithResults,
+            'all_topics' => $topics,
+            'used_topic_ids' => $usedTopicIds,
             'minutes_template' => $mt,
             'approved_minutes' => !empty($approvedMinutes) ? $approvedMinutes[0] : null,
             'is_admin' => $isAdmin,
@@ -449,6 +479,132 @@ class AssemblyController extends Controller
         unset($_SESSION['info']);
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    public function storeAgendaPoint(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || (int)$assembly['condominium_id'] !== $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        if ($assembly['status'] === 'closed' || $assembly['status'] === 'completed') {
+            $_SESSION['error'] = 'Não é possível adicionar pontos de ordem a uma assembleia encerrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $title = trim(Security::sanitize($_POST['title'] ?? ''));
+        if ($title === '') {
+            $_SESSION['error'] = 'O título do ponto de ordem é obrigatório.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $body = trim(Security::sanitize($_POST['body'] ?? ''));
+        $existing = $this->agendaPointModel->getByAssembly($id);
+        $maxOrder = 0;
+        foreach ($existing as $p) {
+            $maxOrder = max($maxOrder, (int)($p['order_index'] ?? 0));
+        }
+
+        $this->agendaPointModel->create([
+            'assembly_id' => $id,
+            'order_index' => $maxOrder + 1,
+            'title' => $title,
+            'body' => $body ?: null
+        ]);
+
+        $_SESSION['success'] = 'Ponto de ordem adicionado.';
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+        exit;
+    }
+
+    public function updateAgendaPointVoteTopic(int $condominiumId, int $id, int $pointId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $point = $this->agendaPointModel->findById($pointId);
+        if (!$point || (int)$point['assembly_id'] !== $id) {
+            $_SESSION['error'] = 'Ponto de ordem não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $vtId = isset($_POST['vote_topic_id']) && $_POST['vote_topic_id'] !== '' && $_POST['vote_topic_id'] !== null
+            ? (int) $_POST['vote_topic_id']
+            : null;
+
+        if ($vtId === null) {
+            $_SESSION['error'] = 'Selecione uma votação para associar.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        if (!$this->agendaPointModel->addVoteTopicToPoint($pointId, $vtId, $id)) {
+            $_SESSION['error'] = 'Esse tópico já está associado a este ou a outro ponto.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+        $_SESSION['success'] = 'Votação associada ao ponto.';
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+        exit;
+    }
+
+    public function unlinkAgendaPointVoteTopic(int $condominiumId, int $id, int $pointId, int $topicId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $point = $this->agendaPointModel->findById($pointId);
+        if (!$point || (int)$point['assembly_id'] !== $id) {
+            $_SESSION['error'] = 'Ponto de ordem não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $this->agendaPointModel->removeVoteTopicFromPoint($pointId, $topicId);
+        $_SESSION['success'] = 'Votação desassociada do ponto.';
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+        exit;
     }
 
     public function sendConvocation(int $condominiumId, int $id)
@@ -755,6 +911,7 @@ class AssemblyController extends Controller
         // Get assembly data
         $attendees = $this->attendeeModel->getByAssembly($id);
         $topics = $this->topicModel->getByAssembly($id);
+        $agendaPoints = $this->agendaPointModel->getByAssembly($id);
         
         // Get vote results for each topic
         $voteResults = [];
@@ -765,7 +922,7 @@ class AssemblyController extends Controller
         }
 
         // Populate template
-        $populatedHtml = $this->pdfService->populateMinutesTemplate($assembly, $attendees, $topics, $voteResults);
+        $populatedHtml = $this->pdfService->populateMinutesTemplate($assembly, $attendees, $topics, $voteResults, $agendaPoints);
 
         // Save template file
         $filename = 'minutes_template_' . $id . '_' . time() . '.html';
@@ -1369,6 +1526,15 @@ class AssemblyController extends Controller
 
         $condominium = $this->condominiumModel->findById($condominiumId);
 
+        $agenda_points = $this->agendaPointModel->getByAssembly($id);
+        $pointVoteIds = $this->agendaPointModel->getPointVoteTopicIdsForAssembly($id);
+        foreach ($agenda_points as &$p) {
+            $p['vote_topic_ids'] = $pointVoteIds[(int)$p['id']] ?? [];
+        }
+        unset($p);
+        $topics = $this->topicModel->getByAssembly($id);
+        $used_topic_ids = $this->agendaPointModel->getTopicIdsInUse($id);
+
         $this->loadPageTranslations('assemblies');
         
         $this->data += [
@@ -1376,6 +1542,9 @@ class AssemblyController extends Controller
             'page' => ['titulo' => 'Editar Assembleia'],
             'assembly' => $assembly,
             'condominium' => $condominium,
+            'agenda_points' => $agenda_points,
+            'topics' => $topics,
+            'used_topic_ids' => $used_topic_ids,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
@@ -1436,6 +1605,50 @@ class AssemblyController extends Controller
                 'location' => Security::sanitize($_POST['location'] ?? ''),
                 'quorum_percentage' => (float)($_POST['quorum_percentage'] ?? 50)
             ]);
+
+            // Replace agenda points from POST (only if key is present)
+            if (array_key_exists('agenda_points', $_POST)) {
+                $raw = is_array($_POST['agenda_points']) ? $_POST['agenda_points'] : [];
+                $topicIds = array_column($this->topicModel->getByAssembly($id), 'id');
+                $seenVoteTopicIds = [];
+                $toInsert = [];
+                foreach ($raw as $idx => $row) {
+                    $title = trim(Security::sanitize($row['title'] ?? ''));
+                    if ($title === '') {
+                        continue;
+                    }
+                    $body = trim(Security::sanitize($row['body'] ?? ''));
+                    $vtIds = isset($row['vote_topic_ids']) && is_array($row['vote_topic_ids']) ? $row['vote_topic_ids'] : [];
+                    $validVtIds = [];
+                    foreach ($vtIds as $tid) {
+                        $tid = (int) $tid;
+                        if ($tid <= 0) continue;
+                        if (!in_array($tid, $topicIds, true)) {
+                            $_SESSION['error'] = 'Tópico de votação inválido num dos pontos de ordem.';
+                            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/edit');
+                            exit;
+                        }
+                        if (in_array($tid, $seenVoteTopicIds, true)) {
+                            $_SESSION['error'] = 'Cada tópico de votação só pode estar associado a um ponto de ordem.';
+                            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/edit');
+                            exit;
+                        }
+                        $seenVoteTopicIds[] = $tid;
+                        $validVtIds[] = $tid;
+                    }
+                    $toInsert[] = ['order_index' => count($toInsert), 'title' => $title, 'body' => $body ?: null, 'vote_topic_ids' => $validVtIds];
+                }
+                $this->agendaPointModel->deleteByAssembly($id);
+                foreach ($toInsert as $item) {
+                    $newId = $this->agendaPointModel->create([
+                        'assembly_id' => $id,
+                        'order_index' => $item['order_index'],
+                        'title' => $item['title'],
+                        'body' => $item['body']
+                    ]);
+                    $this->agendaPointModel->setVoteTopicsForPoint($newId, $item['vote_topic_ids']);
+                }
+            }
 
             $_SESSION['success'] = 'Assembleia atualizada com sucesso!';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);

@@ -66,6 +66,7 @@ class DemoSeeder
         'financial_transactions' => [],
         'assemblies' => [],
         'assembly_attendees' => [],
+        'assembly_agenda_points' => [],
         'assembly_vote_topics' => [],
         'assembly_votes' => [],
         'minutes_revisions' => [],
@@ -636,6 +637,7 @@ class DemoSeeder
         // Delete in correct order to respect foreign keys
         $this->db->exec("DELETE FROM minutes_revisions WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
         $this->db->exec("DELETE FROM assembly_votes WHERE topic_id IN (SELECT id FROM assembly_vote_topics WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId}))");
+        $this->db->exec("DELETE FROM assembly_agenda_points WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
         $this->db->exec("DELETE FROM assembly_vote_topics WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
         $this->db->exec("DELETE FROM assembly_attendees WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
         $this->db->exec("DELETE FROM assemblies WHERE condominium_id = {$condominiumId}");
@@ -3900,6 +3902,11 @@ class DemoSeeder
         $stmt = $this->db->prepare("SELECT id FROM assembly_attendees WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id IN ({$condominiumIdsList}))");
         $stmt->execute();
         $ids['assembly_attendees'] = array_column($stmt->fetchAll(), 'id');
+
+        // Assembly agenda points
+        $stmt = $this->db->prepare("SELECT id FROM assembly_agenda_points WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id IN ({$condominiumIdsList}))");
+        $stmt->execute();
+        $ids['assembly_agenda_points'] = array_column($stmt->fetchAll(), 'id');
 
         // Assembly vote topics
         $stmt = $this->db->prepare("SELECT id FROM assembly_vote_topics WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id IN ({$condominiumIdsList}))");

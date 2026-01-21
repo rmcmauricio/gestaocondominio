@@ -10,6 +10,7 @@ use App\Models\Vote;
 use App\Models\Assembly;
 use App\Models\VoteTopic;
 use App\Models\Fraction;
+use App\Models\AssemblyAgendaPoint;
 
 class VoteController extends Controller
 {
@@ -17,6 +18,7 @@ class VoteController extends Controller
     protected $assemblyModel;
     protected $topicModel;
     protected $fractionModel;
+    protected $agendaPointModel;
 
     public function __construct()
     {
@@ -25,6 +27,7 @@ class VoteController extends Controller
         $this->assemblyModel = new Assembly();
         $this->topicModel = new VoteTopic();
         $this->fractionModel = new Fraction();
+        $this->agendaPointModel = new AssemblyAgendaPoint();
     }
 
     public function createTopic(int $condominiumId, int $assemblyId)
@@ -56,6 +59,16 @@ class VoteController extends Controller
             return $opt['option_label'];
         }, $voteOptions);
 
+        $pointId = isset($_GET['point_id']) ? (int) $_GET['point_id'] : 0;
+        $return = $_GET['return'] ?? '';
+        $returnToEdit = ($return === 'edit');
+        $returnToShow = ($return === 'show' || $pointId > 0);
+        $backUrl = $returnToShow
+            ? BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId
+            : ($returnToEdit
+                ? BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId . '/edit'
+                : BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
+
         $this->loadPageTranslations('votes');
         
         $this->data += [
@@ -65,7 +78,11 @@ class VoteController extends Controller
             'assembly' => $assembly,
             'vote_options' => $voteOptions,
             'default_options' => $defaultOptions,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'return_to_edit' => $returnToEdit,
+            'return_to_show' => $returnToShow,
+            'point_id' => $pointId,
+            'back_url' => $backUrl
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -126,7 +143,10 @@ class VoteController extends Controller
             foreach ($options as $option) {
                 if (!in_array($option, $validOptionLabels)) {
                     $_SESSION['error'] = 'Opção de voto inválida: ' . $option . '. Use apenas as opções configuradas para este condomínio.';
-                    header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId . '/votes/create-topic');
+                    $ret = $_POST['return'] ?? '';
+                    $pid = (int) ($_POST['point_id'] ?? 0);
+                    $suffix = ($ret === 'edit') ? '?return=edit' : (($ret === 'show' || $pid > 0) ? '?return=show&point_id=' . $pid : '');
+                    header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId . '/votes/create-topic' . $suffix);
                     exit;
                 }
             }
@@ -138,7 +158,7 @@ class VoteController extends Controller
                 $maxOrder = max($maxOrder, $topic['order_index'] ?? 0);
             }
 
-            $this->topicModel->create([
+            $newTopicId = $this->topicModel->create([
                 'assembly_id' => $assemblyId,
                 'title' => Security::sanitize($_POST['title'] ?? ''),
                 'description' => Security::sanitize($_POST['description'] ?? ''),
@@ -147,12 +167,32 @@ class VoteController extends Controller
                 'created_by' => $userId
             ]);
 
-            $_SESSION['success'] = 'Tópico de votação criado com sucesso!';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
+            $pointId = isset($_POST['point_id']) ? (int) $_POST['point_id'] : 0;
+            if ($pointId > 0) {
+                $point = $this->agendaPointModel->findById($pointId);
+                if ($point && (int) $point['assembly_id'] === (int) $assemblyId) {
+                    $this->agendaPointModel->addVoteTopicToPoint($pointId, $newTopicId, (int) $assemblyId);
+                    $_SESSION['success'] = 'Tópico de votação criado e associado ao ponto.';
+                } else {
+                    $_SESSION['success'] = 'Tópico de votação criado com sucesso!';
+                }
+            } else {
+                $_SESSION['success'] = 'Tópico de votação criado com sucesso!';
+            }
+
+            $ret = $_POST['return'] ?? '';
+            $redirect = BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId;
+            if ($ret === 'edit') {
+                $redirect = BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId . '/edit';
+            }
+            header('Location: ' . $redirect);
             exit;
         } catch (\Exception $e) {
             $_SESSION['error'] = 'Erro ao criar tópico: ' . $e->getMessage();
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
+            $ret = $_POST['return'] ?? '';
+            $pid = (int) ($_POST['point_id'] ?? 0);
+            $suffix = ($ret === 'edit') ? '?return=edit' : (($ret === 'show' || $pid > 0) ? '?return=show&point_id=' . $pid : '');
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId . '/votes/create-topic' . $suffix);
             exit;
         }
     }

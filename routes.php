@@ -253,6 +253,9 @@ $router->post('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/c
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/submit-revision', 'App\Controllers\AssemblyController@submitRevision');
 $router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes-template/revisions', 'App\Controllers\AssemblyController@revisions');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/change-status', 'App\Controllers\AssemblyController@changeStatus');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/agenda-points', 'App\Controllers\AssemblyController@storeAgendaPoint');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/agenda-points/{point_id}/link-vote', 'App\Controllers\AssemblyController@updateAgendaPointVoteTopic');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/agenda-points/{point_id}/unlink-vote/{topic_id}', 'App\Controllers\AssemblyController@unlinkAgendaPointVoteTopic');
 
 // Bank Accounts routes
 $router->get('/condominiums/{condominium_id}/bank-accounts', 'App\Controllers\BankAccountController@index');

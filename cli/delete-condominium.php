@@ -180,6 +180,7 @@ function deleteCondominiumData($db, int $condominiumId, bool $isDemo = false): v
     echo "  Removendo dados de assembleias...\n";
     $db->exec("DELETE FROM minutes_revisions WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
     $db->exec("DELETE FROM assembly_votes WHERE topic_id IN (SELECT id FROM assembly_vote_topics WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId}))");
+    $db->exec("DELETE FROM assembly_agenda_points WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
     $db->exec("DELETE FROM assembly_vote_topics WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
     $db->exec("DELETE FROM assembly_attendees WHERE assembly_id IN (SELECT id FROM assemblies WHERE condominium_id = {$condominiumId})");
     $db->exec("DELETE FROM assemblies WHERE condominium_id = {$condominiumId}");

@@ -277,6 +277,125 @@
         </div>
     </div>
 
+    {# Pontos de ordem #}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Pontos de ordem</h5>
+        </div>
+        <div class="card-body">
+            {% if agenda_points|length > 0 %}
+                {% for point in agenda_points %}
+                <div class="border rounded p-3 mb-3">
+                    <h6 class="mb-2">{{ point.title }}</h6>
+                    {% if point.body %}
+                    <p class="text-muted mb-2">{{ point.body|nl2br }}</p>
+                    {% endif %}
+                    {% for item in point.vote_items|default([]) %}
+                    {% set topic = item.topic %}
+                    {% set results = item.results %}
+                    <p class="small text-muted mb-2"><i class="bi bi-bar-chart"></i> Votação: {{ topic.title }}</p>
+                    <div class="ms-0 mb-3">
+                        {% if topic.voting_started_at and not topic.voting_ended_at %}
+                            {% if item.present_fractions|length > 0 %}
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/bulk" class="mb-3">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover">
+                                        <thead><tr><th>Fração</th><th>Permilagem</th><th>Voto</th><th>Observações</th></tr></thead>
+                                        <tbody>
+                                        {% for fraction in item.present_fractions %}
+                                        {% set existingVote = item.fraction_votes[fraction.id] ?? null %}
+                                        <tr class="{% if existingVote %}table-info{% endif %}">
+                                            <td><strong>{{ fraction.identifier }}</strong></td>
+                                            <td>{{ fraction.permillage }}‰</td>
+                                            <td>
+                                                <select class="form-select form-select-sm" name="bulk_votes[{{ fraction.id }}][vote_option]">
+                                                    <option value="">-- Selecionar --</option>
+                                                    {% for option in topic.options %}<option value="{{ option }}" {% if existingVote and existingVote.vote_option == option %}selected{% endif %}>{{ option }}</option>{% endfor %}
+                                                </select>
+                                            </td>
+                                            <td><textarea class="form-control form-control-sm" name="bulk_votes[{{ fraction.id }}][notes]" rows="1">{{ existingVote ? existingVote.notes : '' }}</textarea></td>
+                                        </tr>
+                                        {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-primary">Guardar Votos</button>
+                            </form>
+                            {% endif %}
+                        {% endif %}
+                        {% if results.total_votes > 0 %}
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead><tr><th>Opção</th><th>Votos</th><th>Permilagem</th><th>%</th></tr></thead>
+                                <tbody>
+                                {% for option, data in results.options %}<tr><td>{{ option }}</td><td>{{ data.count }}</td><td>{{ data.millage }}‰</td><td>{{ data.percentage_by_millage }}%</td></tr>{% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% if results.winning_option %}<div class="alert alert-success py-2"><strong>Resultado:</strong> {{ results.winning_option }} com {{ results.winning_percentage_by_millage }}%.</div>{% endif %}
+                        {% else %}<p class="text-muted mb-0">Ainda não há votos registados.</p>{% endif %}
+                        {% if assembly.status != 'closed' and assembly.status != 'completed' and is_admin %}
+                        <div class="mt-2 d-flex gap-2 flex-wrap">
+                            {% if not topic.voting_started_at %}
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/start" class="d-inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-sm btn-success">Iniciar Votação</button></form>
+                            {% elseif topic.voting_started_at and not topic.voting_ended_at %}
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/end" class="d-inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-sm btn-warning">Encerrar Votação</button></form>
+                            {% endif %}
+                            <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/results" class="btn btn-sm btn-outline-info">Ver Detalhes</a>
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/agenda-points/{{ point.id }}/unlink-vote/{{ topic.id }}" class="d-inline" onsubmit="return confirm('Remover esta votação do ponto?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Remover</button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <p class="small text-muted mb-0">Sem votação associada.</p>
+                    {% endfor %}
+                    {% if is_admin and assembly.status != 'closed' and assembly.status != 'completed' %}
+                    <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
+                        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/create-topic?point_id={{ point.id }}&return=show" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus"></i> Nova votação</a>
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/agenda-points/{{ point.id }}/link-vote" class="d-inline d-flex align-items-center gap-2 flex-wrap">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <label class="form-label mb-0">Associar existente:</label>
+                            <select class="form-select form-select-sm" name="vote_topic_id" style="max-width:220px;">
+                                <option value="">— Nenhuma —</option>
+                                {% for t in all_topics %}{% if t.id not in used_topic_ids %}<option value="{{ t.id }}">{{ t.title }}</option>{% endif %}{% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">Guardar</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+            <p class="text-muted mb-0">Nenhum ponto de ordem.</p>
+            {% endif %}
+            {% if is_admin and assembly.status != 'closed' and assembly.status != 'completed' %}
+            <hr class="my-3">
+            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#addAgendaPointForm" aria-expanded="false">
+                <i class="bi bi-plus-circle"></i> Adicionar ponto
+            </button>
+            <div class="collapse mt-2" id="addAgendaPointForm">
+                <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/agenda-points" class="p-3 border rounded bg-light">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="mb-2">
+                        <label for="ap_title" class="form-label form-label-sm">Título <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm" id="ap_title" name="title" required placeholder="Ex: Aprovação das contas">
+                    </div>
+                    <div class="mb-2">
+                        <label for="ap_body" class="form-label form-label-sm">Texto / deliberação</label>
+                        <textarea class="form-control form-control-sm" id="ap_body" name="body" rows="2" placeholder="Opcional"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary">Adicionar</button>
+                    <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/edit" class="btn btn-sm btn-link">ou editar a assembleia</a>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
     <div class="row">
         <div class="col-12">
 
@@ -395,10 +514,10 @@
                 </div>
             </div>
 
-            {# Vote Topics Section #}
+            {# Outras votações (tópicos não associados a pontos de ordem) #}
             <div class="card shadow-sm mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Tópicos de Votação</h5>
+                    <h5 class="mb-0">Outras votações</h5>
                     {% if assembly.status != 'closed' and assembly.status != 'completed' and is_admin %}
                     <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/create-topic" class="btn btn-sm btn-primary">
                         <i class="bi bi-plus-circle"></i> Novo Tópico
@@ -406,7 +525,7 @@
                     {% endif %}
                 </div>
                 <div class="card-body">
-                    {% if topics %}
+                    {% if topics|length > 0 %}
                         {% for item in topics %}
                         {% set topic = item.topic %}
                         {% set results = item.results %}
@@ -583,9 +702,7 @@
                         </div>
                         {% endfor %}
                     {% else %}
-                        <div class="card-body">
-                            <p class="text-muted mb-0">Nenhum tópico de votação criado ainda.</p>
-                        </div>
+                        <p class="text-muted mb-0">Nenhum tópico de votação sem associação. Crie um tópico para o associar a um ponto de ordem ou para figurar aqui.</p>
                     {% endif %}
                 </div>
             </div>
