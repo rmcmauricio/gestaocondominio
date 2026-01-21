@@ -87,6 +87,7 @@ $router->post('/condominiums', 'App\Controllers\CondominiumController@store');
 $router->get('/condominiums/{id}', 'App\Controllers\CondominiumController@show');
 $router->get('/condominiums/{id}/edit', 'App\Controllers\CondominiumController@edit');
 $router->post('/condominiums/{id}', 'App\Controllers\CondominiumController@update');
+$router->post('/condominiums/{id}/logo', 'App\Controllers\CondominiumController@removeLogo');
 $router->post('/condominiums/{id}/delete', 'App\Controllers\CondominiumController@delete');
 $router->get('/condominiums/switch/{id}', 'App\Controllers\CondominiumController@switch');
 $router->post('/condominiums/{id}/set-default', 'App\Controllers\CondominiumController@setDefault');

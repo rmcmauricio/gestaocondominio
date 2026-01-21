@@ -679,14 +679,14 @@ main {
 
 .btn-primary {
   background-color: var(--color-primary);
-  color: white;
+  color: hsl(0 0% 100%);
   border-color: var(--color-primary);
 }
 
 .btn-primary:hover {
   background-color: var(--color-primary-dark);
   border-color: var(--color-primary-dark);
-  color: white;
+  color: hsl(0 0% 100%);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -710,7 +710,7 @@ main {
 
 .btn-outline:hover {
   background-color: var(--color-primary);
-  color: white;
+  color: hsl(0 0% 100%);
 }
 
 .btn-outline-secondary {
@@ -727,7 +727,7 @@ main {
 
 /* Bootstrap outline button variants */
 .btn-outline-primary {
-  background-color: rgba(99, 102, 241, 0.1);
+  background-color: transparent;
   color: var(--color-primary);
   border: 1px solid var(--color-primary);
   border-width: 1px;
@@ -735,7 +735,7 @@ main {
 
 .btn-outline-primary:hover {
   background-color: var(--color-primary);
-  color: white;
+  color: hsl(0 0% 100%);
   border-color: var(--color-primary-dark);
   border-width: 1px;
 }
@@ -749,13 +749,13 @@ main {
 
 .btn-outline-success:hover {
   background-color: var(--color-success);
-  color: white;
-  border-color: #059669;
+  color: hsl(0 0% 100%);
+  border-color: var(--color-success);
   border-width: 1px;
 }
 
 .btn-outline-danger {
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: transparent;
   color: var(--color-danger);
   border: 1px solid var(--color-danger);
   border-width: 1px;
@@ -763,13 +763,13 @@ main {
 
 .btn-outline-danger:hover {
   background-color: var(--color-danger);
-  color: white;
-  border-color: #dc2626;
+  color: hsl(0 0% 100%);
+  border-color: var(--color-danger);
   border-width: 1px;
 }
 
 .btn-outline-warning {
-  background-color: rgba(245, 158, 11, 0.1);
+  background-color: transparent;
   color: var(--color-warning);
   border: 1px solid var(--color-warning);
   border-width: 1px;
@@ -777,13 +777,13 @@ main {
 
 .btn-outline-warning:hover {
   background-color: var(--color-warning);
-  color: white;
-  border-color: #d97706;
+  color: hsl(0 0% 100%);
+  border-color: var(--color-warning);
   border-width: 1px;
 }
 
 .btn-outline-info {
-  background-color: rgba(59, 130, 246, 0.1);
+  background-color: transparent;
   color: var(--color-info);
   border: 1px solid var(--color-info);
   border-width: 1px;
@@ -791,33 +791,33 @@ main {
 
 .btn-outline-info:hover {
   background-color: var(--color-info);
-  color: white;
-  border-color: #2563eb;
+  color: hsl(0 0% 100%);
+  border-color: var(--color-info);
   border-width: 1px;
 }
 
 .btn-outline-light {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: #1f2937;
-  border-color: #e5e7eb;
+  background-color: transparent;
+  color: var(--color-text);
+  border-color: var(--color-border);
 }
 
 .btn-outline-light:hover {
-  background-color: white;
-  color: #1f2937;
-  border-color: #d1d5db;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  border-color: var(--color-border-dark);
 }
 
 .btn-outline-dark {
-  background-color: rgba(31, 41, 55, 0.1);
-  color: #1f2937;
-  border-color: #374151;
+  background-color: transparent;
+  color: var(--color-text);
+  border-color: var(--color-border-dark);
 }
 
 .btn-outline-dark:hover {
-  background-color: #1f2937;
-  color: white;
-  border-color: #111827;
+  background-color: var(--color-text);
+  color: hsl(0 0% 100%);
+  border-color: var(--color-text);
 }
 
 /* Ensure all outline buttons have consistent borders */
@@ -1087,25 +1087,25 @@ a:hover .card-hover .text-primary {
 
 .alert-success {
   background-color: rgba(16, 185, 129, 0.1);
-  color: #065f46;
+  color: var(--color-success);
   border-color: rgba(16, 185, 129, 0.2);
 }
 
 .alert-danger {
   background-color: rgba(239, 68, 68, 0.1);
-  color: #991b1b;
+  color: var(--color-danger);
   border-color: rgba(239, 68, 68, 0.2);
 }
 
 .alert-warning {
   background-color: rgba(245, 158, 11, 0.1);
-  color: #92400e;
+  color: var(--color-warning);
   border-color: rgba(245, 158, 11, 0.2);
 }
 
 .alert-info {
   background-color: rgba(59, 130, 246, 0.1);
-  color: #1e40af;
+  color: var(--color-info);
   border-color: rgba(59, 130, 246, 0.2);
 }
 
@@ -1451,7 +1451,7 @@ a:hover .card-hover .text-primary {
     margin: 0;
     padding: 0.6rem 0.3rem 0.6rem 0;
     background: var(--color-primary);
-    color: #fff;
+    color: hsl(0 0% 100%);
     border: none;
     border-radius: 0 var(--radius-md) var(--radius-md) 0;
     box-shadow: 2px 0 10px rgba(0, 0, 0, 0.18);
@@ -1466,7 +1466,7 @@ a:hover .card-hover .text-primary {
     box-shadow: 2px 0 12px rgba(0, 0, 0, 0.22);
   }
   .sidebar-menu-tab:focus-visible {
-    outline: 2px solid #fff;
+    outline: 2px solid hsl(0 0% 100%);
     outline-offset: 2px;
   }
   .sidebar-menu-tab-text {
@@ -2639,14 +2639,14 @@ a:hover .card-hover .text-primary {
   .fees-map-table tbody td:first-child {
     position: sticky;
     left: 0;
-    background: white;
+    background: var(--color-bg);
     z-index: 10;
     box-shadow: 2px 0 4px rgba(0,0,0,0.1);
     min-width: 70px;
   }
 
   .fees-map-table thead th:first-child {
-    background: #f8f9fa;
+    background: var(--color-bg-light);
     z-index: 11;
   }
 
@@ -2655,14 +2655,14 @@ a:hover .card-hover .text-primary {
   .fees-map-table tbody td:last-child {
     position: sticky;
     right: 0;
-    background: white;
+    background: var(--color-bg);
     z-index: 10;
     box-shadow: -2px 0 4px rgba(0,0,0,0.1);
     min-width: 80px;
   }
 
   .fees-map-table thead th:last-child {
-    background: #f8f9fa;
+    background: var(--color-bg-light);
     z-index: 11;
   }
 }
@@ -2945,7 +2945,7 @@ a:hover .card-hover .text-primary {
 
 .btn-hero-primary {
   background: white;
-  color: #6366f1;
+  color: var(--color-primary);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
@@ -2970,14 +2970,14 @@ a:hover .card-hover .text-primary {
 }
 
 .btn-hero-demo {
-  background: #f59e0b;
-  color: white;
+  background: var(--color-warning);
+  color: hsl(0 0% 100%);
   box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
 }
 
 .btn-hero-demo:hover {
-  background: #d97706;
-  color: white;
+  background: var(--color-warning);
+  color: hsl(0 0% 100%);
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
 }

@@ -125,11 +125,16 @@ class Condominium extends Model
 
         $fields = [];
         $params = [':id' => $id];
+        $nullFields = [];
 
         foreach ($data as $key => $value) {
             if ($key === 'settings' && is_array($value)) {
                 $fields[] = "settings = :settings";
                 $params[':settings'] = json_encode($value);
+            } elseif ($value === null) {
+                // Handle NULL values explicitly - use SQL NULL directly
+                $fields[] = "$key = NULL";
+                $nullFields[] = $key;
             } else {
                 $fields[] = "$key = :$key";
                 $params[":$key"] = $value;
@@ -175,6 +180,54 @@ class Condominium extends Model
 
         $stmt->execute([':id' => $id]);
         return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * Get document template ID for condominium
+     * @param int $id Condominium ID
+     * @return int Template ID (1-7), default 1
+     */
+    public function getDocumentTemplate(int $id): ?int
+    {
+        if (!$this->db) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("SELECT document_template FROM condominiums WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $id]);
+        $result = $stmt->fetch();
+        
+        if ($result && isset($result['document_template']) && $result['document_template'] !== null) {
+            $templateId = (int)$result['document_template'];
+            // Validate template ID is between 1-7
+            if ($templateId >= 1 && $templateId <= 7) {
+                return $templateId;
+            }
+        }
+        
+        return null; // Default template (null means use system default, no custom CSS)
+    }
+
+    /**
+     * Get logo path for condominium
+     * @param int $id Condominium ID
+     * @return string|null Logo path or null if not set
+     */
+    public function getLogoPath(int $id): ?string
+    {
+        if (!$this->db) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("SELECT logo_path FROM condominiums WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $id]);
+        $result = $stmt->fetch();
+        
+        if ($result && isset($result['logo_path']) && !empty($result['logo_path'])) {
+            return $result['logo_path'];
+        }
+        
+        return null;
     }
 }
 

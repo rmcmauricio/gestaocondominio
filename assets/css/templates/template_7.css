@@ -1,0 +1,434 @@
+/**
+ * Template 7 - Profissional (Dark Mode)
+ * Cores sóbrias (cinza/azul), estilo conservador
+ */
+:root {
+  /* Primary Colors - Azul claro para contraste em dark mode */
+  --color-primary: #60a5fa;
+  --color-primary-dark: #93c5fd;
+  --color-primary-light: #3b82f6;
+
+  /* Accent Colors */
+  --color-accent: #818cf8;
+  --color-success: #22c55e;
+  --color-danger: #ef4444;
+  --color-warning: #fbbf24;
+  --color-info: #60a5fa;
+
+  /* Background Colors - Dark Mode Profissional */
+  --color-bg: #111827;
+  --color-bg-light: #1f2937;
+  --color-bg-dark: #0f172a;
+
+  /* Text Colors - Claros para dark mode */
+  --color-text: #e5e7eb;
+  --color-text-light: #9ca3af;
+  --color-text-muted: #6b7280;
+
+  /* Border Colors - Cinzas escuros profissionais */
+  --color-border: #374151;
+  --color-border-dark: #4b5563;
+}
+
+/* Bootstrap Override Variables */
+:root {
+  --bs-card-header-bg: hsl(215 28% 17%);
+  --bs-card-header-text: hsl(0 0% 100%);
+  --bs-card-header-border: hsl(215 28% 22%);
+  --bs-card-header-bg-alt: hsl(215 28% 17%);
+}
+
+/* Card Header Overrides */
+.card-header.bg-primary {
+  background-color: hsl(215 28% 17%) !important;
+  color: hsl(0 0% 100%) !important;
+  border-color: hsl(215 28% 22%) !important;
+}
+
+/* Button Overrides */
+.btn-primary {
+  background-color: #60a5fa !important;
+  border-color: #60a5fa !important;
+  color: #111827 !important;
+}
+
+.btn-primary:hover {
+  background-color: #93c5fd !important;
+  border-color: #93c5fd !important;
+  color: #0f172a !important;
+}
+
+.btn-outline-primary {
+  color: #60a5fa !important;
+  border-color: #60a5fa !important;
+  background-color: transparent !important;
+}
+
+.btn-outline-primary:hover {
+  background-color: #60a5fa !important;
+  border-color: #60a5fa !important;
+  color: #111827 !important;
+}
+
+.badge.bg-primary {
+  background-color: #60a5fa !important;
+  color: #111827 !important;
+}
+
+/* Sidebar styling */
+.sidebar {
+  background: var(--color-bg-dark) !important;
+  border-right-color: var(--color-border) !important;
+}
+
+.sidebar-nav .nav-link {
+  color: var(--color-text) !important;
+}
+
+.sidebar-nav .nav-link:hover {
+  background: rgba(96, 165, 250, 0.15) !important;
+  color: var(--color-primary) !important;
+}
+
+.sidebar-nav .nav-section-title {
+  color: var(--color-text-light) !important;
+}
+
+/* Links */
+a {
+  color: var(--color-primary) !important;
+}
+
+a:hover {
+  color: var(--color-primary-dark) !important;
+}
+
+/* Main Content Background */
+.main-content {
+  background: var(--color-bg) !important;
+  color: var(--color-text) !important;
+}
+
+/* Cards */
+.card {
+  background: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+.card-body {
+  background: var(--color-bg-light) !important;
+  color: var(--color-text) !important;
+}
+
+.card-title {
+  color: var(--color-text) !important;
+}
+
+/* Tables */
+table {
+  background: var(--color-bg-light) !important;
+  color: var(--color-text) !important;
+}
+
+table thead th {
+  background: var(--color-bg-dark) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+table tbody td {
+  background: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+table tbody tr:hover {
+  background: var(--color-bg) !important;
+}
+
+/* Form Controls */
+.form-control, .form-select {
+  background-color: var(--color-bg-dark) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+.form-control:focus, .form-select:focus {
+  background-color: var(--color-bg-dark) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-text) !important;
+}
+
+.form-label {
+  color: var(--color-text) !important;
+}
+
+/* Header */
+.header {
+  background-color: var(--color-bg-dark) !important;
+  border-bottom-color: var(--color-border) !important;
+}
+
+.header .logo-img {
+  /* Logo dark mode já tem texto branco e ícone laranja */
+}
+
+/* Text Colors */
+body {
+  color: var(--color-text) !important;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-text) !important;
+}
+
+.text-muted {
+  color: var(--color-text-muted) !important;
+}
+
+/* Dropdowns */
+.dropdown-menu {
+  background-color: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+}
+
+.dropdown-item {
+  color: var(--color-text) !important;
+}
+
+.dropdown-item:hover {
+  background-color: var(--color-bg) !important;
+  color: var(--color-text) !important;
+}
+
+/* Alerts */
+.alert {
+  background-color: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+/* Success Buttons - Verde vibrante com alto contraste */
+.btn-success, .bg-success {
+  background-color: #22c55e !important;
+  border-color: #22c55e !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+}
+
+.btn-success:hover, .bg-success:hover {
+  background-color: #16a34a !important;
+  border-color: #16a34a !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+.btn-success:focus, .btn-success:active {
+  background-color: #16a34a !important;
+  border-color: #16a34a !important;
+  color: #000000 !important;
+  box-shadow: 0 0 0 0.25rem rgba(34, 197, 94, 0.5) !important;
+}
+
+.btn-outline-success {
+  color: #22c55e !important;
+  border-color: #22c55e !important;
+  background-color: transparent !important;
+}
+
+.btn-outline-success:hover {
+  background-color: #22c55e !important;
+  border-color: #22c55e !important;
+  color: #000000 !important;
+  font-weight: 600 !important;
+}
+
+/* Text colors for success elements */
+.text-success {
+  color: #22c55e !important;
+}
+
+/* Badge success */
+.badge.bg-success {
+  background-color: #22c55e !important;
+  color: #000000 !important;
+  font-weight: 600 !important;
+}
+
+/* Card Header Success */
+.card-header.bg-success {
+  background-color: #22c55e !important;
+  color: #000000 !important;
+  border-color: #16a34a !important;
+  font-weight: 600 !important;
+}
+
+/* Alert Success */
+.alert-success {
+  background-color: rgba(34, 197, 94, 0.2) !important;
+  border-color: #22c55e !important;
+  border-width: 2px !important;
+  color: #22c55e !important;
+  font-weight: 600 !important;
+}
+
+.alert-success strong,
+.alert-success .alert-heading {
+  color: #22c55e !important;
+  font-weight: 700 !important;
+}
+
+/* Monetary values and other green text elements */
+.text-success,
+[class*="text-success"],
+h4.text-success,
+h5.text-success,
+.account-card h4,
+.bank-account-balance,
+[style*="color"][style*="green"],
+[style*="color: #10b981"],
+[style*="color: #059669"],
+[style*="color: rgb(16, 185, 129)"] {
+  color: #22c55e !important;
+  font-weight: 600 !important;
+}
+
+/* Ensure all success-colored elements are vibrant */
+* {
+  --color-success: #22c55e !important;
+  --color-warning: #fbbf24 !important;
+}
+
+/* Specific selectors for common green elements */
+.card-body h4,
+.card-body h5,
+.balance,
+.amount,
+.saldo {
+  color: inherit;
+}
+
+.card-body h4.text-success,
+.card-body h5.text-success,
+.balance.text-success,
+.amount.text-success {
+  color: #22c55e !important;
+  font-weight: 700 !important;
+}
+
+/* Override Bootstrap success button styles */
+.btn-success.btn,
+button.btn-success,
+a.btn-success {
+  background-color: #22c55e !important;
+  border-color: #22c55e !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+.btn-success.btn:hover,
+button.btn-success:hover,
+a.btn-success:hover {
+  background-color: #16a34a !important;
+  border-color: #16a34a !important;
+  color: #000000 !important;
+}
+
+/* Ensure all green text in dark mode is vibrant */
+h1.text-success, h2.text-success, h3.text-success, h4.text-success, h5.text-success, h6.text-success,
+p.text-success, span.text-success, div.text-success, strong.text-success {
+  color: #22c55e !important;
+  font-weight: 700 !important;
+}
+
+/* Warning Buttons - Amarelo vibrante com alto contraste */
+.btn-warning, .bg-warning {
+  background-color: #fbbf24 !important;
+  border-color: #fbbf24 !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+}
+
+.btn-warning:hover, .bg-warning:hover {
+  background-color: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+.btn-warning:focus, .btn-warning:active {
+  background-color: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #000000 !important;
+  box-shadow: 0 0 0 0.25rem rgba(251, 191, 36, 0.5) !important;
+}
+
+.btn-outline-warning {
+  color: #fbbf24 !important;
+  border-color: #fbbf24 !important;
+  background-color: transparent !important;
+}
+
+.btn-outline-warning:hover {
+  background-color: #fbbf24 !important;
+  border-color: #fbbf24 !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+/* Badge warning */
+.badge.bg-warning {
+  background-color: #fbbf24 !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+/* Card Header Warning */
+.card-header.bg-warning {
+  background-color: #fbbf24 !important;
+  color: #000000 !important;
+  border-color: #f59e0b !important;
+  font-weight: 700 !important;
+}
+
+/* Alert Warning */
+.alert-warning {
+  background-color: rgba(251, 191, 36, 0.2) !important;
+  border-color: #fbbf24 !important;
+  border-width: 2px !important;
+  color: #fbbf24 !important;
+  font-weight: 600 !important;
+}
+
+.alert-warning strong,
+.alert-warning .alert-heading {
+  color: #fbbf24 !important;
+  font-weight: 700 !important;
+}
+
+/* Text warning */
+.text-warning {
+  color: #fbbf24 !important;
+  font-weight: 600 !important;
+}
+
+/* Override Bootstrap warning button styles */
+.btn-warning.btn,
+button.btn-warning,
+a.btn-warning {
+  background-color: #fbbf24 !important;
+  border-color: #fbbf24 !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+.btn-warning.btn:hover,
+button.btn-warning:hover,
+a.btn-warning:hover {
+  background-color: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #000000 !important;
+}

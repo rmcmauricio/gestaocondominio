@@ -39,23 +39,15 @@
         </div>
         <div class="card-body">
             <div class="row g-4">
-                {% if user.role == 'admin' or user.role == 'super_admin' %}
-                <div class="col-md-6 col-lg-4">
-                    <a href="{{ BASE_URL }}condominiums/create" class="text-decoration-none">
-                        <div class="card h-100 shadow-sm card-hover border-dashed border-2 border-primary" style="border-style: dashed !important; min-height: 200px; display: flex; align-items: center; justify-content: center;">
-                            <div class="card-body text-center">
-                                <i class="bi bi-plus-circle display-4 text-primary mb-3"></i>
-                                <h5 class="card-title text-primary">Novo Condomínio</h5>
-                                <p class="card-text text-muted small">Clique para criar um novo condomínio</p>
-                            </div>
-                        </div>
-                    </a>
-                </div>
-                {% endif %}
                 {% for condominium in admin_condominiums %}
                 <div class="col-md-6 col-lg-4">
                     <a href="{{ BASE_URL }}condominiums/switch/{{ condominium.id }}" class="text-decoration-none">
                         <div class="card h-100 shadow-sm card-hover border-primary">
+                            {% if condominium.logo_url %}
+                            <div style="width: 100%; height: 150px; overflow: hidden; display: flex; align-items: center; justify-content: center; background-color: #f8f9fa;">
+                                <img src="{{ condominium.logo_url }}" alt="{{ condominium.name }}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;">
+                            </div>
+                            {% endif %}
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
                                     <h5 class="card-title mb-0">{{ condominium.name }}</h5>
@@ -78,6 +70,19 @@
                     </a>
                 </div>
                 {% endfor %}
+                {% if user.role == 'admin' or user.role == 'super_admin' %}
+                <div class="col-md-6 col-lg-4">
+                    <a href="{{ BASE_URL }}condominiums/create" class="text-decoration-none">
+                        <div class="card h-100 shadow-sm card-hover border-dashed border-2 border-primary" style="border-style: dashed !important; min-height: 200px; display: flex; align-items: center; justify-content: center;">
+                            <div class="card-body text-center">
+                                <i class="bi bi-plus-circle display-4 text-primary mb-3"></i>
+                                <h5 class="card-title text-primary">Novo Condomínio</h5>
+                                <p class="card-text text-muted small">Clique para criar um novo condomínio</p>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -94,6 +99,11 @@
                 <div class="col-md-6 col-lg-4">
                     <a href="{{ BASE_URL }}condominiums/switch/{{ condominium.id }}" class="text-decoration-none">
                         <div class="card h-100 shadow-sm card-hover border-info">
+                            {% if condominium.logo_url %}
+                            <div style="width: 100%; height: 150px; overflow: hidden; display: flex; align-items: center; justify-content: center; background-color: #f8f9fa;">
+                                <img src="{{ condominium.logo_url }}" alt="{{ condominium.name }}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;">
+                            </div>
+                            {% endif %}
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
                                     <h5 class="card-title mb-0">{{ condominium.name }}</h5>

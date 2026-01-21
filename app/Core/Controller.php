@@ -309,6 +309,26 @@ class Controller
             $canSwitchViewMode = \App\Middleware\RoleMiddleware::hasBothRolesInCondominium($userId, $currentCondominiumId);
         }
         
+        // Get template and logo for current condominium
+        $templateId = null; // Default template (null means use system default, no custom CSS)
+        $logoUrl = null;
+        $condominiumForTemplate = $condominium ?? ($data['condominium'] ?? null);
+        
+        if ($condominiumForTemplate && isset($condominiumForTemplate['id'])) {
+            $condominiumModel = new \App\Models\Condominium();
+            $templateId = $condominiumModel->getDocumentTemplate($condominiumForTemplate['id']);
+            // Only set template ID if it's valid (1-7), otherwise keep as null (default)
+            if ($templateId !== null && ($templateId < 1 || $templateId > 7)) {
+                $templateId = null;
+            }
+            $logoPath = $condominiumModel->getLogoPath($condominiumForTemplate['id']);
+            
+            if ($logoPath) {
+                $fileStorageService = new \App\Services\FileStorageService();
+                $logoUrl = $fileStorageService->getFileUrl($logoPath);
+            }
+        }
+        
         $mergedData = array_merge([
             't' => new \App\Core\Translator($currentLang),
             'user' => $_SESSION['user'] ?? null,
@@ -324,8 +344,10 @@ class Controller
             'can_switch_view_mode' => $canSwitchViewMode,
             'is_demo_user' => $isDemoUser,
             'demo_profile' => $demoProfile,
-            'condominium' => $condominium ?? ($data['condominium'] ?? null),
+            'condominium' => $condominiumForTemplate,
             'user_condominiums' => $userCondominiums,
+            'template_id' => $templateId,
+            'logo_url' => $logoUrl,
             'csrf_token' => \App\Core\Security::generateCSRFToken(),
         ], $data);
         

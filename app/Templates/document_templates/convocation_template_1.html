@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <title>Convocatória de Assembleia</title>
+    <style>
+        @page { margin: 2cm; }
+        body { 
+            font-family: 'Times New Roman', serif; 
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 40px;
+            border-bottom: 3px solid #333;
+            padding-bottom: 20px;
+        }
+        .header-logo {
+            max-width: 150px;
+            max-height: 80px;
+            margin-bottom: 15px;
+        }
+        .header h1 { 
+            color: #1a1a1a;
+            font-size: 24px;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .header .subtitle {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+        .content { 
+            line-height: 1.8;
+            margin-bottom: 30px;
+        }
+        .info-box {
+            background-color: #f9f9f9;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .info-box p {
+            margin: 5px 0;
+        }
+        .info-label {
+            font-weight: bold;
+            display: inline-block;
+            width: 150px;
+        }
+        .description {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        .footer { 
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 11px;
+            color: #666;
+            text-align: center;
+        }
+        .quorum-info {
+            background-color: #e7f3ff;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class='header'>
+        {{LOGO_HTML}}
+        <h1>CONVOCATÓRIA DE ASSEMBLEIA</h1>
+        <div class='subtitle'>Sistema de Gestão de Condomínios</div>
+    </div>
+    <div class='content'>
+        <div class='info-box'>
+            <p><span class='info-label'>Título:</span> {{ASSEMBLY_TITLE}}</p>
+            <p><span class='info-label'>Tipo:</span> {{ASSEMBLY_TYPE}}</p>
+            <p><span class='info-label'>Data:</span> {{ASSEMBLY_DATE}}</p>
+            <p><span class='info-label'>Hora:</span> {{ASSEMBLY_TIME}}</p>
+            <p><span class='info-label'>Local:</span> {{ASSEMBLY_LOCATION}}</p>
+            <p><span class='info-label'>Quórum:</span> {{QUORUM}}%</p>
+        </div>
+        
+        <div class='quorum-info'>
+            <strong>Nota:</strong> Para que a assembleia seja válida, é necessário que esteja presente um mínimo de {{QUORUM}}% da permilagem total do condomínio.
+        </div>
+        
+        <div class='description'>
+            <h3 style='margin-top: 0;'>Ordem de Trabalhos:</h3>
+            <div>{{ASSEMBLY_DESCRIPTION}}</div>
+        </div>
+        
+        <p style='margin-top: 30px;'><strong>Instruções:</strong></p>
+        <ul>
+            <li>Por favor, confirme a sua presença através do sistema online</li>
+            <li>Em caso de impossibilidade de presença, pode nomear um representante mediante procuração</li>
+            <li>A assembleia iniciará pontualmente no horário indicado</li>
+        </ul>
+    </div>
+    <div class='footer'>
+        <p>Esta convocatória foi gerada automaticamente pelo sistema de gestão de condomínios.</p>
+        <p>Data de geração: {{GENERATION_DATE}}</p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,124 @@
+/**
+ * Template 2 - Moderno
+ * Cores azuis modernas, gradientes suaves
+ */
+:root {
+  /* Primary Colors - Azul moderno */
+  --color-primary: #667eea;
+  --color-primary-dark: #5568d3;
+  --color-primary-light: #8b9ff0;
+
+  /* Accent Colors */
+  --color-accent: #764ba2;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-info: #4facfe;
+
+  /* Background Colors - Tonalidades mais claras */
+  --color-bg: #ffffff;
+  --color-bg-light: #f0f4ff;
+  --color-bg-dark: #1e293b;
+
+  /* Border Colors - Tons azuis suaves */
+  --color-border: #c7d2fe;
+  --color-border-dark: #a5b4fc;
+}
+
+/* Bootstrap Override Variables */
+:root {
+  --bs-card-header-bg: hsl(252 94% 67%);
+  --bs-card-header-text: hsl(0 0% 100%);
+  --bs-card-header-border: hsl(252 94% 62%);
+  --bs-card-header-bg-alt: hsl(252 94% 67%);
+}
+
+/* Card Header Overrides */
+.card-header.bg-primary {
+  background-color: hsl(252 94% 67%) !important;
+  color: hsl(0 0% 100%) !important;
+  border-color: hsl(252 94% 62%) !important;
+}
+
+/* Button Overrides */
+.btn-primary {
+  background-color: #667eea !important;
+  border-color: #667eea !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.btn-primary:hover {
+  background-color: #5568d3 !important;
+  border-color: #5568d3 !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.btn-outline-primary {
+  color: #667eea !important;
+  border-color: #667eea !important;
+}
+
+.btn-outline-primary:hover {
+  background-color: #667eea !important;
+  border-color: #667eea !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.badge.bg-primary {
+  background-color: #667eea !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+/* Sidebar styling */
+.sidebar {
+  background: var(--color-bg-light) !important;
+}
+
+.sidebar-nav .nav-link:hover {
+  background: rgba(102, 126, 234, 0.1) !important;
+  color: var(--color-primary) !important;
+}
+
+/* Links */
+a {
+  color: var(--color-primary) !important;
+}
+
+a:hover {
+  color: var(--color-primary-dark) !important;
+}
+
+/* Main Content Background */
+.main-content {
+  background: var(--color-bg-light) !important;
+}
+
+/* Cards */
+.card {
+  background: var(--color-bg) !important;
+  border-color: var(--color-border) !important;
+}
+
+.card-body {
+  background: var(--color-bg) !important;
+}
+
+/* Tables */
+table {
+  background: var(--color-bg) !important;
+}
+
+table thead th {
+  background: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+table tbody td {
+  background: var(--color-bg) !important;
+  border-color: var(--color-border) !important;
+}
+
+table tbody tr:hover {
+  background: var(--color-bg-light) !important;
+}

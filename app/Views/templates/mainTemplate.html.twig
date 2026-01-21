@@ -22,6 +22,13 @@
 
     <!-- Custom CSS -->
     <link href="{{ BASE_URL }}assets/css/main.css?v={{ VERSION }}" rel="stylesheet">
+    
+    <!-- Template CSS (if template_id is set and valid) - Must be AFTER main.css to override variables -->
+    {% if template_id is defined and template_id is not null and template_id >= 1 and template_id <= 7 %}
+    <!-- Loading template {{ template_id }} CSS -->
+    <link href="{{ BASE_URL }}assets/css/templates/template_{{ template_id }}.css?v={{ VERSION }}" rel="stylesheet">
+    {% endif %}
+    
     <link href="{{ BASE_URL }}assets/css/homepage.css?v={{ VERSION }}" rel="stylesheet">
     <link href="{{ BASE_URL }}assets/css/help.css?v={{ VERSION }}" rel="stylesheet">
 </head>

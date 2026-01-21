@@ -207,7 +207,9 @@ class RoleMiddleware
                     }
                 }
                 
-                // Only allow view mode switch if user has both roles
+                // Allow view mode switch if:
+                // 1. User has both roles (can switch between admin/condomino)
+                // 2. User has only the role matching the view_mode (e.g., only condomino and view_mode is condomino)
                 if ($hasAdminRole && $hasCondominoRole) {
                     // Return the view mode from session (admin or condomino)
                     // This overrides the default admin role for owners
@@ -215,9 +217,21 @@ class RoleMiddleware
                         error_log("RoleMiddleware::getUserRoleInCondominium - Returning view mode: {$viewMode} (hasAdminRole: " . ($hasAdminRole ? 'true' : 'false') . ", hasCondominoRole: " . ($hasCondominoRole ? 'true' : 'false') . ")");
                     }
                     return $viewMode;
+                } elseif ($viewMode === 'condomino' && $hasCondominoRole && !$hasAdminRole) {
+                    // User is only condomino and view_mode is condomino - respect it
+                    if (defined('APP_ENV') && APP_ENV !== 'production') {
+                        error_log("RoleMiddleware::getUserRoleInCondominium - Returning condomino view mode (user is only condomino)");
+                    }
+                    return 'condomino';
+                } elseif ($viewMode === 'admin' && $hasAdminRole && !$hasCondominoRole) {
+                    // User is only admin and view_mode is admin - respect it
+                    if (defined('APP_ENV') && APP_ENV !== 'production') {
+                        error_log("RoleMiddleware::getUserRoleInCondominium - Returning admin view mode (user is only admin)");
+                    }
+                    return 'admin';
                 } else {
                     if (defined('APP_ENV') && APP_ENV !== 'production') {
-                        error_log("RoleMiddleware::getUserRoleInCondominium - View mode set but user doesn't have both roles (hasAdminRole: " . ($hasAdminRole ? 'true' : 'false') . ", hasCondominoRole: " . ($hasCondominoRole ? 'true' : 'false') . ") - Will fall through to default role check");
+                        error_log("RoleMiddleware::getUserRoleInCondominium - View mode set but doesn't match user's roles (hasAdminRole: " . ($hasAdminRole ? 'true' : 'false') . ", hasCondominoRole: " . ($hasCondominoRole ? 'true' : 'false') . ", viewMode: {$viewMode}) - Will fall through to default role check");
                     }
                 }
             }

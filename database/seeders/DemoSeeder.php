@@ -333,6 +333,7 @@ class DemoSeeder
         $existingCondominiums = $stmt->fetchAll();
 
         // Define 2 distinct condominiums
+        // Note: logo_path here is the source path in assets/images, it will be copied to storage
         $condominiumsData = [
             [
                 'name' => 'Residencial Sol Nascente',
@@ -341,7 +342,9 @@ class DemoSeeder
                 'city' => 'Lisboa',
                 'country' => 'Portugal',
                 'nif' => '500000000',
-                'total_fractions' => 10
+                'total_fractions' => 10,
+                'logo_path' => 'assets/images/2596845_condominium_400x267.jpg',
+                'document_template' => null // Default template
             ],
             [
                 'name' => 'Edifício Mar Atlântico',
@@ -350,7 +353,9 @@ class DemoSeeder
                 'city' => 'Porto',
                 'country' => 'Portugal',
                 'nif' => '500000001',
-                'total_fractions' => 8
+                'total_fractions' => 8,
+                'logo_path' => 'assets/images/77106082_modern-apartment-building_400x600.jpg',
+                'document_template' => 3 // Dark mode template (Elegante)
             ]
         ];
 
@@ -404,6 +409,12 @@ class DemoSeeder
                 $condominiumId = $existingByName[$data['name']];
                 echo "   Reutilizando condomínio demo '{$data['name']}' (ID: {$condominiumId})\n";
 
+                // Copy logo to storage if provided
+                $logoPath = null;
+                if (!empty($data['logo_path'])) {
+                    $logoPath = $this->copyLogoToStorage($condominiumId, $data['logo_path']);
+                }
+                
                 // Update condominium data to ensure it's correct
                 // Note: Data cleaning should be handled by deleteDemoData() before run() is called
                 // We don't clean here to avoid double execution when restore-demo.php calls deleteDemoData() first
@@ -416,6 +427,8 @@ class DemoSeeder
                         country = :country,
                         nif = :nif,
                         total_fractions = :total_fractions,
+                        logo_path = :logo_path,
+                        document_template = :document_template,
                         is_active = :is_active,
                         is_demo = :is_demo
                     WHERE id = :id
@@ -429,6 +442,8 @@ class DemoSeeder
                     ':country' => $data['country'],
                     ':nif' => $data['nif'],
                     ':total_fractions' => $data['total_fractions'],
+                    ':logo_path' => $logoPath,
+                    ':document_template' => $data['document_template'],
                     ':is_active' => 1,
                     ':is_demo' => 1
                 ]);
@@ -450,6 +465,24 @@ class DemoSeeder
                     'is_demo' => true
                 ]);
                 echo "   Condomínio demo '{$data['name']}' criado (ID: {$condominiumId})\n";
+
+                // Copy logo to storage and update logo_path and template
+                $logoPath = null;
+                if (!empty($data['logo_path'])) {
+                    $logoPath = $this->copyLogoToStorage($condominiumId, $data['logo_path']);
+                }
+                
+                $updateStmt = $this->db->prepare("
+                    UPDATE condominiums
+                    SET logo_path = :logo_path,
+                        document_template = :document_template
+                    WHERE id = :id
+                ");
+                $updateStmt->execute([
+                    ':id' => $condominiumId,
+                    ':logo_path' => $logoPath,
+                    ':document_template' => $data['document_template']
+                ]);
 
                 // Create entry in condominium_users with admin role for owner
                 $this->ensureOwnerAdminRole($condominiumId, $this->demoUserId);
@@ -491,8 +524,59 @@ class DemoSeeder
     }
 
     /**
-     * Ensure owner has entry in condominium_users with admin role
+     * Copy logo file from assets/images to storage/condominiums/{id}/logo/
+     * @param int $condominiumId Condominium ID
+     * @param string $sourcePath Source path relative to project root (e.g., 'assets/images/logo.jpg')
+     * @return string|null Storage path relative to storage folder (e.g., 'condominiums/1/logo/logo.jpg') or null on error
      */
+    protected function copyLogoToStorage(int $condominiumId, string $sourcePath): ?string
+    {
+        $projectRoot = __DIR__ . '/../..';
+        $sourceFile = $projectRoot . '/' . $sourcePath;
+        
+        // Check if source file exists
+        if (!file_exists($sourceFile)) {
+            echo "   Aviso: Arquivo de logo não encontrado: {$sourcePath}\n";
+            return null;
+        }
+        
+        // Get file extension
+        $extension = strtolower(pathinfo($sourceFile, PATHINFO_EXTENSION));
+        if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+            echo "   Aviso: Extensão de arquivo não suportada: {$extension}\n";
+            return null;
+        }
+        
+        // Create storage directory structure: storage/condominiums/{condominium_id}/logo/
+        $storageBasePath = $projectRoot . '/storage';
+        $storagePath = 'condominiums/' . $condominiumId . '/logo/';
+        $fullStoragePath = $storageBasePath . '/' . $storagePath;
+        
+        if (!is_dir($fullStoragePath)) {
+            mkdir($fullStoragePath, 0755, true);
+        }
+        
+        // Delete old logo if exists
+        $oldLogoPath = $fullStoragePath . 'logo.*';
+        $oldLogos = glob($oldLogoPath);
+        foreach ($oldLogos as $oldLogo) {
+            if (is_file($oldLogo)) {
+                unlink($oldLogo);
+            }
+        }
+        
+        // Copy file to storage
+        $filename = 'logo.' . $extension;
+        $destinationFile = $fullStoragePath . $filename;
+        
+        if (!copy($sourceFile, $destinationFile)) {
+            echo "   Aviso: Erro ao copiar logo para storage\n";
+            return null;
+        }
+        
+        return $storagePath . $filename;
+    }
+
     protected function ensureOwnerAdminRole(int $condominiumId, int $userId): void
     {
         // Check if entry already exists

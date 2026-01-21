@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <title>Recibo de Quota</title>
+    <style>
+        @page { margin: 1.5cm; }
+        body { 
+            font-family: 'Georgia', 'Times New Roman', serif; 
+            margin: 0;
+            padding: 15px;
+            line-height: 1.5;
+            color: #1a1a1a;
+            font-size: 10pt;
+            background: #fafafa;
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 3px double #2c2c2c;
+            background: #ffffff;
+            position: relative;
+        }
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(to right, #2c2c2c, #666, #2c2c2c);
+        }
+        .header-logo {
+            max-width: 140px;
+            max-height: 75px;
+            margin-bottom: 10px;
+        }
+        .header h1 { 
+            color: #1a1a1a;
+            font-size: 20px;
+            margin: 8px 0;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-weight: 700;
+            font-style: italic;
+        }
+        .info-box {
+            background-color: #ffffff;
+            border: 2px solid #2c2c2c;
+            padding: 12px;
+            margin: 10px 0;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+        }
+        .info-box h2 {
+            margin-top: 0;
+            font-size: 13px;
+            color: #1a1a1a;
+            padding-bottom: 6px;
+            margin-bottom: 8px;
+            border-bottom: 2px solid #2c2c2c;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .info-row {
+            display: flex;
+            margin: 5px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .info-label {
+            font-weight: 700;
+            width: 140px;
+            flex-shrink: 0;
+            font-size: 9.5pt;
+            color: #2c2c2c;
+        }
+        .info-value {
+            flex: 1;
+            font-size: 9.5pt;
+            color: #1a1a1a;
+        }
+        .amount-box {
+            background: #2c2c2c;
+            color: #ffffff;
+            padding: 18px;
+            margin: 18px 0;
+            text-align: center;
+            border: 3px double #ffffff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        .amount-box .label {
+            font-size: 11px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .amount-box .value {
+            font-size: 28px;
+            font-weight: bold;
+            font-style: italic;
+        }
+        .footer { 
+            margin-top: 20px;
+            padding-top: 12px;
+            border-top: 2px solid #2c2c2c;
+            font-size: 8px;
+            color: #666;
+            text-align: center;
+            font-style: italic;
+        }
+        .signature-section {
+            margin-top: 25px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .signature-box {
+            width: 45%;
+            text-align: center;
+            border-top: 2px solid #2c2c2c;
+            padding-top: 8px;
+            margin-top: 30px;
+            font-size: 9pt;
+            color: #1a1a1a;
+            font-weight: 600;
+        }
+        .receipt-number {
+            text-align: right;
+            font-size: 9px;
+            color: #666;
+            margin-bottom: 15px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class='receipt-number'>
+        <strong>Nº Recibo:</strong> {{RECEIPT_NUMBER}}
+    </div>
+    <div class='header'>
+        {{LOGO_HTML}}
+        <h1>RECIBO DE QUOTA</h1>
+    </div>
+    
+    <div class='info-box'>
+        <h2>Dados do Condomínio</h2>
+        <div class='info-row'>
+            <span class='info-label'>Condomínio:</span>
+            <span class='info-value'>{{CONDOMINIUM_NAME}}</span>
+        </div>
+        <div class='info-row'>
+            <span class='info-label'>Morada:</span>
+            <span class='info-value'>{{CONDOMINIUM_ADDRESS}}</span>
+        </div>
+        {{CONDOMINIUM_NIF_ROW}}
+    </div>
+
+    <div class='info-box'>
+        <h2>Dados da Quota</h2>
+        <div class='info-row'>
+            <span class='info-label'>Fração:</span>
+            <span class='info-value'><strong>{{FRACTION_IDENTIFIER}}</strong></span>
+        </div>
+        <div class='info-row'>
+            <span class='info-label'>Período:</span>
+            <span class='info-value'>{{PERIOD}}</span>
+        </div>
+        <div class='info-row'>
+            <span class='info-label'>Referência:</span>
+            <span class='info-value'>{{FEE_REFERENCE}}</span>
+        </div>
+        <div class='info-row'>
+            <span class='info-label'>Data de Vencimento:</span>
+            <span class='info-value'>{{DUE_DATE}}</span>
+        </div>
+    </div>
+
+    <div class='amount-box'>
+        <div class='label'>Valor Recebido</div>
+        <div class='value'>{{AMOUNT}}</div>
+    </div>
+
+    {{PAYMENT_INFO}}
+
+    <div class='info-box' style='background-color: #f0f0f0; border-color: #28a745; padding: 10px;'>
+        <p style='margin: 0; text-align: center; font-size: 11px; color: #155724; font-weight: 700;'><strong>✓ Quota totalmente liquidada</strong></p>
+    </div>
+
+    <div class='footer'>
+        <p style='margin: 2px 0;'>Este recibo foi gerado automaticamente pelo sistema de gestão de condomínios.</p>
+        <p style='margin: 2px 0;'>Data de geração: {{GENERATION_DATE}}</p>
+        <p style='margin-top: 4px; margin-bottom: 0;'>Este documento tem valor fiscal e comprovativo do pagamento da quota de condomínio.</p>
+    </div>
+
+    <div class='signature-section'>
+        <div class='signature-box'>
+            <p style='margin: 0;'><strong>Condómino</strong></p>
+        </div>
+        <div class='signature-box'>
+            <p style='margin: 0;'><strong>Administrador do Condomínio</strong></p>
+        </div>
+    </div>
+</body>
+</html>

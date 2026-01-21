@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <title>Recibo de Quota</title>
+    <style>
+        @page { margin: 1cm; }
+        body { 
+            font-family: 'Calibri', 'Arial', sans-serif; 
+            margin: 0;
+            padding: 10px;
+            line-height: 1.4;
+            color: #374151;
+            font-size: 9.5pt;
+            background: #f3f4f6;
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 12px;
+            padding: 15px;
+            background: #374151;
+            color: white;
+            border-radius: 3px;
+        }
+        .header-logo {
+            max-width: 140px;
+            max-height: 70px;
+            margin-bottom: 8px;
+            filter: brightness(0) invert(1);
+        }
+        .header h1 { 
+            color: #ffffff;
+            font-size: 16px;
+            margin: 5px 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        .info-box {
+            background-color: #ffffff;
+            border: 1px solid #d1d5db;
+            padding: 10px;
+            margin: 8px 0;
+            border-left: 3px solid #6b7280;
+        }
+        .info-box h2 {
+            margin-top: 0;
+            font-size: 11px;
+            color: #374151;
+            padding-bottom: 5px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #d1d5db;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .info-row {
+            display: flex;
+            margin: 4px 0;
+            padding: 4px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .info-label {
+            font-weight: 600;
+            width: 130px;
+            flex-shrink: 0;
+            font-size: 9pt;
+            color: #6b7280;
+        }
+        .info-value {
+            flex: 1;
+            font-size: 9pt;
+            color: #111827;
+        }
+        .amount-box {
+            background: #374151;
+            color: white;
+            padding: 12px;
+            margin: 12px 0;
+            text-align: center;
+            border-radius: 3px;
+        }
+        .amount-box .label {
+            font-size: 10px;
+            opacity: 0.9;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+        .amount-box .value {
+            font-size: 21px;
+            font-weight: bold;
+        }
+        .footer { 
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #d1d5db;
+            font-size: 8px;
+            color: #6b7280;
+            text-align: center;
+        }
+        .signature-section {
+            margin-top: 18px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .signature-box {
+            width: 45%;
+            text-align: center;
+            border-top: 2px solid #6b7280;
+            padding-top: 5px;
+            margin-top: 20px;
+            font-size: 9pt;
+            color: #374151;
+            font-weight: 600;
+        }
+        .receipt-number {
+            text-align: right;
+            font-size: 9px;
+            color: #6b7280;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class='receipt-number'>
+        <strong>Nº Recibo:</strong> {{RECEIPT_NUMBER}}
+    </div>
+    <div class='header'>
+        {{LOGO_HTML}}
+        <h1>RECIBO DE QUOTA</h1>
+    </div>
+    
+    <div class='info-box'>
+        <h2>Dados do Condomínio</h2>
+        <div class='info-row'>
+            <span class='info-label'>Condomínio:</span>
+            <span class='info-value'>{{CONDOMINIUM_NAME}}</span>
+        </div>
+        <div class='info-row'>
+            <span class='info-label'>Morada:</span>
+            <span class='info-value'>{{CONDOMINIUM_ADDRESS}}</span>
+        </div>
+        {{CONDOMINIUM_NIF_ROW}}
+    </div>
+
+    <div class='info-box'>
+        <h2>Dados da Quota</h2>
+        <div class='info-row'>
+            <span class='info-label'>Fração:</span>
+            <span class='info-value'><strong>{{FRACTION_IDENTIFIER}}</strong></span>
+        </div>
+        <div class='info-row'>
+            <span class='info-label'>Período:</span>
+            <span class='info-value'>{{PERIOD}}</span>
+        </div>
+        <div class='info-row'>
+            <span class='info-label'>Referência:</span>
+            <span class='info-value'>{{FEE_REFERENCE}}</span>
+        </div>
+        <div class='info-row'>
+            <span class='info-label'>Data de Vencimento:</span>
+            <span class='info-value'>{{DUE_DATE}}</span>
+        </div>
+    </div>
+
+    <div class='amount-box'>
+        <div class='label'>Valor Recebido</div>
+        <div class='value'>{{AMOUNT}}</div>
+    </div>
+
+    {{PAYMENT_INFO}}
+
+    <div class='info-box' style='background-color: #d1fae5; border-left-color: #10b981; padding: 8px;'>
+        <p style='margin: 0; text-align: center; font-size: 10px; color: #065f46; font-weight: 600;'><strong>✓ Quota totalmente liquidada</strong></p>
+    </div>
+
+    <div class='footer'>
+        <p style='margin: 2px 0;'>Este recibo foi gerado automaticamente pelo sistema de gestão de condomínios.</p>
+        <p style='margin: 2px 0;'>Data de geração: {{GENERATION_DATE}}</p>
+        <p style='margin-top: 4px; margin-bottom: 0;'>Este documento tem valor fiscal e comprovativo do pagamento da quota de condomínio.</p>
+    </div>
+
+    <div class='signature-section'>
+        <div class='signature-box'>
+            <p style='margin: 0;'><strong>Condómino</strong></p>
+        </div>
+        <div class='signature-box'>
+            <p style='margin: 0;'><strong>Administrador do Condomínio</strong></p>
+        </div>
+    </div>
+</body>
+</html>

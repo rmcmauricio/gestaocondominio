@@ -1,0 +1,124 @@
+/**
+ * Template 5 - Corporativo
+ * Cores formais (azul escuro/branco), layout estruturado
+ */
+:root {
+  /* Primary Colors - Azul corporativo */
+  --color-primary: #1e3a5f;
+  --color-primary-dark: #152a47;
+  --color-primary-light: #2d4f7a;
+
+  /* Accent Colors */
+  --color-accent: #3b82f6;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-info: #3b82f6;
+
+  /* Background Colors - Formais e limpos */
+  --color-bg: #ffffff;
+  --color-bg-light: #f0f4f8;
+  --color-bg-dark: #0f172a;
+
+  /* Border Colors - Azuis corporativos */
+  --color-border: #cbd5e1;
+  --color-border-dark: #94a3b8;
+}
+
+/* Bootstrap Override Variables */
+:root {
+  --bs-card-header-bg: hsl(214 64% 22%);
+  --bs-card-header-text: hsl(0 0% 100%);
+  --bs-card-header-border: hsl(214 64% 27%);
+  --bs-card-header-bg-alt: hsl(214 64% 22%);
+}
+
+/* Card Header Overrides */
+.card-header.bg-primary {
+  background-color: hsl(214 64% 22%) !important;
+  color: hsl(0 0% 100%) !important;
+  border-color: hsl(214 64% 27%) !important;
+}
+
+/* Button Overrides */
+.btn-primary {
+  background-color: #1e3a5f !important;
+  border-color: #1e3a5f !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.btn-primary:hover {
+  background-color: #152a47 !important;
+  border-color: #152a47 !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.btn-outline-primary {
+  color: #1e3a5f !important;
+  border-color: #1e3a5f !important;
+}
+
+.btn-outline-primary:hover {
+  background-color: #1e3a5f !important;
+  border-color: #1e3a5f !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.badge.bg-primary {
+  background-color: #1e3a5f !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+/* Sidebar styling */
+.sidebar {
+  background: var(--color-bg-light) !important;
+}
+
+.sidebar-nav .nav-link:hover {
+  background: rgba(30, 58, 95, 0.1) !important;
+  color: var(--color-primary) !important;
+}
+
+/* Links */
+a {
+  color: var(--color-primary) !important;
+}
+
+a:hover {
+  color: var(--color-primary-dark) !important;
+}
+
+/* Main Content Background */
+.main-content {
+  background: var(--color-bg-light) !important;
+}
+
+/* Cards */
+.card {
+  background: var(--color-bg) !important;
+  border-color: var(--color-border) !important;
+}
+
+.card-body {
+  background: var(--color-bg) !important;
+}
+
+/* Tables */
+table {
+  background: var(--color-bg) !important;
+}
+
+table thead th {
+  background: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+table tbody td {
+  background: var(--color-bg) !important;
+  border-color: var(--color-border) !important;
+}
+
+table tbody tr:hover {
+  background: var(--color-bg-light) !important;
+}

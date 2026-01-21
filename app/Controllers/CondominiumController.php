@@ -179,6 +179,60 @@ class CondominiumController extends Controller
 
         // Update session with current condominium ID
         $_SESSION['current_condominium_id'] = $id;
+        
+        // Check user's role and set view_mode if not already set
+        $userId = AuthMiddleware::userId();
+        $viewModeKey = "condominium_{$id}_view_mode";
+        
+        // Only set view_mode if not already set
+        if (!isset($_SESSION[$viewModeKey])) {
+            global $db;
+            $hasAdminRole = false;
+            $hasCondominoRole = false;
+            
+            // Check if user is owner
+            $stmt = $db->prepare("SELECT id FROM condominiums WHERE id = :condominium_id AND user_id = :user_id");
+            $stmt->execute([
+                ':condominium_id' => $id,
+                ':user_id' => $userId
+            ]);
+            if ($stmt->fetch()) {
+                $hasAdminRole = true;
+            }
+            
+            // Check condominium_users table
+            $stmt = $db->prepare("
+                SELECT role, fraction_id
+                FROM condominium_users 
+                WHERE user_id = :user_id 
+                AND condominium_id = :condominium_id
+                AND (ended_at IS NULL OR ended_at > CURDATE())
+            ");
+            $stmt->execute([
+                ':user_id' => $userId,
+                ':condominium_id' => $id
+            ]);
+            $results = $stmt->fetchAll();
+            
+            foreach ($results as $result) {
+                if ($result['role'] === 'admin') {
+                    $hasAdminRole = true;
+                }
+                if ($result['fraction_id'] !== null) {
+                    $hasCondominoRole = true;
+                }
+            }
+            
+            // Set view_mode based on user's roles
+            if ($hasCondominoRole && !$hasAdminRole) {
+                // User is only condomino, set view mode to condomino
+                $_SESSION[$viewModeKey] = 'condomino';
+            } elseif ($hasAdminRole && !$hasCondominoRole) {
+                // User is only admin, set view mode to admin
+                $_SESSION[$viewModeKey] = 'admin';
+            }
+            // If user has both roles, don't set view_mode (will default to admin)
+        }
 
         $condominium = $this->condominiumModel->getWithStats($id);
         
@@ -394,10 +448,34 @@ class CondominiumController extends Controller
 
         $this->loadPageTranslations('condominiums');
         
+        // Get current template and logo
+        $currentTemplate = $this->condominiumModel->getDocumentTemplate($id);
+        $logoPath = $this->condominiumModel->getLogoPath($id);
+        $logoUrl = null;
+        if ($logoPath) {
+            $fileStorageService = new \App\Services\FileStorageService();
+            $logoUrl = $fileStorageService->getFileUrl($logoPath);
+        }
+
+        // Template options with descriptions
+        $templateOptions = [
+            null => ['name' => 'Padrão', 'description' => 'Template padrão do sistema'],
+            1 => ['name' => 'Clássico', 'description' => 'Estilo tradicional, cores neutras'],
+            2 => ['name' => 'Moderno', 'description' => 'Design limpo, cores azuis modernas'],
+            3 => ['name' => 'Elegante (Dark Mode)', 'description' => 'Estilo sofisticado, tema escuro elegante'],
+            4 => ['name' => 'Minimalista', 'description' => 'Design simples, muito espaço em branco'],
+            5 => ['name' => 'Corporativo', 'description' => 'Estilo empresarial, cores formais'],
+            6 => ['name' => 'Colorido', 'description' => 'Design vibrante, cores chamativas'],
+            7 => ['name' => 'Profissional (Dark Mode)', 'description' => 'Estilo conservador, tema escuro profissional']
+        ];
+        
         $this->data += [
             'viewName' => 'pages/condominiums/edit.html.twig',
             'page' => ['titulo' => 'Editar Condomínio'],
             'condominium' => $condominium,
+            'current_template' => $currentTemplate,
+            'logo_url' => $logoUrl,
+            'template_options' => $templateOptions,
             'csrf_token' => Security::generateCSRFToken()
         ];
 
@@ -447,7 +525,7 @@ class CondominiumController extends Controller
         }
 
         try {
-            $this->condominiumModel->update($id, [
+            $updateData = [
                 'name' => Security::sanitize($_POST['name'] ?? ''),
                 'address' => Security::sanitize($_POST['address'] ?? ''),
                 'postal_code' => Security::sanitize($_POST['postal_code'] ?? ''),
@@ -460,7 +538,48 @@ class CondominiumController extends Controller
                 'type' => Security::sanitize($_POST['type'] ?? 'habitacional'),
                 'total_fractions' => (int)($_POST['total_fractions'] ?? 0),
                 'rules' => Security::sanitize($_POST['rules'] ?? '')
-            ]);
+            ];
+
+            // Process template selection - ALWAYS include this field in update
+            $templateValue = $_POST['document_template'] ?? '';
+            if ($templateValue === '' || $templateValue === null || $templateValue === '0') {
+                // Empty, null, or '0' means default template (no custom CSS)
+                $updateData['document_template'] = null;
+            } else {
+                $templateId = (int)$templateValue;
+                if ($templateId >= 1 && $templateId <= 7) {
+                    $updateData['document_template'] = $templateId;
+                } else {
+                    // Invalid template ID, set to null (default)
+                    $updateData['document_template'] = null;
+                }
+            }
+
+            // Process logo upload
+            if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+                $fileStorageService = new \App\Services\FileStorageService();
+                try {
+                    // Delete old logo if exists
+                    $oldLogoPath = $this->condominiumModel->getLogoPath($id);
+                    if ($oldLogoPath) {
+                        try {
+                            $fileStorageService->delete($oldLogoPath);
+                        } catch (\Exception $e) {
+                            // Log error but continue with new upload
+                            error_log("Error deleting old logo: " . $e->getMessage());
+                        }
+                    }
+                    
+                    $logoData = $fileStorageService->uploadLogo($_FILES['logo'], $id);
+                    $updateData['logo_path'] = $logoData['file_path'];
+                } catch (\Exception $e) {
+                    $_SESSION['error'] = 'Erro ao fazer upload do logotipo: ' . $e->getMessage();
+                    header('Location: ' . BASE_URL . 'condominiums/' . $id . '/edit');
+                    exit;
+                }
+            }
+
+            $this->condominiumModel->update($id, $updateData);
 
             $_SESSION['success'] = 'Condomínio atualizado com sucesso!';
             header('Location: ' . BASE_URL . 'condominiums/' . $id);
@@ -503,6 +622,79 @@ class CondominiumController extends Controller
     }
 
     /**
+     * Remove logo from condominium
+     */
+    public function removeLogo(int $id)
+    {
+        AuthMiddleware::require();
+        
+        // Only admin can remove logo
+        $user = AuthMiddleware::user();
+        
+        // Check if user is admin or super_admin
+        if (!RoleMiddleware::hasAnyRole(['admin', 'super_admin'])) {
+            $_SESSION['error'] = 'Apenas administradores podem remover o logotipo.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/edit');
+            exit;
+        }
+        
+        // Check if user owns this condominium (or is super_admin)
+        if ($user['role'] !== 'super_admin') {
+            RoleMiddleware::requireCondominiumAccess($id);
+            
+            // Verify that user is the owner/admin of this condominium
+            $condominium = $this->condominiumModel->findById($id);
+            if (!$condominium || $condominium['user_id'] != $user['id']) {
+                $_SESSION['error'] = 'Apenas o administrador do condomínio pode remover o logotipo.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $id . '/edit');
+                exit;
+            }
+        } else {
+            // Super admin can remove logo from any condominium
+            RoleMiddleware::requireCondominiumAccess($id);
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/edit');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/edit');
+            exit;
+        }
+
+        try {
+            // Get current logo path
+            $logoPath = $this->condominiumModel->getLogoPath($id);
+            
+            // Delete logo file if exists
+            if ($logoPath) {
+                $fileStorageService = new \App\Services\FileStorageService();
+                try {
+                    $fileStorageService->delete($logoPath);
+                } catch (\Exception $e) {
+                    // Log error but continue with database update
+                    error_log("Error deleting logo file: " . $e->getMessage());
+                }
+            }
+            
+            // Update database to remove logo_path
+            $this->condominiumModel->update($id, ['logo_path' => null]);
+
+            $_SESSION['success'] = 'Logotipo removido com sucesso!';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/edit');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao remover logotipo: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/edit');
+            exit;
+        }
+    }
+
+    /**
      * Switch to a different condominium
      */
     public function switch(int $id)
@@ -519,6 +711,59 @@ class CondominiumController extends Controller
 
         // Set current condominium in session
         $_SESSION['current_condominium_id'] = $id;
+
+        // Check user's role in this condominium
+        $userId = AuthMiddleware::userId();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $id);
+        
+        // Check if user has both admin and condomino roles
+        global $db;
+        $hasAdminRole = false;
+        $hasCondominoRole = false;
+        
+        // Check if user is owner
+        $stmt = $db->prepare("SELECT id FROM condominiums WHERE id = :condominium_id AND user_id = :user_id");
+        $stmt->execute([
+            ':condominium_id' => $id,
+            ':user_id' => $userId
+        ]);
+        if ($stmt->fetch()) {
+            $hasAdminRole = true;
+        }
+        
+        // Check condominium_users table
+        $stmt = $db->prepare("
+            SELECT role, fraction_id
+            FROM condominium_users 
+            WHERE user_id = :user_id 
+            AND condominium_id = :condominium_id
+            AND (ended_at IS NULL OR ended_at > CURDATE())
+        ");
+        $stmt->execute([
+            ':user_id' => $userId,
+            ':condominium_id' => $id
+        ]);
+        $results = $stmt->fetchAll();
+        
+        foreach ($results as $result) {
+            if ($result['role'] === 'admin') {
+                $hasAdminRole = true;
+            }
+            if ($result['fraction_id'] !== null) {
+                $hasCondominoRole = true;
+            }
+        }
+        
+        // If user is ONLY condomino (not admin), automatically set view mode to condomino
+        $viewModeKey = "condominium_{$id}_view_mode";
+        if ($hasCondominoRole && !$hasAdminRole) {
+            // User is only condomino, set view mode to condomino
+            $_SESSION[$viewModeKey] = 'condomino';
+        } elseif ($hasAdminRole && !$hasCondominoRole) {
+            // User is only admin, set view mode to admin
+            $_SESSION[$viewModeKey] = 'admin';
+        }
+        // If user has both roles, keep current view mode (or default to admin)
 
         // Redirect to condominium overview
         header('Location: ' . BASE_URL . 'condominiums/' . $id);

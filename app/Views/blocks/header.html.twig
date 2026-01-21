@@ -1,7 +1,11 @@
 <header id="header" class="header {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName or viewName == 'pages/help/index.html.twig' %}header-homepage{% endif %}">
   <div class="container">
     <a href="{{ BASE_URL }}" class="logo">
-      <img src="{{ BASE_URL }}assets/images/logo.svg" alt="O Meu Prédio" class="logo-img">
+      {% if template_id is defined and template_id == 3 or template_id == 7 %}
+        <img src="{{ BASE_URL }}assets/images/logo-dark.svg" alt="O Meu Prédio" class="logo-img">
+      {% else %}
+        <img src="{{ BASE_URL }}assets/images/logo.svg" alt="O Meu Prédio" class="logo-img">
+      {% endif %}
     </a>
 
     <div class="header-actions">

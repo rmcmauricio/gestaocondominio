@@ -5,6 +5,48 @@ namespace App\Services;
 class PdfService
 {
     /**
+     * Get template path for document type
+     * @param int|null $templateId Template ID (1-7), null for default template
+     * @param string $documentType Type: 'receipt', 'minutes', 'convocation'
+     * @return string Template file path
+     */
+    protected function getTemplatePath(?int $templateId, string $documentType): string
+    {
+        // If template ID is null, use default template (1)
+        if ($templateId === null) {
+            $templateId = 1;
+        }
+        
+        // Validate template ID
+        if ($templateId < 1 || $templateId > 7) {
+            $templateId = 1; // Fallback to default
+        }
+        
+        $templateFile = __DIR__ . '/../Templates/document_templates/' . $documentType . '_template_' . $templateId . '.html';
+        
+        // If template doesn't exist, fallback to template 1
+        if (!file_exists($templateFile)) {
+            $templateFile = __DIR__ . '/../Templates/document_templates/' . $documentType . '_template_1.html';
+        }
+        
+        return $templateFile;
+    }
+
+    /**
+     * Generate logo HTML for templates
+     * @param string|null $logoUrl Logo URL or null
+     * @return string HTML for logo or empty string
+     */
+    protected function getLogoHtml(?string $logoUrl): string
+    {
+        if (!$logoUrl) {
+            return '';
+        }
+        
+        return '<img src="' . htmlspecialchars($logoUrl) . '" alt="Logo" class="header-logo">';
+    }
+
+    /**
      * Generate assembly convocation PDF
      */
     public function generateConvocation(int $assemblyId, array $assembly, array $attendees): string
@@ -53,128 +95,79 @@ class PdfService
      */
     protected function getConvocationHtml(array $assembly, array $attendees): string
     {
+        // Get condominium info
+        $condominiumModel = new \App\Models\Condominium();
+        $condominium = $condominiumModel->findById($assembly['condominium_id']);
+        
+        // Get template ID (null means default template, which will be handled by getTemplatePath)
+        $templateId = $condominium ? $condominiumModel->getDocumentTemplate($assembly['condominium_id']) : 1;
+        if ($templateId === null) {
+            $templateId = 1; // Default template
+        }
+        
+        // Get logo URL
+        $logoPath = $condominium ? $condominiumModel->getLogoPath($assembly['condominium_id']) : null;
+        $logoUrl = null;
+        if ($logoPath) {
+            $fileStorageService = new \App\Services\FileStorageService();
+            $logoUrl = $fileStorageService->getFileUrl($logoPath);
+        }
+        
+        // Load template
+        $templatePath = $this->getTemplatePath($templateId, 'convocation');
+        $template = file_get_contents($templatePath);
+        
+        // Prepare data
         $date = date('d/m/Y', strtotime($assembly['scheduled_date']));
         $time = date('H:i', strtotime($assembly['scheduled_date']));
-        // Map type for display
         $type = ($assembly['type'] === 'extraordinary' || $assembly['type'] === 'extraordinaria') ? 'Extraordinária' : 'Ordinária';
         $quorum = $assembly['quorum_percentage'] ?? 50;
+        $location = $assembly['location'] ?? 'A definir';
+        $description = nl2br(htmlspecialchars($assembly['description'] ?? $assembly['agenda'] ?? 'A definir na assembleia'));
+        $generationDate = date('d/m/Y H:i');
         
-        return "
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset='UTF-8'>
-            <title>Convocatória de Assembleia</title>
-            <style>
-                @page { margin: 2cm; }
-                body { 
-                    font-family: 'Times New Roman', serif; 
-                    margin: 0;
-                    padding: 20px;
-                    line-height: 1.6;
-                    color: #333;
-                }
-                .header { 
-                    text-align: center; 
-                    margin-bottom: 40px;
-                    border-bottom: 3px solid #333;
-                    padding-bottom: 20px;
-                }
-                .header h1 { 
-                    color: #1a1a1a;
-                    font-size: 24px;
-                    margin: 0;
-                    text-transform: uppercase;
-                    letter-spacing: 2px;
-                }
-                .header .subtitle {
-                    font-size: 14px;
-                    color: #666;
-                    margin-top: 10px;
-                }
-                .content { 
-                    line-height: 1.8;
-                    margin-bottom: 30px;
-                }
-                .info-box {
-                    background-color: #f9f9f9;
-                    border-left: 4px solid #007bff;
-                    padding: 15px;
-                    margin: 20px 0;
-                }
-                .info-box p {
-                    margin: 5px 0;
-                }
-                .info-label {
-                    font-weight: bold;
-                    display: inline-block;
-                    width: 150px;
-                }
-                .description {
-                    margin-top: 20px;
-                    padding: 15px;
-                    background-color: #f5f5f5;
-                    border-radius: 5px;
-                }
-                .footer { 
-                    margin-top: 50px;
-                    padding-top: 20px;
-                    border-top: 1px solid #ddd;
-                    font-size: 11px;
-                    color: #666;
-                    text-align: center;
-                }
-                .quorum-info {
-                    background-color: #e7f3ff;
-                    padding: 10px;
-                    border-radius: 5px;
-                    margin: 15px 0;
-                }
-            </style>
-        </head>
-        <body>
-            <div class='header'>
-                <h1>CONVOCATÓRIA DE ASSEMBLEIA</h1>
-                <div class='subtitle'>Sistema de Gestão de Condomínios</div>
-            </div>
-            <div class='content'>
-                <div class='info-box'>
-                    <p><span class='info-label'>Título:</span> {$assembly['title']}</p>
-                    <p><span class='info-label'>Tipo:</span> {$type}</p>
-                    <p><span class='info-label'>Data:</span> {$date}</p>
-                    <p><span class='info-label'>Hora:</span> {$time}</p>
-                    <p><span class='info-label'>Local:</span> " . ($assembly['location'] ?? 'A definir') . "</p>
-                    <p><span class='info-label'>Quórum:</span> {$quorum}%</p>
-                </div>
-                
-                <div class='quorum-info'>
-                    <strong>Nota:</strong> Para que a assembleia seja válida, é necessário que esteja presente um mínimo de {$quorum}% da permilagem total do condomínio.
-                </div>
-                
-                <div class='description'>
-                    <h3 style='margin-top: 0;'>Ordem de Trabalhos:</h3>
-                    <div>" . nl2br(htmlspecialchars($assembly['description'] ?? $assembly['agenda'] ?? 'A definir na assembleia')) . "</div>
-                </div>
-                
-                <p style='margin-top: 30px;'><strong>Instruções:</strong></p>
-                <ul>
-                    <li>Por favor, confirme a sua presença através do sistema online</li>
-                    <li>Em caso de impossibilidade de presença, pode nomear um representante mediante procuração</li>
-                    <li>A assembleia iniciará pontualmente no horário indicado</li>
-                </ul>
-            </div>
-            <div class='footer'>
-                <p>Esta convocatória foi gerada automaticamente pelo sistema de gestão de condomínios.</p>
-                <p>Data de geração: " . date('d/m/Y H:i') . "</p>
-            </div>
-        </body>
-        </html>";
+        // Replace placeholders
+        $template = str_replace('{{LOGO_HTML}}', $this->getLogoHtml($logoUrl), $template);
+        $template = str_replace('{{ASSEMBLY_TITLE}}', htmlspecialchars($assembly['title'] ?? ''), $template);
+        $template = str_replace('{{ASSEMBLY_TYPE}}', $type, $template);
+        $template = str_replace('{{ASSEMBLY_DATE}}', $date, $template);
+        $template = str_replace('{{ASSEMBLY_TIME}}', $time, $template);
+        $template = str_replace('{{ASSEMBLY_LOCATION}}', htmlspecialchars($location), $template);
+        $template = str_replace('{{QUORUM}}', $quorum, $template);
+        $template = str_replace('{{ASSEMBLY_DESCRIPTION}}', $description, $template);
+        $template = str_replace('{{GENERATION_DATE}}', $generationDate, $template);
+        
+        return $template;
     }
 
     /**
      * Get minutes HTML
      */
     protected function getMinutesHtml(array $assembly, array $attendees, array $votes): string
+    {
+        // Use populateMinutesTemplate which already handles templates
+        $voteTopicModel = new \App\Models\VoteTopic();
+        $topics = $voteTopicModel->getByAssembly($assembly['id']);
+        $agendaPointModel = new \App\Models\AssemblyAgendaPoint();
+        $agendaPoints = $agendaPointModel->getByAssembly($assembly['id']);
+        
+        // Calculate vote results
+        $voteResults = [];
+        $voteModel = new \App\Models\Vote();
+        foreach ($topics as $topic) {
+            $res = $voteModel->calculateResults($topic['id']);
+            $res['votes_by_fraction'] = $voteModel->getByTopic($topic['id']);
+            $voteResults[$topic['id']] = $res;
+        }
+        
+        return $this->populateMinutesTemplate($assembly, $attendees, $topics, $voteResults, $agendaPoints);
+    }
+    
+    /**
+     * Get minutes HTML (old method - kept for backward compatibility but now uses templates)
+     * @deprecated This method now delegates to populateMinutesTemplate
+     */
+    protected function getMinutesHtmlOld(array $assembly, array $attendees, array $votes): string
     {
         $date = date('d/m/Y', strtotime($assembly['scheduled_date']));
         $time = date('H:i', strtotime($assembly['scheduled_date']));
@@ -493,17 +486,36 @@ class PdfService
      */
     public function populateMinutesTemplate(array $assembly, array $attendees, array $topics, array $voteResults, array $agendaPoints = []): string
     {
-        // Load template base
-        $templatePath = __DIR__ . '/../Templates/minutes_template.html';
+        // Get condominium info
+        $condominiumModel = new \App\Models\Condominium();
+        $condominium = $condominiumModel->findById($assembly['condominium_id']);
+        
+        // Get template ID (null means default template, which will be handled by getTemplatePath)
+        $templateId = $condominium ? $condominiumModel->getDocumentTemplate($assembly['condominium_id']) : 1;
+        if ($templateId === null) {
+            $templateId = 1; // Default template
+        }
+        
+        // Get logo URL
+        $logoPath = $condominium ? $condominiumModel->getLogoPath($assembly['condominium_id']) : null;
+        $logoUrl = null;
+        if ($logoPath) {
+            $fileStorageService = new \App\Services\FileStorageService();
+            $logoUrl = $fileStorageService->getFileUrl($logoPath);
+        }
+        
+        // Load template
+        $templatePath = $this->getTemplatePath($templateId, 'minutes');
         if (!file_exists($templatePath)) {
-            throw new \Exception("Template file not found: {$templatePath}");
+            // Fallback to old template if new template doesn't exist
+            $templatePath = __DIR__ . '/../Templates/minutes_template.html';
+            if (!file_exists($templatePath)) {
+                throw new \Exception("Template file not found: {$templatePath}");
+            }
         }
         
         $template = file_get_contents($templatePath);
         
-        // Get condominium info
-        $condominiumModel = new \App\Models\Condominium();
-        $condominium = $condominiumModel->findById($assembly['condominium_id']);
         $condominiumName = $condominium['name'] ?? 'Não especificado';
         $condominiumAddress = $condominium['address'] ?? 'Não especificado';
         
@@ -598,6 +610,7 @@ class PdfService
         $generationDate = date('d/m/Y H:i');
         
         // Replace placeholders - do ALL replacements
+        $template = str_replace('{{LOGO_HTML}}', $this->getLogoHtml($logoUrl), $template);
         $template = str_replace('{{condominium_name}}', htmlspecialchars($condominiumName), $template);
         $template = str_replace('{{condominium_address}}', htmlspecialchars($condominiumAddress), $template);
         $template = str_replace('{{assembly_date}}', $date, $template);
@@ -612,6 +625,7 @@ class PdfService
         $template = str_replace('{{total_millage}}', $totalMillage, $template);
         $template = str_replace('{{total_attendees_millage}}', number_format($totalAttendeesMillage, 4), $template);
         $template = str_replace('{{attendees_list}}', $attendeesList, $template);
+        $template = str_replace('{{generation_date}}', $generationDate, $template);
         
         $endTime = !empty($assembly['ended_at']) ? date('H:i', strtotime($assembly['ended_at'])) : date('H:i');
 
@@ -1078,6 +1092,25 @@ class PdfService
      */
     public function generateReceiptReceipt(array $fee, array $fraction, array $condominium, array $payment = null, string $type = 'partial'): string
     {
+        // Get template ID (null means default template, which will be handled by getTemplatePath)
+        $condominiumModel = new \App\Models\Condominium();
+        $templateId = $condominiumModel->getDocumentTemplate($condominium['id']);
+        if ($templateId === null) {
+            $templateId = 1; // Default template
+        }
+        
+        // Get logo URL
+        $logoPath = $condominiumModel->getLogoPath($condominium['id']);
+        $logoUrl = null;
+        if ($logoPath) {
+            $fileStorageService = new \App\Services\FileStorageService();
+            $logoUrl = $fileStorageService->getFileUrl($logoPath);
+        }
+        
+        // Load template
+        $templatePath = $this->getTemplatePath($templateId, 'receipt');
+        $template = file_get_contents($templatePath);
+        
         $period = '';
         if ($fee['period_month']) {
             $months = [
@@ -1090,7 +1123,7 @@ class PdfService
             $period = $fee['period_year'];
         }
 
-        $amount = $fee['amount'];
+        $amount = '€' . number_format((float)$fee['amount'], 2, ',', '.');
         $receiptTypeLabel = 'Recibo de Quota';
 
         $condominiumName = htmlspecialchars($condominium['name'] ?? '');
@@ -1142,202 +1175,41 @@ class PdfService
             'sepa' => 'SEPA'
         ];
         $paymentMethodLabel = $paymentMethod ? ($paymentMethodLabels[$paymentMethod] ?? ucfirst($paymentMethod)) : null;
-
-        return "
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset='UTF-8'>
-            <title>Recibo de Quota</title>
-            <style>
-                @page { margin: 1cm; }
-                body { 
-                    font-family: 'Times New Roman', serif; 
-                    margin: 0;
-                    padding: 5px;
-                    line-height: 1.2;
-                    color: #333;
-                    font-size: 9pt;
-                }
-                .header { 
-                    text-align: center; 
-                    margin-bottom: 8px;
-                    border-bottom: 2px solid #333;
-                    padding-bottom: 5px;
-                }
-                .header h1 { 
-                    color: #1a1a1a;
-                    font-size: 16px;
-                    margin: 0;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                    font-weight: bold;
-                }
-                .header .subtitle {
-                    font-size: 10px;
-                    color: #666;
-                    margin-top: 2px;
-                    font-weight: normal;
-                }
-                .receipt-info {
-                    margin: 8px 0;
-                }
-                .info-box {
-                    background-color: #f9f9f9;
-                    border: 1px solid #333;
-                    padding: 6px;
-                    margin: 6px 0;
-                }
-                .info-box h2 {
-                    margin-top: 0;
-                    font-size: 11px;
-                    border-bottom: 1px solid #333;
-                    padding-bottom: 2px;
-                    margin-bottom: 4px;
-                }
-                .info-row {
-                    display: flex;
-                    margin: 2px 0;
-                    padding: 2px 0;
-                    border-bottom: 1px dotted #ccc;
-                }
-                .info-label {
-                    font-weight: bold;
-                    width: 120px;
-                    flex-shrink: 0;
-                    font-size: 8.5pt;
-                }
-                .info-value {
-                    flex: 1;
-                    font-size: 8.5pt;
-                }
-                .amount-box {
-                    background-color: #e7f3ff;
-                    border: 2px solid #007bff;
-                    padding: 8px;
-                    margin: 8px 0;
-                    text-align: center;
-                }
-                .amount-box .label {
-                    font-size: 10px;
-                    color: #666;
-                    margin-bottom: 2px;
-                }
-                .amount-box .value {
-                    font-size: 20px;
-                    font-weight: bold;
-                    color: #007bff;
-                }
-                .footer { 
-                    margin-top: 10px;
-                    padding-top: 5px;
-                    border-top: 1px solid #333;
-                    font-size: 7px;
-                    color: #666;
-                    text-align: center;
-                }
-                .signature-section {
-                    margin-top: 12px;
-                    display: flex;
-                    justify-content: space-between;
-                }
-                .signature-box {
-                    width: 45%;
-                    text-align: center;
-                    border-top: 1px solid #333;
-                    padding-top: 3px;
-                    margin-top: 20px;
-                    font-size: 8pt;
-                }
-                .receipt-number {
-                    text-align: right;
-                    font-size: 9px;
-                    color: #666;
-                    margin-bottom: 5px;
-                }
-            </style>
-        </head>
-        <body>
-            <div class='receipt-number'>
-                <strong>Nº Recibo:</strong> {{RECEIPT_NUMBER}}
-            </div>
-            <div class='header'>
-                <h1>RECIBO DE QUOTA</h1>
-            </div>
-            
-            <div class='info-box'>
-                <h2>Dados do Condomínio</h2>
-                <div class='info-row'>
-                    <span class='info-label'>Condomínio:</span>
-                    <span class='info-value'>{$condominiumName}</span>
-                </div>
-                <div class='info-row'>
-                    <span class='info-label'>Morada:</span>
-                    <span class='info-value'>{$condominiumAddress}</span>
-                </div>
-                " . ($condominiumNif ? "<div class='info-row'>
-                    <span class='info-label'>NIF:</span>
-                    <span class='info-value'>{$condominiumNif}</span>
-                </div>" : "") . "
-            </div>
-
-            <div class='info-box'>
-                <h2>Dados da Quota</h2>
-                <div class='info-row'>
-                    <span class='info-label'>Fração:</span>
-                    <span class='info-value'><strong>{$fractionIdentifier}</strong></span>
-                </div>
-                <div class='info-row'>
-                    <span class='info-label'>Período:</span>
-                    <span class='info-value'>{$period}</span>
-                </div>
-                <div class='info-row'>
-                    <span class='info-label'>Referência:</span>
-                    <span class='info-value'>{$feeReference}</span>
-                </div>
-                <div class='info-row'>
-                    <span class='info-label'>Data de Vencimento:</span>
-                    <span class='info-value'>" . ($fee['due_date'] ? date('d/m/Y', strtotime($fee['due_date'])) : '-') . "</span>
-                </div>
-            </div>
-
-            <div class='amount-box'>
-                <div class='label'>Valor Recebido</div>
-                <div class='value'>€" . number_format((float)$amount, 2, ',', '.') . "</div>
-            </div>
-
-            " . ($paymentDate || $paymentMethodLabel ? "<div class='info-box'>
-                <h2>Dados do Pagamento</h2>
-                " . ($paymentDate ? "<div class='info-row'>
-                    <span class='info-label'>Data de Pagamento:</span>
-                    <span class='info-value'>" . date('d/m/Y', strtotime($paymentDate)) . "</span>
-                </div>" : "") . "
-                " . ($paymentMethodLabel ? "<div class='info-row'>
-                    <span class='info-label'>Meio de Pagamento:</span>
-                    <span class='info-value'>{$paymentMethodLabel}</span>
-                </div>" : "") . "
-            </div>" : "") . "
-
-            <div class='info-box' style='background-color: #d4edda; border-color: #28a745; padding: 4px;'>
-                <p style='margin: 0; text-align: center; font-size: 10px;'><strong>Quota totalmente liquidada</strong></p>
-            </div>
-
-            <div class='footer'>
-                <p style='margin: 2px 0;'>Este recibo foi gerado automaticamente pelo sistema de gestão de condomínios.</p>
-                <p style='margin: 2px 0;'>Data de geração: " . date('d/m/Y H:i') . "</p>
-                <p style='margin-top: 4px; margin-bottom: 0;'>Este documento tem valor fiscal e comprovativo do pagamento da quota de condomínio.</p>
-            </div>
-
-            <div class='signature-section'>
-                <div class='signature-box'>
-                    <p style='margin: 0;'><strong>Condómino</strong></p>
-                </div>
-                <div class='signature-box'>
-                    <p style='margin: 0;'><strong>Administrador do Condomínio</strong></p>
-                </div>
-            </div>
-        </body>
-        </html>";
+        
+        // Prepare payment info HTML
+        $paymentInfo = '';
+        if ($paymentDate || $paymentMethodLabel) {
+            $paymentInfo = '<div class="info-box"><h2>Dados do Pagamento</h2>';
+            if ($paymentDate) {
+                $paymentInfo .= '<div class="info-row"><span class="info-label">Data de Pagamento:</span><span class="info-value">' . date('d/m/Y', strtotime($paymentDate)) . '</span></div>';
+            }
+            if ($paymentMethodLabel) {
+                $paymentInfo .= '<div class="info-row"><span class="info-label">Meio de Pagamento:</span><span class="info-value">' . htmlspecialchars($paymentMethodLabel) . '</span></div>';
+            }
+            $paymentInfo .= '</div>';
+        }
+        
+        // Prepare NIF row
+        $nifRow = '';
+        if ($condominiumNif) {
+            $nifRow = '<div class="info-row"><span class="info-label">NIF:</span><span class="info-value">' . $condominiumNif . '</span></div>';
+        }
+        
+        // Replace placeholders in template
+        $template = str_replace('{{LOGO_HTML}}', $this->getLogoHtml($logoUrl), $template);
+        $template = str_replace('{{RECEIPT_NUMBER}}', '{{RECEIPT_NUMBER}}', $template); // Keep placeholder for later replacement
+        $template = str_replace('{{CONDOMINIUM_NAME}}', $condominiumName, $template);
+        $template = str_replace('{{CONDOMINIUM_ADDRESS}}', $condominiumAddress, $template);
+        $template = str_replace('{{CONDOMINIUM_NIF_ROW}}', $nifRow, $template);
+        $template = str_replace('{{FRACTION_IDENTIFIER}}', $fractionIdentifier, $template);
+        $template = str_replace('{{PERIOD}}', $period, $template);
+        $template = str_replace('{{FEE_REFERENCE}}', $feeReference, $template);
+        $template = str_replace('{{DUE_DATE}}', $fee['due_date'] ? date('d/m/Y', strtotime($fee['due_date'])) : '-', $template);
+        $template = str_replace('{{AMOUNT}}', $amount, $template);
+        $template = str_replace('{{PAYMENT_INFO}}', $paymentInfo, $template);
+        $template = str_replace('{{GENERATION_DATE}}', date('d/m/Y H:i'), $template);
+        
+        return $template;
     }
 
     /**

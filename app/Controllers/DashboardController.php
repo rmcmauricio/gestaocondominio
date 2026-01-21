@@ -71,6 +71,22 @@ class DashboardController extends Controller
         $adminCondominiums = $condominiumsByRole['admin'] ?? [];
         $condominoCondominiums = $condominiumsByRole['condomino'] ?? [];
         
+        // Add logo URLs to condominiums
+        $fileStorageService = new \App\Services\FileStorageService();
+        $condominiumModel = new \App\Models\Condominium();
+        
+        foreach ($adminCondominiums as &$condo) {
+            $logoPath = $condominiumModel->getLogoPath($condo['id']);
+            $condo['logo_url'] = $logoPath ? $fileStorageService->getFileUrl($logoPath) : null;
+        }
+        unset($condo);
+        
+        foreach ($condominoCondominiums as &$condo) {
+            $logoPath = $condominiumModel->getLogoPath($condo['id']);
+            $condo['logo_url'] = $logoPath ? $fileStorageService->getFileUrl($logoPath) : null;
+        }
+        unset($condo);
+        
         // Combine all condominiums for statistics
         $allCondominiums = array_merge($adminCondominiums, $condominoCondominiums);
         
