@@ -1,0 +1,342 @@
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-palette"></i> Personalizar Condomínio: {{ condominium.name }}
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    {% if success %}
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        {{ success }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <!-- Template Selection Section -->
+                    <div class="mb-5">
+                        <h5 class="mb-3">
+                            <i class="bi bi-paint-bucket"></i> Selecionar Template
+                        </h5>
+                        <p class="text-muted mb-4">Escolha um template para personalizar a aparência dos documentos e da interface. As alterações são aplicadas automaticamente.</p>
+                        
+                        <div class="row g-3" id="template-grid">
+                            {% for templateId, templateInfo in template_options %}
+                            <div class="col-md-6 col-lg-4 col-xl-3">
+                                <div class="card template-card h-100 {% if (current_template is null and templateId is null) or (current_template is not null and templateId is not null and current_template == templateId) %}border-primary border-3{% else %}border-secondary{% endif %}" 
+                                     data-template-id="{{ templateId is null ? '' : templateId }}"
+                                     style="cursor: pointer; transition: all 0.3s;">
+                                    <div class="card-body p-3 text-center">
+                                        <div class="template-preview mb-3" style="height: 140px; border-radius: 8px; border: 2px solid {% if (current_template is null and templateId is null) or (current_template is not null and templateId is not null and current_template == templateId) %}#0d6efd{% else %}#dee2e6{% endif %}; position: relative; overflow: hidden; background: #f8f9fa;">
+                                            {% if templateId is null %}
+                                                {# Default template preview #}
+                                                <img src="{{ BASE_URL }}assets/images/templates/default.png" 
+                                                     alt="Template Padrão" 
+                                                     class="template-preview-img"
+                                                     style="width: 100%; height: 100%; object-fit: cover;"
+                                                     onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                                <div style="display: none; width: 100%; height: 100%; background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); flex-direction: column; align-items: center; justify-content: center; padding: 10px;">
+                                                    <div style="width: 100%; height: 30%; background: #6c757d; border-radius: 4px 4px 0 0; margin-bottom: 2px;"></div>
+                                                    <div style="width: 100%; height: 60%; background: #ffffff; border: 1px solid #dee2e6; border-radius: 0 0 4px 4px; display: flex; align-items: center; justify-content: center;">
+                                                        <span style="color: #6c757d; font-size: 14px; font-weight: bold;">Padrão</span>
+                                                    </div>
+                                                </div>
+                                            {% else %}
+                                                {# Template preview with image #}
+                                                <img src="{{ BASE_URL }}assets/images/templates/template_{{ templateId }}.png" 
+                                                     alt="Template {{ templateId }}" 
+                                                     class="template-preview-img"
+                                                     style="width: 100%; height: 100%; object-fit: cover;"
+                                                     onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                                {# Fallback preview with colors - using inline styles based on template ID #}
+                                                {% set previewColors = {
+                                                    1: {'header': '#343a40', 'bg': '#ffffff', 'accent': '#007bff'},
+                                                    2: {'header': '#0056b3', 'bg': '#f8f9fa', 'accent': '#0056b3'},
+                                                    3: {'header': '#1a1a1a', 'bg': '#2d2d2d', 'accent': '#6c757d'},
+                                                    4: {'header': '#ffffff', 'bg': '#ffffff', 'accent': '#6c757d'},
+                                                    5: {'header': '#212529', 'bg': '#ffffff', 'accent': '#495057'},
+                                                    6: {'header': '#ff6b6b', 'bg': '#fff5f5', 'accent': '#ff6b6b'},
+                                                    7: {'header': '#0d1117', 'bg': '#161b22', 'accent': '#58a6ff'},
+                                                    8: {'header': '#ff8c42', 'bg': '#fff4e6', 'accent': '#ff8c42'},
+                                                    9: {'header': '#435b59', 'bg': '#e4fde1', 'accent': '#8acb88'},
+                                                    10: {'header': '#00487c', 'bg': '#f0f8ff', 'accent': '#4bb3fd'},
+                                                    11: {'header': '#e8e9f3', 'bg': '#ffffff', 'accent': '#a6a6a8'},
+                                                    12: {'header': '#8ea604', 'bg': '#fff9e6', 'accent': '#f5bb00'},
+                                                    13: {'header': '#4d7298', 'bg': '#d0efb1', 'accent': '#9dc3c2'},
+                                                    14: {'header': '#77a6b6', 'bg': '#d0efb1', 'accent': '#9dc3c2'},
+                                                    15: {'header': '#523a34', 'bg': '#fff9e6', 'accent': '#e5b25d'},
+                                                    16: {'header': '#0a100d', 'bg': '#d6d5c9', 'accent': '#a22c29'},
+                                                    17: {'header': '#001514', 'bg': '#fbfffe', 'accent': '#a3320b'}
+                                                } %}
+                                                {% set colors = previewColors[templateId]|default({'header': '#6c757d', 'bg': '#ffffff', 'accent': '#007bff'}) %}
+                                                <div style="display: none; width: 100%; height: 100%; background: {{ colors.bg }}; flex-direction: column;">
+                                                    <div style="width: 100%; height: 25%; background: linear-gradient(135deg, {{ colors.header }} 0%, {{ colors.header }}dd 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: bold;">
+                                                        Header
+                                                    </div>
+                                                    <div style="width: 100%; height: 50%; background: {{ colors.bg }}; padding: 8px; display: flex; flex-direction: column; gap: 4px;">
+                                                        <div style="width: 100%; height: 20%; background: {{ colors.accent }}33; border-radius: 3px;"></div>
+                                                        <div style="width: 80%; height: 20%; background: {{ colors.accent }}22; border-radius: 3px;"></div>
+                                                        <div style="width: 60%; height: 20%; background: {{ colors.accent }}11; border-radius: 3px;"></div>
+                                                    </div>
+                                                    <div style="width: 100%; height: 25%; background: {{ colors.accent }}; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: bold;">
+                                                        T{{ templateId }}
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <h6 class="card-title mb-1" style="font-size: 0.9rem;">
+                                            {% if templateId is null %}
+                                                {{ templateInfo.name }}
+                                            {% else %}
+                                                Template {{ templateId }}
+                                            {% endif %}
+                                        </h6>
+                                        <p class="card-text text-muted mb-2" style="font-size: 0.75rem; line-height: 1.3;">
+                                            {{ templateInfo.description }}
+                                        </p>
+                                        {% if (current_template is null and templateId is null) or (current_template is not null and templateId is not null and current_template == templateId) %}
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle"></i> Ativo
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <!-- Logo Management Section -->
+                    <div class="mb-4">
+                        <h5 class="mb-3">
+                            <i class="bi bi-image"></i> Gestão de Logotipo
+                        </h5>
+                        <p class="text-muted mb-3">Faça upload de um logotipo para o condomínio. O logotipo será exibido no cabeçalho dos documentos e na interface da plataforma.</p>
+                        
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/customize-logo" enctype="multipart/form-data" id="logo-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            
+                            {% if logo_url %}
+                            <div class="mb-3">
+                                <p class="text-muted mb-2">Logotipo atual:</p>
+                                <div class="d-flex align-items-center gap-3">
+                                    <img src="{{ logo_url }}" alt="Logotipo" class="img-thumbnail" style="max-width: 200px; max-height: 100px; object-fit: contain;">
+                                    <button type="button" class="btn btn-sm btn-danger" onclick="removeLogo({{ condominium.id }});">
+                                        <i class="bi bi-trash"></i> Remover Logotipo
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="text-muted mb-2">ou</p>
+                            {% endif %}
+                            
+                            <div class="mb-3">
+                                <input type="file" class="form-control" id="logo" name="logo" accept="image/jpeg,image/png,image/gif,image/webp" onchange="document.getElementById('logo-form').submit();">
+                                <small class="form-text text-muted">Formatos aceites: JPEG, PNG, GIF, WebP. Tamanho máximo: 2MB.</small>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Voltar
+                        </a>
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/edit" class="btn btn-outline-primary">
+                            <i class="bi bi-pencil"></i> Editar Condomínio
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let isUpdating = false;
+
+function removeLogo(condominiumId) {
+    if (!confirm('Tem certeza que deseja remover o logotipo?')) {
+        return;
+    }
+    
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{{ BASE_URL }}condominiums/' + condominiumId + '/logo';
+    
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrf_token';
+    csrfInput.value = '{{ csrf_token }}';
+    form.appendChild(csrfInput);
+    
+    // Add hidden input to indicate we're coming from customize page
+    const refererInput = document.createElement('input');
+    refererInput.type = 'hidden';
+    refererInput.name = 'from_customize';
+    refererInput.value = '1';
+    form.appendChild(refererInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Template selection with auto-save
+document.addEventListener('DOMContentLoaded', function() {
+    const templateCards = document.querySelectorAll('.template-card');
+    const templateSelect = document.getElementById('template-select');
+    
+    templateCards.forEach(card => {
+        card.addEventListener('click', function() {
+            if (isUpdating) return;
+            
+            const templateId = this.dataset.templateId;
+            const isActive = this.classList.contains('border-primary');
+            
+            if (isActive) {
+                return; // Already selected
+            }
+            
+            // Visual feedback
+            templateCards.forEach(c => {
+                c.classList.remove('border-primary', 'border-3');
+                c.classList.add('border-secondary');
+            });
+            this.classList.remove('border-secondary');
+            this.classList.add('border-primary', 'border-3');
+            
+            // Save template via AJAX
+            saveTemplate(templateId);
+        });
+    });
+    
+    // Add hover effects
+    templateCards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            if (!this.classList.contains('border-primary')) {
+                this.style.transform = 'translateY(-5px)';
+                this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+            }
+        });
+        
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = '';
+            this.style.boxShadow = '';
+        });
+    });
+});
+
+function saveTemplate(templateId) {
+    if (isUpdating) return;
+    
+    isUpdating = true;
+    
+    // Show loading state
+    const activeCard = document.querySelector('.template-card.border-primary');
+    if (activeCard) {
+        const badge = activeCard.querySelector('.badge');
+        if (badge) {
+            badge.innerHTML = '<i class="bi bi-hourglass-split"></i> A guardar...';
+            badge.className = 'badge bg-warning';
+        }
+    }
+    
+    fetch('{{ BASE_URL }}condominiums/{{ condominium.id }}/template', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            template_id: templateId === '' ? null : templateId,
+            csrf_token: '{{ csrf_token }}'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        isUpdating = false;
+        
+        if (data.success) {
+            // Show success message
+            const activeCard = document.querySelector('.template-card.border-primary');
+            if (activeCard) {
+                const badge = activeCard.querySelector('.badge');
+                if (badge) {
+                    badge.innerHTML = '<i class="bi bi-check-circle"></i> Ativo';
+                    badge.className = 'badge bg-success';
+                }
+            }
+            
+            // Reload page to apply template
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
+        } else {
+            alert('Erro ao guardar template: ' + (data.message || 'Erro desconhecido'));
+            // Revert visual state
+            window.location.reload();
+        }
+    })
+    .catch(error => {
+        isUpdating = false;
+        console.error('Error:', error);
+        alert('Erro ao guardar template. Por favor, tente novamente.');
+        window.location.reload();
+    });
+}
+
+// Focus template selector after page load and scroll to it
+window.addEventListener('load', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('focus') === 'template-selector') {
+        const activeCard = document.querySelector('.template-card.border-primary');
+        if (activeCard) {
+            setTimeout(() => {
+                activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Remove focus parameter from URL
+                urlParams.delete('focus');
+                const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+                window.history.replaceState({}, '', newUrl);
+            }, 300);
+        }
+    }
+});
+</script>
+
+<style>
+.template-card {
+    transition: all 0.3s ease;
+}
+
+.template-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.template-card.border-primary {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.template-preview {
+    position: relative;
+}
+
+.template-preview-img {
+    transition: transform 0.3s ease;
+}
+
+.template-card:hover .template-preview-img {
+    transform: scale(1.05);
+}
+
+#template-grid {
+    margin-top: 1rem;
+}
+</style>

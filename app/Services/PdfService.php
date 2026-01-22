@@ -6,7 +6,7 @@ class PdfService
 {
     /**
      * Get template path for document type
-     * @param int|null $templateId Template ID (1-9), null for default template
+     * @param int|null $templateId Template ID (1-16), null for default template
      * @param string $documentType Type: 'receipt', 'minutes', 'convocation'
      * @return string Template file path
      */
@@ -18,7 +18,7 @@ class PdfService
         }
         
         // Validate template ID
-        if ($templateId < 1 || $templateId > 8) {
+        if ($templateId < 1 || $templateId > 17) {
             $templateId = 1; // Fallback to default
         }
         

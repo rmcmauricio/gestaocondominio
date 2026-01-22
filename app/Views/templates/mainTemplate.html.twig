@@ -25,7 +25,7 @@
     
     <!-- Template CSS (if template_id is set and valid) - Must be AFTER main.css to override variables -->
     <!-- DEBUG: template_id={{ template_id|default('NOT SET') }}, defined={{ template_id is defined ? 'YES' : 'NO' }}, null={{ template_id is null ? 'YES' : 'NO' }}, value={{ template_id }} -->
-    {% if template_id is defined and template_id is not null and template_id >= 1 and template_id <= 9 %}
+    {% if template_id is defined and template_id is not null and template_id >= 1 and template_id <= 17 %}
     <!-- Loading template {{ template_id }} CSS -->
     <link href="{{ BASE_URL }}assets/css/templates/template_{{ template_id }}.css?v={{ VERSION }}" rel="stylesheet" id="template-css-link">
     {% else %}

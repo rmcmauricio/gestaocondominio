@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <title>Convocatória de Assembleia</title>
+    <style>
+        @page { margin: 1.5cm; }
+        body { 
+            font-family: 'Arial', 'Helvetica', sans-serif; 
+            margin: 0;
+            padding: 15px;
+            line-height: 1.6;
+            color: #001514;
+            background: #fbfffe;
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #001514 0%, #002a28 100%);
+            border: 2px solid #002a28;
+            border-radius: 5px;
+        }
+        .header-logo {
+            max-width: 150px;
+            max-height: 80px;
+            margin-bottom: 15px;
+        }
+        .header h1 { 
+            color: #ffffff;
+            font-size: 22px;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 700;
+        }
+        .header .subtitle {
+            font-size: 13px;
+            color: #ffffff;
+            margin-top: 10px;
+            opacity: 0.9;
+        }
+        .content { 
+            line-height: 1.8;
+            margin-bottom: 30px;
+        }
+        .info-box {
+            background-color: #ffffff;
+            border-left: 4px solid #a3320b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 3px;
+            border: 1px solid #e6af2e;
+        }
+        .info-box p {
+            margin: 5px 0;
+        }
+        .info-label {
+            font-weight: bold;
+            display: inline-block;
+            width: 150px;
+            color: #6b0504;
+        }
+        .description {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #ffffff;
+            border-radius: 5px;
+            border: 1px solid #a3320b;
+        }
+        .footer { 
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 2px solid #6b0504;
+            font-size: 11px;
+            color: #4a4a4a;
+            text-align: center;
+        }
+        .quorum-info {
+            background-color: #fbfffe;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border: 1px solid #e6af2e;
+        }
+    </style>
+</head>
+<body>
+    <div class='header'>
+        {{LOGO_HTML}}
+        <h1>CONVOCATÓRIA DE ASSEMBLEIA</h1>
+        <div class='subtitle'>Sistema de Gestão de Condomínios</div>
+    </div>
+    <div class='content'>
+        <div class='info-box'>
+            <p><span class='info-label'>Título:</span> {{ASSEMBLY_TITLE}}</p>
+            <p><span class='info-label'>Tipo:</span> {{ASSEMBLY_TYPE}}</p>
+            <p><span class='info-label'>Data:</span> {{ASSEMBLY_DATE}}</p>
+            <p><span class='info-label'>Hora:</span> {{ASSEMBLY_TIME}}</p>
+            <p><span class='info-label'>Local:</span> {{ASSEMBLY_LOCATION}}</p>
+            <p><span class='info-label'>Quórum:</span> {{QUORUM}}%</p>
+        </div>
+        
+        <div class='quorum-info'>
+            <strong>Nota:</strong> Para que a assembleia seja válida, é necessário que esteja presente um mínimo de {{QUORUM}}% da permilagem total do condomínio.
+        </div>
+        
+        <div class='description'>
+            <h3 style='margin-top: 0; color: #6b0504;'>Ordem de Trabalhos:</h3>
+            <div>{{ASSEMBLY_DESCRIPTION}}</div>
+        </div>
+        
+        <p style='margin-top: 30px;'><strong>Instruções:</strong></p>
+        <ul>
+            <li>Por favor, confirme a sua presença através do sistema online</li>
+            <li>Em caso de impossibilidade de presença, pode nomear um representante mediante procuração</li>
+            <li>A assembleia iniciará pontualmente no horário indicado</li>
+        </ul>
+    </div>
+    <div class='footer'>
+        <p>Esta convocatória foi gerada automaticamente pelo sistema de gestão de condomínios.</p>
+        <p>Data de geração: {{GENERATION_DATE}}</p>
+    </div>
+</body>
+</html>

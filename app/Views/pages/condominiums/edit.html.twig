@@ -94,58 +94,8 @@
 
                         <hr class="my-4">
 
-                        <h5 class="mb-3">Personalização</h5>
-
-                        <div class="mb-3">
-                            <label for="document_template" class="form-label">Template de Documentos e Interface</label>
-                            {% if preview_template is defined and preview_template is not same as(false) %}
-                            <div class="alert alert-info alert-dismissible fade show mb-2" role="alert">
-                                <i class="bi bi-eye"></i> <strong>Preview ativo:</strong> Está a visualizar {% if preview_template is null %}o Template Padrão{% else %}o Template {{ preview_template }}{% endif %}. Clique em "Guardar Alterações" para aplicar permanentemente.
-                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                            </div>
-                            {% endif %}
-                            <select class="form-select" id="document_template" name="document_template">
-                                {% for templateId, templateInfo in template_options %}
-                                {% set isSelected = false %}
-                                {% if preview_template is defined and preview_template is not same as(false) %}
-                                    {% if preview_template is null and templateId is null %}
-                                        {% set isSelected = true %}
-                                    {% elseif preview_template is not null and templateId is not null and preview_template == templateId %}
-                                        {% set isSelected = true %}
-                                    {% endif %}
-                                {% else %}
-                                    {% if current_template is null and templateId is null %}
-                                        {% set isSelected = true %}
-                                    {% elseif current_template is not null and templateId is not null and current_template == templateId %}
-                                        {% set isSelected = true %}
-                                    {% endif %}
-                                {% endif %}
-                                <option value="{{ templateId is null ? '' : templateId }}" {% if isSelected %}selected{% endif %}>
-                                    {% if templateId is null %}
-                                        {{ templateInfo.name }}: {{ templateInfo.description }}
-                                    {% else %}
-                                        Template {{ templateId }} - {{ templateInfo.name }}: {{ templateInfo.description }}
-                                    {% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                            <small class="form-text text-muted">O template selecionado será aplicado aos documentos gerados (recibos, atas, convocatórias) e à interface da plataforma. <strong>Altere o template acima para ver um preview antes de guardar.</strong></small>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="logo" class="form-label">Logotipo do Condomínio</label>
-                            {% if logo_url %}
-                            <div class="mb-2">
-                                <p class="text-muted mb-2">Logotipo atual:</p>
-                                <img src="{{ logo_url }}" alt="Logotipo" class="img-thumbnail" style="max-width: 200px; max-height: 100px; object-fit: contain;">
-                            </div>
-                            <button type="button" class="btn btn-sm btn-danger mb-2" onclick="removeLogo({{ condominium.id }});">
-                                <i class="bi bi-trash"></i> Remover Logotipo
-                            </button>
-                            <p class="text-muted mb-2">ou</p>
-                            {% endif %}
-                            <input type="file" class="form-control" id="logo" name="logo" accept="image/jpeg,image/png,image/gif,image/webp">
-                            <small class="form-text text-muted">Formatos aceites: JPEG, PNG, GIF, WebP. Tamanho máximo: 2MB. O logotipo será exibido no cabeçalho dos documentos e na interface da plataforma.</small>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> <strong>Personalização:</strong> Para alterar o template e gerir o logotipo, utilize a página de <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/customize" class="alert-link">Personalização</a>.
                         </div>
 
                         <hr class="my-4">
@@ -157,7 +107,12 @@
 
                         <div class="d-flex justify-content-between">
                             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="btn btn-secondary">Cancelar</a>
-                            <button type="submit" class="btn btn-primary">Guardar Alterações</button>
+                            <div>
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/customize" class="btn btn-outline-info me-2">
+                                    <i class="bi bi-palette"></i> Personalizar
+                                </a>
+                                <button type="submit" class="btn btn-primary">Guardar Alterações</button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -166,47 +121,6 @@
     </div>
 </div>
 
-<script>
-function removeLogo(condominiumId) {
-    if (!confirm('Tem certeza que deseja remover o logotipo?')) {
-        return;
-    }
-    
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '{{ BASE_URL }}condominiums/' + condominiumId + '/logo';
-    
-    const csrfInput = document.createElement('input');
-    csrfInput.type = 'hidden';
-    csrfInput.name = 'csrf_token';
-    csrfInput.value = '{{ csrf_token }}';
-    form.appendChild(csrfInput);
-    
-    document.body.appendChild(form);
-    form.submit();
-}
-
-// Preview de template ao alterar o dropdown
-document.addEventListener('DOMContentLoaded', function() {
-    const templateSelect = document.getElementById('document_template');
-    if (templateSelect) {
-        templateSelect.addEventListener('change', function() {
-            const selectedValue = this.value;
-            const currentUrl = new URL(window.location.href);
-            
-            // Remove o parâmetro preview_template se existir
-            currentUrl.searchParams.delete('preview_template');
-            
-            // Adiciona o novo parâmetro preview_template (mesmo se vazio para "Padrão")
-            // Se vazio, passa como string vazia para indicar template padrão
-            currentUrl.searchParams.set('preview_template', selectedValue === '' ? '' : selectedValue);
-            
-            // Recarrega a página com o novo template de preview
-            window.location.href = currentUrl.toString();
-        });
-    }
-});
-</script>
 
 
 

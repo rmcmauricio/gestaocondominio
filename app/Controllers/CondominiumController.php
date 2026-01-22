@@ -468,8 +468,8 @@ class CondominiumController extends Controller
                 $previewTemplate = null;
             } else {
                 $previewTemplateId = (int)$previewValue;
-                // Validate template ID is between 1-9
-                if ($previewTemplateId >= 1 && $previewTemplateId <= 9) {
+                // Validate template ID is between 1-17
+                if ($previewTemplateId >= 1 && $previewTemplateId <= 17) {
                     $previewTemplate = $previewTemplateId;
                 }
             }
@@ -489,7 +489,15 @@ class CondominiumController extends Controller
             6 => ['name' => 'Colorido', 'description' => 'Design vibrante, cores chamativas'],
             7 => ['name' => 'Profissional (Dark Mode)', 'description' => 'Estilo conservador, tema escuro profissional'],
             8 => ['name' => 'Acogedor (Laranja Pastel)', 'description' => 'Estilo intermediário, fundo laranja pastel acolhedor'],
-            9 => ['name' => 'Natureza Verde', 'description' => 'Estilo natural com cores verdes e acentos amarelos']
+            9 => ['name' => 'Natureza Verde', 'description' => 'Estilo natural com cores verdes e acentos amarelos'],
+            10 => ['name' => 'Azul Profissional', 'description' => 'Estilo profissional com paleta azul moderna'],
+            11 => ['name' => 'Moderno Cinza Azulado', 'description' => 'Estilo moderno com tons de cinza e azul suave'],
+            12 => ['name' => 'Vibrante Dourado Laranja', 'description' => 'Estilo vibrante com tons de dourado, laranja e verde-limão'],
+            13 => ['name' => 'Suave Verde Azulado', 'description' => 'Estilo suave com tons de verde e azul claros'],
+            14 => ['name' => 'Verde Azulado Alternativo', 'description' => 'Estilo alternativo com foco em azul claro e verde suave'],
+            15 => ['name' => 'Quente Terroso', 'description' => 'Estilo quente com tons terrosos de dourado, bronze e cobre'],
+            16 => ['name' => 'Escuro Elegante', 'description' => 'Estilo elegante com tons escuros e acentos vermelhos'],
+            17 => ['name' => 'Contraste Clássico', 'description' => 'Estilo clássico com alto contraste entre preto, branco e tons terrosos']
         ];
         
         // Use preview template for rendering if set, otherwise use current template
@@ -597,7 +605,7 @@ class CondominiumController extends Controller
                 $updateData['document_template'] = null;
             } else {
                 $templateId = (int)$templateValue;
-                if ($templateId >= 1 && $templateId <= 9) {
+                if ($templateId >= 1 && $templateId <= 17) {
                     $updateData['document_template'] = $templateId;
                 } else {
                     // Invalid template ID, set to null (default)
@@ -672,6 +680,212 @@ class CondominiumController extends Controller
     }
 
     /**
+     * Show customization page
+     */
+    public function customize(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($id);
+
+        $condominium = $this->condominiumModel->findById($id);
+        
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $this->loadPageTranslations('condominiums');
+        
+        // Get current template and logo
+        $currentTemplate = $this->condominiumModel->getDocumentTemplate($id);
+        $logoPath = $this->condominiumModel->getLogoPath($id);
+        $logoUrl = null;
+        if ($logoPath) {
+            $fileStorageService = new \App\Services\FileStorageService();
+            $logoUrl = $fileStorageService->getFileUrl($logoPath);
+        }
+
+        // Template options with descriptions
+        $templateOptions = [
+            null => ['name' => 'Padrão', 'description' => 'Template padrão do sistema'],
+            1 => ['name' => 'Clássico', 'description' => 'Estilo tradicional, cores neutras'],
+            2 => ['name' => 'Moderno', 'description' => 'Design limpo, cores azuis modernas'],
+            3 => ['name' => 'Elegante (Dark Mode)', 'description' => 'Estilo sofisticado, tema escuro elegante'],
+            4 => ['name' => 'Minimalista', 'description' => 'Design simples, muito espaço em branco'],
+            5 => ['name' => 'Corporativo', 'description' => 'Estilo empresarial, cores formais'],
+            6 => ['name' => 'Colorido', 'description' => 'Design vibrante, cores chamativas'],
+            7 => ['name' => 'Profissional (Dark Mode)', 'description' => 'Estilo conservador, tema escuro profissional'],
+            8 => ['name' => 'Acogedor (Laranja Pastel)', 'description' => 'Estilo intermediário, fundo laranja pastel acolhedor'],
+            9 => ['name' => 'Natureza Verde', 'description' => 'Estilo natural com cores verdes e acentos amarelos'],
+            10 => ['name' => 'Azul Profissional', 'description' => 'Estilo profissional com paleta azul moderna'],
+            11 => ['name' => 'Moderno Cinza Azulado', 'description' => 'Estilo moderno com tons de cinza e azul suave'],
+            12 => ['name' => 'Vibrante Dourado Laranja', 'description' => 'Estilo vibrante com tons de dourado, laranja e verde-limão'],
+            13 => ['name' => 'Suave Verde Azulado', 'description' => 'Estilo suave com tons de verde e azul claros'],
+            14 => ['name' => 'Verde Azulado Alternativo', 'description' => 'Estilo alternativo com foco em azul claro e verde suave'],
+            15 => ['name' => 'Quente Terroso', 'description' => 'Estilo quente com tons terrosos de dourado, bronze e cobre'],
+            16 => ['name' => 'Escuro Elegante', 'description' => 'Estilo elegante com tons escuros e acentos vermelhos'],
+            17 => ['name' => 'Contraste Clássico', 'description' => 'Estilo clássico com alto contraste entre preto, branco e tons terrosos']
+        ];
+        
+        // Build data array
+        $this->data += [
+            'viewName' => 'pages/condominiums/customize.html.twig',
+            'page' => ['titulo' => 'Personalizar Condomínio'],
+            'condominium' => $condominium,
+            'current_template' => $currentTemplate,
+            'logo_url' => $logoUrl,
+            'template_options' => $templateOptions,
+            'csrf_token' => Security::generateCSRFToken(),
+        ];
+        
+        // Set template_id for rendering
+        $this->data['template_id'] = $currentTemplate;
+
+        // Merge global data
+        $mergedData = $this->mergeGlobalData($this->data);
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $mergedData);
+    }
+
+    /**
+     * Update template via AJAX
+     */
+    public function updateTemplate(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($id);
+
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'message' => 'Método não permitido']);
+            exit;
+        }
+
+        $user = AuthMiddleware::user();
+        
+        // Check permissions
+        if (!RoleMiddleware::hasAnyRole(['admin', 'super_admin'])) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Apenas administradores podem alterar o template.']);
+            exit;
+        }
+        
+        if ($user['role'] !== 'super_admin') {
+            RoleMiddleware::requireCondominiumAccess($id);
+            $condominium = $this->condominiumModel->findById($id);
+            if (!$condominium || $condominium['user_id'] != $user['id']) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Apenas o administrador do condomínio pode alterar o template.']);
+                exit;
+            }
+        }
+
+        $data = json_decode(file_get_contents('php://input'), true);
+        $csrfToken = $data['csrf_token'] ?? '';
+        
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Token de segurança inválido.']);
+            exit;
+        }
+
+        $templateValue = $data['template_id'] ?? '';
+        $updateData = [];
+        
+        if ($templateValue === '' || $templateValue === null || $templateValue === '0') {
+            $updateData['document_template'] = null;
+        } else {
+            $templateId = (int)$templateValue;
+            if ($templateId >= 1 && $templateId <= 17) {
+                $updateData['document_template'] = $templateId;
+            } else {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'ID de template inválido.']);
+                exit;
+            }
+        }
+
+        try {
+            $this->condominiumModel->update($id, $updateData);
+            echo json_encode(['success' => true, 'message' => 'Template atualizado com sucesso!']);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Erro ao atualizar template: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    /**
+     * Upload logo from customize page
+     */
+    public function uploadLogo(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($id);
+
+        $user = AuthMiddleware::user();
+        
+        // Check permissions
+        if (!RoleMiddleware::hasAnyRole(['admin', 'super_admin'])) {
+            $_SESSION['error'] = 'Apenas administradores podem fazer upload do logotipo.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/customize');
+            exit;
+        }
+        
+        if ($user['role'] !== 'super_admin') {
+            RoleMiddleware::requireCondominiumAccess($id);
+            $condominium = $this->condominiumModel->findById($id);
+            if (!$condominium || $condominium['user_id'] != $user['id']) {
+                $_SESSION['error'] = 'Apenas o administrador do condomínio pode fazer upload do logotipo.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $id . '/customize');
+                exit;
+            }
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/customize');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/customize');
+            exit;
+        }
+
+        try {
+            if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+                $fileStorageService = new \App\Services\FileStorageService();
+                
+                // Delete old logo if exists
+                $oldLogoPath = $this->condominiumModel->getLogoPath($id);
+                if ($oldLogoPath) {
+                    try {
+                        $fileStorageService->delete($oldLogoPath);
+                    } catch (\Exception $e) {
+                        error_log("Error deleting old logo: " . $e->getMessage());
+                    }
+                }
+                
+                $logoData = $fileStorageService->uploadLogo($_FILES['logo'], $id);
+                $this->condominiumModel->update($id, ['logo_path' => $logoData['file_path']]);
+
+                $_SESSION['success'] = 'Logotipo atualizado com sucesso!';
+            } else {
+                $_SESSION['error'] = 'Erro ao fazer upload do logotipo.';
+            }
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao fazer upload do logotipo: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $id . '/customize');
+        exit;
+    }
+
+    /**
      * Remove logo from condominium
      */
     public function removeLogo(int $id)
@@ -735,11 +949,22 @@ class CondominiumController extends Controller
             $this->condominiumModel->update($id, ['logo_path' => null]);
 
             $_SESSION['success'] = 'Logotipo removido com sucesso!';
-            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/edit');
+            // Check if request came from customize page
+            $fromCustomize = isset($_POST['from_customize']) || (isset($_SERVER['HTTP_REFERER']) && strpos($_SERVER['HTTP_REFERER'], '/customize') !== false);
+            if ($fromCustomize) {
+                header('Location: ' . BASE_URL . 'condominiums/' . $id . '/customize');
+            } else {
+                header('Location: ' . BASE_URL . 'condominiums/' . $id . '/edit');
+            }
             exit;
         } catch (\Exception $e) {
             $_SESSION['error'] = 'Erro ao remover logotipo: ' . $e->getMessage();
-            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/edit');
+            $fromCustomize = isset($_POST['from_customize']) || (isset($_SERVER['HTTP_REFERER']) && strpos($_SERVER['HTTP_REFERER'], '/customize') !== false);
+            if ($fromCustomize) {
+                header('Location: ' . BASE_URL . 'condominiums/' . $id . '/customize');
+            } else {
+                header('Location: ' . BASE_URL . 'condominiums/' . $id . '/edit');
+            }
             exit;
         }
     }

@@ -86,6 +86,9 @@ $router->get('/condominiums/create', 'App\Controllers\CondominiumController@crea
 $router->post('/condominiums', 'App\Controllers\CondominiumController@store');
 $router->get('/condominiums/{id}', 'App\Controllers\CondominiumController@show');
 $router->get('/condominiums/{id}/edit', 'App\Controllers\CondominiumController@edit');
+$router->get('/condominiums/{id}/customize', 'App\Controllers\CondominiumController@customize');
+$router->post('/condominiums/{id}/template', 'App\Controllers\CondominiumController@updateTemplate');
+$router->post('/condominiums/{id}/customize-logo', 'App\Controllers\CondominiumController@uploadLogo');
 $router->post('/condominiums/{id}', 'App\Controllers\CondominiumController@update');
 $router->post('/condominiums/{id}/logo', 'App\Controllers\CondominiumController@removeLogo');
 $router->post('/condominiums/{id}/delete', 'App\Controllers\CondominiumController@delete');

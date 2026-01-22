@@ -347,8 +347,8 @@ class Controller
             // If hasPreviewTemplateId is true, we will use the preview template instead
             if (!$hasPreviewTemplateId) {
                 $templateId = $condominiumModel->getDocumentTemplate($condominiumForTemplate['id']);
-                // Only set template ID if it's valid (1-9), otherwise keep as null (default)
-                if ($templateId !== null && ($templateId < 1 || $templateId > 9)) {
+                // Only set template ID if it's valid (1-17), otherwise keep as null (default)
+                if ($templateId !== null && ($templateId < 1 || $templateId > 17)) {
                     $templateId = null;
                 }
             }
