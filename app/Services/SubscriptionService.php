@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Models\Promotion;
 use App\Services\AuditService;
 
 class SubscriptionService
@@ -22,7 +23,7 @@ class SubscriptionService
     /**
      * Start trial subscription
      */
-    public function startTrial(int $userId, int $planId, int $trialDays = 14): int
+    public function startTrial(int $userId, int $planId, int $trialDays = 14, int $extraCondominiums = 0, ?int $promotionId = null, ?float $originalPrice = null): int
     {
         $plan = $this->planModel->findById($planId);
         if (!$plan) {
@@ -33,16 +34,49 @@ class SubscriptionService
         $trialEndsAt = date('Y-m-d H:i:s', strtotime("+{$trialDays} days"));
         $periodEnd = date('Y-m-d H:i:s', strtotime("+1 month"));
 
-        $subscriptionId = $this->subscriptionModel->create([
+        // Handle promotion
+        $promotionAppliedAt = null;
+        $promotionEndsAt = null;
+        $finalOriginalPrice = $originalPrice ?? $plan['price_monthly'];
+        
+        if ($promotionId) {
+            $promotionModel = new Promotion();
+            $promotion = $promotionModel->findById($promotionId);
+            
+            if ($promotion && $promotion['is_active']) {
+                $promotionAppliedAt = $now;
+                $durationMonths = $promotion['duration_months'] ?? null;
+                
+                if ($durationMonths) {
+                    $promotionEndsAt = date('Y-m-d H:i:s', strtotime("+{$durationMonths} months", strtotime($now)));
+                }
+            } else {
+                $promotionId = null; // Invalid promotion, don't apply
+            }
+        }
+
+        $subscriptionData = [
             'user_id' => $userId,
             'plan_id' => $planId,
+            'extra_condominiums' => $extraCondominiums,
             'status' => 'trial',
             'trial_ends_at' => $trialEndsAt,
             'current_period_start' => $now,
             'current_period_end' => $periodEnd
-        ]);
+        ];
+
+        // Add promotion fields if promotion is being applied
+        if ($promotionId) {
+            $subscriptionData['promotion_id'] = $promotionId;
+            $subscriptionData['promotion_applied_at'] = $promotionAppliedAt;
+            $subscriptionData['promotion_ends_at'] = $promotionEndsAt;
+            $subscriptionData['original_price_monthly'] = $finalOriginalPrice;
+        }
+
+        $subscriptionId = $this->subscriptionModel->create($subscriptionData);
 
         if ($subscriptionId) {
+            $promoText = $promotionId ? " com promoção ID: {$promotionId}" : "";
             // Log subscription creation
             $this->auditService->logSubscription([
                 'subscription_id' => $subscriptionId,
@@ -52,7 +86,7 @@ class SubscriptionService
                 'new_status' => 'trial',
                 'new_period_start' => $now,
                 'new_period_end' => $periodEnd,
-                'description' => "Período experimental iniciado. Plano ID: {$planId}. Duração: {$trialDays} dias"
+                'description' => "Período experimental iniciado. Plano ID: {$planId}. Duração: {$trialDays} dias{$promoText}"
             ]);
         }
 
@@ -62,7 +96,7 @@ class SubscriptionService
     /**
      * Upgrade subscription
      */
-    public function upgrade(int $userId, int $newPlanId): bool
+    public function upgrade(int $userId, int $newPlanId, ?int $promotionId = null): bool
     {
         $subscription = $this->subscriptionModel->getActiveSubscription($userId);
         if (!$subscription) {
@@ -85,14 +119,48 @@ class SubscriptionService
         $oldPeriodStart = $subscription['current_period_start'] ?? null;
         $oldPeriodEnd = $subscription['current_period_end'] ?? null;
 
-        $success = $this->subscriptionModel->update($subscription['id'], [
+        // Keep the current status (don't force 'active')
+        // If it's trial, keep trial; if it's active, keep active
+        $newStatus = $oldStatus;
+
+        $updateData = [
             'plan_id' => $newPlanId,
-            'status' => 'active',
+            'status' => $newStatus,
             'current_period_start' => $now,
             'current_period_end' => $periodEnd
-        ]);
+        ];
+
+        // Handle promotion if provided
+        if ($promotionId) {
+            $promotionModel = new Promotion();
+            $promotion = $promotionModel->findById($promotionId);
+            
+            if ($promotion && $promotion['is_active']) {
+                $promotionAppliedAt = $now;
+                $durationMonths = $promotion['duration_months'] ?? null;
+                $promotionEndsAt = null;
+                
+                if ($durationMonths) {
+                    $promotionEndsAt = date('Y-m-d H:i:s', strtotime("+{$durationMonths} months", strtotime($now)));
+                }
+                
+                $updateData['promotion_id'] = $promotionId;
+                $updateData['promotion_applied_at'] = $promotionAppliedAt;
+                $updateData['promotion_ends_at'] = $promotionEndsAt;
+                $updateData['original_price_monthly'] = $newPlan['price_monthly'];
+            }
+        } else {
+            // Clear promotion fields if no promotion is being applied
+            $updateData['promotion_id'] = null;
+            $updateData['promotion_applied_at'] = null;
+            $updateData['promotion_ends_at'] = null;
+            $updateData['original_price_monthly'] = null;
+        }
+
+        $success = $this->subscriptionModel->update($subscription['id'], $updateData);
 
         if ($success) {
+            $promoText = $promotionId ? " com promoção ID: {$promotionId}" : "";
             // Log subscription upgrade/plan change
             $this->auditService->logSubscription([
                 'subscription_id' => $subscription['id'],
@@ -101,12 +169,12 @@ class SubscriptionService
                 'old_plan_id' => $oldPlanId,
                 'new_plan_id' => $newPlanId,
                 'old_status' => $oldStatus,
-                'new_status' => 'active',
+                'new_status' => $newStatus,
                 'old_period_start' => $oldPeriodStart,
                 'new_period_start' => $now,
                 'old_period_end' => $oldPeriodEnd,
                 'new_period_end' => $periodEnd,
-                'description' => "Subscrição atualizada. Plano: {$oldPlanId} → {$newPlanId}. Status: {$oldStatus} → active"
+                'description' => "Subscrição atualizada. Plano: {$oldPlanId} → {$newPlanId}. Status mantido: {$oldStatus}{$promoText}"
             ]);
         }
 
@@ -126,6 +194,9 @@ class SubscriptionService
             return false;
         }
 
+        // Check and expire promotions before renewal
+        $this->subscriptionModel->checkAndExpirePromotions();
+
         $now = date('Y-m-d H:i:s');
         $periodEnd = date('Y-m-d H:i:s', strtotime("+1 month"));
 
@@ -134,16 +205,37 @@ class SubscriptionService
         $oldPeriodEnd = $subscription['current_period_end'] ?? null;
         $userId = $subscription['user_id'] ?? 0;
 
-        $success = $this->subscriptionModel->update($subscription['id'], [
+        // Re-fetch subscription to get updated promotion status
+        $subscription = $this->subscriptionModel->findById($subscriptionId);
+        
+        $updateData = [
             'status' => 'active',
             'current_period_start' => $now,
             'current_period_end' => $periodEnd
-        ]);
+        ];
+        
+        // If promotion expired, ensure it's cleared
+        if ($subscription && isset($subscription['promotion_ends_at']) && $subscription['promotion_ends_at']) {
+            if (strtotime($subscription['promotion_ends_at']) <= strtotime($now)) {
+                $updateData['promotion_id'] = null;
+                $updateData['promotion_applied_at'] = null;
+                $updateData['promotion_ends_at'] = null;
+            }
+        }
+
+        $success = $this->subscriptionModel->update($subscriptionId, $updateData);
 
         if ($success) {
+            $promoText = '';
+            if ($subscription && isset($subscription['promotion_id']) && $subscription['promotion_id']) {
+                $promoText = " (com promoção ativa)";
+            } elseif ($subscription && isset($subscription['promotion_ends_at']) && strtotime($subscription['promotion_ends_at']) <= strtotime($now)) {
+                $promoText = " (promoção expirada, renovado ao preço original)";
+            }
+            
             // Log subscription renewal
             $this->auditService->logSubscription([
-                'subscription_id' => $subscription['id'],
+                'subscription_id' => $subscriptionId,
                 'user_id' => $userId,
                 'action' => 'subscription_renewed',
                 'old_status' => $oldStatus,
@@ -152,7 +244,7 @@ class SubscriptionService
                 'new_period_start' => $now,
                 'old_period_end' => $oldPeriodEnd,
                 'new_period_end' => $periodEnd,
-                'description' => "Subscrição renovada automaticamente. Novo período: {$now} até {$periodEnd}"
+                'description' => "Subscrição renovada automaticamente. Novo período: {$now} até {$periodEnd}{$promoText}"
             ]);
         }
 
@@ -188,10 +280,10 @@ class SubscriptionService
     /**
      * Change subscription plan
      */
-    public function changePlan(int $userId, int $newPlanId): bool
+    public function changePlan(int $userId, int $newPlanId, ?int $promotionId = null): bool
     {
         // Same as upgrade, but can be used for downgrades too
-        return $this->upgrade($userId, $newPlanId);
+        return $this->upgrade($userId, $newPlanId, $promotionId);
     }
 
     /**

@@ -465,10 +465,31 @@ class PaymentService
             $subscriptionUpdated = false;
             $oldSubscriptionStatus = null;
             $newSubscriptionStatus = null;
+            $extraCondominiumsUpdated = false;
+            
             if ($payment['subscription_id']) {
                 $subscription = $this->subscriptionModel->findById($payment['subscription_id']);
                 if ($subscription) {
                     $oldSubscriptionStatus = $subscription['status'];
+                    
+                    // Check if payment includes extra condominiums update
+                    $newExtraCondominiums = null;
+                    if ($payment['invoice_id']) {
+                        $invoice = $this->invoiceModel->findById($payment['invoice_id']);
+                        if ($invoice && isset($invoice['metadata']) && $invoice['metadata']) {
+                            $metadata = $invoice['metadata']; // Already decoded in findById
+                            if (isset($metadata['is_extra_update']) && $metadata['is_extra_update']) {
+                                $newExtraCondominiums = (int)($metadata['new_extra_condominiums'] ?? null);
+                            }
+                        }
+                    }
+                    
+                    // Check and expire promotions before processing payment
+                    $this->subscriptionModel->checkAndExpirePromotions();
+                    
+                    // Re-fetch subscription to get updated promotion status
+                    $subscription = $this->subscriptionModel->findById($payment['subscription_id']);
+                    
                     // Determine period start: use current_period_end if valid, otherwise use now
                     $periodStart = $subscription['current_period_end'] ?? date('Y-m-d H:i:s');
                     // If period_end is in the past or null, start from now
@@ -477,11 +498,28 @@ class PaymentService
                     }
                     $newPeriodEnd = date('Y-m-d H:i:s', strtotime('+1 month', strtotime($periodStart)));
                     
-                    $this->subscriptionModel->update($payment['subscription_id'], [
+                    $updateData = [
                         'status' => 'active',
                         'current_period_start' => $periodStart,
                         'current_period_end' => $newPeriodEnd
-                    ]);
+                    ];
+                    
+                    // If promotion expired, ensure it's cleared
+                    if (isset($subscription['promotion_ends_at']) && $subscription['promotion_ends_at']) {
+                        if (strtotime($subscription['promotion_ends_at']) <= strtotime($periodStart)) {
+                            $updateData['promotion_id'] = null;
+                            $updateData['promotion_applied_at'] = null;
+                            $updateData['promotion_ends_at'] = null;
+                        }
+                    }
+                    
+                    // Update extra condominiums if this payment includes an update
+                    if ($newExtraCondominiums !== null) {
+                        $updateData['extra_condominiums'] = $newExtraCondominiums;
+                        $extraCondominiumsUpdated = true;
+                    }
+                    
+                    $this->subscriptionModel->update($payment['subscription_id'], $updateData);
                     $newSubscriptionStatus = 'active';
                     $subscriptionUpdated = true;
                 }
@@ -506,13 +544,30 @@ class PaymentService
             
             // Log subscription activation if applicable
             if ($subscriptionUpdated && $payment['subscription_id']) {
+                $description = "Subscrição ativada automaticamente após confirmação de pagamento";
+                if ($extraCondominiumsUpdated) {
+                    $subscription = $this->subscriptionModel->findById($payment['subscription_id']);
+                    $description .= ". Condomínios extras atualizados para: " . ($subscription['extra_condominiums'] ?? 0);
+                }
+                
                 $this->auditService->logSubscription([
                     'subscription_id' => $payment['subscription_id'],
                     'user_id' => $payment['user_id'],
                     'action' => 'subscription_activated_by_payment',
                     'old_status' => $oldSubscriptionStatus,
                     'new_status' => $newSubscriptionStatus,
-                    'description' => "Subscrição ativada automaticamente após confirmação de pagamento"
+                    'description' => $description
+                ]);
+            }
+            
+            // Log extra condominiums update separately if applicable
+            if ($extraCondominiumsUpdated && $payment['subscription_id']) {
+                $subscription = $this->subscriptionModel->findById($payment['subscription_id']);
+                $this->auditService->logSubscription([
+                    'subscription_id' => $payment['subscription_id'],
+                    'user_id' => $payment['user_id'],
+                    'action' => 'extra_condominiums_activated',
+                    'description' => "Condomínios extras ativados após confirmação de pagamento: " . ($subscription['extra_condominiums'] ?? 0)
                 ]);
             }
             

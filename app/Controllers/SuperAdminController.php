@@ -11,6 +11,8 @@ use App\Models\Subscription;
 use App\Models\Payment;
 use App\Models\Condominium;
 use App\Models\Plan;
+use App\Models\Promotion;
+use App\Models\PlanExtraCondominiumsPricing;
 use App\Services\AuditService;
 
 class SuperAdminController extends Controller
@@ -20,6 +22,8 @@ class SuperAdminController extends Controller
     protected $paymentModel;
     protected $condominiumModel;
     protected $planModel;
+    protected $promotionModel;
+    protected $extraCondominiumsPricingModel;
     protected $auditService;
 
     public function __construct()
@@ -30,6 +34,8 @@ class SuperAdminController extends Controller
         $this->paymentModel = new Payment();
         $this->condominiumModel = new Condominium();
         $this->planModel = new Plan();
+        $this->promotionModel = new Promotion();
+        $this->extraCondominiumsPricingModel = new PlanExtraCondominiumsPricing();
         $this->auditService = new AuditService();
     }
 
@@ -1440,6 +1446,1098 @@ class SuperAdminController extends Controller
         
         header('Content-Type: application/json');
         echo json_encode($results);
+        exit;
+    }
+
+    /**
+     * List all plans
+     */
+    public function plans()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $plans = $this->planModel->getAll();
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/plans/index.html.twig',
+            'page' => ['titulo' => 'Gestão de Planos'],
+            'plans' => $plans,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Show create plan form
+     */
+    public function createPlan()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/plans/form.html.twig',
+            'page' => ['titulo' => 'Criar Plano'],
+            'plan' => null,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Store new plan
+     */
+    public function storePlan()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $name = Security::sanitize($_POST['name'] ?? '');
+        $slug = Security::sanitize($_POST['slug'] ?? '');
+        $description = Security::sanitize($_POST['description'] ?? '');
+        $priceMonthly = floatval($_POST['price_monthly'] ?? 0);
+        $priceYearly = !empty($_POST['price_yearly']) ? floatval($_POST['price_yearly']) : null;
+        $limitCondominios = !empty($_POST['limit_condominios']) ? intval($_POST['limit_condominios']) : null;
+        $limitFracoes = !empty($_POST['limit_fracoes']) ? intval($_POST['limit_fracoes']) : null;
+        $features = !empty($_POST['features']) ? json_decode($_POST['features'], true) : [];
+        $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : true;
+        $sortOrder = intval($_POST['sort_order'] ?? 0);
+
+        // Validation
+        if (empty($name) || empty($slug) || $priceMonthly < 0) {
+            $_SESSION['error'] = 'Dados inválidos. Verifique os campos obrigatórios.';
+            header('Location: ' . BASE_URL . 'admin/plans/create');
+            exit;
+        }
+
+        // Check if slug already exists
+        $existingPlan = $this->planModel->findBySlug($slug);
+        if ($existingPlan) {
+            $_SESSION['error'] = 'Já existe um plano com este slug.';
+            header('Location: ' . BASE_URL . 'admin/plans/create');
+            exit;
+        }
+
+        try {
+            $planId = $this->planModel->create([
+                'name' => $name,
+                'slug' => $slug,
+                'description' => $description,
+                'price_monthly' => $priceMonthly,
+                'price_yearly' => $priceYearly,
+                'limit_condominios' => $limitCondominios,
+                'limit_fracoes' => $limitFracoes,
+                'features' => $features,
+                'is_active' => $isActive,
+                'sort_order' => $sortOrder
+            ]);
+
+            $this->logAudit([
+                'action' => 'plan_created',
+                'model' => 'plan',
+                'model_id' => $planId,
+                'description' => "Plano criado: {$name} (slug: {$slug})"
+            ]);
+
+            $_SESSION['success'] = 'Plano criado com sucesso.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao criar plano: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'admin/plans/create');
+            exit;
+        }
+    }
+
+    /**
+     * Show edit plan form
+     */
+    public function editPlan(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $plan = $this->planModel->findById($id);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        // Decode features JSON
+        if (!empty($plan['features'])) {
+            $plan['features'] = json_decode($plan['features'], true);
+        }
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/plans/form.html.twig',
+            'page' => ['titulo' => 'Editar Plano'],
+            'plan' => $plan,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Update plan
+     */
+    public function updatePlan(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $plan = $this->planModel->findById($id);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $name = Security::sanitize($_POST['name'] ?? '');
+        $slug = Security::sanitize($_POST['slug'] ?? '');
+        $description = Security::sanitize($_POST['description'] ?? '');
+        $priceMonthly = floatval($_POST['price_monthly'] ?? 0);
+        $priceYearly = !empty($_POST['price_yearly']) ? floatval($_POST['price_yearly']) : null;
+        $limitCondominios = !empty($_POST['limit_condominios']) ? intval($_POST['limit_condominios']) : null;
+        $limitFracoes = !empty($_POST['limit_fracoes']) ? intval($_POST['limit_fracoes']) : null;
+        $features = !empty($_POST['features']) ? json_decode($_POST['features'], true) : [];
+        $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : true;
+        $sortOrder = intval($_POST['sort_order'] ?? 0);
+
+        // Validation
+        if (empty($name) || empty($slug) || $priceMonthly < 0) {
+            $_SESSION['error'] = 'Dados inválidos. Verifique os campos obrigatórios.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $id . '/edit');
+            exit;
+        }
+
+        // Check if slug already exists (excluding current plan)
+        $existingPlan = $this->planModel->findBySlug($slug);
+        if ($existingPlan && $existingPlan['id'] != $id) {
+            $_SESSION['error'] = 'Já existe um plano com este slug.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $id . '/edit');
+            exit;
+        }
+
+        try {
+            $success = $this->planModel->update($id, [
+                'name' => $name,
+                'slug' => $slug,
+                'description' => $description,
+                'price_monthly' => $priceMonthly,
+                'price_yearly' => $priceYearly,
+                'limit_condominios' => $limitCondominios,
+                'limit_fracoes' => $limitFracoes,
+                'features' => $features,
+                'is_active' => $isActive,
+                'sort_order' => $sortOrder
+            ]);
+
+            if ($success) {
+                $this->logAudit([
+                    'action' => 'plan_updated',
+                    'model' => 'plan',
+                    'model_id' => $id,
+                    'description' => "Plano atualizado: {$name} (slug: {$slug})"
+                ]);
+
+                $_SESSION['success'] = 'Plano atualizado com sucesso.';
+            } else {
+                $_SESSION['error'] = 'Erro ao atualizar plano.';
+            }
+
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao atualizar plano: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'admin/plans/' . $id . '/edit');
+            exit;
+        }
+    }
+
+    /**
+     * Toggle plan active status
+     */
+    public function togglePlanActive(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $plan = $this->planModel->findById($id);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        try {
+            $success = $this->planModel->toggleActive($id);
+            if ($success) {
+                $newStatus = !$plan['is_active'] ? 'ativado' : 'desativado';
+                $this->logAudit([
+                    'action' => 'plan_toggled',
+                    'model' => 'plan',
+                    'model_id' => $id,
+                    'description' => "Plano {$newStatus}: {$plan['name']}"
+                ]);
+
+                $_SESSION['success'] = "Plano {$newStatus} com sucesso.";
+            } else {
+                $_SESSION['error'] = 'Erro ao alterar status do plano.';
+            }
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'admin/plans');
+        exit;
+    }
+
+    /**
+     * Delete plan
+     */
+    public function deletePlan(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $plan = $this->planModel->findById($id);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        try {
+            $this->planModel->delete($id);
+            $this->logAudit([
+                'action' => 'plan_deleted',
+                'model' => 'plan',
+                'model_id' => $id,
+                'description' => "Plano deletado: {$plan['name']}"
+            ]);
+
+            $_SESSION['success'] = 'Plano deletado com sucesso.';
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao deletar plano: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'admin/plans');
+        exit;
+    }
+
+    /**
+     * List all promotions
+     */
+    public function promotions()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $promotions = $this->promotionModel->getAll();
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/promotions/index.html.twig',
+            'page' => ['titulo' => 'Gestão de Promoções'],
+            'promotions' => $promotions,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Show create promotion form
+     */
+    public function createPromotion()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $plans = $this->planModel->getAll();
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/promotions/form.html.twig',
+            'page' => ['titulo' => 'Criar Promoção'],
+            'promotion' => null,
+            'plans' => $plans,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Store new promotion
+     */
+    public function storePromotion()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        }
+
+        $name = Security::sanitize($_POST['name'] ?? '');
+        $code = strtoupper(Security::sanitize($_POST['code'] ?? ''));
+        $description = Security::sanitize($_POST['description'] ?? '');
+        $discountType = $_POST['discount_type'] ?? 'percentage';
+        $discountValue = floatval($_POST['discount_value'] ?? 0);
+        $planId = !empty($_POST['plan_id']) ? intval($_POST['plan_id']) : null;
+        $startDate = $_POST['start_date'] ?? '';
+        $endDate = $_POST['end_date'] ?? '';
+        $maxUses = !empty($_POST['max_uses']) ? intval($_POST['max_uses']) : null;
+        $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : true;
+        $isVisible = isset($_POST['is_visible']) ? (bool)$_POST['is_visible'] : false;
+        $durationMonths = !empty($_POST['duration_months']) ? intval($_POST['duration_months']) : null;
+
+        // Validation
+        if (empty($name) || empty($code) || $discountValue <= 0) {
+            $_SESSION['error'] = 'Dados inválidos. Verifique os campos obrigatórios.';
+            header('Location: ' . BASE_URL . 'admin/promotions/create');
+            exit;
+        }
+
+        if ($discountType === 'percentage' && $discountValue > 100) {
+            $_SESSION['error'] = 'O desconto percentual não pode ser superior a 100%.';
+            header('Location: ' . BASE_URL . 'admin/promotions/create');
+            exit;
+        }
+
+        if (empty($startDate) || empty($endDate)) {
+            $_SESSION['error'] = 'As datas de início e fim são obrigatórias.';
+            header('Location: ' . BASE_URL . 'admin/promotions/create');
+            exit;
+        }
+
+        if (strtotime($endDate) <= strtotime($startDate)) {
+            $_SESSION['error'] = 'A data de fim deve ser posterior à data de início.';
+            header('Location: ' . BASE_URL . 'admin/promotions/create');
+            exit;
+        }
+
+        // Check if code already exists
+        $existingPromotion = $this->promotionModel->findByCode($code);
+        if ($existingPromotion) {
+            $_SESSION['error'] = 'Já existe uma promoção com este código.';
+            header('Location: ' . BASE_URL . 'admin/promotions/create');
+            exit;
+        }
+
+        // Validate plan_id if provided
+        if ($planId) {
+            $plan = $this->planModel->findById($planId);
+            if (!$plan) {
+                $_SESSION['error'] = 'Plano não encontrado.';
+                header('Location: ' . BASE_URL . 'admin/promotions/create');
+                exit;
+            }
+        }
+
+        try {
+            $promotionId = $this->promotionModel->create([
+                'name' => $name,
+                'code' => $code,
+                'description' => $description,
+                'discount_type' => $discountType,
+                'discount_value' => $discountValue,
+                'plan_id' => $planId,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'max_uses' => $maxUses,
+                'is_active' => $isActive,
+                'is_visible' => $isVisible,
+                'duration_months' => $durationMonths
+            ]);
+
+            $this->logAudit([
+                'action' => 'promotion_created',
+                'model' => 'promotion',
+                'model_id' => $promotionId,
+                'description' => "Promoção criada: {$name} (código: {$code})"
+            ]);
+
+            $_SESSION['success'] = 'Promoção criada com sucesso.';
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao criar promoção: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'admin/promotions/create');
+            exit;
+        }
+    }
+
+    /**
+     * Show edit promotion form
+     */
+    public function editPromotion(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $promotion = $this->promotionModel->findById($id);
+        if (!$promotion) {
+            $_SESSION['error'] = 'Promoção não encontrada.';
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        }
+
+        $plans = $this->planModel->getAll();
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/promotions/form.html.twig',
+            'page' => ['titulo' => 'Editar Promoção'],
+            'promotion' => $promotion,
+            'plans' => $plans,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Update promotion
+     */
+    public function updatePromotion(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        }
+
+        $promotion = $this->promotionModel->findById($id);
+        if (!$promotion) {
+            $_SESSION['error'] = 'Promoção não encontrada.';
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        }
+
+        $name = Security::sanitize($_POST['name'] ?? '');
+        $code = strtoupper(Security::sanitize($_POST['code'] ?? ''));
+        $description = Security::sanitize($_POST['description'] ?? '');
+        $discountType = $_POST['discount_type'] ?? 'percentage';
+        $discountValue = floatval($_POST['discount_value'] ?? 0);
+        $planId = !empty($_POST['plan_id']) ? intval($_POST['plan_id']) : null;
+        $startDate = $_POST['start_date'] ?? '';
+        $endDate = $_POST['end_date'] ?? '';
+        $maxUses = !empty($_POST['max_uses']) ? intval($_POST['max_uses']) : null;
+        $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : true;
+        $isVisible = isset($_POST['is_visible']) ? (bool)$_POST['is_visible'] : false;
+        $durationMonths = !empty($_POST['duration_months']) ? intval($_POST['duration_months']) : null;
+
+        // Validation
+        if (empty($name) || empty($code) || $discountValue <= 0) {
+            $_SESSION['error'] = 'Dados inválidos. Verifique os campos obrigatórios.';
+            header('Location: ' . BASE_URL . 'admin/promotions/' . $id . '/edit');
+            exit;
+        }
+
+        if ($discountType === 'percentage' && $discountValue > 100) {
+            $_SESSION['error'] = 'O desconto percentual não pode ser superior a 100%.';
+            header('Location: ' . BASE_URL . 'admin/promotions/' . $id . '/edit');
+            exit;
+        }
+
+        if (empty($startDate) || empty($endDate)) {
+            $_SESSION['error'] = 'As datas de início e fim são obrigatórias.';
+            header('Location: ' . BASE_URL . 'admin/promotions/' . $id . '/edit');
+            exit;
+        }
+
+        if (strtotime($endDate) <= strtotime($startDate)) {
+            $_SESSION['error'] = 'A data de fim deve ser posterior à data de início.';
+            header('Location: ' . BASE_URL . 'admin/promotions/' . $id . '/edit');
+            exit;
+        }
+
+        // Check if code already exists (excluding current promotion)
+        $existingPromotion = $this->promotionModel->findByCode($code);
+        if ($existingPromotion && $existingPromotion['id'] != $id) {
+            $_SESSION['error'] = 'Já existe uma promoção com este código.';
+            header('Location: ' . BASE_URL . 'admin/promotions/' . $id . '/edit');
+            exit;
+        }
+
+        // Validate plan_id if provided
+        if ($planId) {
+            $plan = $this->planModel->findById($planId);
+            if (!$plan) {
+                $_SESSION['error'] = 'Plano não encontrado.';
+                header('Location: ' . BASE_URL . 'admin/promotions/' . $id . '/edit');
+                exit;
+            }
+        }
+
+        try {
+            $success = $this->promotionModel->update($id, [
+                'name' => $name,
+                'code' => $code,
+                'description' => $description,
+                'discount_type' => $discountType,
+                'discount_value' => $discountValue,
+                'plan_id' => $planId,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'max_uses' => $maxUses,
+                'is_active' => $isActive,
+                'is_visible' => $isVisible,
+                'duration_months' => $durationMonths
+            ]);
+
+            if ($success) {
+                $this->logAudit([
+                    'action' => 'promotion_updated',
+                    'model' => 'promotion',
+                    'model_id' => $id,
+                    'description' => "Promoção atualizada: {$name} (código: {$code})"
+                ]);
+
+                $_SESSION['success'] = 'Promoção atualizada com sucesso.';
+            } else {
+                $_SESSION['error'] = 'Erro ao atualizar promoção.';
+            }
+
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao atualizar promoção: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'admin/promotions/' . $id . '/edit');
+            exit;
+        }
+    }
+
+    /**
+     * Toggle promotion active status
+     */
+    public function togglePromotionActive(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        }
+
+        $promotion = $this->promotionModel->findById($id);
+        if (!$promotion) {
+            $_SESSION['error'] = 'Promoção não encontrada.';
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        }
+
+        try {
+            $success = $this->promotionModel->toggleActive($id);
+            if ($success) {
+                $newStatus = !$promotion['is_active'] ? 'ativada' : 'desativada';
+                $this->logAudit([
+                    'action' => 'promotion_toggled',
+                    'model' => 'promotion',
+                    'model_id' => $id,
+                    'description' => "Promoção {$newStatus}: {$promotion['name']}"
+                ]);
+
+                $_SESSION['success'] = "Promoção {$newStatus} com sucesso.";
+            } else {
+                $_SESSION['error'] = 'Erro ao alterar status da promoção.';
+            }
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'admin/promotions');
+        exit;
+    }
+
+    /**
+     * Delete promotion
+     */
+    public function deletePromotion(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        }
+
+        $promotion = $this->promotionModel->findById($id);
+        if (!$promotion) {
+            $_SESSION['error'] = 'Promoção não encontrada.';
+            header('Location: ' . BASE_URL . 'admin/promotions');
+            exit;
+        }
+
+        try {
+            global $db;
+            $stmt = $db->prepare("DELETE FROM promotions WHERE id = :id");
+            $stmt->execute([':id' => $id]);
+
+            $this->logAudit([
+                'action' => 'promotion_deleted',
+                'model' => 'promotion',
+                'model_id' => $id,
+                'description' => "Promoção deletada: {$promotion['name']}"
+            ]);
+
+            $_SESSION['success'] = 'Promoção deletada com sucesso.';
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao deletar promoção: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'admin/promotions');
+        exit;
+    }
+
+    /**
+     * List extra condominiums pricing for a plan
+     */
+    public function extraCondominiumsPricing(int $planId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $plan = $this->planModel->findById($planId);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $pricingTiers = $this->extraCondominiumsPricingModel->getByPlanId($planId);
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/plans/extra-condominiums-pricing.html.twig',
+            'page' => ['titulo' => 'Preços de Condomínios Extras - ' . $plan['name']],
+            'plan' => $plan,
+            'pricing_tiers' => $pricingTiers,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Show create pricing tier form
+     */
+    public function createExtraCondominiumsPricing(int $planId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $plan = $this->planModel->findById($planId);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/plans/extra-condominiums-pricing-form.html.twig',
+            'page' => ['titulo' => 'Criar Escalão de Preço - ' . $plan['name']],
+            'plan' => $plan,
+            'pricing_tier' => null,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Store new pricing tier
+     */
+    public function storeExtraCondominiumsPricing(int $planId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        }
+
+        $plan = $this->planModel->findById($planId);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $minCondominios = intval($_POST['min_condominios'] ?? 1);
+        $maxCondominios = !empty($_POST['max_condominios']) ? intval($_POST['max_condominios']) : null;
+        $pricePerCondominium = floatval($_POST['price_per_condominium'] ?? 0);
+        $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : true;
+        $sortOrder = intval($_POST['sort_order'] ?? 0);
+
+        // Validation
+        if ($minCondominios < 1 || $pricePerCondominium <= 0) {
+            $_SESSION['error'] = 'Dados inválidos. Verifique os campos obrigatórios.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing/create');
+            exit;
+        }
+
+        if ($maxCondominios !== null && $maxCondominios <= $minCondominios) {
+            $_SESSION['error'] = 'O número máximo de condomínios deve ser maior que o mínimo.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing/create');
+            exit;
+        }
+
+        try {
+            $tierId = $this->extraCondominiumsPricingModel->create([
+                'plan_id' => $planId,
+                'min_condominios' => $minCondominios,
+                'max_condominios' => $maxCondominios,
+                'price_per_condominium' => $pricePerCondominium,
+                'is_active' => $isActive,
+                'sort_order' => $sortOrder
+            ]);
+
+            $this->logAudit([
+                'action' => 'extra_condominiums_pricing_created',
+                'model' => 'plan_extra_condominiums_pricing',
+                'model_id' => $tierId,
+                'description' => "Escalão de preço criado para plano {$plan['name']}: {$minCondominios}-" . ($maxCondominios ?? '∞') . " condomínios, €{$pricePerCondominium}/condomínio"
+            ]);
+
+            $_SESSION['success'] = 'Escalão de preço criado com sucesso.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao criar escalão de preço: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing/create');
+            exit;
+        }
+    }
+
+    /**
+     * Show edit pricing tier form
+     */
+    public function editExtraCondominiumsPricing(int $planId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $plan = $this->planModel->findById($planId);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $pricingTier = $this->extraCondominiumsPricingModel->findById($id);
+        if (!$pricingTier || $pricingTier['plan_id'] != $planId) {
+            $_SESSION['error'] = 'Escalão de preço não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        }
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/plans/extra-condominiums-pricing-form.html.twig',
+            'page' => ['titulo' => 'Editar Escalão de Preço - ' . $plan['name']],
+            'plan' => $plan,
+            'pricing_tier' => $pricingTier,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Update pricing tier
+     */
+    public function updateExtraCondominiumsPricing(int $planId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        }
+
+        $plan = $this->planModel->findById($planId);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $pricingTier = $this->extraCondominiumsPricingModel->findById($id);
+        if (!$pricingTier || $pricingTier['plan_id'] != $planId) {
+            $_SESSION['error'] = 'Escalão de preço não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        }
+
+        $minCondominios = intval($_POST['min_condominios'] ?? 1);
+        $maxCondominios = !empty($_POST['max_condominios']) ? intval($_POST['max_condominios']) : null;
+        $pricePerCondominium = floatval($_POST['price_per_condominium'] ?? 0);
+        $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : true;
+        $sortOrder = intval($_POST['sort_order'] ?? 0);
+
+        // Validation
+        if ($minCondominios < 1 || $pricePerCondominium <= 0) {
+            $_SESSION['error'] = 'Dados inválidos. Verifique os campos obrigatórios.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing/' . $id . '/edit');
+            exit;
+        }
+
+        if ($maxCondominios !== null && $maxCondominios <= $minCondominios) {
+            $_SESSION['error'] = 'O número máximo de condomínios deve ser maior que o mínimo.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing/' . $id . '/edit');
+            exit;
+        }
+
+        try {
+            $success = $this->extraCondominiumsPricingModel->update($id, [
+                'min_condominios' => $minCondominios,
+                'max_condominios' => $maxCondominios,
+                'price_per_condominium' => $pricePerCondominium,
+                'is_active' => $isActive,
+                'sort_order' => $sortOrder
+            ]);
+
+            if ($success) {
+                $this->logAudit([
+                    'action' => 'extra_condominiums_pricing_updated',
+                    'model' => 'plan_extra_condominiums_pricing',
+                    'model_id' => $id,
+                    'description' => "Escalão de preço atualizado para plano {$plan['name']}: {$minCondominios}-" . ($maxCondominios ?? '∞') . " condomínios, €{$pricePerCondominium}/condomínio"
+                ]);
+
+                $_SESSION['success'] = 'Escalão de preço atualizado com sucesso.';
+            } else {
+                $_SESSION['error'] = 'Erro ao atualizar escalão de preço.';
+            }
+
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao atualizar escalão de preço: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing/' . $id . '/edit');
+            exit;
+        }
+    }
+
+    /**
+     * Delete pricing tier
+     */
+    public function deleteExtraCondominiumsPricing(int $planId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        }
+
+        $pricingTier = $this->extraCondominiumsPricingModel->findById($id);
+        if (!$pricingTier || $pricingTier['plan_id'] != $planId) {
+            $_SESSION['error'] = 'Escalão de preço não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        }
+
+        try {
+            $this->extraCondominiumsPricingModel->delete($id);
+            $this->logAudit([
+                'action' => 'extra_condominiums_pricing_deleted',
+                'model' => 'plan_extra_condominiums_pricing',
+                'model_id' => $id,
+                'description' => "Escalão de preço deletado: {$pricingTier['min_condominios']}-" . ($pricingTier['max_condominios'] ?? '∞') . " condomínios"
+            ]);
+
+            $_SESSION['success'] = 'Escalão de preço deletado com sucesso.';
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao deletar escalão de preço: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+        exit;
+    }
+
+    /**
+     * Toggle pricing tier active status
+     */
+    public function toggleExtraCondominiumsPricingActive(int $planId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        }
+
+        $pricingTier = $this->extraCondominiumsPricingModel->findById($id);
+        if (!$pricingTier || $pricingTier['plan_id'] != $planId) {
+            $_SESSION['error'] = 'Escalão de preço não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
+            exit;
+        }
+
+        try {
+            $success = $this->extraCondominiumsPricingModel->toggleActive($id);
+            if ($success) {
+                $newStatus = !$pricingTier['is_active'] ? 'ativado' : 'desativado';
+                $this->logAudit([
+                    'action' => 'extra_condominiums_pricing_toggled',
+                    'model' => 'plan_extra_condominiums_pricing',
+                    'model_id' => $id,
+                    'description' => "Escalão de preço {$newStatus}: {$pricingTier['min_condominios']}-" . ($pricingTier['max_condominios'] ?? '∞') . " condomínios"
+                ]);
+
+                $_SESSION['success'] = "Escalão de preço {$newStatus} com sucesso.";
+            } else {
+                $_SESSION['error'] = 'Erro ao alterar status do escalão de preço.';
+            }
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
         exit;
     }
 

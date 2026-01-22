@@ -3,17 +3,78 @@
 namespace App\Controllers;
 
 use App\Core\Controller;
+use App\Models\Plan;
+use App\Models\Promotion;
+use App\Models\PlanExtraCondominiumsPricing;
 
 class HomeController extends Controller
 {
+    /**
+     * Convert plan features from JSON to readable format
+     */
+    protected function convertFeaturesToReadable(array $plans): array
+    {
+        $featureLabels = [
+            'financas_completas' => 'Finanças Completas',
+            'documentos' => 'Gestão de Documentos',
+            'ocorrencias' => 'Ocorrências',
+            'votacoes_online' => 'Votações Online',
+            'reservas_espacos' => 'Reservas de Espaços',
+            'gestao_contratos' => 'Gestão de Contratos',
+            'gestao_fornecedores' => 'Gestão de Fornecedores'
+        ];
+
+        foreach ($plans as &$plan) {
+            if (isset($plan['features']) && $plan['features']) {
+                $features = json_decode($plan['features'], true);
+                $readableFeatures = [];
+                
+                if (is_array($features)) {
+                    foreach ($features as $key => $value) {
+                        if ($value && isset($featureLabels[$key])) {
+                            $readableFeatures[] = $featureLabels[$key];
+                        }
+                    }
+                }
+                
+                $plan['features'] = $readableFeatures;
+            }
+        }
+        unset($plan);
+        
+        return $plans;
+    }
+
     public function index()
     {
         // Load page metadata from Metafiles
         $this->page->setPage('home');
         
         // Get plans for pricing section
-        $planModel = new \App\Models\Plan();
+        $planModel = new Plan();
         $plans = $planModel->getActivePlans();
+        
+        // Convert features to readable format
+        $plans = $this->convertFeaturesToReadable($plans);
+        
+        // Get visible promotions for each plan
+        $promotionModel = new Promotion();
+        $planPromotions = [];
+        $businessPlan = null;
+        $extraCondominiumsPricing = [];
+        
+        foreach ($plans as $plan) {
+            $visiblePromotion = $promotionModel->getVisibleForPlan($plan['id']);
+            if ($visiblePromotion) {
+                $planPromotions[$plan['id']] = $visiblePromotion;
+            }
+            
+            if ($plan['slug'] === 'business') {
+                $businessPlan = $plan;
+                $extraCondominiumsPricingModel = new PlanExtraCondominiumsPricing();
+                $extraCondominiumsPricing = $extraCondominiumsPricingModel->getByPlanId($plan['id']);
+            }
+        }
         
         $this->data += [
             'viewName' => 'pages/home.html.twig',
@@ -22,7 +83,10 @@ class HomeController extends Controller
                 'description' => $this->page->description,
                 'keywords' => $this->page->keywords
             ],
-            'plans' => $plans
+            'plans' => $plans,
+            'plan_promotions' => $planPromotions,
+            'business_plan' => $businessPlan,
+            'extra_condominiums_pricing' => $extraCondominiumsPricing
         ];
         
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

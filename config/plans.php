@@ -8,15 +8,13 @@ return [
         'limit_condominios' => 1,
         'limit_fracoes' => 20,
         'features' => [
-            'financas_basicas' => true,
+            'financas_completas' => true,
             'documentos' => true,
-            'ocorrencias_simples' => true,
-            'votacoes_online' => false,
-            'reservas_espacos' => false,
-            'gestao_contratos' => false,
-            'api' => false,
-            'branding_personalizado' => false,
-            'app_mobile' => false
+            'ocorrencias' => true,
+            'votacoes_online' => true,
+            'reservas_espacos' => true,
+            'gestao_contratos' => true,
+            'gestao_fornecedores' => true
         ]
     ],
     'pro' => [
@@ -27,13 +25,12 @@ return [
         'limit_fracoes' => 150,
         'features' => [
             'financas_completas' => true,
+            'documentos' => true,
+            'ocorrencias' => true,
             'votacoes_online' => true,
             'reservas_espacos' => true,
             'gestao_contratos' => true,
-            'gestao_fornecedores' => true,
-            'api' => false,
-            'branding_personalizado' => false,
-            'app_mobile' => false
+            'gestao_fornecedores' => true
         ]
     ],
     'business' => [
@@ -43,11 +40,13 @@ return [
         'limit_condominios' => null, // unlimited
         'limit_fracoes' => null, // unlimited
         'features' => [
-            'todos_modulos' => true,
-            'api' => true,
-            'branding_personalizado' => true,
-            'app_mobile_premium' => true,
-            'suporte_prioritario' => true
+            'financas_completas' => true,
+            'documentos' => true,
+            'ocorrencias' => true,
+            'votacoes_online' => true,
+            'reservas_espacos' => true,
+            'gestao_contratos' => true,
+            'gestao_fornecedores' => true
         ]
     ]
 ];

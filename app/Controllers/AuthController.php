@@ -902,16 +902,11 @@ class AuthController extends Controller
             'financas_completas' => 'Finanças Completas',
             'documentos' => 'Gestão de Documentos',
             'ocorrencias_simples' => 'Ocorrências Simples',
+            'ocorrencias' => 'Ocorrências',
             'votacoes_online' => 'Votações Online',
             'reservas_espacos' => 'Reservas de Espaços',
             'gestao_contratos' => 'Gestão de Contratos',
-            'gestao_fornecedores' => 'Gestão de Fornecedores',
-            'api' => 'API REST',
-            'branding_personalizado' => 'Branding Personalizado',
-            'app_mobile' => 'App Mobile',
-            'app_mobile_premium' => 'App Mobile Premium',
-            'todos_modulos' => 'Todos os Módulos',
-            'suporte_prioritario' => 'Suporte Prioritário'
+            'gestao_fornecedores' => 'Gestão de Fornecedores'
         ];
         
         foreach ($plans as &$plan) {
@@ -928,6 +923,17 @@ class AuthController extends Controller
         }
         unset($plan);
 
+        // Get visible promotions for each plan
+        $promotionModel = new \App\Models\Promotion();
+        $planPromotions = [];
+        
+        foreach ($plans as $plan) {
+            $visiblePromotion = $promotionModel->getVisibleForPlan($plan['id']);
+            if ($visiblePromotion) {
+                $planPromotions[$plan['id']] = $visiblePromotion;
+            }
+        }
+
         $this->loadPageTranslations('subscription');
         
         $this->data += [
@@ -937,6 +943,7 @@ class AuthController extends Controller
                 'description' => 'Escolha o plano ideal para o seu condomínio'
             ],
             'plans' => $plans,
+            'plan_promotions' => $planPromotions,
             'error' => $_SESSION['register_error'] ?? null,
             'csrf_token' => Security::generateCSRFToken()
         ];

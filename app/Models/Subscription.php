@@ -22,10 +22,12 @@ class Subscription extends Model
             FROM subscriptions s
             INNER JOIN plans p ON s.plan_id = p.id
             WHERE s.user_id = :user_id 
-            AND s.status IN ('trial', 'active', 'canceled')
+            AND s.status IN ('trial', 'active')
             ORDER BY s.created_at DESC
             LIMIT 1
         ");
+        
+        // Note: extra_condominiums is included in s.*
 
         $stmt->execute([':user_id' => $userId]);
         return $stmt->fetch() ?: null;
@@ -40,26 +42,61 @@ class Subscription extends Model
             throw new \Exception("Database connection not available");
         }
 
-        $stmt = $this->db->prepare("
-            INSERT INTO subscriptions (
-                user_id, plan_id, status, trial_ends_at, 
-                current_period_start, current_period_end, payment_method
-            )
-            VALUES (
-                :user_id, :plan_id, :status, :trial_ends_at,
-                :current_period_start, :current_period_end, :payment_method
-            )
-        ");
+        // Check if promotion columns exist
+        $checkStmt = $this->db->query("SHOW COLUMNS FROM subscriptions LIKE 'promotion_id'");
+        $hasPromoFields = $checkStmt->rowCount() > 0;
 
-        $stmt->execute([
-            ':user_id' => $data['user_id'],
-            ':plan_id' => $data['plan_id'],
-            ':status' => $data['status'] ?? 'trial',
-            ':trial_ends_at' => $data['trial_ends_at'] ?? null,
-            ':current_period_start' => $data['current_period_start'],
-            ':current_period_end' => $data['current_period_end'],
-            ':payment_method' => $data['payment_method'] ?? null
-        ]);
+        if ($hasPromoFields) {
+            $stmt = $this->db->prepare("
+                INSERT INTO subscriptions (
+                    user_id, plan_id, extra_condominiums, status, trial_ends_at, 
+                    current_period_start, current_period_end, payment_method,
+                    promotion_id, promotion_applied_at, promotion_ends_at, original_price_monthly
+                )
+                VALUES (
+                    :user_id, :plan_id, :extra_condominiums, :status, :trial_ends_at,
+                    :current_period_start, :current_period_end, :payment_method,
+                    :promotion_id, :promotion_applied_at, :promotion_ends_at, :original_price_monthly
+                )
+            ");
+
+            $stmt->execute([
+                ':user_id' => $data['user_id'],
+                ':plan_id' => $data['plan_id'],
+                ':extra_condominiums' => $data['extra_condominiums'] ?? 0,
+                ':status' => $data['status'] ?? 'trial',
+                ':trial_ends_at' => $data['trial_ends_at'] ?? null,
+                ':current_period_start' => $data['current_period_start'],
+                ':current_period_end' => $data['current_period_end'],
+                ':payment_method' => $data['payment_method'] ?? null,
+                ':promotion_id' => $data['promotion_id'] ?? null,
+                ':promotion_applied_at' => $data['promotion_applied_at'] ?? null,
+                ':promotion_ends_at' => $data['promotion_ends_at'] ?? null,
+                ':original_price_monthly' => $data['original_price_monthly'] ?? null
+            ]);
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO subscriptions (
+                    user_id, plan_id, extra_condominiums, status, trial_ends_at, 
+                    current_period_start, current_period_end, payment_method
+                )
+                VALUES (
+                    :user_id, :plan_id, :extra_condominiums, :status, :trial_ends_at,
+                    :current_period_start, :current_period_end, :payment_method
+                )
+            ");
+
+            $stmt->execute([
+                ':user_id' => $data['user_id'],
+                ':plan_id' => $data['plan_id'],
+                ':extra_condominiums' => $data['extra_condominiums'] ?? 0,
+                ':status' => $data['status'] ?? 'trial',
+                ':trial_ends_at' => $data['trial_ends_at'] ?? null,
+                ':current_period_start' => $data['current_period_start'],
+                ':current_period_end' => $data['current_period_end'],
+                ':payment_method' => $data['payment_method'] ?? null
+            ]);
+        }
 
         return (int)$this->db->lastInsertId();
     }
@@ -226,6 +263,95 @@ class Subscription extends Model
         $stmt = $this->db->prepare("SELECT * FROM subscriptions WHERE id = :id LIMIT 1");
         $stmt->execute([':id' => $id]);
         return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * Get price with promotion applied (if promotion is still active)
+     * Returns the effective monthly price considering active promotions
+     */
+    public function getPriceWithPromotion(int $subscriptionId, float $basePrice): float
+    {
+        if (!$this->db) {
+            return $basePrice;
+        }
+
+        $subscription = $this->findById($subscriptionId);
+        if (!$subscription || !isset($subscription['promotion_id']) || !$subscription['promotion_id']) {
+            return $basePrice;
+        }
+
+        // Check if promotion is still active
+        $now = date('Y-m-d H:i:s');
+        if (!$subscription['promotion_ends_at'] || $subscription['promotion_ends_at'] < $now) {
+            // Promotion expired, return original price
+            return $subscription['original_price_monthly'] ?? $basePrice;
+        }
+
+        // Promotion is still active, calculate discounted price
+        $promotionModel = new Promotion();
+        $promotion = $promotionModel->findById($subscription['promotion_id']);
+        
+        if (!$promotion) {
+            return $subscription['original_price_monthly'] ?? $basePrice;
+        }
+
+        // Use original price if available, otherwise use current base price
+        $priceToDiscount = $subscription['original_price_monthly'] ?? $basePrice;
+        
+        if ($promotion['discount_type'] === 'percentage') {
+            $discount = ($priceToDiscount * $promotion['discount_value']) / 100;
+            return max(0, $priceToDiscount - $discount);
+        } else {
+            // Fixed discount
+            return max(0, $priceToDiscount - $promotion['discount_value']);
+        }
+    }
+
+    /**
+     * Check and expire promotions that have ended
+     * Should be called periodically (e.g., at the start of each billing period)
+     */
+    public function checkAndExpirePromotions(): int
+    {
+        if (!$this->db) {
+            return 0;
+        }
+
+        $now = date('Y-m-d H:i:s');
+        
+        // Find subscriptions with expired promotions
+        $stmt = $this->db->prepare("
+            SELECT id, original_price_monthly, promotion_id
+            FROM subscriptions
+            WHERE promotion_id IS NOT NULL
+            AND promotion_ends_at IS NOT NULL
+            AND promotion_ends_at <= :now
+            AND status IN ('trial', 'active')
+        ");
+        
+        $stmt->execute([':now' => $now]);
+        $expiredSubscriptions = $stmt->fetchAll() ?: [];
+        
+        $expiredCount = 0;
+        
+        foreach ($expiredSubscriptions as $subscription) {
+            // Clear promotion fields and restore original price
+            $updateStmt = $this->db->prepare("
+                UPDATE subscriptions 
+                SET promotion_id = NULL,
+                    promotion_applied_at = NULL,
+                    promotion_ends_at = NULL,
+                    original_price_monthly = NULL,
+                    updated_at = NOW()
+                WHERE id = :id
+            ");
+            
+            if ($updateStmt->execute([':id' => $subscription['id']])) {
+                $expiredCount++;
+            }
+        }
+        
+        return $expiredCount;
     }
 }
 

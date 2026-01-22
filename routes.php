@@ -61,7 +61,10 @@ $router->post('/subscription/start-trial', 'App\Controllers\SubscriptionControll
 $router->post('/subscription/upgrade', 'App\Controllers\SubscriptionController@upgrade');
 $router->post('/subscription/cancel', 'App\Controllers\SubscriptionController@cancel');
 $router->post('/subscription/change-plan', 'App\Controllers\SubscriptionController@changePlan');
+$router->post('/subscription/update-extras', 'App\Controllers\SubscriptionController@updateExtras');
+$router->post('/subscription/cancel-pending-extras', 'App\Controllers\SubscriptionController@cancelPendingExtras');
 $router->post('/subscription/reactivate', 'App\Controllers\SubscriptionController@reactivate');
+$router->post('/subscription/validate-promotion-code', 'App\Controllers\SubscriptionController@validatePromotionCode');
 
 // Dashboard routes (to be implemented)
 $router->get('/dashboard', 'App\Controllers\DashboardController@index');
@@ -355,6 +358,33 @@ $router->post('/admin/subscriptions/deactivate', 'App\Controllers\SuperAdminCont
 $router->get('/admin/condominiums', 'App\Controllers\SuperAdminController@condominiums');
 $router->get('/admin/condominiums/{id}/stats', 'App\Controllers\SuperAdminController@condominiumStats');
 $router->get('/admin/payments', 'App\Controllers\SuperAdminController@payments');
+
+// Planos
+$router->get('/admin/plans', 'App\Controllers\SuperAdminController@plans');
+$router->get('/admin/plans/create', 'App\Controllers\SuperAdminController@createPlan');
+$router->post('/admin/plans', 'App\Controllers\SuperAdminController@storePlan');
+$router->get('/admin/plans/{id}/edit', 'App\Controllers\SuperAdminController@editPlan');
+$router->post('/admin/plans/{id}', 'App\Controllers\SuperAdminController@updatePlan');
+$router->post('/admin/plans/{id}/toggle-active', 'App\Controllers\SuperAdminController@togglePlanActive');
+$router->post('/admin/plans/{id}/delete', 'App\Controllers\SuperAdminController@deletePlan');
+
+// Preços de Condomínios Extras
+$router->get('/admin/plans/{plan_id}/extra-condominiums-pricing', 'App\Controllers\SuperAdminController@extraCondominiumsPricing');
+$router->get('/admin/plans/{plan_id}/extra-condominiums-pricing/create', 'App\Controllers\SuperAdminController@createExtraCondominiumsPricing');
+$router->post('/admin/plans/{plan_id}/extra-condominiums-pricing', 'App\Controllers\SuperAdminController@storeExtraCondominiumsPricing');
+$router->get('/admin/plans/{plan_id}/extra-condominiums-pricing/{id}/edit', 'App\Controllers\SuperAdminController@editExtraCondominiumsPricing');
+$router->post('/admin/plans/{plan_id}/extra-condominiums-pricing/{id}', 'App\Controllers\SuperAdminController@updateExtraCondominiumsPricing');
+$router->post('/admin/plans/{plan_id}/extra-condominiums-pricing/{id}/toggle-active', 'App\Controllers\SuperAdminController@toggleExtraCondominiumsPricingActive');
+$router->post('/admin/plans/{plan_id}/extra-condominiums-pricing/{id}/delete', 'App\Controllers\SuperAdminController@deleteExtraCondominiumsPricing');
+
+// Promoções
+$router->get('/admin/promotions', 'App\Controllers\SuperAdminController@promotions');
+$router->get('/admin/promotions/create', 'App\Controllers\SuperAdminController@createPromotion');
+$router->post('/admin/promotions', 'App\Controllers\SuperAdminController@storePromotion');
+$router->get('/admin/promotions/{id}/edit', 'App\Controllers\SuperAdminController@editPromotion');
+$router->post('/admin/promotions/{id}', 'App\Controllers\SuperAdminController@updatePromotion');
+$router->post('/admin/promotions/{id}/toggle-active', 'App\Controllers\SuperAdminController@togglePromotionActive');
+$router->post('/admin/promotions/{id}/delete', 'App\Controllers\SuperAdminController@deletePromotion');
 
 // Add your routes here
 

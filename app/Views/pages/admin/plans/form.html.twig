@@ -1,0 +1,145 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>{% if plan %}Editar{% else %}Criar{% endif %} Plano</h2>
+            <p class="text-muted mb-0">{% if plan %}Modificar informações do plano{% else %}Adicionar novo plano de subscrição{% endif %}</p>
+        </div>
+        <a href="{{ BASE_URL }}admin/plans" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-{% if plan %}pencil{% else %}plus-circle{% endif %}"></i> {% if plan %}Editar{% else %}Criar{% endif %} Plano</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ BASE_URL }}admin/plans{% if plan %}/{{ plan.id }}{% endif %}" id="planForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="name" class="form-label">Nome do Plano <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="name" name="name" value="{{ plan.name|default('') }}" required>
+                        <small class="form-text text-muted">Ex: START, PRO, ENTERPRISE</small>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label for="slug" class="form-label">Slug <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="slug" name="slug" value="{{ plan.slug|default('') }}" required pattern="[a-z0-9-]+">
+                        <small class="form-text text-muted">Identificador único (apenas letras minúsculas, números e hífens)</small>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="description" class="form-label">Descrição</label>
+                    <textarea class="form-control" id="description" name="description" rows="3">{{ plan.description|default('') }}</textarea>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="price_monthly" class="form-label">Preço Mensal (€) <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="price_monthly" name="price_monthly" value="{{ plan.price_monthly|default('0') }}" step="0.01" min="0" required>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label for="price_yearly" class="form-label">Preço Anual (€)</label>
+                        <input type="number" class="form-control" id="price_yearly" name="price_yearly" value="{{ plan.price_yearly|default('') }}" step="0.01" min="0">
+                        <small class="form-text text-muted">Deixe em branco se não disponível</small>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="limit_condominios" class="form-label">Limite de Condomínios</label>
+                        <input type="number" class="form-control" id="limit_condominios" name="limit_condominios" value="{{ plan.limit_condominios|default('') }}" min="0">
+                        <small class="form-text text-muted">Deixe em branco para ilimitado</small>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label for="limit_fracoes" class="form-label">Limite de Frações</label>
+                        <input type="number" class="form-control" id="limit_fracoes" name="limit_fracoes" value="{{ plan.limit_fracoes|default('') }}" min="0">
+                        <small class="form-text text-muted">Deixe em branco para ilimitado</small>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="features" class="form-label">Features (JSON)</label>
+                    <textarea class="form-control font-monospace" id="features" name="features" rows="10" placeholder='{"financas_basicas": true, "documentos": true, "votacoes_online": false}'>{% if plan.features %}{{ plan.features|json_encode(constant('JSON_PRETTY_PRINT')) }}{% endif %}</textarea>
+                    <small class="form-text text-muted">Formato JSON com as features disponíveis no plano</small>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="sort_order" class="form-label">Ordem de Exibição</label>
+                        <input type="number" class="form-control" id="sort_order" name="sort_order" value="{{ plan.sort_order|default('0') }}" min="0">
+                        <small class="form-text text-muted">Planos com menor número aparecem primeiro</small>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" id="is_active" name="is_active" value="1" {% if plan.is_active|default(true) %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">
+                                Plano Ativo
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="{{ BASE_URL }}admin/plans" class="btn btn-secondary">Cancelar</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-{% if plan %}check{% else %}plus-circle{% endif %}"></i> {% if plan %}Atualizar{% else %}Criar{% endif %} Plano
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-generate slug from name
+    const nameInput = document.getElementById('name');
+    const slugInput = document.getElementById('slug');
+    
+    if (nameInput && slugInput && !slugInput.value) {
+        nameInput.addEventListener('input', function() {
+            if (!slugInput.value || slugInput.dataset.autoGenerated === 'true') {
+                let slug = this.value
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-+|-+$/g, '');
+                slugInput.value = slug;
+                slugInput.dataset.autoGenerated = 'true';
+            }
+        });
+    }
+
+    // Validate JSON on form submit
+    const form = document.getElementById('planForm');
+    const featuresInput = document.getElementById('features');
+    
+    form.addEventListener('submit', function(e) {
+        if (featuresInput.value.trim()) {
+            try {
+                JSON.parse(featuresInput.value);
+            } catch (err) {
+                e.preventDefault();
+                alert('O campo Features contém JSON inválido. Por favor, corrija antes de submeter.');
+                featuresInput.focus();
+                return false;
+            }
+        }
+    });
+});
+</script>

@@ -331,165 +331,141 @@
 </section>
 
 <!-- Pricing Section -->
-<section class="pricing-section">
+<section class="pricing-section py-5">
     <div class="container">
         <div class="text-center mb-5">
             <h2 class="section-title">Planos para todos os tamanhos</h2>
             <p class="section-description">Escolha o plano ideal para o seu condomínio</p>
         </div>
+        
+        <div class="row g-4 justify-content-center">
+            {% for plan in plans %}
+            {% set plan_promotion = plan_promotions[plan.id] ?? null %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-2 {% if plan.slug == 'pro' %}border-primary shadow{% elseif plan_promotion %}border-warning border-3 shadow-lg{% endif %}">
+                    {% if plan.slug == 'pro' %}
+                    <div class="card-header bg-primary text-white text-center py-3">
+                        <span class="badge bg-white fw-bold mb-2 d-inline-block px-3 py-1" style="font-size: 0.9rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); color: #fd7e14 !important;">Mais Popular</span>
+                        {% if plan_promotion %}
+                        <div class="mt-2">
+                            <span class="badge bg-danger text-white mb-2">
+                                <i class="bi bi-fire"></i> PROMOÇÃO ATIVA
+                            </span>
+                            <div class="mt-2">
+                                <strong>{{ plan_promotion.name }}</strong>
+                                {% if plan_promotion.discount_type == 'percentage' %}
+                                    <span class="badge bg-danger">{{ plan_promotion.discount_value }}% OFF</span>
+                                {% else %}
+                                    <span class="badge bg-danger">€{{ plan_promotion.discount_value }} OFF</span>
+                                {% endif %}
+                                {% if plan_promotion.duration_months %}
+                                    <div class="mt-1">
+                                        <small class="text-white-50">Válida por {{ plan_promotion.duration_months }} {% if plan_promotion.duration_months == 1 %}mês{% else %}meses{% endif %}</small>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% elseif plan_promotion %}
+                    <div class="card-header bg-warning text-dark text-center py-3 position-relative">
+                        <span class="badge bg-danger text-white mb-2">
+                            <i class="bi bi-fire"></i> PROMOÇÃO ATIVA
+                        </span>
+                        <div class="mt-2">
+                            <strong>{{ plan_promotion.name }}</strong>
+                            {% if plan_promotion.discount_type == 'percentage' %}
+                                <span class="badge bg-danger">{{ plan_promotion.discount_value }}% OFF</span>
+                            {% else %}
+                                <span class="badge bg-danger">€{{ plan_promotion.discount_value }} OFF</span>
+                            {% endif %}
+                            {% if plan_promotion.duration_months %}
+                                <div class="mt-1">
+                                    <small class="text-dark">Válida por {{ plan_promotion.duration_months }} {% if plan_promotion.duration_months == 1 %}mês{% else %}meses{% endif %}</small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="card-body text-center p-4">
+                        <h3 class="fw-bold mb-3">{{ plan.name }}</h3>
+                        <div class="mb-4">
+                            {% if plan_promotion %}
+                                {% set discount_amount = (plan_promotion.discount_type == 'percentage') ? (plan.price_monthly * plan_promotion.discount_value / 100) : plan_promotion.discount_value %}
+                                {% set final_price = plan.price_monthly - discount_amount %}
+                                <div>
+                                    <span class="text-muted text-decoration-line-through" style="font-size: 1.5rem;">€{{ plan.price_monthly|number_format(2, ',', '.') }}</span>
+                                    <span class="display-3 fw-bold text-danger">€{{ final_price|number_format(2, ',', '.') }}</span>
+                                </div>
+                            {% else %}
+                                <span class="display-3 fw-bold">€{{ plan.price_monthly|number_format(2, ',', '.') }}</span>
+                            {% endif %}
+                            <span class="text-muted">/mês</span>
+                        </div>
+                        {% if plan.price_yearly %}
+                        <p class="text-muted small mb-4">
+                            ou €{{ plan.price_yearly|number_format(2, ',', '.') }}/ano<br>
+                            <span class="text-success">Poupe {{ ((plan.price_monthly * 12 - plan.price_yearly) / (plan.price_monthly * 12) * 100)|round }}%</span>
+                        </p>
+                        {% endif %}
+                        
+                        <p class="text-muted mb-4">{{ plan.description }}</p>
+                        
+                        <ul class="list-unstyled text-start mb-4">
+                            {% if plan.limit_condominios %}
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> {% if plan.slug == 'business' %}Até {{ plan.limit_condominios }} condomínios (sem extras){% else %}{{ plan.limit_condominios }} condomínio(s){% endif %}</li>
+                            {% else %}
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Condomínios ilimitados</li>
+                            {% endif %}
+                            
+                            {% if plan.limit_fracoes %}
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Até {{ plan.limit_fracoes }} frações</li>
+                            {% else %}
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Frações ilimitadas</li>
+                            {% endif %}
+                            
+                            {% for feature in plan.features %}
+                            <li class="mb-2"><i class="bi bi-check-circle text-success"></i> {{ feature }}</li>
+                            {% endfor %}
+                        </ul>
 
-        <div class="pricing-grid">
-            <div class="pricing-card">
-                <div class="pricing-card-header">
-                    <h4 class="pricing-plan-name">START</h4>
-                    <div class="pricing-price">
-                        <span class="price-amount">€9,90</span>
-                        <span class="price-period">/mês</span>
+                        {% if plan.slug == 'business' and extra_condominiums_pricing %}
+                        <div class="border-top pt-3 mt-3">
+                            <h6 class="mb-3 text-start fw-bold">Condomínios Extras</h6>
+                            <div class="text-start mb-2">
+                                {% for tier in extra_condominiums_pricing %}
+                                    {% if tier.is_active %}
+                                        <div class="mb-2">
+                                            <small class="text-muted">
+                                                <i class="bi bi-plus-circle text-success"></i>
+                                                {% if tier.max_condominios %}
+                                                    <strong>{{ tier.min_condominios }}-{{ tier.max_condominios }} condomínios:</strong> €{{ tier.price_per_condominium|number_format(2, ',', '.') }}/mês cada
+                                                {% else %}
+                                                    <strong>{{ tier.min_condominios }}+ condomínios:</strong> €{{ tier.price_per_condominium|number_format(2, ',', '.') }}/mês cada
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="card-footer bg-white text-center p-4">
+                        <a href="{{ BASE_URL }}subscription/choose-plan" class="btn {% if plan.slug == 'pro' %}btn-primary{% elseif plan_promotion %}btn-warning{% else %}btn-outline-primary{% endif %} w-100 btn-lg">
+                            Começar
+                        </a>
                     </div>
                 </div>
-                <div class="pricing-card-body">
-                    <ul class="pricing-features">
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>1 condomínio</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Até 20 frações</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Finanças básicas</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Recibos automáticos</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Mensagens e notificações</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Ocorrências</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Documentos</span>
-                        </li>
-                    </ul>
-                </div>
-                <div class="pricing-card-footer">
-                    <a href="{{ BASE_URL }}register" class="btn btn-pricing">Começar</a>
-                </div>
             </div>
-
-            <div class="pricing-card pricing-card-featured">
-                <div class="pricing-badge">Mais Popular</div>
-                <div class="pricing-card-header">
-                    <h4 class="pricing-plan-name">PRO</h4>
-                    <div class="pricing-price">
-                        <span class="price-amount">€29,90</span>
-                        <span class="price-period">/mês</span>
-                    </div>
-                </div>
-                <div class="pricing-card-body">
-                    <ul class="pricing-features">
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Até 5 condomínios</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Até 150 frações</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Finanças completas</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Quotas extras e mapa de quotas</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Recibos automáticos</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Mensagens com editor HTML</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Notificações unificadas</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Votações online</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Reservas de espaços</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Gestão de contratos</span>
-                        </li>
-                    </ul>
-                </div>
-                <div class="pricing-card-footer">
-                    <a href="{{ BASE_URL }}register" class="btn btn-pricing btn-pricing-featured">Começar</a>
-                </div>
-            </div>
-
-            <div class="pricing-card">
-                <div class="pricing-card-header">
-                    <h4 class="pricing-plan-name">BUSINESS</h4>
-                    <div class="pricing-price">
-                        <span class="price-amount">€59,90</span>
-                        <span class="price-period">/mês</span>
-                    </div>
-                </div>
-                <div class="pricing-card-body">
-                    <ul class="pricing-features">
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Condomínios ilimitados</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Frações ilimitadas</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Todas as funcionalidades PRO</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Auditoria completa de pagamentos</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>API e integrações</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Branding personalizado</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>App Mobile Premium</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Suporte prioritário</span>
-                        </li>
-                    </ul>
-                </div>
-                <div class="pricing-card-footer">
-                    <a href="{{ BASE_URL }}register" class="btn btn-pricing">Começar</a>
-                </div>
-            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="text-center mt-5">
+            <p class="text-muted">
+                <i class="bi bi-shield-check"></i> Cancele a qualquer momento • 
+                <i class="bi bi-credit-card"></i> Sem cartão de crédito necessário
+            </p>
         </div>
     </div>
 </section>
