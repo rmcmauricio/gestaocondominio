@@ -1,0 +1,253 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Gestão de Subscrições</h2>
+            <p class="text-muted mb-0">Visualizar e ativar subscrições manualmente</p>
+        </div>
+        <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-credit-card"></i> Subscrições</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Utilizador</th>
+                            <th>Plano</th>
+                            <th>Status</th>
+                            <th>Período</th>
+                            <th>Expira em</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for subscription in subscriptions %}
+                        <tr>
+                            <td>{{ subscription.id }}</td>
+                            <td>
+                                <strong>{{ subscription.user_name }}</strong><br>
+                                <small class="text-muted">{{ subscription.user_email }}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">{{ subscription.plan_name }}</span>
+                            </td>
+                            <td>
+                                {% if subscription.status == 'active' %}
+                                    <span class="badge bg-success">Ativa</span>
+                                {% elseif subscription.status == 'trial' %}
+                                    <span class="badge bg-warning">Trial</span>
+                                {% elseif subscription.status == 'canceled' %}
+                                    <span class="badge bg-secondary">Cancelada</span>
+                                {% elseif subscription.status == 'suspended' %}
+                                    <span class="badge bg-danger">Suspensa</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ subscription.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if subscription.current_period_start %}
+                                    {{ subscription.current_period_start|date('d/m/Y') }} - {{ subscription.current_period_end|date('d/m/Y') }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if subscription.current_period_end %}
+                                    {% set daysLeft = ((subscription.current_period_end|date('U')) - ('now'|date('U'))) / 86400 %}
+                                    {% if daysLeft > 0 %}
+                                        <span class="text-success">{{ daysLeft|round }} dias</span>
+                                    {% else %}
+                                        <span class="text-danger">Expirada</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    {% if subscription.status != 'active' %}
+                                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#activateModal{{ subscription.id }}" title="Ativar subscrição">
+                                        <i class="bi bi-check-circle"></i> Ativar
+                                    </button>
+                                    {% endif %}
+                                    <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#changePlanModal{{ subscription.id }}" title="Alterar plano">
+                                        <i class="bi bi-arrow-repeat"></i> Alterar Plano
+                                    </button>
+                                    {% if subscription.status == 'active' %}
+                                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deactivateModal{{ subscription.id }}" title="Desativar subscrição">
+                                        <i class="bi bi-x-circle"></i> Desativar
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">
+                                Nenhuma subscrição encontrada.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals - Outside table to prevent positioning issues -->
+    {% for subscription in subscriptions %}
+        <!-- Activation Modal -->
+        {% if subscription.status != 'active' %}
+        <div class="modal fade" id="activateModal{{ subscription.id }}" tabindex="-1" aria-labelledby="activateModalLabel{{ subscription.id }}" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="activateModalLabel{{ subscription.id }}">Ativar Subscrição</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="POST" action="{{ BASE_URL }}admin/subscriptions/activate">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="subscription_id" value="{{ subscription.id }}">
+                        <div class="modal-body">
+                            <p><strong>Utilizador:</strong> {{ subscription.user_name }} ({{ subscription.user_email }})</p>
+                            <p><strong>Plano:</strong> {{ subscription.plan_name }}</p>
+                            <div class="mb-3">
+                                <label for="months{{ subscription.id }}" class="form-label">Número de meses:</label>
+                                <input type="number" class="form-control" id="months{{ subscription.id }}" name="months" value="1" min="1" max="12" required>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-success">Ativar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Change Plan Modal -->
+        <div class="modal fade" id="changePlanModal{{ subscription.id }}" tabindex="-1" aria-labelledby="changePlanModalLabel{{ subscription.id }}" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="changePlanModalLabel{{ subscription.id }}">Alterar Plano</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="POST" action="{{ BASE_URL }}admin/subscriptions/change-plan">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="subscription_id" value="{{ subscription.id }}">
+                        <div class="modal-body">
+                            <p><strong>Utilizador:</strong> {{ subscription.user_name }} ({{ subscription.user_email }})</p>
+                            <p><strong>Plano Atual:</strong> {{ subscription.plan_name }}</p>
+                            <div class="mb-3">
+                                <label for="plan_id{{ subscription.id }}" class="form-label">Novo Plano:</label>
+                                <select class="form-select" id="plan_id{{ subscription.id }}" name="plan_id" required>
+                                    <option value="">Selecione um plano...</option>
+                                    {% for plan in plans %}
+                                        <option value="{{ plan.id }}" {% if plan.id == subscription.plan_id %}selected{% endif %}>
+                                            {{ plan.name }} - €{{ plan.price_monthly|number_format(2, ',', '.') }}/mês
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="alert alert-warning">
+                                <small><i class="bi bi-exclamation-triangle"></i> Esta alteração será registada para auditoria.</small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-info">Alterar Plano</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Deactivate Modal -->
+        {% if subscription.status == 'active' %}
+        <div class="modal fade" id="deactivateModal{{ subscription.id }}" tabindex="-1" aria-labelledby="deactivateModalLabel{{ subscription.id }}" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title" id="deactivateModalLabel{{ subscription.id }}">Desativar Subscrição</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="POST" action="{{ BASE_URL }}admin/subscriptions/deactivate">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="subscription_id" value="{{ subscription.id }}">
+                        <div class="modal-body">
+                            <p><strong>Utilizador:</strong> {{ subscription.user_name }} ({{ subscription.user_email }})</p>
+                            <p><strong>Plano:</strong> {{ subscription.plan_name }}</p>
+                            <div class="mb-3">
+                                <label for="reason{{ subscription.id }}" class="form-label">Motivo da desativação:</label>
+                                <textarea class="form-control" id="reason{{ subscription.id }}" name="reason" rows="3" placeholder="Descreva o motivo da desativação...">Desativada manualmente pelo super admin</textarea>
+                            </div>
+                            <div class="alert alert-danger">
+                                <small><i class="bi bi-exclamation-triangle"></i> Esta ação irá suspender a subscrição e será registada para auditoria.</small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-danger">Desativar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% endfor %}
+</div>
+
+<style>
+/* Ensure modals are positioned correctly and not affected by table overflow */
+.modal {
+    position: fixed !important;
+    z-index: 1055 !important;
+}
+
+.modal-backdrop {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 1050 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Prevent table-responsive from affecting modal positioning */
+.table-responsive {
+    position: relative;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Ensure modal dialog is centered */
+.modal-dialog-centered {
+    display: flex !important;
+    align-items: center !important;
+    min-height: calc(100% - 1rem) !important;
+    }
+</style>

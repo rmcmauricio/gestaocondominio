@@ -27,7 +27,8 @@ class RoleMiddleware
             return true;
         }
 
-        return $user['role'] === $role;
+        $userRole = $user['role'] ?? null;
+        return $userRole === $role;
     }
 
     /**
@@ -51,7 +52,8 @@ class RoleMiddleware
             return in_array('admin', $roles) || in_array('super_admin', $roles);
         }
 
-        return in_array($user['role'], $roles);
+        $userRole = $user['role'] ?? null;
+        return $userRole !== null && in_array($userRole, $roles);
     }
 
     /**
@@ -141,7 +143,8 @@ class RoleMiddleware
 
         // Super admin is always admin (unless view mode is explicitly set)
         $user = AuthMiddleware::user();
-        $isSuperAdmin = $user && $user['id'] === $userId && $user['role'] === 'super_admin';
+        $userRole = $user['role'] ?? null;
+        $isSuperAdmin = $user && $user['id'] === $userId && $userRole === 'super_admin';
 
         // FIRST: Check if view mode is set for this condominium (allows switching between admin/condomino view)
         // This must be checked BEFORE checking if user is owner, so view mode takes precedence
@@ -300,7 +303,8 @@ class RoleMiddleware
         $demoProfile = $_SESSION['demo_profile'] ?? null;
         
         // Super admin can access all
-        if ($user['role'] === 'super_admin') {
+        $userRole = $user['role'] ?? null;
+        if ($userRole === 'super_admin') {
             return true;
         }
 

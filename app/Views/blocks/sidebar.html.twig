@@ -11,6 +11,42 @@
                 </a>
             </li>
             
+            {% if user.role == 'super_admin' %}
+            <li class="nav-section">
+                <span class="nav-section-title">Super Admin</span>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}admin/users">
+                    <i class="bi bi-people"></i> Utilizadores
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}admin/subscriptions">
+                    <i class="bi bi-credit-card"></i> Subscrições
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}admin/condominiums">
+                    <i class="bi bi-building"></i> Condomínios
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}admin/payments">
+                    <i class="bi bi-cash-stack"></i> Pagamentos
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}admin/payment-methods">
+                    <i class="bi bi-wallet2"></i> Métodos de Pagamento
+                </a>
+            </li>
+            {% endif %}
+            
             {% if condominium %}
             {% if logo_url is defined and logo_url %}
             <li class="nav-item sidebar-logo-container" style="padding: 1rem 1.5rem; text-align: center; border-bottom: 1px solid var(--color-border); margin-bottom: 0.5rem;">

@@ -13,6 +13,7 @@ class DatabaseSeeder
     {
         $this->seedPlans();
         $this->seedSuperAdmin();
+        $this->seedPaymentMethods();
     }
 
     protected function seedPlans(): void
@@ -123,6 +124,13 @@ class DatabaseSeeder
                 'name' => 'Super Administrador'
             ]);
         }
+    }
+
+    protected function seedPaymentMethods(): void
+    {
+        require __DIR__ . '/PaymentMethodsSeeder.php';
+        $seeder = new PaymentMethodsSeeder($this->db);
+        $seeder->run();
     }
 }
 

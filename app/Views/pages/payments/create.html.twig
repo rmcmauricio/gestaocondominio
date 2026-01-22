@@ -78,6 +78,29 @@
                             </div>
                         </div>
 
+                        <!-- Direct Debit Bank Data -->
+                        <div id="directDebitFields" class="mb-3" style="display: none;">
+                            <div class="mb-3">
+                                <label for="dd_account_holder" class="form-label">Titular da Conta <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="dd_account_holder" name="account_holder" 
+                                       placeholder="Nome completo">
+                            </div>
+                            <div class="mb-3">
+                                <label for="dd_iban" class="form-label">IBAN <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="dd_iban" name="iban" 
+                                       placeholder="PT50 0000 0000 0000 0000 0000 0" maxlength="34">
+                                <small class="text-muted">Formato: PT50 XXXX XXXX XXXX XXXX XXXX X</small>
+                            </div>
+                            <div class="mb-3">
+                                <label for="dd_bic" class="form-label">BIC (opcional)</label>
+                                <input type="text" class="form-control" id="dd_bic" name="bic" 
+                                       placeholder="BIC do banco" maxlength="11">
+                            </div>
+                            <div class="alert alert-info">
+                                <small><i class="bi bi-info-circle"></i> Ao autorizar o débito direto via IfthenPay, autoriza o débito automático mensal da sua conta.</small>
+                            </div>
+                        </div>
+
                         <div class="d-flex justify-content-between mt-4">
                             <a href="{{ BASE_URL }}subscription" class="btn btn-secondary">
                                 <i class="bi bi-arrow-left"></i> Cancelar
@@ -110,6 +133,7 @@ function selectPaymentMethod(method) {
     // Show/hide additional fields
     document.getElementById('mbwayFields').style.display = method === 'mbway' ? 'block' : 'none';
     document.getElementById('sepaFields').style.display = method === 'sepa' ? 'block' : 'none';
+    document.getElementById('directDebitFields').style.display = method === 'direct_debit' ? 'block' : 'none';
     
     // Enable submit button
     document.getElementById('submitBtn').disabled = false;
@@ -125,6 +149,12 @@ function selectPaymentMethod(method) {
         ibanInput.addEventListener('input', validateSEPA);
         accountHolderInput.addEventListener('input', validateSEPA);
         validateSEPA();
+    } else if (method === 'direct_debit') {
+        const ibanInput = document.getElementById('dd_iban');
+        const accountHolderInput = document.getElementById('dd_account_holder');
+        ibanInput.addEventListener('input', validateDirectDebit);
+        accountHolderInput.addEventListener('input', validateDirectDebit);
+        validateDirectDebit();
     }
 }
 
@@ -141,8 +171,26 @@ function validateSEPA() {
     document.getElementById('submitBtn').disabled = !isValid;
 }
 
+function validateDirectDebit() {
+    const iban = document.getElementById('dd_iban').value.replace(/\s/g, '');
+    const accountHolder = document.getElementById('dd_account_holder').value.trim();
+    const isValid = iban.length >= 15 && iban.length <= 34 && accountHolder.length > 0;
+    document.getElementById('submitBtn').disabled = !isValid;
+}
+
 // Format IBAN input
 document.getElementById('iban')?.addEventListener('input', function(e) {
+    let value = e.target.value.replace(/\s/g, '').toUpperCase();
+    if (value.length > 0 && !value.startsWith('PT')) {
+        value = 'PT' + value;
+    }
+    // Add spaces every 4 characters
+    value = value.match(/.{1,4}/g)?.join(' ') || value;
+    e.target.value = value;
+});
+
+// Format Direct Debit IBAN input
+document.getElementById('dd_iban')?.addEventListener('input', function(e) {
     let value = e.target.value.replace(/\s/g, '').toUpperCase();
     if (value.length > 0 && !value.startsWith('PT')) {
         value = 'PT' + value;

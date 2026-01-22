@@ -122,9 +122,15 @@ $router->post('/payments/{subscription_id}/process', 'App\Controllers\PaymentCon
 $router->get('/payments/{subscription_id}/multibanco', 'App\Controllers\PaymentController@showMultibanco');
 $router->get('/payments/{subscription_id}/mbway', 'App\Controllers\PaymentController@showMBWay');
 $router->get('/payments/{subscription_id}/sepa', 'App\Controllers\PaymentController@showSEPA');
+$router->get('/payments/{subscription_id}/direct-debit', 'App\Controllers\PaymentController@directDebit');
+
+// Admin payment methods management routes (super admin only)
+$router->get('/admin/payment-methods', 'App\Controllers\PaymentMethodsController@index');
+$router->post('/admin/payment-methods/toggle', 'App\Controllers\PaymentMethodsController@toggle');
 
 // Webhook routes
 $router->post('/webhooks/payment', 'App\Controllers\WebhookController@payment');
+$router->get('/webhooks/ifthenpay', 'App\Controllers\WebhookController@ifthenpayCallback');
 
 // Finance routes
 $router->get('/condominiums/{condominium_id}/finances', 'App\Controllers\FinanceController@index');
@@ -335,6 +341,16 @@ $router->get('/api/fractions/{fraction_id}/fees', 'App\Controllers\Api\FeeApiCon
 $router->get('/help', 'App\Controllers\HelpController@index');
 $router->get('/help/{section}', 'App\Controllers\HelpController@show');
 $router->get('/help/{section}/modal', 'App\Controllers\HelpController@modal');
+
+// Super Admin routes
+$router->get('/admin/users', 'App\Controllers\SuperAdminController@users');
+$router->get('/admin/subscriptions', 'App\Controllers\SuperAdminController@subscriptions');
+$router->post('/admin/subscriptions/activate', 'App\Controllers\SuperAdminController@activateSubscription');
+$router->post('/admin/subscriptions/change-plan', 'App\Controllers\SuperAdminController@changePlan');
+$router->post('/admin/subscriptions/deactivate', 'App\Controllers\SuperAdminController@deactivateSubscription');
+$router->get('/admin/condominiums', 'App\Controllers\SuperAdminController@condominiums');
+$router->get('/admin/condominiums/{id}/stats', 'App\Controllers\SuperAdminController@condominiumStats');
+$router->get('/admin/payments', 'App\Controllers\SuperAdminController@payments');
 
 // Add your routes here
 

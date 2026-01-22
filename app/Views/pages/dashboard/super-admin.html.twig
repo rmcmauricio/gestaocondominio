@@ -47,12 +47,244 @@
                 </div>
             </div>
             
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h5>Estatísticas Gerais</h5>
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Métodos de Pagamento</h5>
+                            <p class="card-text">Ativar ou desativar métodos de pagamento</p>
+                            <a href="{{ BASE_URL }}admin/payment-methods" class="btn btn-primary">Gerir Métodos</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Subscrições</h5>
+                            <p class="card-text">Gerir e ativar subscrições manualmente</p>
+                            <a href="{{ BASE_URL }}admin/subscriptions" class="btn btn-primary">Ver Subscrições</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Condomínios</h5>
+                            <p class="card-text">Visualizar condomínios por administrador</p>
+                            <a href="{{ BASE_URL }}admin/condominiums" class="btn btn-primary">Ver Condomínios</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Pagamentos</h5>
+                            <p class="card-text">Consultar pagamentos das subscrições</p>
+                            <a href="{{ BASE_URL }}admin/payments" class="btn btn-primary">Ver Pagamentos</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mt-4 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="bi bi-graph-up"></i> Estatísticas Gerais</h5>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted">Funcionalidades de monitorização serão implementadas aqui.</p>
+                    <h6 class="mb-3 text-muted"><i class="bi bi-people"></i> Utilizadores e Subscrições</h6>
+                    <div class="row mb-4">
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-primary mb-1">{{ stats.total_users|default(0) }}</h3>
+                                <p class="text-muted mb-0">Utilizadores</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-success mb-1">{{ stats.active_subscriptions|default(0) }}</h3>
+                                <p class="text-muted mb-0">Subscrições Ativas</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-warning mb-1">{{ stats.suspended_subscriptions|default(0) }}</h3>
+                                <p class="text-muted mb-0">Subscrições Suspensas</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-info mb-1">{{ stats.pending_subscriptions|default(0) }}</h3>
+                                <p class="text-muted mb-0">Subscrições Pendentes</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mb-3 text-muted"><i class="bi bi-building"></i> Condomínios e Frações</h6>
+                    <div class="row mb-4">
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-info mb-1">{{ stats.total_condominiums|default(0) }}</h3>
+                                <p class="text-muted mb-0">Total Condomínios</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-success mb-1">{{ stats.active_condominiums|default(0) }}</h3>
+                                <p class="text-muted mb-0">Condomínios Ativos</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-primary mb-1">{{ stats.total_fractions|default(0) }}</h3>
+                                <p class="text-muted mb-0">Total Frações</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-secondary mb-1">{{ stats.total_residents|default(0) }}</h3>
+                                <p class="text-muted mb-0">Total Residentes</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mb-3 text-muted"><i class="bi bi-currency-euro"></i> Pagamentos e Receitas</h6>
+                    <div class="row mb-4">
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-success mb-1">€{{ stats.total_revenue|default(0)|number_format(2, ',', '.') }}</h3>
+                                <p class="text-muted mb-0">Receita Total</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-primary mb-1">€{{ stats.revenue_this_month|default(0)|number_format(2, ',', '.') }}</h3>
+                                <p class="text-muted mb-0">Receita Este Mês</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-info mb-1">€{{ stats.revenue_last_month|default(0)|number_format(2, ',', '.') }}</h3>
+                                <p class="text-muted mb-0">Receita Mês Anterior</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-success mb-1">{{ stats.total_payments|default(0) }}</h3>
+                                <p class="text-muted mb-0">Pagamentos Completos</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-warning mb-1">{{ stats.pending_payments|default(0) }}</h3>
+                                <p class="text-muted mb-0">Pagamentos Pendentes</p>
+                                {% if stats.pending_payments_amount|default(0) > 0 %}
+                                <small class="text-muted">€{{ stats.pending_payments_amount|number_format(2, ',', '.') }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-danger mb-1">{{ stats.failed_payments|default(0) }}</h3>
+                                <p class="text-muted mb-0">Pagamentos Falhados</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-info mb-1">{{ stats.total_plans|default(0) }}</h3>
+                                <p class="text-muted mb-0">Total Planos</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-warning mb-1">{{ stats.pending_fees|default(0) }}</h3>
+                                <p class="text-muted mb-0">Quotas Pendentes</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mb-3 text-muted"><i class="bi bi-clipboard-data"></i> Atividades e Conteúdo</h6>
+                    <div class="row mb-4">
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-primary mb-1">{{ stats.total_occurrences|default(0) }}</h3>
+                                <p class="text-muted mb-0">Total Ocorrências</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-warning mb-1">{{ stats.open_occurrences|default(0) }}</h3>
+                                <p class="text-muted mb-0">Ocorrências Abertas</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-info mb-1">{{ stats.total_assemblies|default(0) }}</h3>
+                                <p class="text-muted mb-0">Total Assembleias</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-secondary mb-1">{{ stats.total_documents|default(0) }}</h3>
+                                <p class="text-muted mb-0">Total Documentos</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-primary mb-1">{{ stats.total_messages|default(0) }}</h3>
+                                <p class="text-muted mb-0">Total Mensagens</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-info mb-1">{{ stats.total_notifications|default(0) }}</h3>
+                                <p class="text-muted mb-0">Total Notificações</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-success mb-1">{{ stats.total_suppliers|default(0) }}</h3>
+                                <p class="text-muted mb-0">Total Fornecedores</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-secondary mb-1">{{ stats.total_reservations|default(0) }}</h3>
+                                <p class="text-muted mb-0">Total Reservas</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-info mb-1">{{ stats.total_budgets|default(0) }}</h3>
+                                <p class="text-muted mb-0">Total Orçamentos</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-primary mb-1">{{ stats.total_fees|default(0) }}</h3>
+                                <p class="text-muted mb-0">Total Quotas</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-secondary mb-1">{{ stats.total_audit_logs|default(0) }}</h3>
+                                <p class="text-muted mb-0">Logs de Auditoria</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

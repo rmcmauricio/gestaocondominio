@@ -1,0 +1,105 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Gestão de Métodos de Pagamento</h2>
+            <p class="text-muted mb-0">Ativar ou desativar métodos de pagamento disponíveis</p>
+        </div>
+        <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-credit-card"></i> Métodos de Pagamento</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Método</th>
+                            <th>Chave</th>
+                            <th>Descrição</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for method in methods %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <i class="{{ method.config.icon|default('bi bi-credit-card') }} me-2" style="font-size: 1.5rem;"></i>
+                                    <strong>{{ method.config.name|default(method.method_key) }}</strong>
+                                </div>
+                            </td>
+                            <td>
+                                <code>{{ method.method_key }}</code>
+                            </td>
+                            <td>
+                                {{ method.config.description|default('') }}
+                            </td>
+                            <td>
+                                {% if method.enabled %}
+                                    <span class="badge bg-success">Ativo</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Inativo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form method="POST" action="{{ BASE_URL }}admin/payment-methods/toggle" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="method_key" value="{{ method.method_key }}">
+                                    <button type="submit" class="btn btn-sm {% if method.enabled %}btn-warning{% else %}btn-success{% endif %}">
+                                        {% if method.enabled %}
+                                            <i class="bi bi-toggle-on"></i> Desativar
+                                        {% else %}
+                                            <i class="bi bi-toggle-off"></i> Ativar
+                                        {% endif %}
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">
+                                Nenhum método de pagamento encontrado.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mt-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informação</h5>
+        </div>
+        <div class="card-body">
+            <p class="mb-2"><strong>Como funciona:</strong></p>
+            <ul class="mb-0">
+                <li>Métodos <strong>ativos</strong> aparecem na página de seleção de pagamento</li>
+                <li>Métodos <strong>inativos</strong> não são exibidos aos utilizadores</li>
+                <li>As alterações têm efeito imediato</li>
+                <li>Certifique-se de que pelo menos um método está ativo</li>
+            </ul>
+        </div>
+    </div>
+</div>

@@ -126,14 +126,17 @@ class SubscriptionMiddleware
             return true;
         }
 
+        // Get user role safely
+        $userRole = $user['role'] ?? null;
+        
         // Only check subscription for admin users
         // Regular users (condomino) don't need subscription
-        if ($user['role'] !== 'admin' && $user['role'] !== 'super_admin') {
+        if ($userRole !== 'admin' && $userRole !== 'super_admin') {
             return true;
         }
 
         // Super admin always has access
-        if ($user['role'] === 'super_admin') {
+        if ($userRole === 'super_admin') {
             return true;
         }
 

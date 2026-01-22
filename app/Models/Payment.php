@@ -157,6 +157,20 @@ class Payment extends Model
 
         return $stmt->fetchAll() ?: [];
     }
+
+    /**
+     * Find payment by request ID (IfthenPay requestId)
+     */
+    public function findByRequestId(string $requestId): ?array
+    {
+        if (!$this->db) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("SELECT * FROM payments WHERE external_payment_id = :request_id LIMIT 1");
+        $stmt->execute([':request_id' => $requestId]);
+        return $stmt->fetch() ?: null;
+    }
 }
 
 

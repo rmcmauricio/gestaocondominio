@@ -163,6 +163,22 @@ class PaymentController extends Controller
                     header('Location: ' . BASE_URL . 'payments/' . $subscriptionId . '/sepa');
                     exit;
 
+                case 'direct_debit':
+                    $bankData = [
+                        'iban' => Security::sanitize($_POST['iban'] ?? ''),
+                        'account_holder' => Security::sanitize($_POST['account_holder'] ?? ''),
+                        'bic' => Security::sanitize($_POST['bic'] ?? '')
+                    ];
+                    if (empty($bankData['iban']) || empty($bankData['account_holder'])) {
+                        $_SESSION['error'] = 'Por favor, preencha todos os dados bancários.';
+                        header('Location: ' . BASE_URL . 'payments/' . $subscriptionId . '/create');
+                        exit;
+                    }
+                    $result = $this->paymentService->generateDirectDebitPayment($amount, $bankData, $subscriptionId, $invoiceId);
+                    $_SESSION['payment_data'] = $result;
+                    header('Location: ' . BASE_URL . 'payments/' . $subscriptionId . '/direct-debit');
+                    exit;
+
                 default:
                     $_SESSION['error'] = 'Método de pagamento inválido.';
                     header('Location: ' . BASE_URL . 'payments/' . $subscriptionId . '/create');
@@ -261,6 +277,38 @@ class PaymentController extends Controller
         $this->data += [
             'viewName' => 'pages/payments/sepa.html.twig',
             'page' => ['titulo' => 'Débito Direto SEPA'],
+            'subscription' => $subscription,
+            'plan' => $plan,
+            'payment_data' => $paymentData,
+            'csrf_token' => Security::generateCSRFToken()
+        ];
+
+        unset($_SESSION['payment_data']);
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Show Direct Debit payment details
+     */
+    public function directDebit(int $subscriptionId)
+    {
+        AuthMiddleware::require();
+
+        $paymentData = $_SESSION['payment_data'] ?? null;
+        if (!$paymentData) {
+            $_SESSION['error'] = 'Dados de pagamento não encontrados.';
+            header('Location: ' . BASE_URL . 'payments/' . $subscriptionId . '/create');
+            exit;
+        }
+
+        $subscription = $this->subscriptionModel->findById($subscriptionId);
+        $plan = $subscription ? $this->planModel->findById($subscription['plan_id']) : null;
+
+        $this->loadPageTranslations('payments');
+        
+        $this->data += [
+            'viewName' => 'pages/payments/direct-debit.html.twig',
+            'page' => ['titulo' => 'Débito Direto IfthenPay'],
             'subscription' => $subscription,
             'plan' => $plan,
             'payment_data' => $paymentData,

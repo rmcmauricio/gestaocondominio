@@ -1,0 +1,714 @@
+<style>
+th.sortable {
+    user-select: none;
+    position: relative;
+}
+
+th.sortable:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+th.sortable .sort-icon {
+    margin-left: 5px;
+    font-size: 0.8em;
+    opacity: 0.5;
+}
+
+th.sortable:hover .sort-icon {
+    opacity: 1;
+}
+
+th.sortable[style*="color: rgb(13, 110, 253)"] .sort-icon {
+    opacity: 1;
+}
+
+tr.clickable-row:hover {
+    background-color: rgba(0, 123, 255, 0.05) !important;
+}
+
+tr.clickable-row.expanded {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+}
+
+.expand-icon {
+    transition: transform 0.3s ease;
+}
+
+tr.expanded .expand-icon {
+    transform: rotate(180deg);
+}
+
+.condominiums-row {
+    background-color: #f8f9fa;
+}
+
+.condominiums-row td {
+    border-top: none;
+    padding: 0;
+}
+</style>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Gestão de Utilizadores</h2>
+            <p class="text-muted mb-0">Visualizar e gerir todos os utilizadores do sistema</p>
+        </div>
+        <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- Search and Filters -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="searchInput" class="form-label">Pesquisar</label>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Nome ou Email...">
+                </div>
+                <div class="col-md-2">
+                    <label for="filterRole" class="form-label">Role</label>
+                    <select class="form-select" id="filterRole">
+                        <option value="">Todos</option>
+                        {% for role in roles %}
+                        <option value="{{ role }}">{{ role|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="filterStatus" class="form-label">Status</label>
+                    <select class="form-select" id="filterStatus">
+                        <option value="">Todos</option>
+                        {% for status in statuses %}
+                        <option value="{{ status }}">{{ status|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filterPlan" class="form-label">Plano</label>
+                    <select class="form-select" id="filterPlan">
+                        <option value="">Todos</option>
+                        <option value="none">Sem plano</option>
+                        {% for plan in plans %}
+                        <option value="{{ plan.name }}">{{ plan.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="button" class="btn btn-outline-secondary w-100" id="clearFilters">
+                        <i class="bi bi-x-circle"></i> Limpar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-people"></i> Utilizadores</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="usersTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="id" style="cursor: pointer;">
+                                ID <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                            <th class="sortable" data-sort="name" style="cursor: pointer;">
+                                Nome <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                            <th class="sortable" data-sort="email" style="cursor: pointer;">
+                                Email <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Plano</th>
+                            <th class="text-center sortable" data-sort="condominiums" style="cursor: pointer;">
+                                Condomínios <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                            <th class="sortable" data-sort="created" style="cursor: pointer;">
+                                Registado em <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr data-role="{{ user.role }}" data-status="{{ user.status }}" data-plan="{{ user.plan_name|default('none') }}" data-name="{{ user.name|lower }}" data-email="{{ user.email|lower }}" 
+                            {% if user.role == 'admin' and user.condominiums|length > 0 %}class="admin-row clickable-row" data-user-id="{{ user.id }}" style="cursor: pointer;"{% endif %}>
+                            <td data-sort-value="{{ user.id }}">{{ user.id }}</td>
+                            <td data-sort-value="{{ user.name|lower }}">
+                                <strong>{{ user.name }}</strong>
+                                {% if user.role == 'admin' and user.condominiums|length > 0 %}
+                                    <i class="bi bi-chevron-down ms-2 text-muted expand-icon"></i>
+                                {% endif %}
+                            </td>
+                            <td data-sort-value="{{ user.email|lower }}">{{ user.email }}</td>
+                            <td>
+                                <span class="badge bg-info">{{ user.role }}</span>
+                            </td>
+                            <td>
+                                {% if user.status == 'active' %}
+                                    <span class="badge bg-success">Ativo</span>
+                                {% elseif user.status == 'suspended' %}
+                                    <span class="badge bg-warning">Suspenso</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Inativo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.plan_name %}
+                                    <span class="badge bg-primary">{{ user.plan_name }}</span>
+                                    {% if user.subscription_status %}
+                                        <br><small class="text-muted">{{ user.subscription_status }}</small>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">Sem plano</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center" data-sort-value="{{ user.total_condominiums }}">{{ user.total_condominiums }}</td>
+                            <td data-sort-value="{{ user.created_at }}">{{ user.created_at|date('d/m/Y H:i') }}</td>
+                        </tr>
+                        {% if user.role == 'admin' and user.condominiums|length > 0 %}
+                        <tr class="condominiums-row" data-parent-id="{{ user.id }}" style="display: none;">
+                            <td colspan="8" class="bg-light">
+                                <div class="p-3">
+                                    <h6 class="mb-3"><i class="bi bi-building"></i> Condomínios Administrados ({{ user.condominiums|length }})</h6>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        {% for condo in user.condominiums %}
+                                            <button type="button" 
+                                                    class="badge bg-info text-decoration-none p-2 border-0 btn-stats" 
+                                                    data-condo-id="{{ condo.id }}"
+                                                    data-condo-name="{{ condo.name }}"
+                                                    title="Ver estatísticas de {{ condo.name }}">
+                                                <i class="bi bi-building"></i> {{ condo.name }}
+                                                {% if not condo.is_active %}
+                                                    <span class="badge bg-secondary ms-1">Inativo</span>
+                                                {% endif %}
+                                            </button>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">
+                                Nenhum utilizador encontrado.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination Controls -->
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div class="d-flex align-items-center">
+                    <label for="itemsPerPage" class="me-2 mb-0">Itens por página:</label>
+                    <select id="itemsPerPage" class="form-select form-select-sm" style="width: auto;">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="0">Todos</option>
+                    </select>
+                </div>
+                <div class="d-flex align-items-center">
+                    <span id="paginationInfo" class="text-muted me-3"></span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0" id="paginationControls">
+                            <!-- Pagination buttons will be inserted here by JavaScript -->
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Estatísticas do Condomínio -->
+<div class="modal fade" id="condominiumStatsModal" tabindex="-1" aria-labelledby="condominiumStatsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="condominiumStatsModalLabel">
+                    <i class="bi bi-graph-up"></i> Estatísticas do Condomínio
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe id="statsIframe" src="" style="width: 100%; height: 80vh; border: none;"></iframe>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <a id="openInNewTab" href="#" target="_blank" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-up-right"></i> Abrir em Nova Aba
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const table = document.getElementById('usersTable');
+    if (!table) return;
+    
+    const sortableHeaders = table.querySelectorAll('th.sortable');
+    let currentSort = { column: null, direction: 'asc' };
+    let currentPage = 1;
+    let itemsPerPage = 25;
+    let allRows = [];
+    let filteredRows = [];
+    
+    // Initialize: store all rows
+    const tbody = table.querySelector('tbody');
+    const allTableRows = Array.from(tbody.querySelectorAll('tr'));
+    
+    // Remove empty row if exists and separate admin rows from condominiums rows
+    const emptyRow = allTableRows.find(row => row.querySelector('td[colspan]') && !row.classList.contains('condominiums-row'));
+    const condominiumsRowsMap = new Map();
+    
+    // Build map of condominiums rows by parent ID
+    allTableRows.forEach(row => {
+        if (row.classList.contains('condominiums-row')) {
+            const parentId = row.dataset.parentId;
+            if (parentId) {
+                condominiumsRowsMap.set(parentId, row);
+            }
+        }
+    });
+    
+    // Filter out empty row and condominiums rows from main list
+    allRows = allTableRows.filter(row => {
+        if (row === emptyRow) return false;
+        if (row.classList.contains('condominiums-row')) return false;
+        return true;
+    });
+    
+    // Store condominiums rows map for later use
+    window.condominiumsRowsMap = condominiumsRowsMap;
+    
+    // If no rows, hide pagination and return
+    if (allRows.length === 0) {
+        const paginationContainer = document.querySelector('.d-flex.justify-content-between.align-items-center.mt-3');
+        if (paginationContainer) paginationContainer.style.display = 'none';
+        return;
+    }
+    
+    filteredRows = [...allRows];
+    
+    // Get column index from header
+    function getColumnIndex(sortType) {
+        const headers = Array.from(table.querySelectorAll('thead th'));
+        return headers.findIndex(h => h.dataset.sort === sortType);
+    }
+    
+    // Filter function
+    function applyFilters() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const roleFilter = document.getElementById('filterRole').value;
+        const statusFilter = document.getElementById('filterStatus').value;
+        const planFilter = document.getElementById('filterPlan').value;
+        
+        filteredRows = allRows.filter(row => {
+            // Search filter
+            if (searchTerm) {
+                const name = row.dataset.name || '';
+                const email = row.dataset.email || '';
+                if (!name.includes(searchTerm) && !email.includes(searchTerm)) {
+                    return false;
+                }
+            }
+            
+            // Role filter
+            if (roleFilter && row.dataset.role !== roleFilter) {
+                return false;
+            }
+            
+            // Status filter
+            if (statusFilter && row.dataset.status !== statusFilter) {
+                return false;
+            }
+            
+            // Plan filter
+            if (planFilter) {
+                const plan = row.dataset.plan || 'none';
+                if (planFilter === 'none' && plan !== 'none') {
+                    return false;
+                } else if (planFilter !== 'none' && plan !== planFilter) {
+                    return false;
+                }
+            }
+            
+            return true;
+        });
+        
+        currentPage = 1;
+        displayRows();
+        updatePagination();
+    }
+    
+    // Pagination functions
+    function updatePagination() {
+        const totalItems = filteredRows.length;
+        const paginationContainer = document.querySelector('.d-flex.justify-content-between.align-items-center.mt-3');
+        
+        // Hide pagination if no items
+        if (totalItems === 0) {
+            if (paginationContainer) paginationContainer.style.display = 'none';
+            return;
+        }
+        
+        if (paginationContainer) paginationContainer.style.display = 'flex';
+        
+        const totalPages = itemsPerPage === 0 ? 1 : Math.ceil(totalItems / itemsPerPage);
+        
+        // Update info text
+        const infoEl = document.getElementById('paginationInfo');
+        if (itemsPerPage === 0) {
+            infoEl.textContent = `Mostrando todos os ${totalItems} utilizadores`;
+        } else {
+            const start = (currentPage - 1) * itemsPerPage + 1;
+            const end = Math.min(currentPage * itemsPerPage, totalItems);
+            infoEl.textContent = `Mostrando ${start}-${end} de ${totalItems} utilizadores`;
+        }
+        
+        // Generate pagination buttons
+        const controlsEl = document.getElementById('paginationControls');
+        controlsEl.innerHTML = '';
+        
+        if (itemsPerPage === 0 || totalPages <= 1) {
+            return;
+        }
+        
+        // Previous button
+        const prevLi = document.createElement('li');
+        prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+        prevLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage - 1}">Anterior</a>`;
+        controlsEl.appendChild(prevLi);
+        
+        // Page number buttons
+        const maxVisible = 7;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+        
+        if (endPage - startPage < maxVisible - 1) {
+            startPage = Math.max(1, endPage - maxVisible + 1);
+        }
+        
+        if (startPage > 1) {
+            const firstLi = document.createElement('li');
+            firstLi.className = 'page-item';
+            firstLi.innerHTML = `<a class="page-link" href="#" data-page="1">1</a>`;
+            controlsEl.appendChild(firstLi);
+            
+            if (startPage > 2) {
+                const ellipsisLi = document.createElement('li');
+                ellipsisLi.className = 'page-item disabled';
+                ellipsisLi.innerHTML = `<span class="page-link">...</span>`;
+                controlsEl.appendChild(ellipsisLi);
+            }
+        }
+        
+        for (let i = startPage; i <= endPage; i++) {
+            const li = document.createElement('li');
+            li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+            li.innerHTML = `<a class="page-link" href="#" data-page="${i}">${i}</a>`;
+            controlsEl.appendChild(li);
+        }
+        
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                const ellipsisLi = document.createElement('li');
+                ellipsisLi.className = 'page-item disabled';
+                ellipsisLi.innerHTML = `<span class="page-link">...</span>`;
+                controlsEl.appendChild(ellipsisLi);
+            }
+            
+            const lastLi = document.createElement('li');
+            lastLi.className = 'page-item';
+            lastLi.innerHTML = `<a class="page-link" href="#" data-page="${totalPages}">${totalPages}</a>`;
+            controlsEl.appendChild(lastLi);
+        }
+        
+        // Next button
+        const nextLi = document.createElement('li');
+        nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+        nextLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage + 1}">Próximo</a>`;
+        controlsEl.appendChild(nextLi);
+        
+        // Add click handlers
+        controlsEl.querySelectorAll('a[data-page]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const page = parseInt(this.dataset.page);
+                if (page >= 1 && page <= totalPages && page !== currentPage) {
+                    currentPage = page;
+                    displayRows();
+                    updatePagination();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
+        });
+    }
+    
+    function displayRows() {
+        tbody.innerHTML = '';
+        
+        if (filteredRows.length === 0) {
+            const emptyRow = document.createElement('tr');
+            emptyRow.innerHTML = '<td colspan="8" class="text-center text-muted">Nenhum utilizador encontrado.</td>';
+            tbody.appendChild(emptyRow);
+            return;
+        }
+        
+        const rowsToDisplay = itemsPerPage === 0 
+            ? filteredRows 
+            : filteredRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+        
+        rowsToDisplay.forEach(row => {
+            const clonedRow = row.cloneNode(true);
+            tbody.appendChild(clonedRow);
+            
+            // Also clone the condominiums row if it exists
+            const userId = clonedRow.dataset.userId;
+            if (userId && window.condominiumsRowsMap && window.condominiumsRowsMap.has(userId)) {
+                const condominiumsRow = window.condominiumsRowsMap.get(userId);
+                const clonedCondominiumsRow = condominiumsRow.cloneNode(true);
+                clonedCondominiumsRow.style.display = 'none';
+                tbody.appendChild(clonedCondominiumsRow);
+            }
+        });
+        
+        // Setup expansion after displaying
+        setTimeout(setupRowExpansion, 0);
+    }
+    
+    // Search and filter event listeners
+    document.getElementById('searchInput').addEventListener('input', applyFilters);
+    document.getElementById('filterRole').addEventListener('change', applyFilters);
+    document.getElementById('filterStatus').addEventListener('change', applyFilters);
+    document.getElementById('filterPlan').addEventListener('change', applyFilters);
+    
+    // Clear filters
+    document.getElementById('clearFilters').addEventListener('click', function() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('filterRole').value = '';
+        document.getElementById('filterStatus').value = '';
+        document.getElementById('filterPlan').value = '';
+        applyFilters();
+    });
+    
+    // Items per page change handler
+    document.getElementById('itemsPerPage').addEventListener('change', function() {
+        itemsPerPage = parseInt(this.value);
+        currentPage = 1;
+        displayRows();
+        updatePagination();
+    });
+    
+    // Sorting functionality
+    sortableHeaders.forEach(header => {
+        header.addEventListener('click', function() {
+            const sortType = this.dataset.sort;
+            
+            if (filteredRows.length === 0) return;
+            
+            // Determine sort direction
+            if (currentSort.column === sortType) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = sortType;
+                currentSort.direction = 'asc';
+            }
+            
+            // Get column index
+            const columnIndex = getColumnIndex(sortType);
+            
+            // Sort rows
+            filteredRows.sort((a, b) => {
+                const aCells = a.querySelectorAll('td');
+                const bCells = b.querySelectorAll('td');
+                
+                if (!aCells[columnIndex] || !bCells[columnIndex]) return 0;
+                
+                let aValue, bValue;
+                const aCell = aCells[columnIndex];
+                const bCell = bCells[columnIndex];
+                
+                if (sortType === 'id' || sortType === 'condominiums') {
+                    aValue = parseFloat(aCell.dataset.sortValue || aCell.textContent.trim()) || 0;
+                    bValue = parseFloat(bCell.dataset.sortValue || bCell.textContent.trim()) || 0;
+                } else if (sortType === 'name' || sortType === 'email') {
+                    aValue = (aCell.dataset.sortValue || aCell.textContent.trim()).toLowerCase();
+                    bValue = (bCell.dataset.sortValue || bCell.textContent.trim()).toLowerCase();
+                } else if (sortType === 'created') {
+                    aValue = aCell.dataset.sortValue || '';
+                    bValue = bCell.dataset.sortValue || '';
+                }
+                
+                if (typeof aValue === 'string') {
+                    return currentSort.direction === 'asc' 
+                        ? aValue.localeCompare(bValue)
+                        : bValue.localeCompare(aValue);
+                } else {
+                    return currentSort.direction === 'asc' 
+                        ? aValue - bValue
+                        : bValue - aValue;
+                }
+            });
+            
+            currentPage = 1;
+            displayRows();
+            updatePagination();
+            
+            // Update sort icons
+            sortableHeaders.forEach(h => {
+                const icon = h.querySelector('.sort-icon');
+                if (h.dataset.sort === sortType) {
+                    icon.className = currentSort.direction === 'asc' 
+                        ? 'bi bi-arrow-up sort-icon' 
+                        : 'bi bi-arrow-down sort-icon';
+                    h.style.color = '#0d6efd';
+                } else {
+                    icon.className = 'bi bi-arrow-down-up sort-icon';
+                    h.style.color = '';
+                }
+            });
+        });
+        
+        // Add hover effect
+        header.style.transition = 'color 0.2s';
+        header.addEventListener('mouseenter', function() {
+            if (this.dataset.sort !== currentSort.column) {
+                this.style.color = '#0d6efd';
+            }
+        });
+        header.addEventListener('mouseleave', function() {
+            if (this.dataset.sort !== currentSort.column) {
+                this.style.color = '';
+            }
+        });
+    });
+    
+    // Row expansion functionality for admin users
+    function setupRowExpansion() {
+        // Remove existing listeners by cloning rows (cleaner approach)
+        const adminRows = tbody.querySelectorAll('tr.admin-row');
+        
+        adminRows.forEach(row => {
+            // Remove any existing click handler by cloning
+            const newRow = row.cloneNode(true);
+            row.parentNode.replaceChild(newRow, row);
+            
+            newRow.addEventListener('click', function(e) {
+                // Don't expand if clicking on a link or badge
+                if (e.target.tagName === 'A' || e.target.closest('a') || e.target.closest('.badge')) {
+                    return;
+                }
+                
+                const userId = this.dataset.userId;
+                if (!userId) return;
+                
+                // Find the next sibling which should be the condominiums row
+                let nextSibling = this.nextElementSibling;
+                while (nextSibling && !nextSibling.classList.contains('condominiums-row')) {
+                    nextSibling = nextSibling.nextElementSibling;
+                }
+                
+                if (nextSibling && nextSibling.dataset.parentId === userId) {
+                    const isExpanded = nextSibling.style.display !== 'none';
+                    
+                    if (isExpanded) {
+                        nextSibling.style.display = 'none';
+                        this.classList.remove('expanded');
+                    } else {
+                        nextSibling.style.display = '';
+                        this.classList.add('expanded');
+                    }
+                }
+            });
+        });
+    }
+    
+    // Modal functionality for condominium statistics (using event delegation)
+    let statsModal = null;
+    let modalTitle = null;
+    let statsIframe = null;
+    let openInNewTabLink = null;
+    
+    function initStatsModal() {
+        if (!statsModal) {
+            statsModal = new bootstrap.Modal(document.getElementById('condominiumStatsModal'));
+            modalTitle = document.getElementById('condominiumStatsModalLabel');
+            statsIframe = document.getElementById('statsIframe');
+            openInNewTabLink = document.getElementById('openInNewTab');
+            
+            // Clear iframe when modal is hidden
+            document.getElementById('condominiumStatsModal').addEventListener('hidden.bs.modal', function() {
+                if (statsIframe) statsIframe.src = '';
+            });
+        }
+    }
+    
+    // Handle clicks on stats buttons using event delegation (works with cloned elements)
+    document.addEventListener('click', function(e) {
+        const statsBtn = e.target.closest('.btn-stats');
+        if (statsBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            initStatsModal();
+            
+                const condoId = statsBtn.dataset.condoId;
+                const condoName = statsBtn.dataset.condoName;
+                const statsUrl = '{{ BASE_URL }}admin/condominiums/' + condoId + '/stats?modal=1';
+            
+            // Update modal title
+            if (modalTitle) {
+                modalTitle.innerHTML = '<i class="bi bi-graph-up"></i> Estatísticas: ' + condoName;
+            }
+            
+            // Set iframe source
+            if (statsIframe) {
+                statsIframe.src = statsUrl;
+            }
+            
+            // Update "open in new tab" link
+            if (openInNewTabLink) {
+                openInNewTabLink.href = statsUrl;
+            }
+            
+            // Show modal
+            if (statsModal) {
+                statsModal.show();
+            }
+        }
+    });
+    
+    // Initialize modal system
+    initStatsModal();
+    
+    // Initialize table
+    displayRows();
+    updatePagination();
+});
+</script>
