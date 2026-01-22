@@ -39,7 +39,8 @@
                                         <div class="template-preview mb-3" style="height: 140px; border-radius: 8px; border: 2px solid {% if (current_template is null and templateId is null) or (current_template is not null and templateId is not null and current_template == templateId) %}#0d6efd{% else %}#dee2e6{% endif %}; position: relative; overflow: hidden; background: #f8f9fa;">
                                             {% if templateId is null %}
                                                 {# Default template preview #}
-                                                <img src="{{ BASE_URL }}assets/images/templates/default.png" 
+                                                {% set defaultImgUrl = BASE_URL|trim('/') ~ '/assets/images/templates/default.png' %}
+                                                <img src="{{ defaultImgUrl }}" 
                                                      alt="Template Padrão" 
                                                      class="template-preview-img"
                                                      style="width: 100%; height: 100%; object-fit: cover;"
@@ -52,7 +53,8 @@
                                                 </div>
                                             {% else %}
                                                 {# Template preview with image #}
-                                                <img src="{{ BASE_URL }}assets/images/templates/template_{{ templateId }}.png" 
+                                                {% set templateImgUrl = BASE_URL|trim('/') ~ '/assets/images/templates/template_' ~ templateId ~ '.png' %}
+                                                <img src="{{ templateImgUrl }}" 
                                                      alt="Template {{ templateId }}" 
                                                      class="template-preview-img"
                                                      style="width: 100%; height: 100%; object-fit: cover;"
