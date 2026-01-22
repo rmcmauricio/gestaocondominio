@@ -140,6 +140,63 @@ table tbody tr:hover {
   background: var(--color-bg-dark) !important;
 }
 
+/* Footer Homepage - Ensure readability */
+.footer-homepage {
+  background: #1a1c1e !important;
+  color: #ffffff !important;
+}
+
+.footer-homepage * {
+  color: inherit;
+}
+
+.footer-homepage .footer-column-title {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-description,
+.footer-homepage .footer-contact-item {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage .footer-copyright,
+.footer-homepage .footer-copyright p {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.footer-homepage .footer-developed-by {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.footer-homepage a {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage a:hover {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-column-links a {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage .footer-column-links a:hover {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-column-links li i {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.footer-homepage .footer-developed-by a {
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-weight: 600 !important;
+}
+
+.footer-homepage .footer-developed-by a:hover {
+  color: #ffffff !important;
+}
+
 /* Form Controls */
 .form-control,
 .form-select {
