@@ -472,56 +472,79 @@ class PaymentService
                 if ($subscription) {
                     $oldSubscriptionStatus = $subscription['status'];
                     
-                    // Check if payment includes extra condominiums update
-                    $newExtraCondominiums = null;
+                    // Check if this is a pending subscription (plan change)
+                    $isPendingPlanChange = false;
+                    $oldSubscriptionId = null;
                     if ($payment['invoice_id']) {
                         $invoice = $this->invoiceModel->findById($payment['invoice_id']);
                         if ($invoice && isset($invoice['metadata']) && $invoice['metadata']) {
                             $metadata = $invoice['metadata']; // Already decoded in findById
-                            if (isset($metadata['is_extra_update']) && $metadata['is_extra_update']) {
-                                $newExtraCondominiums = (int)($metadata['new_extra_condominiums'] ?? null);
+                            if (isset($metadata['is_plan_change']) && $metadata['is_plan_change']) {
+                                $isPendingPlanChange = true;
+                                $oldSubscriptionId = (int)($metadata['old_subscription_id'] ?? null);
                             }
                         }
                     }
                     
-                    // Check and expire promotions before processing payment
-                    $this->subscriptionModel->checkAndExpirePromotions();
-                    
-                    // Re-fetch subscription to get updated promotion status
-                    $subscription = $this->subscriptionModel->findById($payment['subscription_id']);
-                    
-                    // Determine period start: use current_period_end if valid, otherwise use now
-                    $periodStart = $subscription['current_period_end'] ?? date('Y-m-d H:i:s');
-                    // If period_end is in the past or null, start from now
-                    if (!$subscription['current_period_end'] || strtotime($subscription['current_period_end']) < time()) {
-                        $periodStart = date('Y-m-d H:i:s');
-                    }
-                    $newPeriodEnd = date('Y-m-d H:i:s', strtotime('+1 month', strtotime($periodStart)));
-                    
-                    $updateData = [
-                        'status' => 'active',
-                        'current_period_start' => $periodStart,
-                        'current_period_end' => $newPeriodEnd
-                    ];
-                    
-                    // If promotion expired, ensure it's cleared
-                    if (isset($subscription['promotion_ends_at']) && $subscription['promotion_ends_at']) {
-                        if (strtotime($subscription['promotion_ends_at']) <= strtotime($periodStart)) {
-                            $updateData['promotion_id'] = null;
-                            $updateData['promotion_applied_at'] = null;
-                            $updateData['promotion_ends_at'] = null;
+                    // If this is a pending subscription, activate it and cancel old one (if exists)
+                    if ($isPendingPlanChange && $subscription['status'] === 'pending') {
+                        $subscriptionService = new \App\Services\SubscriptionService();
+                        $subscriptionService->activatePendingSubscription($payment['subscription_id'], $oldSubscriptionId);
+                        $subscriptionUpdated = true;
+                        $newSubscriptionStatus = 'active';
+                    } else {
+                        // Regular subscription activation/update
+                        // Check if payment includes extra condominiums update
+                        $newExtraCondominiums = null;
+                        if ($payment['invoice_id']) {
+                            $invoice = $this->invoiceModel->findById($payment['invoice_id']);
+                            if ($invoice && isset($invoice['metadata']) && $invoice['metadata']) {
+                                $metadata = $invoice['metadata']; // Already decoded in findById
+                                if (isset($metadata['is_extra_update']) && $metadata['is_extra_update']) {
+                                    $newExtraCondominiums = (int)($metadata['new_extra_condominiums'] ?? null);
+                                }
+                            }
                         }
+                        
+                        // Check and expire promotions before processing payment
+                        $this->subscriptionModel->checkAndExpirePromotions();
+                        
+                        // Re-fetch subscription to get updated promotion status
+                        $subscription = $this->subscriptionModel->findById($payment['subscription_id']);
+                        
+                        // Determine period start: use current_period_end if valid, otherwise use now
+                        $periodStart = $subscription['current_period_end'] ?? date('Y-m-d H:i:s');
+                        // If period_end is in the past or null, start from now
+                        if (!$subscription['current_period_end'] || strtotime($subscription['current_period_end']) < time()) {
+                            $periodStart = date('Y-m-d H:i:s');
+                        }
+                        $newPeriodEnd = date('Y-m-d H:i:s', strtotime('+1 month', strtotime($periodStart)));
+                        
+                        $updateData = [
+                            'status' => 'active',
+                            'current_period_start' => $periodStart,
+                            'current_period_end' => $newPeriodEnd
+                        ];
+                        
+                        // If promotion expired, ensure it's cleared
+                        if (isset($subscription['promotion_ends_at']) && $subscription['promotion_ends_at']) {
+                            if (strtotime($subscription['promotion_ends_at']) <= strtotime($periodStart)) {
+                                $updateData['promotion_id'] = null;
+                                $updateData['promotion_applied_at'] = null;
+                                $updateData['promotion_ends_at'] = null;
+                            }
+                        }
+                        
+                        // Update extra condominiums if this payment includes an update
+                        if ($newExtraCondominiums !== null) {
+                            $updateData['extra_condominiums'] = $newExtraCondominiums;
+                            $extraCondominiumsUpdated = true;
+                        }
+                        
+                        $this->subscriptionModel->update($payment['subscription_id'], $updateData);
+                        $newSubscriptionStatus = 'active';
+                        $subscriptionUpdated = true;
                     }
-                    
-                    // Update extra condominiums if this payment includes an update
-                    if ($newExtraCondominiums !== null) {
-                        $updateData['extra_condominiums'] = $newExtraCondominiums;
-                        $extraCondominiumsUpdated = true;
-                    }
-                    
-                    $this->subscriptionModel->update($payment['subscription_id'], $updateData);
-                    $newSubscriptionStatus = 'active';
-                    $subscriptionUpdated = true;
                 }
             }
             

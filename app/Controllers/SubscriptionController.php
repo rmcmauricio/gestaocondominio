@@ -80,6 +80,7 @@ class SubscriptionController extends Controller
 
         $userId = AuthMiddleware::userId();
         $subscription = $this->subscriptionModel->getActiveSubscription($userId);
+        $pendingSubscription = $this->subscriptionModel->getPendingSubscription($userId);
         $plans = $this->planModel->getActivePlans();
         
         // Convert features to readable format
@@ -155,6 +156,48 @@ class SubscriptionController extends Controller
         // Clear session messages after retrieving
         unset($_SESSION['error'], $_SESSION['success'], $_SESSION['info']);
         
+        // Calculate total price for pending subscription if exists
+        $pendingTotalPrice = null;
+        $pendingExtraCondominiumsPrice = 0;
+        
+        if ($pendingSubscription) {
+            // Calculate base price with promotion discount (if promotion is active)
+            $basePrice = $pendingSubscription['price_monthly']; // Price from plan
+            $discountedBasePrice = $basePrice;
+            
+            // If there's a promotion, calculate discounted price
+            if (isset($pendingSubscription['promotion_id']) && $pendingSubscription['promotion_id']) {
+                $promo = $planPromotions[$pendingSubscription['plan_id']] ?? null;
+                if ($promo) {
+                    $originalPrice = $pendingSubscription['original_price_monthly'] ?? $basePrice;
+                    if ($promo['discount_type'] === 'percentage') {
+                        $discount = ($originalPrice * $promo['discount_value']) / 100;
+                        $discountedBasePrice = max(0, $originalPrice - $discount);
+                    } else {
+                        $discountedBasePrice = max(0, $originalPrice - $promo['discount_value']);
+                    }
+                }
+            }
+            
+            if ($pendingSubscription['plan_slug'] === 'business') {
+                $pendingExtraCondominiums = (int)($pendingSubscription['extra_condominiums'] ?? 0);
+                if ($pendingExtraCondominiums > 0) {
+                    $pricePerCondominium = $this->extraCondominiumsPricingModel->getPriceForCondominiums(
+                        $pendingSubscription['plan_id'], 
+                        $pendingExtraCondominiums
+                    );
+                    if ($pricePerCondominium !== null) {
+                        // Extras are NOT discounted
+                        $pendingExtraCondominiumsPrice = $pricePerCondominium * $pendingExtraCondominiums;
+                    }
+                }
+                // Total = discounted base price + full price extras
+                $pendingTotalPrice = $discountedBasePrice + $pendingExtraCondominiumsPrice;
+            } else {
+                $pendingTotalPrice = $discountedBasePrice;
+            }
+        }
+
         $this->data += [
             'viewName' => 'pages/subscription/index.html.twig',
             'page' => [
@@ -162,12 +205,15 @@ class SubscriptionController extends Controller
                 'description' => 'Manage your subscription'
             ],
             'subscription' => $subscription,
+            'pending_subscription' => $pendingSubscription,
             'plans' => $plans,
             'business_plan' => $businessPlan,
             'extra_condominiums_pricing' => $extraCondominiumsPricing,
             'plan_promotions' => $planPromotions,
             'total_price' => $totalPrice,
             'extra_condominiums_price' => $extraCondominiumsPrice,
+            'pending_total_price' => $pendingTotalPrice,
+            'pending_extra_condominiums_price' => $pendingExtraCondominiumsPrice,
             'has_pending_extra_update' => $hasPendingExtraUpdate,
             'display_extra_condominiums' => isset($displayExtraCondominiums) ? $displayExtraCondominiums : ($subscription['extra_condominiums'] ?? 0),
             'error' => $error,
@@ -559,24 +605,51 @@ class SubscriptionController extends Controller
 
         $userId = AuthMiddleware::userId();
 
-        // Check for visible promotion for the new plan
+        // Get extra condominiums if Business plan
+        $extraCondominiums = 0;
+        if ($plan['slug'] === 'business') {
+            $extraCondominiums = max(0, intval($_POST['extra_condominiums'] ?? 0));
+        }
+
+        // Process promotion code or visible promotion
         $promotionId = null;
-        $visiblePromotion = $this->promotionModel->getVisibleForPlan($newPlanId);
-        if ($visiblePromotion) {
-            $promotionId = $visiblePromotion['id'];
+        $promotionCode = trim($_POST['promotion_code'] ?? '');
+        
+        // Priority: promotion code > visible promotion
+        if ($promotionCode) {
+            // Validate promotion code
+            $validation = $this->promotionModel->validateCode($promotionCode, $newPlanId, $userId);
+            
+            if (!$validation['valid']) {
+                $_SESSION['error'] = $validation['error'] ?? 'Código de promoção inválido.';
+                header('Location: ' . BASE_URL . 'subscription');
+                exit;
+            }
+            
+            $promotionId = $validation['promotion']['id'];
+        } else {
+            // Check for visible promotion for the new plan
+            $visiblePromotion = $this->promotionModel->getVisibleForPlan($newPlanId);
+            if ($visiblePromotion) {
+                $promotionId = $visiblePromotion['id'];
+            }
         }
 
         try {
-            $this->subscriptionService->changePlan($userId, $newPlanId, $promotionId);
+            $subscriptionId = $this->subscriptionService->changePlan($userId, $newPlanId, $promotionId, $extraCondominiums);
             
             // Increment promotion usage count if promotion was applied
             if ($promotionId) {
                 $this->promotionModel->incrementUsage($promotionId);
             }
             
-            $_SESSION['success'] = 'Plano alterado com sucesso!';
+            $_SESSION['success'] = 'Alteração de plano solicitada! Efetue o pagamento para ativar o novo plano.';
             if ($promotionId) {
-                $_SESSION['success'] .= ' Promoção aplicada automaticamente.';
+                if ($promotionCode) {
+                    $_SESSION['success'] .= ' Código promocional aplicado com sucesso.';
+                } else {
+                    $_SESSION['success'] .= ' Promoção aplicada automaticamente.';
+                }
             }
             header('Location: ' . BASE_URL . 'subscription');
             exit;
@@ -828,6 +901,216 @@ class SubscriptionController extends Controller
             exit;
         } catch (\Exception $e) {
             $_SESSION['error'] = 'Erro ao cancelar pagamento pendente: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+    }
+
+    /**
+     * Update extra condominiums for pending subscription
+     */
+    public function updatePendingExtras()
+    {
+        AuthMiddleware::require();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        // Block demo user
+        if ($this->isDemoUser()) {
+            $_SESSION['error'] = 'A subscrição da conta demo não pode ser alterada.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        $userId = AuthMiddleware::userId();
+        $pendingSubscription = $this->subscriptionModel->getPendingSubscription($userId);
+
+        if (!$pendingSubscription) {
+            $_SESSION['error'] = 'Não há subscrição pendente.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        $plan = $this->planModel->findById($pendingSubscription['plan_id']);
+        if (!$plan || $plan['slug'] !== 'business') {
+            $_SESSION['error'] = 'Condomínios extras só estão disponíveis no plano Business.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        $newExtraCondominiums = max(0, intval($_POST['extra_condominiums'] ?? 0));
+        $currentExtraCondominiums = (int)($pendingSubscription['extra_condominiums'] ?? 0);
+
+        // If no change, just redirect
+        if ($newExtraCondominiums === $currentExtraCondominiums) {
+            $_SESSION['info'] = 'Não houve alterações nos condomínios extras.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        // Calculate the price
+        // Base amount is already discounted if promotion was applied (stored in price_monthly)
+        // Extras are NOT discounted - they use full price
+        $baseAmount = $pendingSubscription['price_monthly']; // Already discounted if promotion applied
+        $totalAmount = $baseAmount;
+
+        // Calculate extras price (extras are NOT discounted - full price)
+        if ($newExtraCondominiums > 0) {
+            $pricePerCondominium = $this->extraCondominiumsPricingModel->getPriceForCondominiums(
+                $plan['id'], 
+                $newExtraCondominiums
+            );
+            if ($pricePerCondominium !== null) {
+                // Add full price for extras (no discount applied)
+                $totalAmount += $pricePerCondominium * $newExtraCondominiums;
+            }
+        }
+
+        // Update pending subscription
+        $this->subscriptionModel->update($pendingSubscription['id'], [
+            'extra_condominiums' => $newExtraCondominiums
+        ]);
+
+        // Update or create invoice
+        $invoiceModel = new \App\Models\Invoice();
+        $pendingInvoice = $invoiceModel->getPendingBySubscriptionId($pendingSubscription['id']);
+        
+        if ($pendingInvoice) {
+            // Update existing invoice
+            global $db;
+            $updateStmt = $db->prepare("
+                UPDATE invoices 
+                SET amount = :amount, 
+                    total_amount = :total_amount,
+                    updated_at = NOW()
+                WHERE id = :id AND status = 'pending'
+            ");
+            $updateStmt->execute([
+                ':amount' => $totalAmount,
+                ':total_amount' => $totalAmount,
+                ':id' => $pendingInvoice['id']
+            ]);
+        } else {
+            // Create new invoice
+            $this->invoiceService->createInvoice($pendingSubscription['id'], $totalAmount, [
+                'is_plan_change' => true,
+                'old_subscription_id' => null,
+                'old_plan_id' => null
+            ]);
+        }
+
+        // Log the update
+        $this->auditService->logSubscription([
+            'subscription_id' => $pendingSubscription['id'],
+            'user_id' => $userId,
+            'action' => 'pending_extras_updated',
+            'description' => "Condomínios extras atualizados na subscrição pendente: {$currentExtraCondominiums} → {$newExtraCondominiums}"
+        ]);
+
+        $_SESSION['success'] = 'Condomínios extras atualizados com sucesso!';
+        header('Location: ' . BASE_URL . 'subscription');
+        exit;
+    }
+
+    /**
+     * Cancel pending plan change
+     */
+    public function cancelPendingPlanChange()
+    {
+        AuthMiddleware::require();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        // Block demo user
+        if ($this->isDemoUser()) {
+            $_SESSION['error'] = 'A subscrição da conta demo não pode ser alterada.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        $userId = AuthMiddleware::userId();
+        $pendingSubscription = $this->subscriptionModel->getPendingSubscription($userId);
+        $activeSubscription = $this->subscriptionModel->getActiveSubscription($userId);
+        $isPlanChange = $activeSubscription !== null;
+
+        if (!$pendingSubscription) {
+            $_SESSION['info'] = $isPlanChange ? 'Não há alteração de plano pendente para cancelar.' : 'Não há subscrição pendente para cancelar.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        try {
+            global $db;
+            
+            // Cancel any pending invoices for this subscription
+            $cancelInvoicesStmt = $db->prepare("
+                UPDATE invoices 
+                SET status = 'canceled', 
+                    updated_at = NOW()
+                WHERE subscription_id = :subscription_id 
+                AND status = 'pending'
+            ");
+            $cancelInvoicesStmt->execute([':subscription_id' => $pendingSubscription['id']]);
+
+            // Cancel any pending/failed payments associated with invoices
+            $cancelPaymentsStmt = $db->prepare("
+                UPDATE payments 
+                SET status = 'failed', 
+                    updated_at = NOW()
+                WHERE invoice_id IN (
+                    SELECT id FROM invoices 
+                    WHERE subscription_id = :subscription_id 
+                    AND status = 'canceled'
+                )
+                AND status IN ('pending', 'processing')
+            ");
+            $cancelPaymentsStmt->execute([':subscription_id' => $pendingSubscription['id']]);
+
+            // Delete the pending subscription
+            $deleteStmt = $db->prepare("DELETE FROM subscriptions WHERE id = :id AND status = 'pending'");
+            $deleteStmt->execute([':id' => $pendingSubscription['id']]);
+
+            if ($deleteStmt->rowCount() === 0) {
+                $_SESSION['error'] = $isPlanChange ? 'Não foi possível cancelar a alteração de plano pendente.' : 'Não foi possível cancelar a subscrição pendente.';
+                header('Location: ' . BASE_URL . 'subscription');
+                exit;
+            }
+
+            // Log the cancellation
+            $this->auditService->logSubscription([
+                'subscription_id' => $pendingSubscription['id'],
+                'user_id' => $userId,
+                'action' => 'pending_plan_change_canceled',
+                'old_status' => 'pending',
+                'new_status' => 'deleted',
+                'description' => ($isPlanChange ? "Alteração de plano pendente cancelada pelo utilizador" : "Subscrição pendente cancelada pelo utilizador") . ". Plano ID: {$pendingSubscription['plan_id']}"
+            ]);
+
+            $_SESSION['success'] = $isPlanChange ? 'Alteração de plano pendente cancelada com sucesso.' : 'Subscrição pendente cancelada com sucesso.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao cancelar alteração pendente: ' . $e->getMessage();
             header('Location: ' . BASE_URL . 'subscription');
             exit;
         }

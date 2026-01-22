@@ -62,7 +62,9 @@ $router->post('/subscription/upgrade', 'App\Controllers\SubscriptionController@u
 $router->post('/subscription/cancel', 'App\Controllers\SubscriptionController@cancel');
 $router->post('/subscription/change-plan', 'App\Controllers\SubscriptionController@changePlan');
 $router->post('/subscription/update-extras', 'App\Controllers\SubscriptionController@updateExtras');
+$router->post('/subscription/update-pending-extras', 'App\Controllers\SubscriptionController@updatePendingExtras');
 $router->post('/subscription/cancel-pending-extras', 'App\Controllers\SubscriptionController@cancelPendingExtras');
+$router->post('/subscription/cancel-pending-plan-change', 'App\Controllers\SubscriptionController@cancelPendingPlanChange');
 $router->post('/subscription/reactivate', 'App\Controllers\SubscriptionController@reactivate');
 $router->post('/subscription/validate-promotion-code', 'App\Controllers\SubscriptionController@validatePromotionCode');
 

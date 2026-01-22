@@ -79,13 +79,15 @@ class PaymentController extends Controller
         // 2. Canceled subscriptions
         // 3. Active subscriptions that are expiring soon (within 7 days)
         // 4. Active subscriptions with pending invoice for extra condominiums update
+        // 5. Pending subscriptions (plan change)
         
         $isActive = $subscription['status'] === 'active';
         $isTrial = $subscription['status'] === 'trial';
         $isCanceled = $subscription['status'] === 'canceled';
+        $isPending = $subscription['status'] === 'pending';
         
-        // Block payment only if subscription is active, not expiring soon, AND no pending extra update invoice
-        if ($isActive && strtotime($subscription['current_period_end']) > strtotime('+7 days') && !$isExtraUpdateInvoice) {
+        // Block payment only if subscription is active, not expiring soon, AND no pending extra update invoice, AND not pending
+        if ($isActive && strtotime($subscription['current_period_end']) > strtotime('+7 days') && !$isExtraUpdateInvoice && !$isPending) {
             $_SESSION['info'] = 'A sua subscrição está ativa até ' . date('d/m/Y', strtotime($subscription['current_period_end'])) . '.';
             header('Location: ' . BASE_URL . 'subscription');
             exit;
@@ -95,6 +97,7 @@ class PaymentController extends Controller
         // Allow canceled subscriptions to pay
         // Allow active subscriptions expiring soon to pay
         // Allow active subscriptions with pending extra update invoice to pay
+        // Allow pending subscriptions to pay (plan change)
         
         $amount = $plan['price_monthly'];
         $extraCondominiums = (int)($subscription['extra_condominiums'] ?? 0);
@@ -102,8 +105,9 @@ class PaymentController extends Controller
         $pricePerCondominium = null;
         $newExtraCondominiums = $extraCondominiums;
         
-        // Check if invoice has metadata about new extras
+        // Check if invoice has metadata about new extras or plan change
         $metadata = null;
+        $isPlanChange = false;
         if ($pendingInvoice) {
             if (isset($pendingInvoice['metadata']) && $pendingInvoice['metadata']) {
                 $metadata = is_string($pendingInvoice['metadata']) ? json_decode($pendingInvoice['metadata'], true) : $pendingInvoice['metadata'];
@@ -114,12 +118,37 @@ class PaymentController extends Controller
                 }
             }
             
-            if ($metadata && isset($metadata['is_extra_update']) && $metadata['is_extra_update']) {
-                $newExtraCondominiums = (int)($metadata['new_extra_condominiums'] ?? $extraCondominiums);
-                $amount = $pendingInvoice['amount']; // Use invoice amount which already includes the new extras
+            if ($metadata) {
+                if (isset($metadata['is_extra_update']) && $metadata['is_extra_update']) {
+                    $newExtraCondominiums = (int)($metadata['new_extra_condominiums'] ?? $extraCondominiums);
+                    $amount = $pendingInvoice['amount']; // Use invoice amount which already includes the new extras
+                }
+                if (isset($metadata['is_plan_change']) && $metadata['is_plan_change']) {
+                    $isPlanChange = true;
+                    $amount = $pendingInvoice['amount']; // Use invoice amount which already includes promotion discount
+                }
             }
         }
         
+        // For pending subscriptions, use invoice amount if available
+        // Note: Pending subscriptions created via changePlan will have is_plan_change=true in metadata
+        if ($isPending && $pendingInvoice && !$isPlanChange) {
+            $amount = $pendingInvoice['amount'];
+        }
+        
+        // If it's a pending subscription created via changePlan, mark as plan change
+        if ($isPending && $pendingInvoice && isset($metadata['is_plan_change']) && $metadata['is_plan_change']) {
+            $isPlanChange = true;
+            $amount = $pendingInvoice['amount'];
+        }
+        
+        // Initialize base amount calculation
+        $originalBaseAmount = $plan['price_monthly'];
+        $baseAmount = $originalBaseAmount;
+        $hasPromotion = false;
+        $promotionDiscount = 0;
+        
+        // Calculate extras price if Business plan
         if ($plan['slug'] === 'business' && $newExtraCondominiums > 0) {
             $extraCondominiumsPricingModel = new \App\Models\PlanExtraCondominiumsPricing();
             $pricePerCondominium = $extraCondominiumsPricingModel->getPriceForCondominiums(
@@ -128,9 +157,111 @@ class PaymentController extends Controller
             );
             if ($pricePerCondominium !== null) {
                 $extraCondominiumsPrice = $pricePerCondominium * $newExtraCondominiums;
-                // Only add to amount if not already set from invoice
+            }
+        }
+        
+        // Calculate base amount based on scenario
+        if (($isPlanChange && $pendingInvoice) || ($isPending && $pendingInvoice)) {
+            // For plan changes or pending subscriptions, invoice amount already includes discounted base + extras
+            // First, check if subscription has promotion to determine original price
+            if (isset($subscription['promotion_id']) && $subscription['promotion_id'] && isset($subscription['original_price_monthly'])) {
+                $originalBaseAmount = $subscription['original_price_monthly'];
+            }
+            
+            // Calculate base amount from invoice (already discounted)
+            if ($plan['slug'] === 'business' && $newExtraCondominiums > 0 && isset($extraCondominiumsPrice)) {
+                $baseAmount = $amount - $extraCondominiumsPrice;
+            } else {
+                $baseAmount = $amount;
+            }
+            
+            // Check for promotion in subscription
+            if (isset($subscription['promotion_id']) && $subscription['promotion_id']) {
+                $promotionModel = new \App\Models\Promotion();
+                $promotion = $promotionModel->findById($subscription['promotion_id']);
+                
+                if ($promotion && $promotion['is_active']) {
+                    // For pending subscriptions, promotion is considered active if it exists
+                    // For active subscriptions, check if promotion hasn't expired
+                    $now = date('Y-m-d H:i:s');
+                    $promotionActive = false;
+                    
+                    if ($isPending) {
+                        // Pending subscriptions: promotion is active if promotion exists and is_active
+                        $promotionActive = true;
+                    } elseif (isset($subscription['promotion_ends_at']) && $subscription['promotion_ends_at'] && $subscription['promotion_ends_at'] >= $now) {
+                        // Active subscriptions: check expiration date
+                        $promotionActive = true;
+                    }
+                    
+                    if ($promotionActive && isset($subscription['original_price_monthly']) && $subscription['original_price_monthly']) {
+                        $originalBaseAmount = $subscription['original_price_monthly'];
+                        $hasPromotion = true;
+                        
+                        // Always recalculate discount from promotion to ensure accuracy
+                        $priceToDiscount = $subscription['original_price_monthly'];
+                        if ($promotion['discount_type'] === 'percentage') {
+                            $promotionDiscount = ($priceToDiscount * $promotion['discount_value']) / 100;
+                            $calculatedBaseAmount = max(0, $priceToDiscount - $promotionDiscount);
+                        } else {
+                            $promotionDiscount = $promotion['discount_value'];
+                            $calculatedBaseAmount = max(0, $priceToDiscount - $promotionDiscount);
+                        }
+                        
+                        // Use calculated base amount if it matches invoice amount (within tolerance)
+                        // Otherwise, use baseAmount from invoice and calculate discount difference
+                        if ($plan['slug'] === 'business' && $newExtraCondominiums > 0 && isset($extraCondominiumsPrice)) {
+                            $expectedTotal = $calculatedBaseAmount + $extraCondominiumsPrice;
+                            // If invoice amount matches expected total, use calculated values
+                            if (abs($amount - $expectedTotal) < 0.01) {
+                                $baseAmount = $calculatedBaseAmount;
+                            }
+                            // Otherwise, keep baseAmount from invoice and use calculated discount
+                        } else {
+                            // If invoice amount matches calculated base amount, use calculated values
+                            if (abs($amount - $calculatedBaseAmount) < 0.01) {
+                                $baseAmount = $calculatedBaseAmount;
+                            }
+                            // Otherwise, keep baseAmount from invoice and use calculated discount
+                        }
+                    }
+                }
+            }
+        } else {
+            // For regular subscriptions, check for active promotion
+            if (isset($subscription['promotion_id']) && $subscription['promotion_id']) {
+                $now = date('Y-m-d H:i:s');
+                if (isset($subscription['promotion_ends_at']) && $subscription['promotion_ends_at'] && $subscription['promotion_ends_at'] >= $now) {
+                    $promotionModel = new \App\Models\Promotion();
+                    $promotion = $promotionModel->findById($subscription['promotion_id']);
+                    
+                    if ($promotion && $promotion['is_active']) {
+                        $hasPromotion = true;
+                        $priceToDiscount = $subscription['original_price_monthly'] ?? $originalBaseAmount;
+                        
+                        if ($promotion['discount_type'] === 'percentage') {
+                            $promotionDiscount = ($priceToDiscount * $promotion['discount_value']) / 100;
+                            $baseAmount = max(0, $priceToDiscount - $promotionDiscount);
+                        } else {
+                            $promotionDiscount = $promotion['discount_value'];
+                            $baseAmount = max(0, $priceToDiscount - $promotionDiscount);
+                        }
+                        
+                        if (isset($subscription['original_price_monthly']) && $subscription['original_price_monthly']) {
+                            $originalBaseAmount = $subscription['original_price_monthly'];
+                        }
+                    }
+                }
+            }
+            
+            // For Business plan with extras, adjust amount
+            if ($plan['slug'] === 'business' && $newExtraCondominiums > 0 && isset($extraCondominiumsPrice)) {
                 if (!isset($metadata['is_extra_update']) || !$metadata['is_extra_update']) {
-                    $amount += $extraCondominiumsPrice;
+                    // Only add extras to amount if not already set from invoice
+                    $amount = $baseAmount + $extraCondominiumsPrice;
+                } else {
+                    // For extra updates, calculate base amount from total
+                    $baseAmount = $amount - $extraCondominiumsPrice;
                 }
             }
         }
@@ -145,11 +276,15 @@ class PaymentController extends Controller
             'subscription' => $subscription,
             'plan' => $plan,
             'amount' => $amount,
-            'base_amount' => $plan['price_monthly'],
+            'base_amount' => $baseAmount,
+            'original_base_amount' => $originalBaseAmount,
+            'has_promotion' => $hasPromotion,
+            'promotion_discount' => $promotionDiscount,
             'extra_condominiums' => $newExtraCondominiums,
             'extra_condominiums_price' => $extraCondominiumsPrice,
             'price_per_condominium' => $pricePerCondominium,
             'is_extra_update' => isset($metadata['is_extra_update']) && $metadata['is_extra_update'],
+            'is_plan_change' => $isPlanChange,
             'payment_methods' => $paymentMethods,
             'csrf_token' => Security::generateCSRFToken(),
             'user' => AuthMiddleware::user()

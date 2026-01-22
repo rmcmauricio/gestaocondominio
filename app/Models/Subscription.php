@@ -34,6 +34,62 @@ class Subscription extends Model
     }
 
     /**
+     * Get pending subscription for user
+     */
+    public function getPendingSubscription(int $userId): ?array
+    {
+        if (!$this->db) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT s.*, p.name as plan_name, p.slug as plan_slug, p.price_monthly, p.limit_condominios, p.limit_fracoes, p.features
+            FROM subscriptions s
+            INNER JOIN plans p ON s.plan_id = p.id
+            WHERE s.user_id = :user_id 
+            AND s.status = 'pending'
+            ORDER BY s.created_at DESC
+            LIMIT 1
+        ");
+        
+        // Note: extra_condominiums is included in s.*
+
+        $stmt->execute([':user_id' => $userId]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * Get all subscriptions for user (active + pending)
+     */
+    public function getAllUserSubscriptions(int $userId): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT s.*, p.name as plan_name, p.slug as plan_slug, p.price_monthly, p.limit_condominios, p.limit_fracoes, p.features
+            FROM subscriptions s
+            INNER JOIN plans p ON s.plan_id = p.id
+            WHERE s.user_id = :user_id 
+            AND s.status IN ('trial', 'active', 'pending')
+            ORDER BY 
+                CASE s.status
+                    WHEN 'active' THEN 1
+                    WHEN 'trial' THEN 2
+                    WHEN 'pending' THEN 3
+                    ELSE 4
+                END,
+                s.created_at DESC
+        ");
+        
+        // Note: extra_condominiums is included in s.*
+
+        $stmt->execute([':user_id' => $userId]);
+        return $stmt->fetchAll() ?: [];
+    }
+
+    /**
      * Create subscription
      */
     public function create(array $data): int

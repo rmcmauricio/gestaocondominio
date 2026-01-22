@@ -139,11 +139,17 @@
 
   /**
    * Auto-hide Alerts
+   * Alerts will auto-hide after 90 seconds (90000ms)
    */
   function initAutoHideAlerts() {
     const alerts = document.querySelectorAll('.alert');
     
     alerts.forEach(alert => {
+      // Skip alerts that are inside pending subscription cards or have data-no-auto-hide attribute
+      if (alert.closest('.card.border-warning') || alert.hasAttribute('data-no-auto-hide')) {
+        return;
+      }
+      
       if (alert.classList.contains('alert-success') || alert.classList.contains('alert-info')) {
         setTimeout(() => {
           alert.style.transition = 'opacity 0.5s ease-out';
@@ -151,7 +157,7 @@
           setTimeout(() => {
             alert.remove();
           }, 500);
-        }, 5000);
+        }, 90000); // 90 seconds
       }
     });
   }

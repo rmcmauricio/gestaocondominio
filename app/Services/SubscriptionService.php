@@ -6,18 +6,21 @@ use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\Promotion;
 use App\Services\AuditService;
+use App\Services\InvoiceService;
 
 class SubscriptionService
 {
     protected $planModel;
     protected $subscriptionModel;
     protected $auditService;
+    protected $invoiceService;
 
     public function __construct()
     {
         $this->planModel = new Plan();
         $this->subscriptionModel = new Subscription();
         $this->auditService = new AuditService();
+        $this->invoiceService = new InvoiceService();
     }
 
     /**
@@ -278,12 +281,243 @@ class SubscriptionService
     }
 
     /**
-     * Change subscription plan
+     * Change subscription plan - creates pending subscription instead of updating existing
      */
-    public function changePlan(int $userId, int $newPlanId, ?int $promotionId = null): bool
+    public function changePlan(int $userId, int $newPlanId, ?int $promotionId = null, int $extraCondominiums = 0): int
     {
-        // Same as upgrade, but can be used for downgrades too
-        return $this->upgrade($userId, $newPlanId, $promotionId);
+        // Get active subscription (can be null if user has no active subscription)
+        $activeSubscription = $this->subscriptionModel->getActiveSubscription($userId);
+        
+        // Check if there's already a pending subscription
+        $pendingSubscription = $this->subscriptionModel->getPendingSubscription($userId);
+        
+        $newPlan = $this->planModel->findById($newPlanId);
+        if (!$newPlan) {
+            throw new \Exception("New plan not found");
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $periodStart = $now;
+        $periodEnd = date('Y-m-d H:i:s', strtotime("+1 month"));
+
+        // Calculate price with promotion (discount applies ONLY to base plan, not extras)
+        $originalPrice = $newPlan['price_monthly'];
+        $finalPrice = $originalPrice;
+        $promotionAppliedAt = null;
+        $promotionEndsAt = null;
+        $finalPromotionId = null;
+
+        if ($promotionId) {
+            $promotionModel = new Promotion();
+            $promotion = $promotionModel->findById($promotionId);
+            
+            if ($promotion && $promotion['is_active']) {
+                $finalPromotionId = $promotionId;
+                $promotionAppliedAt = $now;
+                $durationMonths = $promotion['duration_months'] ?? null;
+                
+                if ($durationMonths) {
+                    $promotionEndsAt = date('Y-m-d H:i:s', strtotime("+{$durationMonths} months", strtotime($now)));
+                }
+                
+                // Calculate discounted price (ONLY for base plan, extras are NOT discounted)
+                if ($promotion['discount_type'] === 'percentage') {
+                    $discount = ($originalPrice * $promotion['discount_value']) / 100;
+                    $finalPrice = max(0, $originalPrice - $discount);
+                } else {
+                    // Fixed discount
+                    $finalPrice = max(0, $originalPrice - $promotion['discount_value']);
+                }
+            }
+        }
+
+        // Calculate total with extra condominiums if Business plan
+        // IMPORTANT: Extras are NOT discounted, only base plan price is discounted
+        $totalAmount = $finalPrice;
+        if ($newPlan['slug'] === 'business' && $extraCondominiums > 0) {
+            $extraCondominiumsPricingModel = new \App\Models\PlanExtraCondominiumsPricing();
+            $pricePerCondominium = $extraCondominiumsPricingModel->getPriceForCondominiums(
+                $newPlanId, 
+                $extraCondominiums
+            );
+            if ($pricePerCondominium !== null) {
+                // Add full price for extras (no discount)
+                $totalAmount += $pricePerCondominium * $extraCondominiums;
+            }
+        }
+
+        // If pending subscription exists, update it; otherwise create new
+        if ($pendingSubscription) {
+            $subscriptionData = [
+                'plan_id' => $newPlanId,
+                'extra_condominiums' => $extraCondominiums,
+                'current_period_start' => $periodStart,
+                'current_period_end' => $periodEnd
+            ];
+
+            if ($finalPromotionId) {
+                $subscriptionData['promotion_id'] = $finalPromotionId;
+                $subscriptionData['promotion_applied_at'] = $promotionAppliedAt;
+                $subscriptionData['promotion_ends_at'] = $promotionEndsAt;
+                $subscriptionData['original_price_monthly'] = $originalPrice;
+            } else {
+                $subscriptionData['promotion_id'] = null;
+                $subscriptionData['promotion_applied_at'] = null;
+                $subscriptionData['promotion_ends_at'] = null;
+                $subscriptionData['original_price_monthly'] = null;
+            }
+
+            $this->subscriptionModel->update($pendingSubscription['id'], $subscriptionData);
+            $subscriptionId = $pendingSubscription['id'];
+
+            // Cancel existing pending invoice and create new one
+            global $db;
+            $db->prepare("UPDATE invoices SET status = 'canceled' WHERE subscription_id = :id AND status = 'pending'")
+               ->execute([':id' => $subscriptionId]);
+        } else {
+            // Create new pending subscription
+            $subscriptionData = [
+                'user_id' => $userId,
+                'plan_id' => $newPlanId,
+                'extra_condominiums' => $extraCondominiums,
+                'status' => 'pending',
+                'current_period_start' => $periodStart,
+                'current_period_end' => $periodEnd
+            ];
+
+            if ($finalPromotionId) {
+                $subscriptionData['promotion_id'] = $finalPromotionId;
+                $subscriptionData['promotion_applied_at'] = $promotionAppliedAt;
+                $subscriptionData['promotion_ends_at'] = $promotionEndsAt;
+                $subscriptionData['original_price_monthly'] = $originalPrice;
+            }
+
+            $subscriptionId = $this->subscriptionModel->create($subscriptionData);
+        }
+
+        // Create invoice for pending subscription
+        $invoiceMetadata = [
+            'is_plan_change' => true
+        ];
+        if ($activeSubscription) {
+            $invoiceMetadata['old_subscription_id'] = $activeSubscription['id'];
+            $invoiceMetadata['old_plan_id'] = $activeSubscription['plan_id'];
+        }
+        $this->invoiceService->createInvoice($subscriptionId, $totalAmount, $invoiceMetadata);
+
+        // Log the plan change request
+        $promoText = $finalPromotionId ? " com promoção ID: {$finalPromotionId}" : "";
+        $logData = [
+            'subscription_id' => $subscriptionId,
+            'user_id' => $userId,
+            'action' => 'plan_change_requested',
+            'new_plan_id' => $newPlanId,
+            'new_status' => 'pending'
+        ];
+        
+        if ($activeSubscription) {
+            $logData['old_plan_id'] = $activeSubscription['plan_id'];
+            $logData['old_status'] = $activeSubscription['status'];
+            $description = "Alteração de plano solicitada. Plano: {$activeSubscription['plan_id']} → {$newPlanId}. Subscrição pendente criada aguardando pagamento{$promoText}";
+        } else {
+            $description = "Escolha de plano solicitada. Plano: {$newPlanId}. Subscrição pendente criada aguardando pagamento{$promoText}";
+        }
+        
+        $logData['description'] = $description;
+        $this->auditService->logSubscription($logData);
+
+        return $subscriptionId;
+    }
+
+    /**
+     * Activate pending subscription and cancel old one (if exists)
+     */
+    public function activatePendingSubscription(int $pendingSubscriptionId, ?int $oldSubscriptionId = null): bool
+    {
+        $pendingSubscription = $this->subscriptionModel->findById($pendingSubscriptionId);
+        if (!$pendingSubscription || $pendingSubscription['status'] !== 'pending') {
+            throw new \Exception("Pending subscription not found or invalid");
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $periodStart = $now;
+        $periodEnd = date('Y-m-d H:i:s', strtotime('+1 month', strtotime($periodStart)));
+        
+        // If old subscription exists, use its period_end if valid
+        if ($oldSubscriptionId) {
+            $oldSubscription = $this->subscriptionModel->findById($oldSubscriptionId);
+            if ($oldSubscription && $oldSubscription['current_period_end']) {
+                // Use current_period_end of old subscription if valid
+                if (strtotime($oldSubscription['current_period_end']) >= time()) {
+                    $periodStart = $oldSubscription['current_period_end'];
+                    $periodEnd = date('Y-m-d H:i:s', strtotime('+1 month', strtotime($periodStart)));
+                }
+            }
+        }
+
+        // Activate pending subscription
+        $updateData = [
+            'status' => 'active',
+            'current_period_start' => $periodStart,
+            'current_period_end' => $periodEnd
+        ];
+
+        // Keep promotion fields if they exist
+        if (isset($pendingSubscription['promotion_id']) && $pendingSubscription['promotion_id']) {
+            $updateData['promotion_id'] = $pendingSubscription['promotion_id'];
+            $updateData['promotion_applied_at'] = $pendingSubscription['promotion_applied_at'];
+            $updateData['promotion_ends_at'] = $pendingSubscription['promotion_ends_at'];
+            $updateData['original_price_monthly'] = $pendingSubscription['original_price_monthly'];
+        }
+
+        $success = $this->subscriptionModel->update($pendingSubscriptionId, $updateData);
+
+        if ($success) {
+            // Cancel old subscription if it exists
+            if ($oldSubscriptionId) {
+                $oldSubscription = $this->subscriptionModel->findById($oldSubscriptionId);
+                if ($oldSubscription) {
+                    $this->subscriptionModel->cancel($oldSubscriptionId);
+                    
+                    // Log old subscription cancellation
+                    $this->auditService->logSubscription([
+                        'subscription_id' => $oldSubscriptionId,
+                        'user_id' => $oldSubscription['user_id'],
+                        'action' => 'subscription_canceled_by_plan_change',
+                        'old_status' => $oldSubscription['status'],
+                        'new_status' => 'canceled',
+                        'description' => "Subscrição cancelada devido à ativação de nova subscrição (ID: {$pendingSubscriptionId})"
+                    ]);
+                }
+            }
+
+            // Log activation
+            $promoText = '';
+            if (isset($pendingSubscription['promotion_id']) && $pendingSubscription['promotion_id']) {
+                $promoText = " com promoção ID: {$pendingSubscription['promotion_id']}";
+            }
+            
+            $description = "Subscrição pendente ativada após pagamento.";
+            if ($oldSubscriptionId) {
+                $description .= " Plano antigo cancelado.";
+            }
+            $description .= " Novo período: {$periodStart} até {$periodEnd}{$promoText}";
+
+            $this->auditService->logSubscription([
+                'subscription_id' => $pendingSubscriptionId,
+                'user_id' => $pendingSubscription['user_id'],
+                'action' => 'pending_subscription_activated',
+                'old_status' => 'pending',
+                'new_status' => 'active',
+                'old_period_start' => $pendingSubscription['current_period_start'],
+                'new_period_start' => $periodStart,
+                'old_period_end' => $pendingSubscription['current_period_end'],
+                'new_period_end' => $periodEnd,
+                'description' => $description
+            ]);
+        }
+
+        return $success;
     }
 
     /**
