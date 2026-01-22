@@ -6,6 +6,7 @@ use App\Models\Subscription;
 use App\Models\Payment;
 use App\Models\Invoice;
 use App\Models\PaymentMethodSettings;
+use App\Services\AuditService;
 
 class PaymentService
 {
@@ -14,6 +15,7 @@ class PaymentService
     protected $invoiceModel;
     protected $paymentMethodSettings;
     protected $ifthenPayService;
+    protected $auditService;
 
     public function __construct()
     {
@@ -21,6 +23,7 @@ class PaymentService
         $this->paymentModel = new Payment();
         $this->invoiceModel = new Invoice();
         $this->paymentMethodSettings = new PaymentMethodSettings();
+        $this->auditService = new AuditService();
         
         // Initialize IfthenPay service if provider is ifthenpay
         global $config;
@@ -82,6 +85,20 @@ class PaymentService
                     ]
                 ]);
                 
+                // Log payment creation
+                $this->auditService->logPayment([
+                    'payment_id' => $paymentId,
+                    'subscription_id' => $subscriptionId,
+                    'invoice_id' => $invoiceId,
+                    'user_id' => $userId,
+                    'action' => 'payment_created',
+                    'payment_method' => 'multibanco',
+                    'amount' => $amount,
+                    'status' => 'pending',
+                    'external_payment_id' => $result['external_payment_id'],
+                    'description' => "Referência Multibanco gerada: {$result['entity']} {$result['reference']} - Valor: €{$result['amount']}"
+                ]);
+                
                 return [
                     'payment_id' => $paymentId,
                     'entity' => $result['entity'],
@@ -117,6 +134,19 @@ class PaymentService
                 'reference' => $reference,
                 'expires_at' => date('Y-m-d H:i:s', strtotime('+3 days'))
             ]
+        ]);
+        
+        // Log payment creation (mock)
+        $this->auditService->logPayment([
+            'payment_id' => $paymentId,
+            'subscription_id' => $subscriptionId,
+            'invoice_id' => $invoiceId,
+            'user_id' => $userId,
+            'action' => 'payment_created',
+            'payment_method' => 'multibanco',
+            'amount' => $amount,
+            'status' => 'pending',
+            'description' => "Referência Multibanco gerada (mock): {$entity} {$reference} - Valor: €" . number_format($amount, 2, ',', '')
         ]);
         
         return [
@@ -185,6 +215,20 @@ class PaymentService
                     ]
                 ]);
                 
+                // Log payment creation
+                $this->auditService->logPayment([
+                    'payment_id' => $paymentId,
+                    'subscription_id' => $subscriptionId,
+                    'invoice_id' => $invoiceId,
+                    'user_id' => $userId,
+                    'action' => 'payment_created',
+                    'payment_method' => 'mbway',
+                    'amount' => $amount,
+                    'status' => 'pending',
+                    'external_payment_id' => $result['external_payment_id'],
+                    'description' => "Pagamento MBWay gerado para {$phone} - Valor: €{$result['amount']}"
+                ]);
+                
                 return [
                     'payment_id' => $paymentId,
                     'phone' => $phone,
@@ -215,6 +259,20 @@ class PaymentService
                 'phone' => $phone,
                 'expires_at' => date('Y-m-d H:i:s', strtotime('+30 minutes'))
             ]
+        ]);
+        
+        // Log payment creation (mock)
+        $this->auditService->logPayment([
+            'payment_id' => $paymentId,
+            'subscription_id' => $subscriptionId,
+            'invoice_id' => $invoiceId,
+            'user_id' => $userId,
+            'action' => 'payment_created',
+            'payment_method' => 'mbway',
+            'amount' => $amount,
+            'status' => 'pending',
+            'external_payment_id' => $externalPaymentId,
+            'description' => "Pagamento MBWay gerado (mock) para {$phone} - Valor: €" . number_format($amount, 2, ',', '')
         ]);
         
         return [
@@ -335,6 +393,20 @@ class PaymentService
                     ]
                 ]);
                 
+                // Log payment creation
+                $this->auditService->logPayment([
+                    'payment_id' => $paymentId,
+                    'subscription_id' => $subscriptionId,
+                    'invoice_id' => $invoiceId,
+                    'user_id' => $userId,
+                    'action' => 'payment_created',
+                    'payment_method' => 'direct_debit',
+                    'amount' => $amount,
+                    'status' => 'pending',
+                    'external_payment_id' => $result['external_payment_id'],
+                    'description' => "Mandato de débito direto criado: {$result['mandate_reference']} - Valor: €{$result['amount']} - IBAN: {$result['iban']}"
+                ]);
+                
                 return [
                     'payment_id' => $paymentId,
                     'mandate_reference' => $result['mandate_reference'],
@@ -373,6 +445,8 @@ class PaymentService
                 throw new \Exception("Payment not found: {$externalPaymentId}");
             }
             
+            $oldStatus = $payment['status'];
+            
             if ($payment['status'] === 'completed') {
                 // Already processed
                 $db->commit();
@@ -388,16 +462,58 @@ class PaymentService
             }
             
             // Update subscription
+            $subscriptionUpdated = false;
+            $oldSubscriptionStatus = null;
+            $newSubscriptionStatus = null;
             if ($payment['subscription_id']) {
                 $subscription = $this->subscriptionModel->findById($payment['subscription_id']);
                 if ($subscription) {
-                    $newPeriodEnd = date('Y-m-d H:i:s', strtotime('+1 month', strtotime($subscription['current_period_end'])));
+                    $oldSubscriptionStatus = $subscription['status'];
+                    // Determine period start: use current_period_end if valid, otherwise use now
+                    $periodStart = $subscription['current_period_end'] ?? date('Y-m-d H:i:s');
+                    // If period_end is in the past or null, start from now
+                    if (!$subscription['current_period_end'] || strtotime($subscription['current_period_end']) < time()) {
+                        $periodStart = date('Y-m-d H:i:s');
+                    }
+                    $newPeriodEnd = date('Y-m-d H:i:s', strtotime('+1 month', strtotime($periodStart)));
+                    
                     $this->subscriptionModel->update($payment['subscription_id'], [
                         'status' => 'active',
-                        'current_period_start' => $subscription['current_period_end'],
+                        'current_period_start' => $periodStart,
                         'current_period_end' => $newPeriodEnd
                     ]);
+                    $newSubscriptionStatus = 'active';
+                    $subscriptionUpdated = true;
                 }
+            }
+            
+            // Log payment confirmation
+            $this->auditService->logPayment([
+                'payment_id' => $payment['id'],
+                'subscription_id' => $payment['subscription_id'],
+                'invoice_id' => $payment['invoice_id'],
+                'user_id' => $payment['user_id'],
+                'action' => 'payment_confirmed',
+                'payment_method' => $payment['payment_method'] ?? null,
+                'amount' => $payment['amount'],
+                'old_status' => $oldStatus,
+                'new_status' => 'completed',
+                'external_payment_id' => $externalPaymentId,
+                'description' => "Pagamento confirmado via webhook. Status: {$oldStatus} → completed" . 
+                    ($subscriptionUpdated ? ". Subscrição ativada: {$oldSubscriptionStatus} → {$newSubscriptionStatus}" : ''),
+                'metadata' => $webhookData
+            ]);
+            
+            // Log subscription activation if applicable
+            if ($subscriptionUpdated && $payment['subscription_id']) {
+                $this->auditService->logSubscription([
+                    'subscription_id' => $payment['subscription_id'],
+                    'user_id' => $payment['user_id'],
+                    'action' => 'subscription_activated_by_payment',
+                    'old_status' => $oldSubscriptionStatus,
+                    'new_status' => $newSubscriptionStatus,
+                    'description' => "Subscrição ativada automaticamente após confirmação de pagamento"
+                ]);
             }
             
             $db->commit();
@@ -421,7 +537,29 @@ class PaymentService
             return false;
         }
         
-        return $this->paymentModel->updateStatus($payment['id'], 'failed');
+        $oldStatus = $payment['status'];
+        
+        // Update payment status
+        $updated = $this->paymentModel->updateStatus($payment['id'], 'failed');
+        
+        if ($updated) {
+            // Log payment failure
+            $this->auditService->logPayment([
+                'payment_id' => $payment['id'],
+                'subscription_id' => $payment['subscription_id'],
+                'invoice_id' => $payment['invoice_id'],
+                'user_id' => $payment['user_id'],
+                'action' => 'payment_failed',
+                'payment_method' => $payment['payment_method'] ?? null,
+                'amount' => $payment['amount'],
+                'old_status' => $oldStatus,
+                'new_status' => 'failed',
+                'external_payment_id' => $externalPaymentId,
+                'description' => "Pagamento marcado como falhado" . ($reason ? ": {$reason}" : '') . ". Status: {$oldStatus} → failed"
+            ]);
+        }
+        
+        return $updated;
     }
 
     /**

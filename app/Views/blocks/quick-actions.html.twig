@@ -1,11 +1,11 @@
 {# Bloco reutilizável de Ações Rápidas #}
 {% if condominium and condominium.id is defined %}
 {% set quickActionsId = 'quickActionsDropdown' ~ (random(1000, 9999)) %}
-<div class="dropdown">
+<div class="dropdown" style="position: relative;">
     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="{{ quickActionsId }}" data-bs-toggle="dropdown" aria-expanded="false">
         <i class="bi bi-lightning-charge"></i> Ações Rápidas
     </button>
-    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="{{ quickActionsId }}">
+    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="{{ quickActionsId }}" style="z-index: 1050;">
         {% if current_condominium_role == 'admin' %}
         <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances"><i class="bi bi-calculator"></i> Finanças</a></li>
         <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/liquidate"><i class="bi bi-cash-coin"></i> Liquidar Quotas</a></li>

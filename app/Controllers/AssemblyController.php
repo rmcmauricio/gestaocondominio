@@ -844,7 +844,7 @@ class AssemblyController extends Controller
         // Save to documents
         $userId = AuthMiddleware::userId();
         
-        $documentModel->create([
+        $documentId = $documentModel->create([
             'condominium_id' => $condominiumId,
             'assembly_id' => $id,
             'title' => 'Atas da Assembleia: ' . $assembly['title'],
@@ -856,6 +856,21 @@ class AssemblyController extends Controller
             'visibility' => 'condominos',
             'document_type' => 'minutes',
             'uploaded_by' => $userId
+        ]);
+
+        // Log audit
+        $auditService = new \App\Services\AuditService();
+        $auditService->logDocument([
+            'condominium_id' => $condominiumId,
+            'document_id' => $documentId,
+            'document_type' => 'minutes',
+            'action' => 'generate',
+            'user_id' => $userId,
+            'assembly_id' => $id,
+            'file_path' => $minutesFilename,
+            'file_name' => 'atas_' . $id . '.html',
+            'file_size' => filesize($filepath),
+            'description' => 'Atas geradas automaticamente para assembleia: ' . $assembly['title']
         ]);
 
         $_SESSION['success'] = 'Atas geradas com sucesso!';
@@ -958,6 +973,21 @@ class AssemblyController extends Controller
             'document_type' => 'minutes_template',
             'status' => 'draft',
             'uploaded_by' => $userId
+        ]);
+
+        // Log audit
+        $auditService = new \App\Services\AuditService();
+        $auditService->logDocument([
+            'condominium_id' => $condominiumId,
+            'document_id' => $documentId,
+            'document_type' => 'minutes_template',
+            'action' => 'generate',
+            'user_id' => $userId,
+            'assembly_id' => $id,
+            'file_path' => $filename,
+            'file_name' => 'minutes_template_' . $id . '.html',
+            'file_size' => filesize($filepath),
+            'description' => 'Template de atas gerado automaticamente para assembleia: ' . $assembly['title']
         ]);
 
         return $documentId;
@@ -1175,7 +1205,7 @@ class AssemblyController extends Controller
         $filePath = __DIR__ . '/../../storage/documents/' . $pdfFilename;
         $isPdf = pathinfo($pdfFilename, PATHINFO_EXTENSION) === 'pdf';
         
-        $documentModel->create([
+        $documentId = $documentModel->create([
             'condominium_id' => $condominiumId,
             'assembly_id' => $id,
             'title' => 'Atas Aprovadas: ' . $assembly['title'],
@@ -1193,6 +1223,25 @@ class AssemblyController extends Controller
         // Update template status to approved
         $documentModel->update($template['id'], [
             'status' => 'approved'
+        ]);
+
+        // Log audit
+        $auditService = new \App\Services\AuditService();
+        $auditService->logDocument([
+            'condominium_id' => $condominiumId,
+            'document_id' => $documentId,
+            'document_type' => 'minutes',
+            'action' => 'approve',
+            'user_id' => $userId,
+            'assembly_id' => $id,
+            'file_path' => $pdfFilename,
+            'file_name' => 'atas_aprovadas_' . $id . ($isPdf ? '.pdf' : '.html'),
+            'file_size' => file_exists($filePath) ? filesize($filePath) : 0,
+            'description' => 'Atas aprovadas e PDF gerado para assembleia: ' . $assembly['title'],
+            'metadata' => [
+                'template_id' => $template['id'],
+                'template_status' => 'approved'
+            ]
         ]);
 
         $_SESSION['success'] = 'Atas aprovadas e PDF gerado com sucesso!';

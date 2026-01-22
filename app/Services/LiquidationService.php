@@ -5,18 +5,21 @@ namespace App\Services;
 use App\Models\Fee;
 use App\Models\FeePayment;
 use App\Models\FractionAccount;
+use App\Services\AuditService;
 
 class LiquidationService
 {
     protected $feeModel;
     protected $feePaymentModel;
     protected $fractionAccountModel;
+    protected $auditService;
 
     public function __construct()
     {
         $this->feeModel = new Fee();
         $this->feePaymentModel = new FeePayment();
         $this->fractionAccountModel = new FractionAccount();
+        $this->auditService = new AuditService();
     }
 
     /**
@@ -49,6 +52,9 @@ class LiquidationService
             return $result;
         }
 
+        // Get condominium_id from first fee for audit logging
+        $condominiumId = !empty($fees) ? (int)$fees[0]['condominium_id'] : null;
+
         foreach ($fees as $fee) {
             if ($balance <= 0) {
                 break;
@@ -58,6 +64,7 @@ class LiquidationService
             $feeAmount = (float)$fee['amount'];
             $paid = $this->feePaymentModel->getTotalPaid($feeId);
             $remaining = $feeAmount - $paid;
+            $oldStatus = $fee['status'] ?? 'pending';
 
             if ($remaining <= 0) {
                 continue;
@@ -76,6 +83,20 @@ class LiquidationService
                 'created_by' => $createdBy
             ]);
 
+            // Log fee payment creation
+            if ($condominiumId) {
+                $this->auditService->logFinancial([
+                    'condominium_id' => $condominiumId,
+                    'entity_type' => 'fee_payment',
+                    'entity_id' => $paymentId,
+                    'action' => 'fee_payment_created',
+                    'user_id' => $createdBy,
+                    'amount' => $toApply,
+                    'new_status' => 'completed',
+                    'description' => "Pagamento de quota criado via liquidação automática. Quota ID: {$feeId}, Valor: €" . number_format($toApply, 2, ',', '.') . ($remaining <= $toApply ? ' (quota totalmente paga)' : ' (pagamento parcial)')
+                ]);
+            }
+
             $this->fractionAccountModel->addDebit(
                 $fractionAccountId,
                 $toApply,
@@ -90,6 +111,22 @@ class LiquidationService
 
             if ($remaining <= 0) {
                 $this->feeModel->markAsPaid($feeId);
+                
+                // Log fee status change to paid
+                if ($condominiumId) {
+                    $this->auditService->logFinancial([
+                        'condominium_id' => $condominiumId,
+                        'entity_type' => 'fee',
+                        'entity_id' => $feeId,
+                        'action' => 'fee_marked_as_paid',
+                        'user_id' => $createdBy,
+                        'amount' => $feeAmount,
+                        'old_status' => $oldStatus,
+                        'new_status' => 'paid',
+                        'description' => "Quota marcada como paga via liquidação automática. Quota ID: {$feeId}, Valor total: €" . number_format($feeAmount, 2, ',', '.') . ($fee['reference'] ? " - Referência: {$fee['reference']}" : '')
+                    ]);
+                }
+                
                 $result['fully_paid'][] = $feeId;
                 $result['fully_paid_payments'][$feeId] = $paymentId;
             } else {

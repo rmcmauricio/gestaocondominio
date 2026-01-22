@@ -1268,6 +1268,26 @@ a:hover .card-hover .text-primary {
   overflow: visible !important;
 }
 
+/* Quick Actions Dropdown - Ensure it works with overflow containers */
+.dropdown {
+  position: relative;
+  overflow: visible;
+}
+
+.dropdown .dropdown-menu {
+  position: absolute;
+  z-index: 1050;
+}
+
+/* Ensure page header allows dropdown overflow */
+.d-flex.justify-content-between.align-items-center {
+  overflow: visible !important;
+}
+
+.d-flex.justify-content-between.align-items-center > div {
+  overflow: visible !important;
+}
+
 .sidebar-nav .nav-item {
   margin-bottom: 0.25rem;
 }

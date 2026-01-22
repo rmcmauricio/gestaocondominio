@@ -11,6 +11,7 @@ use App\Models\Assembly;
 use App\Models\VoteTopic;
 use App\Models\Fraction;
 use App\Models\AssemblyAgendaPoint;
+use App\Services\AuditService;
 
 class VoteController extends Controller
 {
@@ -19,6 +20,7 @@ class VoteController extends Controller
     protected $topicModel;
     protected $fractionModel;
     protected $agendaPointModel;
+    protected $auditService;
 
     public function __construct()
     {
@@ -28,6 +30,7 @@ class VoteController extends Controller
         $this->topicModel = new VoteTopic();
         $this->fractionModel = new Fraction();
         $this->agendaPointModel = new AssemblyAgendaPoint();
+        $this->auditService = new AuditService();
     }
 
     public function createTopic(int $condominiumId, int $assemblyId)
@@ -173,6 +176,16 @@ class VoteController extends Controller
                 'created_by' => $userId
             ]);
 
+            // Log audit
+            if ($newTopicId) {
+                $this->auditService->log([
+                    'action' => 'vote_topic_created',
+                    'model' => 'vote_topic',
+                    'model_id' => $newTopicId,
+                    'description' => "Tópico de votação criado na assembleia ID {$assemblyId}. Título: " . Security::sanitize($_POST['title'] ?? '')
+                ]);
+            }
+
             $pointId = isset($_POST['point_id']) ? (int) $_POST['point_id'] : 0;
             if ($pointId > 0) {
                 $point = $this->agendaPointModel->findById($pointId);
@@ -268,6 +281,14 @@ class VoteController extends Controller
                 'notes' => Security::sanitizeNullable($_POST['notes'] ?? null)
             ]);
 
+            // Log audit
+            $this->auditService->log([
+                'action' => 'vote_cast',
+                'model' => 'vote',
+                'model_id' => $topicId,
+                'description' => "Voto registado na fração ID {$fractionId} para o tópico '{$topic['title']}' na assembleia ID {$assemblyId}. Opção: {$voteOption}"
+            ]);
+
             $_SESSION['success'] = 'Voto registado com sucesso!';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
             exit;
@@ -357,6 +378,14 @@ class VoteController extends Controller
             }
 
             if ($votesProcessed > 0) {
+                // Log audit
+                $this->auditService->log([
+                    'action' => 'vote_bulk_cast',
+                    'model' => 'vote',
+                    'model_id' => $topicId,
+                    'description' => "Votos em massa registados para o tópico '{$topic['title']}' na assembleia ID {$assemblyId}. Total de votos: {$votesProcessed}"
+                ]);
+                
                 $_SESSION['success'] = "Votos registados com sucesso! ({$votesProcessed} frações)";
             }
             if (!empty($errors)) {
@@ -516,6 +545,14 @@ class VoteController extends Controller
                 'order_index' => (int)($_POST['order_index'] ?? $topic['order_index'] ?? 0)
             ]);
 
+            // Log audit
+            $this->auditService->log([
+                'action' => 'vote_topic_updated',
+                'model' => 'vote_topic',
+                'model_id' => $topicId,
+                'description' => "Tópico de votação atualizado na assembleia ID {$assemblyId}. Título: " . Security::sanitize($_POST['title'] ?? '')
+            ]);
+
             $_SESSION['success'] = 'Tópico atualizado com sucesso!';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
             exit;
@@ -560,6 +597,14 @@ class VoteController extends Controller
         }
 
         if ($this->topicModel->delete($topicId)) {
+            // Log audit
+            $this->auditService->log([
+                'action' => 'vote_topic_deleted',
+                'model' => 'vote_topic',
+                'model_id' => $topicId,
+                'description' => "Tópico de votação eliminado da assembleia ID {$assemblyId}. Título: {$topic['title']}"
+            ]);
+            
             $_SESSION['success'] = 'Tópico eliminado com sucesso!';
         } else {
             $_SESSION['error'] = 'Erro ao eliminar tópico.';
@@ -587,6 +632,15 @@ class VoteController extends Controller
         }
 
         if ($this->topicModel->startVoting($topicId)) {
+            // Log audit
+            $topic = $this->topicModel->findById($topicId);
+            $this->auditService->log([
+                'action' => 'vote_started',
+                'model' => 'vote_topic',
+                'model_id' => $topicId,
+                'description' => "Votação iniciada para o tópico '{$topic['title']}' na assembleia ID {$assemblyId}"
+            ]);
+            
             $_SESSION['success'] = 'Votação iniciada!';
         } else {
             $_SESSION['error'] = 'Erro ao iniciar votação.';
@@ -614,6 +668,15 @@ class VoteController extends Controller
         }
 
         if ($this->topicModel->endVoting($topicId)) {
+            // Log audit
+            $topic = $this->topicModel->findById($topicId);
+            $this->auditService->log([
+                'action' => 'vote_ended',
+                'model' => 'vote_topic',
+                'model_id' => $topicId,
+                'description' => "Votação encerrada para o tópico '{$topic['title']}' na assembleia ID {$assemblyId}"
+            ]);
+            
             $_SESSION['success'] = 'Votação encerrada!';
         } else {
             $_SESSION['error'] = 'Erro ao encerrar votação.';

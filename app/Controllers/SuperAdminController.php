@@ -11,6 +11,7 @@ use App\Models\Subscription;
 use App\Models\Payment;
 use App\Models\Condominium;
 use App\Models\Plan;
+use App\Services\AuditService;
 
 class SuperAdminController extends Controller
 {
@@ -19,6 +20,7 @@ class SuperAdminController extends Controller
     protected $paymentModel;
     protected $condominiumModel;
     protected $planModel;
+    protected $auditService;
 
     public function __construct()
     {
@@ -28,6 +30,7 @@ class SuperAdminController extends Controller
         $this->paymentModel = new Payment();
         $this->condominiumModel = new Condominium();
         $this->planModel = new Plan();
+        $this->auditService = new AuditService();
     }
 
     /**
@@ -40,13 +43,14 @@ class SuperAdminController extends Controller
 
         global $db;
         
-        // Get users with their latest subscription
+        // Get all users including super admins
         $stmt = $db->query("
             SELECT u.*,
                    (SELECT COUNT(*) FROM condominiums WHERE user_id = u.id) as total_condominiums
             FROM users u
-            WHERE u.role != 'super_admin'
-            ORDER BY u.created_at DESC
+            ORDER BY 
+                CASE WHEN u.role = 'super_admin' THEN 0 ELSE 1 END,
+                u.created_at DESC
         ");
         
         $users = $stmt->fetchAll() ?: [];
@@ -94,8 +98,11 @@ class SuperAdminController extends Controller
         $plans = $this->planModel->getActivePlans();
         
         // Get unique roles and statuses for filters
-        $roles = ['admin', 'condomino'];
+        $roles = ['super_admin', 'admin', 'condomino'];
         $statuses = ['active', 'suspended', 'inactive'];
+        
+        // Get current user ID to prevent self-demotion
+        $currentUserId = AuthMiddleware::userId();
 
         $this->loadPageTranslations('dashboard');
         
@@ -106,6 +113,7 @@ class SuperAdminController extends Controller
             'plans' => $plans,
             'roles' => $roles,
             'statuses' => $statuses,
+            'current_user_id' => $currentUserId,
             'csrf_token' => Security::generateCSRFToken(),
             'user' => AuthMiddleware::user()
         ];
@@ -404,12 +412,18 @@ class SuperAdminController extends Controller
         ]);
 
         if ($success) {
-            // Log audit
-            $this->logAudit([
+            // Log audit to subscription audit table
+            $this->auditService->logSubscription([
+                'subscription_id' => $subscriptionId,
+                'user_id' => $subscription['user_id'],
                 'action' => 'subscription_activated',
-                'model' => 'subscription',
-                'model_id' => $subscriptionId,
-                'description' => "Subscrição ativada manualmente. Status: {$oldStatus} → active. Período: {$currentPeriodStart} até {$currentPeriodEnd} ({$months} meses)"
+                'old_status' => $oldStatus,
+                'new_status' => 'active',
+                'old_period_start' => $subscription['current_period_start'] ?? null,
+                'new_period_start' => $currentPeriodStart,
+                'old_period_end' => $subscription['current_period_end'] ?? null,
+                'new_period_end' => $currentPeriodEnd,
+                'description' => "Subscrição ativada manualmente pelo super admin. Período: {$currentPeriodStart} até {$currentPeriodEnd} ({$months} meses)"
             ]);
 
             $_SESSION['success'] = "Subscrição ativada com sucesso até " . date('d/m/Y', strtotime($currentPeriodEnd)) . ".";
@@ -475,12 +489,16 @@ class SuperAdminController extends Controller
         ]);
 
         if ($success) {
-            // Log audit
-            $this->logAudit([
+            // Log audit to subscription audit table
+            $this->auditService->logSubscription([
+                'subscription_id' => $subscriptionId,
+                'user_id' => $subscription['user_id'],
                 'action' => 'subscription_plan_changed',
-                'model' => 'subscription',
-                'model_id' => $subscriptionId,
-                'description' => "Plano alterado: {$oldPlanName} (ID: {$oldPlanId}) → {$newPlanName} (ID: {$newPlanId})"
+                'old_plan_id' => $oldPlanId,
+                'new_plan_id' => $newPlanId,
+                'old_status' => $subscription['status'],
+                'new_status' => $subscription['status'], // Status doesn't change on plan change
+                'description' => "Plano alterado pelo super admin: {$oldPlanName} (ID: {$oldPlanId}) → {$newPlanName} (ID: {$newPlanId})"
             ]);
 
             $_SESSION['success'] = "Plano alterado de {$oldPlanName} para {$newPlanName} com sucesso.";
@@ -537,12 +555,15 @@ class SuperAdminController extends Controller
         ]);
 
         if ($success) {
-            // Log audit
-            $this->logAudit([
+            // Log audit to subscription audit table
+            $this->auditService->logSubscription([
+                'subscription_id' => $subscriptionId,
+                'user_id' => $subscription['user_id'],
                 'action' => 'subscription_deactivated',
-                'model' => 'subscription',
-                'model_id' => $subscriptionId,
-                'description' => "Subscrição desativada. Status: {$oldStatus} → suspended. Motivo: {$reason}. Plano: " . ($plan['name'] ?? 'N/A')
+                'old_status' => $oldStatus,
+                'new_status' => 'suspended',
+                'old_period_end' => $subscription['current_period_end'] ?? null,
+                'description' => "Subscrição desativada pelo super admin. Motivo: {$reason}. Plano: " . ($plan['name'] ?? 'N/A')
             ]);
 
             $_SESSION['success'] = "Subscrição desativada com sucesso.";
@@ -747,6 +768,679 @@ class SuperAdminController extends Controller
         }
         
         return round($bytes, $precision) . ' ' . $units[$i];
+    }
+
+    /**
+     * Assign super admin role to a user
+     */
+    public function assignSuperAdmin()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        $targetUserId = (int)($_POST['user_id'] ?? 0);
+        $currentUserId = AuthMiddleware::userId();
+
+        if ($targetUserId <= 0) {
+            $_SESSION['error'] = 'ID de utilizador inválido.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        // Prevent self-demotion - critical security check
+        if ($targetUserId === $currentUserId) {
+            $_SESSION['error'] = 'Não pode remover o seu próprio cargo de super admin. Esta ação é bloqueada por segurança.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        $targetUser = $this->userModel->findById($targetUserId);
+        if (!$targetUser) {
+            $_SESSION['error'] = 'Utilizador não encontrado.';
+            // Log attempt to assign to non-existent user
+            $this->logAudit([
+                'action' => 'super_admin_assignment_attempt_failed',
+                'model' => 'user',
+                'model_id' => $targetUserId,
+                'description' => "Tentativa de atribuir cargo de super admin falhou: Utilizador não encontrado (ID: {$targetUserId})"
+            ]);
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        global $db;
+        
+        try {
+            $db->beginTransaction();
+            
+            $oldRole = $targetUser['role'];
+            $currentUser = AuthMiddleware::user();
+            
+            // Update target user to super_admin
+            $stmt = $db->prepare("UPDATE users SET role = 'super_admin' WHERE id = :id");
+            $stmt->execute([':id' => $targetUserId]);
+            
+            // Log audit with detailed information
+            $this->logAudit([
+                'action' => 'super_admin_assigned',
+                'model' => 'user',
+                'model_id' => $targetUserId,
+                'description' => "Cargo de super admin atribuído a {$targetUser['name']} ({$targetUser['email']}, ID: {$targetUserId}). Role anterior: {$oldRole} → Novo role: super_admin. Ação realizada por: {$currentUser['name']} ({$currentUser['email']}, ID: {$currentUserId})"
+            ]);
+            
+            $db->commit();
+            
+            $_SESSION['success'] = "Cargo de super admin atribuído com sucesso a {$targetUser['name']}.";
+        } catch (\Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log("Error assigning super admin: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao atribuir cargo de super admin.';
+            // Log error
+            $this->logAudit([
+                'action' => 'super_admin_assignment_error',
+                'model' => 'user',
+                'model_id' => $targetUserId,
+                'description' => "Erro ao atribuir cargo de super admin a {$targetUser['name']} ({$targetUser['email']}): " . $e->getMessage()
+            ]);
+        }
+
+        header('Location: ' . BASE_URL . 'admin/users');
+        exit;
+    }
+
+    /**
+     * Remove super admin role from a user
+     */
+    public function removeSuperAdmin()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        $targetUserId = (int)($_POST['user_id'] ?? 0);
+        $currentUserId = AuthMiddleware::userId();
+        $newRole = Security::sanitize($_POST['new_role'] ?? 'admin');
+
+        if ($targetUserId <= 0) {
+            $_SESSION['error'] = 'ID de utilizador inválido.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        // Validate new role first
+        if (!in_array($newRole, ['admin', 'user', 'condomino'])) {
+            $_SESSION['error'] = 'Role inválido.';
+            // Log invalid role attempt
+            $this->logAudit([
+                'action' => 'super_admin_removal_attempt_failed',
+                'model' => 'user',
+                'model_id' => $targetUserId,
+                'description' => "Tentativa de remover cargo de super admin falhou: Role inválido fornecido ({$newRole}). Role deve ser: admin, user ou condomino"
+            ]);
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        $targetUser = $this->userModel->findById($targetUserId);
+        if (!$targetUser) {
+            $_SESSION['error'] = 'Utilizador não encontrado.';
+            // Log attempt to remove non-existent user
+            $this->logAudit([
+                'action' => 'super_admin_removal_attempt_failed',
+                'model' => 'user',
+                'model_id' => $targetUserId,
+                'description' => "Tentativa de remover cargo de super admin falhou: Utilizador não encontrado (ID: {$targetUserId})"
+            ]);
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        if ($targetUser['role'] !== 'super_admin') {
+            $_SESSION['error'] = 'Este utilizador não é super admin.';
+            // Log attempt to remove super admin from non-super-admin user
+            $this->logAudit([
+                'action' => 'super_admin_removal_attempt_failed',
+                'model' => 'user',
+                'model_id' => $targetUserId,
+                'description' => "Tentativa de remover cargo de super admin falhou: Utilizador {$targetUser['name']} ({$targetUser['email']}) não é super admin (role atual: {$targetUser['role']})"
+            ]);
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        // Prevent self-demotion - critical security check
+        if ($targetUserId === $currentUserId) {
+            $_SESSION['error'] = 'Não pode remover o seu próprio cargo de super admin. Esta ação é bloqueada por segurança.';
+            // Log blocked self-demotion attempt
+            $currentUser = AuthMiddleware::user();
+            $this->logAudit([
+                'action' => 'super_admin_self_removal_blocked',
+                'model' => 'user',
+                'model_id' => $currentUserId,
+                'description' => "Tentativa de auto-remoção de super admin bloqueada: {$currentUser['name']} ({$currentUser['email']}) tentou remover o seu próprio cargo. Ação bloqueada por segurança."
+            ]);
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        global $db;
+        
+        try {
+            $db->beginTransaction();
+            
+            $oldRole = $targetUser['role'];
+            $currentUser = AuthMiddleware::user();
+            
+            // Update target user role
+            $stmt = $db->prepare("UPDATE users SET role = :role WHERE id = :id");
+            $stmt->execute([':id' => $targetUserId, ':role' => $newRole]);
+            
+            // Log audit with detailed information
+            $this->logAudit([
+                'action' => 'super_admin_removed',
+                'model' => 'user',
+                'model_id' => $targetUserId,
+                'description' => "Cargo de super admin removido de {$targetUser['name']} ({$targetUser['email']}, ID: {$targetUserId}). Role anterior: {$oldRole} → Novo role: {$newRole}. Ação realizada por: {$currentUser['name']} ({$currentUser['email']}, ID: {$currentUserId})"
+            ]);
+            
+            $db->commit();
+            
+            $_SESSION['success'] = "Cargo de super admin removido com sucesso. {$targetUser['name']} agora tem role: {$newRole}.";
+        } catch (\Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log("Error removing super admin: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao remover cargo de super admin.';
+            // Log error
+            $this->logAudit([
+                'action' => 'super_admin_removal_error',
+                'model' => 'user',
+                'model_id' => $targetUserId,
+                'description' => "Erro ao remover cargo de super admin de {$targetUser['name']} ({$targetUser['email']}): " . $e->getMessage()
+            ]);
+        }
+
+        header('Location: ' . BASE_URL . 'admin/users');
+        exit;
+    }
+
+    /**
+     * View audit logs
+     */
+    public function auditLogs()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        global $db;
+        
+        // Get filter parameters
+        $auditTypeFilter = $_GET['audit_type'] ?? 'all'; // 'all', 'general', 'payments', 'financial', 'subscriptions', 'documents'
+        $actionFilter = $_GET['action'] ?? '';
+        $modelFilter = $_GET['model'] ?? '';
+        $userIdFilter = isset($_GET['user_id']) && $_GET['user_id'] !== '' ? (int)$_GET['user_id'] : null;
+        
+        // Default to today if no date filters provided
+        $hasDateFilter = isset($_GET['date_from']) || isset($_GET['date_to']);
+        $dateFrom = $_GET['date_from'] ?? ($hasDateFilter ? '' : date('Y-m-d'));
+        $dateTo = $_GET['date_to'] ?? ($hasDateFilter ? '' : date('Y-m-d'));
+        
+        $search = $_GET['search'] ?? '';
+        $page = isset($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
+        $perPage = isset($_GET['per_page']) && $_GET['per_page'] > 0 ? (int)$_GET['per_page'] : 50;
+        $sortBy = $_GET['sort_by'] ?? 'created_at';
+        $sortOrder = isset($_GET['sort_order']) && strtoupper($_GET['sort_order']) === 'ASC' ? 'ASC' : 'DESC';
+        
+        // Build where conditions
+        $whereConditions = [];
+        $params = [];
+        
+        if (!empty($actionFilter)) {
+            $whereConditions[] = "action = :action";
+            $params[':action'] = $actionFilter;
+        }
+        
+        if (!empty($modelFilter)) {
+            $whereConditions[] = "model = :model";
+            $params[':model'] = $modelFilter;
+        }
+        
+        if ($userIdFilter !== null) {
+            $whereConditions[] = "user_id = :user_id";
+            $params[':user_id'] = $userIdFilter;
+        }
+        
+        // Optimized date filtering
+        if (!empty($dateFrom)) {
+            $whereConditions[] = "created_at >= :date_from_start";
+            $params[':date_from_start'] = $dateFrom . ' 00:00:00';
+        }
+        
+        if (!empty($dateTo)) {
+            $whereConditions[] = "created_at <= :date_to_end";
+            $params[':date_to_end'] = $dateTo . ' 23:59:59';
+        }
+        
+        // Search in description
+        if (!empty($search)) {
+            $whereConditions[] = "description LIKE :search";
+            $params[':search'] = '%' . $search . '%';
+        }
+        
+        $whereClause = !empty($whereConditions) ? 'WHERE ' . implode(' AND ', $whereConditions) : '';
+        
+        // Validate sort column
+        $allowedSortColumns = ['created_at', 'action', 'model', 'user_id'];
+        if (!in_array($sortBy, $allowedSortColumns)) {
+            $sortBy = 'created_at';
+        }
+        
+        // Build UNION query for all audit tables with normalized columns
+        $unionQueries = [];
+        
+        // General audit logs
+        if ($auditTypeFilter === 'all' || $auditTypeFilter === 'general') {
+            $unionQueries[] = "
+                SELECT 
+                    id,
+                    user_id,
+                    action,
+                    model,
+                    model_id,
+                    description,
+                    ip_address,
+                    user_agent,
+                    created_at,
+                    'general' as audit_type,
+                    NULL as amount,
+                    NULL as payment_method,
+                    NULL as status,
+                    NULL as subscription_id,
+                    NULL as payment_id
+                FROM audit_logs
+                {$whereClause}
+            ";
+        }
+        
+        // Payment audits
+        if ($auditTypeFilter === 'all' || $auditTypeFilter === 'payments') {
+            $unionQueries[] = "
+                SELECT 
+                    id,
+                    user_id,
+                    action,
+                    'payment' as model,
+                    payment_id as model_id,
+                    description,
+                    ip_address,
+                    user_agent,
+                    created_at,
+                    'payments' as audit_type,
+                    amount,
+                    payment_method,
+                    status,
+                    subscription_id,
+                    payment_id
+                FROM audit_payments
+                {$whereClause}
+            ";
+        }
+        
+        // Financial audits
+        if ($auditTypeFilter === 'all' || $auditTypeFilter === 'financial') {
+            $unionQueries[] = "
+                SELECT 
+                    id,
+                    user_id,
+                    action,
+                    entity_type as model,
+                    entity_id as model_id,
+                    description,
+                    ip_address,
+                    user_agent,
+                    created_at,
+                    'financial' as audit_type,
+                    amount,
+                    NULL as payment_method,
+                    new_status as status,
+                    NULL as subscription_id,
+                    NULL as payment_id
+                FROM audit_financial
+                {$whereClause}
+            ";
+        }
+        
+        // Subscription audits
+        if ($auditTypeFilter === 'all' || $auditTypeFilter === 'subscriptions') {
+            $unionQueries[] = "
+                SELECT 
+                    id,
+                    user_id,
+                    action,
+                    'subscription' as model,
+                    subscription_id as model_id,
+                    description,
+                    ip_address,
+                    user_agent,
+                    created_at,
+                    'subscriptions' as audit_type,
+                    NULL as amount,
+                    NULL as payment_method,
+                    new_status as status,
+                    subscription_id,
+                    NULL as payment_id
+                FROM audit_subscriptions
+                {$whereClause}
+            ";
+        }
+        
+        // Document audits
+        if ($auditTypeFilter === 'all' || $auditTypeFilter === 'documents') {
+            $unionQueries[] = "
+                SELECT 
+                    id,
+                    user_id,
+                    action,
+                    document_type as model,
+                    document_id as model_id,
+                    description,
+                    ip_address,
+                    user_agent,
+                    created_at,
+                    'documents' as audit_type,
+                    NULL as amount,
+                    NULL as payment_method,
+                    NULL as status,
+                    NULL as subscription_id,
+                    NULL as payment_id
+                FROM audit_documents
+                {$whereClause}
+            ";
+        }
+        
+        if (empty($unionQueries)) {
+            $unionQueries[] = "SELECT NULL as id, NULL as user_id, NULL as action, NULL as model, NULL as model_id, NULL as description, NULL as ip_address, NULL as user_agent, NULL as created_at, NULL as audit_type, NULL as amount, NULL as payment_method, NULL as status, NULL as subscription_id, NULL as payment_id WHERE 1=0";
+        }
+        
+        // Count total records
+        $countSql = "
+            SELECT COUNT(*) as total FROM (
+                " . implode(' UNION ALL ', $unionQueries) . "
+            ) as combined_audits
+        ";
+        $countStmt = $db->prepare($countSql);
+        foreach ($params as $key => $value) {
+            $countStmt->bindValue($key, $value);
+        }
+        $countStmt->execute();
+        $totalCount = (int)$countStmt->fetch()['total'];
+        $totalPages = $totalCount > 0 ? ceil($totalCount / $perPage) : 1;
+        
+        // Ensure page is within valid range
+        if ($page > $totalPages && $totalPages > 0) {
+            $page = $totalPages;
+        }
+        
+        // Main query with user join
+        $offset = ($page - 1) * $perPage;
+        $orderByClause = "combined_audits.{$sortBy} {$sortOrder}";
+        
+        $sql = "
+            SELECT 
+                combined_audits.*,
+                u.name as user_name,
+                u.email as user_email,
+                u.role as user_role
+            FROM (
+                " . implode(' UNION ALL ', $unionQueries) . "
+            ) as combined_audits
+            LEFT JOIN users u ON u.id = combined_audits.user_id
+            ORDER BY {$orderByClause}
+            LIMIT :limit OFFSET :offset
+        ";
+        
+        $stmt = $db->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->execute();
+        $logs = $stmt->fetchAll() ?: [];
+        
+        // Enrich document logs with additional data
+        foreach ($logs as &$log) {
+            if ($log['audit_type'] === 'documents' && $log['id']) {
+                // Get full document audit data
+                $docStmt = $db->prepare("
+                    SELECT document_type, document_id, assembly_id, receipt_id, fee_id, 
+                           file_path, file_name, file_size, metadata
+                    FROM audit_documents 
+                    WHERE id = :id
+                ");
+                $docStmt->execute([':id' => $log['id']]);
+                $docData = $docStmt->fetch();
+                if ($docData) {
+                    $log['document_type'] = $docData['document_type'];
+                    $log['document_id'] = $docData['document_id'];
+                    $log['assembly_id'] = $docData['assembly_id'];
+                    $log['receipt_id'] = $docData['receipt_id'];
+                    $log['fee_id'] = $docData['fee_id'];
+                    $log['file_path'] = $docData['file_path'];
+                    $log['file_name'] = $docData['file_name'];
+                    $log['file_size'] = $docData['file_size'];
+                    $log['metadata'] = $docData['metadata'] ? json_decode($docData['metadata'], true) : null;
+                }
+            }
+        }
+        unset($log);
+        
+        // Get unique actions and models from all audit tables (last 30 days)
+        $recentDateLimit = date('Y-m-d', strtotime('-30 days'));
+        
+        // Get actions from all tables
+        $actionsSql = "
+            SELECT DISTINCT action FROM (
+                SELECT action FROM audit_logs WHERE created_at >= :recent_date
+                UNION
+                SELECT action FROM audit_payments WHERE created_at >= :recent_date
+                UNION
+                SELECT action FROM audit_financial WHERE created_at >= :recent_date
+                UNION
+                SELECT action FROM audit_subscriptions WHERE created_at >= :recent_date
+                UNION
+                SELECT action FROM audit_documents WHERE created_at >= :recent_date
+            ) as all_actions
+            ORDER BY action
+            LIMIT 200
+        ";
+        $actionsStmt = $db->prepare($actionsSql);
+        $actionsStmt->execute([':recent_date' => $recentDateLimit . ' 00:00:00']);
+        $actions = $actionsStmt->fetchAll(\PDO::FETCH_COLUMN);
+        
+        // Get models from all tables
+        $modelsSql = "
+            SELECT DISTINCT model FROM (
+                SELECT model FROM audit_logs WHERE model IS NOT NULL AND created_at >= :recent_date
+                UNION
+                SELECT 'payment' as model FROM audit_payments WHERE created_at >= :recent_date
+                UNION
+                SELECT entity_type as model FROM audit_financial WHERE created_at >= :recent_date
+                UNION
+                SELECT 'subscription' as model FROM audit_subscriptions WHERE created_at >= :recent_date
+                UNION
+                SELECT document_type as model FROM audit_documents WHERE created_at >= :recent_date
+            ) as all_models
+            WHERE model IS NOT NULL
+            ORDER BY model
+            LIMIT 100
+        ";
+        $modelsStmt = $db->prepare($modelsSql);
+        $modelsStmt->execute([':recent_date' => $recentDateLimit . ' 00:00:00']);
+        $models = $modelsStmt->fetchAll(\PDO::FETCH_COLUMN);
+        
+        // Get users from all audit tables
+        $usersSql = "
+            SELECT DISTINCT u.id, u.name, u.email FROM (
+                SELECT user_id FROM audit_logs WHERE created_at >= :recent_date AND user_id IS NOT NULL
+                UNION
+                SELECT user_id FROM audit_payments WHERE created_at >= :recent_date AND user_id IS NOT NULL
+                UNION
+                SELECT user_id FROM audit_financial WHERE created_at >= :recent_date AND user_id IS NOT NULL
+                UNION
+                SELECT user_id FROM audit_subscriptions WHERE created_at >= :recent_date AND user_id IS NOT NULL
+                UNION
+                SELECT user_id FROM audit_documents WHERE created_at >= :recent_date AND user_id IS NOT NULL
+            ) as all_user_ids
+            INNER JOIN users u ON u.id = all_user_ids.user_id
+            ORDER BY u.name
+            LIMIT 500
+        ";
+        $usersStmt = $db->prepare($usersSql);
+        $usersStmt->execute([':recent_date' => $recentDateLimit . ' 00:00:00']);
+        $users = $usersStmt->fetchAll() ?: [];
+        
+        // If a user is selected but not in recent users list, add it
+        if ($userIdFilter !== null) {
+            $userFound = false;
+            foreach ($users as $user) {
+                if ($user['id'] == $userIdFilter) {
+                    $userFound = true;
+                    break;
+                }
+            }
+            
+            if (!$userFound) {
+                $selectedUserStmt = $db->prepare("SELECT id, name, email FROM users WHERE id = :user_id");
+                $selectedUserStmt->execute([':user_id' => $userIdFilter]);
+                $selectedUser = $selectedUserStmt->fetch();
+                if ($selectedUser) {
+                    array_unshift($users, $selectedUser);
+                }
+            }
+        }
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/audit-logs/index.html.twig',
+            'page' => ['titulo' => 'Logs de Auditoria'],
+            'logs' => $logs,
+            'actions' => $actions,
+            'models' => $models,
+            'users' => $users,
+            'filters' => [
+                'audit_type' => $auditTypeFilter,
+                'action' => $actionFilter,
+                'model' => $modelFilter,
+                'user_id' => $userIdFilter,
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'search' => $search,
+                'sort_by' => $sortBy,
+                'sort_order' => $sortOrder
+            ],
+            'pagination' => [
+                'current_page' => $page,
+                'total_pages' => $totalPages,
+                'total_count' => $totalCount,
+                'per_page' => $perPage
+            ],
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Search users for audit logs autocomplete
+     */
+    public function searchUsersForAudit()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        global $db;
+        
+        $query = $_GET['q'] ?? '';
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 20;
+        
+        if (empty($query) || strlen($query) < 2) {
+            header('Content-Type: application/json');
+            echo json_encode([]);
+            exit;
+        }
+        
+        // Search users who have audit logs (from all audit tables)
+        $searchTerm = '%' . $query . '%';
+        
+        // Optimized query: search users and check if they have audit logs
+        // Using EXISTS for better performance than IN with UNION
+        $sql = "
+            SELECT DISTINCT u.id, u.name, u.email, u.role
+            FROM users u
+            WHERE (
+                u.name LIKE :search 
+                OR u.email LIKE :search
+            )
+            AND (
+                EXISTS (SELECT 1 FROM audit_logs WHERE user_id = u.id)
+                OR EXISTS (SELECT 1 FROM audit_payments WHERE user_id = u.id)
+                OR EXISTS (SELECT 1 FROM audit_financial WHERE user_id = u.id)
+                OR EXISTS (SELECT 1 FROM audit_subscriptions WHERE user_id = u.id)
+            )
+            ORDER BY u.name ASC
+            LIMIT :limit
+        ";
+        
+        $stmt = $db->prepare($sql);
+        $stmt->bindValue(':search', $searchTerm);
+        $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+        $users = $stmt->fetchAll() ?: [];
+        
+        // Format for autocomplete
+        $results = [];
+        foreach ($users as $user) {
+            $results[] = [
+                'id' => $user['id'],
+                'text' => $user['name'] . ' (' . $user['email'] . ')',
+                'name' => $user['name'],
+                'email' => $user['email'],
+                'role' => $user['role']
+            ];
+        }
+        
+        header('Content-Type: application/json');
+        echo json_encode($results);
+        exit;
     }
 
     /**

@@ -344,6 +344,10 @@ $router->get('/help/{section}/modal', 'App\Controllers\HelpController@modal');
 
 // Super Admin routes
 $router->get('/admin/users', 'App\Controllers\SuperAdminController@users');
+$router->post('/admin/users/assign-super-admin', 'App\Controllers\SuperAdminController@assignSuperAdmin');
+$router->post('/admin/users/remove-super-admin', 'App\Controllers\SuperAdminController@removeSuperAdmin');
+$router->get('/admin/audit-logs', 'App\Controllers\SuperAdminController@auditLogs');
+$router->get('/admin/audit-logs/users/search', 'App\Controllers\SuperAdminController@searchUsersForAudit');
 $router->get('/admin/subscriptions', 'App\Controllers\SuperAdminController@subscriptions');
 $router->post('/admin/subscriptions/activate', 'App\Controllers\SuperAdminController@activateSubscription');
 $router->post('/admin/subscriptions/change-plan', 'App\Controllers\SuperAdminController@changePlan');

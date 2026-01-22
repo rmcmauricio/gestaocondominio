@@ -15,6 +15,7 @@ use App\Models\FractionAccount;
 use App\Models\FractionAccountMovement;
 use App\Services\LiquidationService;
 use App\Services\ReceiptService;
+use App\Services\AuditService;
 
 class FinancialTransactionController extends Controller
 {
@@ -22,6 +23,7 @@ class FinancialTransactionController extends Controller
     protected $bankAccountModel;
     protected $condominiumModel;
     protected $feeModel;
+    protected $auditService;
 
     public function __construct()
     {
@@ -30,6 +32,7 @@ class FinancialTransactionController extends Controller
         $this->bankAccountModel = new BankAccount();
         $this->condominiumModel = new Condominium();
         $this->feeModel = new Fee();
+        $this->auditService = new AuditService();
     }
 
     public function index(int $condominiumId)
@@ -436,6 +439,21 @@ class FinancialTransactionController extends Controller
                         $this->transactionModel->update($transactionId, ['description' => $builtDesc]);
                         (new FractionAccountMovement())->update($movementId, ['description' => $builtDesc]);
                     }
+                    
+                    // Log automatic liquidation via financial transaction
+                    $fullyPaidCount = count($result['fully_paid'] ?? []);
+                    $partiallyPaidCount = count($result['partially_paid'] ?? []);
+                    $this->auditService->logFinancial([
+                        'condominium_id' => $condominiumId,
+                        'entity_type' => 'financial_transaction',
+                        'entity_id' => $transactionId,
+                        'action' => 'quotas_liquidated_auto',
+                        'user_id' => $userId,
+                        'amount' => $amount,
+                        'new_status' => 'completed',
+                        'description' => "Liquidação automática de quotas via movimento financeiro. Valor: €" . number_format($amount, 2, ',', '.') . ". Quotas totalmente pagas: {$fullyPaidCount}, Pagamentos parciais: {$partiallyPaidCount}"
+                    ]);
+                    
                     $receiptSvc = new ReceiptService();
                     foreach ($result['fully_paid'] ?? [] as $fid) {
                         $receiptSvc->generateForFullyPaidFee($fid, $result['fully_paid_payments'][$fid] ?? null, $condominiumId, $userId);

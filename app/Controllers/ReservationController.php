@@ -9,12 +9,14 @@ use App\Middleware\RoleMiddleware;
 use App\Models\Reservation;
 use App\Models\Space;
 use App\Models\Condominium;
+use App\Services\AuditService;
 
 class ReservationController extends Controller
 {
     protected $reservationModel;
     protected $spaceModel;
     protected $condominiumModel;
+    protected $auditService;
 
     public function __construct()
     {
@@ -22,6 +24,7 @@ class ReservationController extends Controller
         $this->reservationModel = new Reservation();
         $this->spaceModel = new Space();
         $this->condominiumModel = new Condominium();
+        $this->auditService = new AuditService();
     }
 
     public function index(int $condominiumId)
@@ -326,7 +329,23 @@ class ReservationController extends Controller
 
         $userId = AuthMiddleware::userId();
 
+        $reservation = $this->reservationModel->findById($id);
+        $oldStatus = $reservation['status'] ?? null;
+
         if ($this->reservationModel->updateStatus($id, 'approved', $userId)) {
+            // Log audit
+            $this->auditService->logFinancial([
+                'condominium_id' => $condominiumId,
+                'entity_type' => 'reservation',
+                'entity_id' => $id,
+                'action' => 'reservation_approved',
+                'user_id' => $userId,
+                'amount' => $reservation['price'] ?? 0,
+                'old_status' => $oldStatus,
+                'new_status' => 'approved',
+                'description' => "Reserva ID {$id} aprovada pelo utilizador ID {$userId}. Espaço ID: {$reservation['space_id']}, Fração ID: {$reservation['fraction_id']}"
+            ]);
+            
             $_SESSION['success'] = 'Reserva aprovada com sucesso!';
         } else {
             $_SESSION['error'] = 'Erro ao aprovar reserva.';
@@ -353,7 +372,24 @@ class ReservationController extends Controller
             exit;
         }
 
+        $reservation = $this->reservationModel->findById($id);
+        $oldStatus = $reservation['status'] ?? null;
+        $userId = AuthMiddleware::userId();
+
         if ($this->reservationModel->updateStatus($id, 'rejected')) {
+            // Log audit
+            $this->auditService->logFinancial([
+                'condominium_id' => $condominiumId,
+                'entity_type' => 'reservation',
+                'entity_id' => $id,
+                'action' => 'reservation_rejected',
+                'user_id' => $userId,
+                'amount' => $reservation['price'] ?? 0,
+                'old_status' => $oldStatus,
+                'new_status' => 'rejected',
+                'description' => "Reserva ID {$id} rejeitada pelo utilizador ID {$userId}. Espaço ID: {$reservation['space_id']}, Fração ID: {$reservation['fraction_id']}"
+            ]);
+            
             $_SESSION['success'] = 'Reserva rejeitada.';
         } else {
             $_SESSION['error'] = 'Erro ao rejeitar reserva.';

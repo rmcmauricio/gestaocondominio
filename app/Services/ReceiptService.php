@@ -86,6 +86,29 @@ class ReceiptService
                     ':id' => $receiptId
                 ]);
             }
+
+            // Log audit
+            $auditService = new \App\Services\AuditService();
+            $auditService->logDocument([
+                'condominium_id' => $condominiumId,
+                'document_type' => 'receipt',
+                'action' => 'generate',
+                'user_id' => $userId,
+                'receipt_id' => $receiptId,
+                'fee_id' => $feeId,
+                'file_path' => $filePath,
+                'file_name' => $fileName,
+                'file_size' => $fileSize,
+                'description' => 'Recibo gerado automaticamente para quota totalmente paga - Fração: ' . ($fraction['identifier'] ?? 'N/A') . ' - Número: ' . $receiptNumber,
+                'metadata' => [
+                    'receipt_number' => $receiptNumber,
+                    'receipt_type' => 'final',
+                    'amount' => $fee['amount'],
+                    'fraction_identifier' => $fraction['identifier'] ?? null,
+                    'period_year' => $periodYear,
+                    'period_month' => $fee['period_month'] ?? null
+                ]
+            ]);
         } catch (\Exception $e) {
             error_log("ReceiptService::generateForFullyPaidFee error: " . $e->getMessage());
         }

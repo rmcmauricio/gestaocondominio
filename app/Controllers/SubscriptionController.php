@@ -9,12 +9,14 @@ use App\Middleware\RoleMiddleware;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Services\SubscriptionService;
+use App\Services\AuditService;
 
 class SubscriptionController extends Controller
 {
     protected $planModel;
     protected $subscriptionModel;
     protected $subscriptionService;
+    protected $auditService;
 
     public function __construct()
     {
@@ -22,6 +24,7 @@ class SubscriptionController extends Controller
         $this->planModel = new Plan();
         $this->subscriptionModel = new Subscription();
         $this->subscriptionService = new SubscriptionService();
+        $this->auditService = new AuditService();
     }
 
     /**
@@ -262,7 +265,19 @@ class SubscriptionController extends Controller
             exit;
         }
 
+        $oldStatus = $subscription['status'];
+        
         if ($this->subscriptionModel->cancel($subscription['id'])) {
+            // Log subscription cancellation
+            $this->auditService->logSubscription([
+                'subscription_id' => $subscription['id'],
+                'user_id' => $userId,
+                'action' => 'subscription_canceled',
+                'old_status' => $oldStatus,
+                'new_status' => 'canceled',
+                'description' => "Subscrição cancelada pelo utilizador"
+            ]);
+            
             $_SESSION['success'] = 'Subscrição cancelada com sucesso.';
         } else {
             $_SESSION['error'] = 'Erro ao cancelar subscrição.';
@@ -314,6 +329,9 @@ class SubscriptionController extends Controller
             exit;
         }
 
+        $oldStatus = $subscription['status'];
+        $oldPeriodStart = $subscription['current_period_start'] ?? null;
+        $oldPeriodEnd = $subscription['current_period_end'] ?? null;
         $now = date('Y-m-d H:i:s');
         $periodEnd = date('Y-m-d H:i:s', strtotime("+1 month"));
         
@@ -323,6 +341,20 @@ class SubscriptionController extends Controller
             'current_period_end' => $periodEnd,
             'canceled_at' => null
         ])) {
+            // Log subscription reactivation
+            $this->auditService->logSubscription([
+                'subscription_id' => $subscription['id'],
+                'user_id' => $userId,
+                'action' => 'subscription_reactivated',
+                'old_status' => $oldStatus,
+                'new_status' => 'active',
+                'old_period_start' => $oldPeriodStart,
+                'new_period_start' => $now,
+                'old_period_end' => $oldPeriodEnd,
+                'new_period_end' => $periodEnd,
+                'description' => "Subscrição reativada pelo utilizador. Novo período: {$now} até {$periodEnd}"
+            ]);
+            
             $_SESSION['success'] = 'Subscrição reativada com sucesso!';
         } else {
             $_SESSION['error'] = 'Erro ao reativar subscrição.';

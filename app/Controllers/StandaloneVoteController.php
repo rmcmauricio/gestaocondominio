@@ -10,12 +10,14 @@ use App\Models\StandaloneVote;
 use App\Models\VoteOption;
 use App\Models\Condominium;
 use App\Services\NotificationService;
+use App\Services\AuditService;
 
 class StandaloneVoteController extends Controller
 {
     protected $voteModel;
     protected $optionModel;
     protected $notificationService;
+    protected $auditService;
 
     public function __construct()
     {
@@ -23,6 +25,7 @@ class StandaloneVoteController extends Controller
         $this->voteModel = new StandaloneVote();
         $this->optionModel = new VoteOption();
         $this->notificationService = new NotificationService();
+        $this->auditService = new AuditService();
     }
 
     public function index(int $condominiumId)
@@ -69,7 +72,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdminInCondominium($id);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         $condominiumModel = new Condominium();
         $condominium = $condominiumModel->findById($condominiumId);
@@ -103,7 +106,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdminInCondominium($id);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes');
@@ -141,7 +144,7 @@ class StandaloneVoteController extends Controller
         }
 
         try {
-            $this->voteModel->create([
+            $voteId = $this->voteModel->create([
                 'condominium_id' => $condominiumId,
                 'title' => Security::sanitize($_POST['title'] ?? ''),
                 'description' => Security::sanitizeNullable($_POST['description'] ?? null),
@@ -149,6 +152,16 @@ class StandaloneVoteController extends Controller
                 'status' => 'draft',
                 'created_by' => $userId
             ]);
+
+            // Log audit
+            if ($voteId) {
+                $this->auditService->log([
+                    'action' => 'standalone_vote_created',
+                    'model' => 'standalone_vote',
+                    'model_id' => $voteId,
+                    'description' => "Votação standalone criada no condomínio ID {$condominiumId}. Título: " . Security::sanitize($_POST['title'] ?? '')
+                ]);
+            }
 
             $_SESSION['success'] = 'Votação criada com sucesso!';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes');
@@ -240,7 +253,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdminInCondominium($id);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         $condominiumModel = new Condominium();
         $condominium = $condominiumModel->findById($condominiumId);
@@ -280,7 +293,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdminInCondominium($id);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -335,6 +348,14 @@ class StandaloneVoteController extends Controller
                 'allowed_options' => $allowedOptions
             ]);
 
+            // Log audit
+            $this->auditService->log([
+                'action' => 'standalone_vote_updated',
+                'model' => 'standalone_vote',
+                'model_id' => $voteId,
+                'description' => "Votação standalone atualizada no condomínio ID {$condominiumId}. Título: " . Security::sanitize($_POST['title'] ?? '')
+            ]);
+
             $_SESSION['success'] = 'Votação atualizada com sucesso!';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
             exit;
@@ -349,7 +370,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdminInCondominium($id);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -382,7 +403,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdminInCondominium($id);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -398,6 +419,15 @@ class StandaloneVoteController extends Controller
 
         try {
             $this->voteModel->closeVoting($voteId);
+            
+            // Log audit
+            $this->auditService->log([
+                'action' => 'standalone_vote_closed',
+                'model' => 'standalone_vote',
+                'model_id' => $voteId,
+                'description' => "Votação standalone encerrada no condomínio ID {$condominiumId}. Título: {$vote['title']}"
+            ]);
+            
             $_SESSION['success'] = 'Votação encerrada com sucesso!';
         } catch (\Exception $e) {
             $_SESSION['error'] = 'Erro ao encerrar votação: ' . $e->getMessage();
@@ -411,7 +441,7 @@ class StandaloneVoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdminInCondominium($id);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'DELETE' && ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['_method']) || $_POST['_method'] !== 'DELETE')) {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes');
@@ -432,6 +462,14 @@ class StandaloneVoteController extends Controller
         }
 
         try {
+            // Log audit before deletion
+            $this->auditService->log([
+                'action' => 'standalone_vote_deleted',
+                'model' => 'standalone_vote',
+                'model_id' => $voteId,
+                'description' => "Votação standalone eliminada do condomínio ID {$condominiumId}. Título: {$vote['title']}"
+            ]);
+            
             global $db;
             $stmt = $db->prepare("DELETE FROM standalone_votes WHERE id = :id");
             $stmt->execute([':id' => $voteId]);
@@ -564,6 +602,14 @@ class StandaloneVoteController extends Controller
                 'user_id' => $userId,
                 'vote_option_id' => $voteOptionId,
                 'notes' => Security::sanitizeNullable($_POST['notes'] ?? null)
+            ]);
+
+            // Log audit
+            $this->auditService->log([
+                'action' => 'standalone_vote_cast',
+                'model' => 'standalone_vote',
+                'model_id' => $voteId,
+                'description' => "Voto registado na fração ID {$userFraction} para a votação standalone '{$vote['title']}' no condomínio ID {$condominiumId}. Opção: {$option['option_label']}"
             ]);
 
             if ($this->isAjaxRequest()) {

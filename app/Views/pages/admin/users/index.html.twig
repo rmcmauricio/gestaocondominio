@@ -145,6 +145,7 @@ tr.expanded .expand-icon {
                             <th class="sortable" data-sort="created" style="cursor: pointer;">
                                 Registado em <i class="bi bi-arrow-down-up sort-icon"></i>
                             </th>
+                            <th class="text-center">Ações</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -160,7 +161,11 @@ tr.expanded .expand-icon {
                             </td>
                             <td data-sort-value="{{ user.email|lower }}">{{ user.email }}</td>
                             <td>
-                                <span class="badge bg-info">{{ user.role }}</span>
+                                {% if user.role == 'super_admin' %}
+                                    <span class="badge bg-danger"><i class="bi bi-shield-check"></i> Super Admin</span>
+                                {% else %}
+                                    <span class="badge bg-info">{{ user.role }}</span>
+                                {% endif %}
                             </td>
                             <td>
                                 {% if user.status == 'active' %}
@@ -183,10 +188,27 @@ tr.expanded .expand-icon {
                             </td>
                             <td class="text-center" data-sort-value="{{ user.total_condominiums }}">{{ user.total_condominiums }}</td>
                             <td data-sort-value="{{ user.created_at }}">{{ user.created_at|date('d/m/Y H:i') }}</td>
+                            <td class="text-center">
+                                {% if user.role == 'super_admin' %}
+                                    {% if user.id != current_user_id %}
+                                        <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#removeSuperAdminModal" data-user-id="{{ user.id }}" data-user-name="{{ user.name }}" data-user-email="{{ user.email }}">
+                                            <i class="bi bi-person-x"></i> Remover Super Admin
+                                        </button>
+                                    {% else %}
+                                        <span class="badge bg-info" title="Não pode remover o seu próprio cargo de super admin">
+                                            <i class="bi bi-shield-check"></i> Você (Super Admin)
+                                        </span>
+                                    {% endif %}
+                                {% else %}
+                                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#assignSuperAdminModal" data-user-id="{{ user.id }}" data-user-name="{{ user.name }}" data-user-email="{{ user.email }}">
+                                        <i class="bi bi-shield-check"></i> Tornar Super Admin
+                                    </button>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% if user.role == 'admin' and user.condominiums|length > 0 %}
                         <tr class="condominiums-row" data-parent-id="{{ user.id }}" style="display: none;">
-                            <td colspan="8" class="bg-light">
+                            <td colspan="9" class="bg-light">
                                 <div class="p-3">
                                     <h6 class="mb-3"><i class="bi bi-building"></i> Condomínios Administrados ({{ user.condominiums|length }})</h6>
                                     <div class="d-flex flex-wrap gap-2">
@@ -209,7 +231,7 @@ tr.expanded .expand-icon {
                         {% endif %}
                         {% else %}
                         <tr>
-                            <td colspan="8" class="text-center text-muted">
+                            <td colspan="9" class="text-center text-muted">
                                 Nenhum utilizador encontrado.
                             </td>
                         </tr>
@@ -239,6 +261,105 @@ tr.expanded .expand-icon {
                     </nav>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Atribuir Super Admin -->
+<div class="modal fade" id="assignSuperAdminModal" tabindex="-1" aria-labelledby="assignSuperAdminModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="assignSuperAdminModalLabel">
+                    <i class="bi bi-shield-check"></i> Atribuir Cargo de Super Admin
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/assign-super-admin">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="assign_user_id">
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção!</strong>
+                        <p class="mb-0 mt-2">Tem a certeza que deseja atribuir o cargo de Super Admin ao utilizador:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Nome:</strong> <span id="assign_user_name"></span></p>
+                            <p class="mb-0"><strong>Email:</strong> <span id="assign_user_email"></span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> O utilizador terá acesso completo a todas as funcionalidades administrativas do sistema.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-shield-check"></i> Confirmar Atribuição
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Remover Super Admin -->
+<div class="modal fade" id="removeSuperAdminModal" tabindex="-1" aria-labelledby="removeSuperAdminModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="removeSuperAdminModalLabel">
+                    <i class="bi bi-person-x"></i> Remover Cargo de Super Admin
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/remove-super-admin">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="remove_user_id">
+                    
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção!</strong>
+                        <p class="mb-0 mt-2">Tem a certeza que deseja remover o cargo de Super Admin do utilizador:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Nome:</strong> <span id="remove_user_name"></span></p>
+                            <p class="mb-0"><strong>Email:</strong> <span id="remove_user_email"></span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="new_role" class="form-label">Atribuir novo role:</label>
+                        <select class="form-select" id="new_role" name="new_role" required>
+                            <option value="admin">Admin</option>
+                            <option value="user">User</option>
+                            <option value="condomino">Condomino</option>
+                        </select>
+                        <small class="form-text text-muted">Escolha o novo role que o utilizador terá após remover o cargo de Super Admin.</small>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-shield-check"></i> <strong>Nota de Segurança:</strong>
+                        <p class="mb-0 mt-2">Não é possível remover o seu próprio cargo de Super Admin. Esta proteção garante que sempre exista pelo menos um Super Admin no sistema.</p>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> O utilizador perderá acesso a todas as funcionalidades administrativas do sistema.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-person-x"></i> Confirmar Remoção
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -475,7 +596,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (filteredRows.length === 0) {
             const emptyRow = document.createElement('tr');
-            emptyRow.innerHTML = '<td colspan="8" class="text-center text-muted">Nenhum utilizador encontrado.</td>';
+            emptyRow.innerHTML = '<td colspan="9" class="text-center text-muted">Nenhum utilizador encontrado.</td>';
             tbody.appendChild(emptyRow);
             return;
         }
@@ -706,6 +827,35 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize modal system
     initStatsModal();
+    
+    // Setup Super Admin modals
+    const assignModal = document.getElementById('assignSuperAdminModal');
+    if (assignModal) {
+        assignModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const userId = button.getAttribute('data-user-id');
+            const userName = button.getAttribute('data-user-name');
+            const userEmail = button.getAttribute('data-user-email');
+            
+            document.getElementById('assign_user_id').value = userId;
+            document.getElementById('assign_user_name').textContent = userName;
+            document.getElementById('assign_user_email').textContent = userEmail;
+        });
+    }
+    
+    const removeModal = document.getElementById('removeSuperAdminModal');
+    if (removeModal) {
+        removeModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const userId = button.getAttribute('data-user-id');
+            const userName = button.getAttribute('data-user-name');
+            const userEmail = button.getAttribute('data-user-email');
+            
+            document.getElementById('remove_user_id').value = userId;
+            document.getElementById('remove_user_name').textContent = userName;
+            document.getElementById('remove_user_email').textContent = userEmail;
+        });
+    }
     
     // Initialize table
     displayRows();

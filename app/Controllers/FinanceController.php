@@ -21,6 +21,7 @@ use App\Models\FractionAccountMovement;
 use App\Services\FeeService;
 use App\Services\LiquidationService;
 use App\Services\ReceiptService;
+use App\Services\AuditService;
 
 class FinanceController extends Controller
 {
@@ -32,6 +33,7 @@ class FinanceController extends Controller
     protected $condominiumModel;
     protected $revenueModel;
     protected $feeService;
+    protected $auditService;
 
     public function __construct()
     {
@@ -44,6 +46,7 @@ class FinanceController extends Controller
         $this->condominiumModel = new Condominium();
         $this->revenueModel = new Revenue();
         $this->feeService = new FeeService();
+        $this->auditService = new AuditService();
     }
 
     public function index(int $condominiumId)
@@ -805,6 +808,19 @@ class FinanceController extends Controller
                     'created_by' => $userId
                 ]);
                 
+                // Log fee payment creation
+                $oldStatus = $fee['status'] ?? 'pending';
+                $this->auditService->logFinancial([
+                    'condominium_id' => $condominiumId,
+                    'entity_type' => 'fee_payment',
+                    'entity_id' => $paymentId,
+                    'action' => 'fee_payment_created',
+                    'user_id' => $userId,
+                    'amount' => $amount,
+                    'new_status' => 'completed',
+                    'description' => "Pagamento de quota criado manualmente. Quota ID: {$feeId}, Valor: €" . number_format($amount, 2, ',', '.') . ", Método: {$paymentMethod}" . ($reference ? ", Referência: {$reference}" : '')
+                ]);
+                
                 // Update transaction with payment ID if it was created new
                 if ($transactionAction === 'create') {
                     global $db;
@@ -821,6 +837,19 @@ class FinanceController extends Controller
                 
                 if ($isFullyPaid) {
                     $this->feeModel->markAsPaid($feeId);
+                    
+                    // Log fee status change to paid
+                    $this->auditService->logFinancial([
+                        'condominium_id' => $condominiumId,
+                        'entity_type' => 'fee',
+                        'entity_id' => $feeId,
+                        'action' => 'fee_marked_as_paid',
+                        'user_id' => $userId,
+                        'amount' => $fee['amount'],
+                        'old_status' => $oldStatus,
+                        'new_status' => 'paid',
+                        'description' => "Quota marcada como paga após pagamento manual. Quota ID: {$feeId}, Valor total: €" . number_format($fee['amount'], 2, ',', '.') . ($fee['reference'] ? " - Referência: {$fee['reference']}" : '')
+                    ]);
                 }
                 
                 // Generate receipts
@@ -1118,6 +1147,26 @@ class FinanceController extends Controller
                     ':file_name' => $fileName,
                     ':file_size' => $fileSize,
                     ':id' => $receiptId
+                ]);
+
+                // Log audit
+                $auditService = new \App\Services\AuditService();
+                $auditService->logDocument([
+                    'condominium_id' => $condominiumId,
+                    'document_type' => 'receipt',
+                    'action' => 'regenerate',
+                    'user_id' => $userId,
+                    'receipt_id' => $receiptId,
+                    'fee_id' => $feeId,
+                    'file_path' => $filePath,
+                    'file_name' => $fileName,
+                    'file_size' => $fileSize,
+                    'description' => 'Recibo regenerado para quota #' . $feeId . ' - Número: ' . $receiptNumber,
+                    'metadata' => [
+                        'receipt_number' => $receiptNumber,
+                        'receipt_type' => 'final',
+                        'amount' => $fee['amount']
+                    ]
                 ]);
             }
         } catch (\Exception $e) {
@@ -1607,6 +1656,20 @@ class FinanceController extends Controller
                 $transactionModel->update($transactionId, ['description' => $builtDesc]);
                 (new FractionAccountMovement())->update($movementId, ['description' => $builtDesc]);
             }
+
+            // Log liquidation operation
+            $fullyPaidCount = count($result['fully_paid'] ?? []);
+            $partiallyPaidCount = count($result['partially_paid'] ?? []);
+            $this->auditService->logFinancial([
+                'condominium_id' => $condominiumId,
+                'entity_type' => 'financial_transaction',
+                'entity_id' => $transactionId,
+                'action' => 'quotas_liquidated',
+                'user_id' => $userId,
+                'amount' => $amount,
+                'new_status' => 'completed',
+                'description' => "Liquidação de quotas executada para fração {$fraction['identifier']}. Valor: €" . number_format($amount, 2, ',', '.') . ". Quotas totalmente pagas: {$fullyPaidCount}, Pagamentos parciais: {$partiallyPaidCount}. Método: {$paymentMethod}"
+            ]);
 
             $receiptSvc = new ReceiptService();
             foreach ($result['fully_paid'] ?? [] as $fid) {
@@ -2357,11 +2420,25 @@ class FinanceController extends Controller
 
         $successCount = 0;
         $errorCount = 0;
+        $userId = AuthMiddleware::userId();
 
         foreach ($feeIds as $feeId) {
             $fee = $this->feeModel->findById((int)$feeId);
             if ($fee && $fee['condominium_id'] == $condominiumId) {
+                $oldStatus = $fee['status'] ?? 'pending';
                 if ($this->feeModel->markAsPaid((int)$feeId)) {
+                    // Log fee status change to paid
+                    $this->auditService->logFinancial([
+                        'condominium_id' => $condominiumId,
+                        'entity_type' => 'fee',
+                        'entity_id' => (int)$feeId,
+                        'action' => 'fee_marked_as_paid_bulk',
+                        'user_id' => $userId,
+                        'amount' => $fee['amount'],
+                        'old_status' => $oldStatus,
+                        'new_status' => 'paid',
+                        'description' => "Quota marcada como paga em lote. Quota ID: {$feeId}, Valor: €" . number_format($fee['amount'], 2, ',', '.') . ($fee['reference'] ? " - Referência: {$fee['reference']}" : '')
+                    ]);
                     $successCount++;
                 } else {
                     $errorCount++;
@@ -2719,16 +2796,59 @@ class FinanceController extends Controller
             $userId = AuthMiddleware::userId();
             $this->regenerateReceiptsForFee($feeId, $condominiumId, $userId);
             
+            // Log payment update
+            if (!empty($changes)) {
+                $this->auditService->logFinancial([
+                    'condominium_id' => $condominiumId,
+                    'entity_type' => 'fee_payment',
+                    'entity_id' => $paymentId,
+                    'action' => 'fee_payment_updated',
+                    'user_id' => $userId,
+                    'amount' => $amount,
+                    'old_amount' => $payment['amount'],
+                    'description' => "Pagamento de quota atualizado. Quota ID: {$feeId}, Pagamento ID: {$paymentId}. Alterações: " . json_encode($changes)
+                ]);
+            }
+            
             // Update fee status based on new total paid
+            $oldFeeStatus = $fee['status'] ?? 'pending';
             $newTotalPaid = $this->feePaymentModel->getTotalPaid($feeId);
             $isFullyPaid = $newTotalPaid >= (float)$fee['amount'];
             if ($isFullyPaid) {
                 $this->feeModel->markAsPaid($feeId);
+                
+                // Log fee status change to paid
+                $this->auditService->logFinancial([
+                    'condominium_id' => $condominiumId,
+                    'entity_type' => 'fee',
+                    'entity_id' => $feeId,
+                    'action' => 'fee_marked_as_paid',
+                    'user_id' => $userId,
+                    'amount' => $fee['amount'],
+                    'old_status' => $oldFeeStatus,
+                    'new_status' => 'paid',
+                    'description' => "Quota marcada como paga após atualização de pagamento. Quota ID: {$feeId}, Valor total: €" . number_format($fee['amount'], 2, ',', '.')
+                ]);
             } else {
                 // If not fully paid, mark as pending
                 global $db;
                 $stmt = $db->prepare("UPDATE fees SET status = 'pending', updated_at = NOW() WHERE id = :id");
                 $stmt->execute([':id' => $feeId]);
+                
+                // Log status change back to pending if it was paid before
+                if ($oldFeeStatus === 'paid') {
+                    $this->auditService->logFinancial([
+                        'condominium_id' => $condominiumId,
+                        'entity_type' => 'fee',
+                        'entity_id' => $feeId,
+                        'action' => 'fee_status_changed',
+                        'user_id' => $userId,
+                        'amount' => $fee['amount'],
+                        'old_status' => $oldFeeStatus,
+                        'new_status' => 'pending',
+                        'description' => "Status da quota alterado para pendente após atualização de pagamento. Quota ID: {$feeId}"
+                    ]);
+                }
             }
             
             $_SESSION['success'] = 'Pagamento atualizado com sucesso!';
@@ -2782,6 +2902,20 @@ class FinanceController extends Controller
             'Pagamento eliminado: €' . number_format((float)$payment['amount'], 2, ',', '.') . 
             ' (' . $payment['payment_method'] . ') - Referência: ' . ($payment['reference'] ?? 'N/A'));
 
+        // Log payment deletion
+        $oldFeeStatus = $fee['status'] ?? 'pending';
+        $this->auditService->logFinancial([
+            'condominium_id' => $condominiumId,
+            'entity_type' => 'fee_payment',
+            'entity_id' => $paymentId,
+            'action' => 'fee_payment_deleted',
+            'user_id' => $userId,
+            'amount' => $payment['amount'],
+            'old_status' => 'completed',
+            'new_status' => 'deleted',
+            'description' => "Pagamento de quota eliminado. Quota ID: {$feeId}, Pagamento ID: {$paymentId}, Valor: €" . number_format((float)$payment['amount'], 2, ',', '.') . ", Método: {$payment['payment_method']}"
+        ]);
+
         // Delete payment
         $success = $this->feePaymentModel->delete($paymentId);
 
@@ -2794,11 +2928,39 @@ class FinanceController extends Controller
             $isFullyPaid = $newTotalPaid >= (float)$fee['amount'];
             if ($isFullyPaid) {
                 $this->feeModel->markAsPaid($feeId);
+                
+                // Log fee status change to paid
+                $this->auditService->logFinancial([
+                    'condominium_id' => $condominiumId,
+                    'entity_type' => 'fee',
+                    'entity_id' => $feeId,
+                    'action' => 'fee_marked_as_paid',
+                    'user_id' => $userId,
+                    'amount' => $fee['amount'],
+                    'old_status' => $oldFeeStatus,
+                    'new_status' => 'paid',
+                    'description' => "Quota marcada como paga após eliminação de outro pagamento. Quota ID: {$feeId}"
+                ]);
             } else {
                 // If not fully paid, mark as pending
                 global $db;
                 $stmt = $db->prepare("UPDATE fees SET status = 'pending', updated_at = NOW() WHERE id = :id");
                 $stmt->execute([':id' => $feeId]);
+                
+                // Log status change back to pending if it was paid before
+                if ($oldFeeStatus === 'paid') {
+                    $this->auditService->logFinancial([
+                        'condominium_id' => $condominiumId,
+                        'entity_type' => 'fee',
+                        'entity_id' => $feeId,
+                        'action' => 'fee_status_changed',
+                        'user_id' => $userId,
+                        'amount' => $fee['amount'],
+                        'old_status' => $oldFeeStatus,
+                        'new_status' => 'pending',
+                        'description' => "Status da quota alterado para pendente após eliminação de pagamento. Quota ID: {$feeId}"
+                    ]);
+                }
             }
             
             $_SESSION['success'] = 'Pagamento eliminado com sucesso!';

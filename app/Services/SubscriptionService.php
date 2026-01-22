@@ -4,16 +4,19 @@ namespace App\Services;
 
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Services\AuditService;
 
 class SubscriptionService
 {
     protected $planModel;
     protected $subscriptionModel;
+    protected $auditService;
 
     public function __construct()
     {
         $this->planModel = new Plan();
         $this->subscriptionModel = new Subscription();
+        $this->auditService = new AuditService();
     }
 
     /**
@@ -30,7 +33,7 @@ class SubscriptionService
         $trialEndsAt = date('Y-m-d H:i:s', strtotime("+{$trialDays} days"));
         $periodEnd = date('Y-m-d H:i:s', strtotime("+1 month"));
 
-        return $this->subscriptionModel->create([
+        $subscriptionId = $this->subscriptionModel->create([
             'user_id' => $userId,
             'plan_id' => $planId,
             'status' => 'trial',
@@ -38,6 +41,22 @@ class SubscriptionService
             'current_period_start' => $now,
             'current_period_end' => $periodEnd
         ]);
+
+        if ($subscriptionId) {
+            // Log subscription creation
+            $this->auditService->logSubscription([
+                'subscription_id' => $subscriptionId,
+                'user_id' => $userId,
+                'action' => 'subscription_trial_started',
+                'new_plan_id' => $planId,
+                'new_status' => 'trial',
+                'new_period_start' => $now,
+                'new_period_end' => $periodEnd,
+                'description' => "Período experimental iniciado. Plano ID: {$planId}. Duração: {$trialDays} dias"
+            ]);
+        }
+
+        return $subscriptionId;
     }
 
     /**
@@ -61,12 +80,37 @@ class SubscriptionService
         $now = date('Y-m-d H:i:s');
         $periodEnd = date('Y-m-d H:i:s', strtotime("+1 month"));
 
-        return $this->subscriptionModel->update($subscription['id'], [
+        $oldPlanId = $subscription['plan_id'];
+        $oldStatus = $subscription['status'];
+        $oldPeriodStart = $subscription['current_period_start'] ?? null;
+        $oldPeriodEnd = $subscription['current_period_end'] ?? null;
+
+        $success = $this->subscriptionModel->update($subscription['id'], [
             'plan_id' => $newPlanId,
             'status' => 'active',
             'current_period_start' => $now,
             'current_period_end' => $periodEnd
         ]);
+
+        if ($success) {
+            // Log subscription upgrade/plan change
+            $this->auditService->logSubscription([
+                'subscription_id' => $subscription['id'],
+                'user_id' => $userId,
+                'action' => 'subscription_upgraded',
+                'old_plan_id' => $oldPlanId,
+                'new_plan_id' => $newPlanId,
+                'old_status' => $oldStatus,
+                'new_status' => 'active',
+                'old_period_start' => $oldPeriodStart,
+                'new_period_start' => $now,
+                'old_period_end' => $oldPeriodEnd,
+                'new_period_end' => $periodEnd,
+                'description' => "Subscrição atualizada. Plano: {$oldPlanId} → {$newPlanId}. Status: {$oldStatus} → active"
+            ]);
+        }
+
+        return $success;
     }
 
     /**
@@ -85,11 +129,34 @@ class SubscriptionService
         $now = date('Y-m-d H:i:s');
         $periodEnd = date('Y-m-d H:i:s', strtotime("+1 month"));
 
-        return $this->subscriptionModel->update($subscription['id'], [
+        $oldStatus = $subscription['status'];
+        $oldPeriodStart = $subscription['current_period_start'] ?? null;
+        $oldPeriodEnd = $subscription['current_period_end'] ?? null;
+        $userId = $subscription['user_id'] ?? 0;
+
+        $success = $this->subscriptionModel->update($subscription['id'], [
             'status' => 'active',
             'current_period_start' => $now,
             'current_period_end' => $periodEnd
         ]);
+
+        if ($success) {
+            // Log subscription renewal
+            $this->auditService->logSubscription([
+                'subscription_id' => $subscription['id'],
+                'user_id' => $userId,
+                'action' => 'subscription_renewed',
+                'old_status' => $oldStatus,
+                'new_status' => 'active',
+                'old_period_start' => $oldPeriodStart,
+                'new_period_start' => $now,
+                'old_period_end' => $oldPeriodEnd,
+                'new_period_end' => $periodEnd,
+                'description' => "Subscrição renovada automaticamente. Novo período: {$now} até {$periodEnd}"
+            ]);
+        }
+
+        return $success;
     }
 
     /**

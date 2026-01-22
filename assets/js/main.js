@@ -267,6 +267,58 @@
     }
   }
 
+  /**
+   * Initialize Quick Actions Dropdowns
+   * Ensures all quick actions dropdowns work properly
+   */
+  function initQuickActionsDropdowns() {
+    // Wait for Bootstrap to be available
+    if (typeof bootstrap === 'undefined') {
+      // Retry after a short delay
+      setTimeout(initQuickActionsDropdowns, 100);
+      return;
+    }
+
+    // Find all dropdown buttons with dropdown-toggle that are in dropdown containers
+    const allDropdownButtons = document.querySelectorAll('.dropdown button[data-bs-toggle="dropdown"]');
+    
+    allDropdownButtons.forEach(button => {
+      // Check if this is a quick actions dropdown by checking the text content
+      const buttonText = button.textContent || button.innerText;
+      if (buttonText.includes('Ações Rápidas') || button.id.startsWith('quickActionsDropdown')) {
+        try {
+          // Check if dropdown is already initialized
+          let dropdownInstance = bootstrap.Dropdown.getInstance(button);
+          if (!dropdownInstance) {
+            // Initialize if not already done
+            dropdownInstance = new bootstrap.Dropdown(button);
+          }
+          
+          // Ensure dropdown menu has proper z-index and positioning
+          const dropdownElement = button.closest('.dropdown');
+          const dropdownMenu = dropdownElement?.querySelector('.dropdown-menu');
+          
+          if (dropdownMenu) {
+            // Ensure parent container allows overflow
+            if (dropdownElement) {
+              dropdownElement.style.position = 'relative';
+              dropdownElement.style.overflow = 'visible';
+            }
+            
+            // Ensure menu is visible when dropdown is shown
+            button.addEventListener('shown.bs.dropdown', function() {
+              dropdownMenu.style.display = 'block';
+              dropdownMenu.style.zIndex = '1050';
+              dropdownMenu.style.position = 'absolute';
+            });
+          }
+        } catch (e) {
+          console.debug('Quick actions dropdown initialization error:', e);
+        }
+      }
+    });
+  }
+
   function init() {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function() {
@@ -277,6 +329,7 @@
         initAutoHideAlerts();
         initLanguageDropdown();
         initDemoProfileDropdown();
+        initQuickActionsDropdowns();
       });
     } else {
       initMobileNav();
@@ -286,6 +339,7 @@
       initAutoHideAlerts();
       initLanguageDropdown();
       initDemoProfileDropdown();
+      initQuickActionsDropdowns();
     }
   }
 
