@@ -29,21 +29,21 @@
                         </h5>
                         <p class="text-muted mb-4">Escolha um template para personalizar a aparência dos documentos e da interface. As alterações são aplicadas automaticamente.</p>
                         
-                        <div class="row g-3" id="template-grid">
+                        <div class="row g-4" id="template-grid">
                             {% for templateId, templateInfo in template_options %}
-                            <div class="col-md-6 col-lg-4 col-xl-3">
+                            <div class="col-12 col-md-6 col-lg-4 col-xl-3">
                                 <div class="card template-card h-100 {% if (current_template is null and templateId is null) or (current_template is not null and templateId is not null and current_template == templateId) %}border-primary border-3{% else %}border-secondary{% endif %}" 
                                      data-template-id="{{ templateId is null ? '' : templateId }}"
                                      style="cursor: pointer; transition: all 0.3s;">
                                     <div class="card-body p-3 text-center">
-                                        <div class="template-preview mb-3" style="height: 140px; border-radius: 8px; border: 2px solid {% if (current_template is null and templateId is null) or (current_template is not null and templateId is not null and current_template == templateId) %}#0d6efd{% else %}#dee2e6{% endif %}; position: relative; overflow: hidden; background: #f8f9fa;">
+                                        <div class="template-preview mb-3" style="width: 100%; max-width: 400px; height: 200px; margin: 0 auto; border-radius: 8px; border: 2px solid {% if (current_template is null and templateId is null) or (current_template is not null and templateId is not null and current_template == templateId) %}#0d6efd{% else %}#dee2e6{% endif %}; position: relative; overflow: hidden; background: #f8f9fa; display: flex; align-items: center; justify-content: center;">
                                             {% if templateId is null %}
                                                 {# Default template preview #}
                                                 {% set defaultImgUrl = BASE_URL|trim('/') ~ '/assets/images/templates/default.png' %}
                                                 <img src="{{ defaultImgUrl }}" 
                                                      alt="Template Padrão" 
                                                      class="template-preview-img"
-                                                     style="width: 100%; height: 100%; object-fit: cover;"
+                                                     style="width: 100%; height: 100%; object-fit: contain; object-position: center;"
                                                      onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
                                                 <div style="display: none; width: 100%; height: 100%; background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); flex-direction: column; align-items: center; justify-content: center; padding: 10px;">
                                                     <div style="width: 100%; height: 30%; background: #6c757d; border-radius: 4px 4px 0 0; margin-bottom: 2px;"></div>
@@ -57,7 +57,7 @@
                                                 <img src="{{ templateImgUrl }}" 
                                                      alt="Template {{ templateId }}" 
                                                      class="template-preview-img"
-                                                     style="width: 100%; height: 100%; object-fit: cover;"
+                                                     style="width: 100%; height: 100%; object-fit: contain; object-position: center;"
                                                      onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
                                                 {# Fallback preview with colors - using inline styles based on template ID #}
                                                 {% set previewColors = {
@@ -316,6 +316,15 @@ window.addEventListener('load', function() {
 <style>
 .template-card {
     transition: all 0.3s ease;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.template-card .card-body {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
 }
 
 .template-card:hover {
@@ -328,17 +337,104 @@ window.addEventListener('load', function() {
 
 .template-preview {
     position: relative;
+    flex-shrink: 0;
 }
 
 .template-preview-img {
     transition: transform 0.3s ease;
+    max-width: 100%;
+    max-height: 100%;
 }
 
 .template-card:hover .template-preview-img {
-    transform: scale(1.05);
+    transform: scale(1.02);
 }
 
 #template-grid {
     margin-top: 1rem;
+}
+
+/* Override global CSS rules that force columns to 100% */
+#template-grid .col-md-6 {
+    flex: 0 0 50% !important;
+    max-width: 50% !important;
+}
+
+#template-grid .col-lg-4 {
+    flex: 0 0 33.333333% !important;
+    max-width: 33.333333% !important;
+}
+
+#template-grid .col-xl-3 {
+    flex: 0 0 25% !important;
+    max-width: 25% !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 575px) {
+    .template-preview {
+        max-width: 100%;
+        height: 200px;
+    }
+    
+    #template-grid .col-md-6,
+    #template-grid .col-lg-4,
+    #template-grid .col-xl-3 {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+}
+
+@media (min-width: 576px) and (max-width: 767px) {
+    .template-preview {
+        max-width: 400px;
+        height: 200px;
+    }
+    
+    #template-grid .col-md-6,
+    #template-grid .col-lg-4,
+    #template-grid .col-xl-3 {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+    .template-preview {
+        max-width: 400px;
+        height: 200px;
+    }
+    
+    /* 2 cards per row on tablets */
+    #template-grid .col-md-6 {
+        flex: 0 0 50% !important;
+        max-width: 50% !important;
+    }
+}
+
+@media (min-width: 992px) and (max-width: 1199px) {
+    .template-preview {
+        max-width: 400px;
+        height: 200px;
+    }
+    
+    /* 3 cards per row on medium screens */
+    #template-grid .col-lg-4 {
+        flex: 0 0 33.333333% !important;
+        max-width: 33.333333% !important;
+    }
+}
+
+@media (min-width: 1200px) {
+    .template-preview {
+        max-width: 400px;
+        height: 200px;
+    }
+    
+    /* 4 cards per row on large screens */
+    #template-grid .col-xl-3 {
+        flex: 0 0 25% !important;
+        max-width: 25% !important;
+    }
 }
 </style>
