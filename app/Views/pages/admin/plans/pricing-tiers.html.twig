@@ -67,7 +67,7 @@
                             <th>Mín. Licenças</th>
                             <th>Máx. Licenças</th>
                             <th>Preço por Licença</th>
-                            <th>Exemplo (25 licenças)</th>
+                            <th>Preço Total (Mín - Máx)</th>
                             <th>Status</th>
                             <th>Ordem</th>
                             <th>Ações</th>
@@ -86,10 +86,12 @@
                             </td>
                             <td><strong>€{{ tier.price_per_license|number_format(2, ',', '.') }}</strong></td>
                             <td>
-                                {% if 25 >= tier.min_licenses and (tier.max_licenses is null or 25 <= tier.max_licenses) %}
-                                    <span class="badge bg-success">€{{ (25 * tier.price_per_license)|number_format(2, ',', '.') }}</span>
+                                {% set min_total = tier.min_licenses * tier.price_per_license %}
+                                {% if tier.max_licenses %}
+                                    {% set max_total = tier.max_licenses * tier.price_per_license %}
+                                    <span class="badge bg-info">€{{ min_total|number_format(2, ',', '.') }} - €{{ max_total|number_format(2, ',', '.') }}</span>
                                 {% else %}
-                                    <span class="text-muted">-</span>
+                                    <span class="badge bg-info">€{{ min_total|number_format(2, ',', '.') }} - ∞</span>
                                 {% endif %}
                             </td>
                             <td>
