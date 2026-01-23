@@ -61,19 +61,19 @@ class SuperAdminController extends Controller
         $messages = $this->getSessionMessages();
 
         global $db;
-        
+
         // Get all users including super admins
         $stmt = $db->query("
             SELECT u.*,
                    (SELECT COUNT(*) FROM condominiums WHERE user_id = u.id) as total_condominiums
             FROM users u
-            ORDER BY 
+            ORDER BY
                 CASE WHEN u.role = 'super_admin' THEN 0 ELSE 1 END,
                 u.created_at DESC
         ");
-        
+
         $users = $stmt->fetchAll() ?: [];
-        
+
         // Get subscription info and condominiums for each user
         foreach ($users as &$user) {
             $subStmt = $db->prepare("
@@ -86,7 +86,7 @@ class SuperAdminController extends Controller
             ");
             $subStmt->execute([':user_id' => $user['id']]);
             $subscription = $subStmt->fetch();
-            
+
             if ($subscription) {
                 $user['subscription_id'] = $subscription['id'];
                 $user['subscription_status'] = $subscription['status'];
@@ -96,7 +96,7 @@ class SuperAdminController extends Controller
                 $user['subscription_status'] = null;
                 $user['plan_name'] = null;
             }
-            
+
             // Get condominiums for admin users
             if ($user['role'] === 'admin') {
                 $condoStmt = $db->prepare("
@@ -115,16 +115,16 @@ class SuperAdminController extends Controller
 
         // Get all plans for filter
         $plans = $this->planModel->getActivePlans();
-        
+
         // Get unique roles and statuses for filters
         $roles = ['super_admin', 'admin', 'condomino'];
         $statuses = ['active', 'suspended', 'inactive'];
-        
+
         // Get current user ID to prevent self-demotion
         $currentUserId = AuthMiddleware::userId();
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/users/index.html.twig',
             'page' => ['titulo' => 'Gestão de Utilizadores'],
@@ -155,9 +155,9 @@ class SuperAdminController extends Controller
         $messages = $this->getSessionMessages();
 
         global $db;
-        
+
         $stmt = $db->query("
-            SELECT s.*, 
+            SELECT s.*,
                    u.name as user_name,
                    u.email as user_email,
                    p.name as plan_name,
@@ -167,13 +167,13 @@ class SuperAdminController extends Controller
             INNER JOIN plans p ON p.id = s.plan_id
             ORDER BY s.created_at DESC
         ");
-        
+
         $subscriptions = $stmt->fetchAll() ?: [];
 
         // Get pending license additions for each subscription
         $invoiceModel = new \App\Models\Invoice();
         $pendingLicenseAdditions = [];
-        
+
         foreach ($subscriptions as &$subscription) {
             $pendingInvoice = $invoiceModel->getPendingBySubscriptionId($subscription['id']);
             if ($pendingInvoice) {
@@ -186,7 +186,7 @@ class SuperAdminController extends Controller
                         $metadata = $decoded;
                     }
                 }
-                
+
                 if ($metadata && isset($metadata['is_license_addition']) && $metadata['is_license_addition']) {
                     $pendingLicenseAdditions[$subscription['id']] = [
                         'invoice_id' => $pendingInvoice['id'],
@@ -202,7 +202,7 @@ class SuperAdminController extends Controller
         $plans = $this->planModel->getActivePlans();
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/subscriptions/index.html.twig',
             'page' => ['titulo' => 'Gestão de Subscrições'],
@@ -247,7 +247,7 @@ class SuperAdminController extends Controller
         }
 
         global $db;
-        
+
         try {
             $db->beginTransaction();
 
@@ -260,7 +260,7 @@ class SuperAdminController extends Controller
             // Get pending invoice with license addition
             $invoiceModel = new \App\Models\Invoice();
             $pendingInvoice = $invoiceModel->getPendingBySubscriptionId($subscriptionId);
-            
+
             if (!$pendingInvoice) {
                 throw new \Exception('Não há pagamentos pendentes para esta subscrição.');
             }
@@ -314,7 +314,7 @@ class SuperAdminController extends Controller
                 ]
             ];
             $paymentId = $this->paymentModel->create($paymentData);
-            
+
             // Update processed_at since payment is completed
             $db->prepare("UPDATE payments SET processed_at = NOW() WHERE id = :id")->execute([':id' => $paymentId]);
 
@@ -323,7 +323,7 @@ class SuperAdminController extends Controller
 
             // Update subscription with new licenses
             // Note: price_monthly is not stored in subscriptions table, it's calculated from plan + tiers
-            
+
             // Determine period start
             $periodStart = $subscription['current_period_end'] ?? date('Y-m-d H:i:s');
             if (!$subscription['current_period_end'] || strtotime($subscription['current_period_end']) < time()) {
@@ -393,7 +393,7 @@ class SuperAdminController extends Controller
         $messages = $this->getSessionMessages();
 
         global $db;
-        
+
         // Get filter and search parameters
         $search = trim($_GET['search'] ?? '');
         $statusFilter = $_GET['status'] ?? '';
@@ -404,47 +404,47 @@ class SuperAdminController extends Controller
         $page = max(1, (int)($_GET['page'] ?? 1));
         $perPage = 20;
         $offset = ($page - 1) * $perPage;
-        
+
         // Validate sort order
         if (!in_array($sortOrder, ['ASC', 'DESC'])) {
             $sortOrder = 'DESC';
         }
-        
+
         // Validate sort column
         $allowedSorts = ['id', 'created_at', 'amount', 'status', 'user_name', 'plan_name'];
         if (!in_array($sortBy, $allowedSorts)) {
             $sortBy = 'created_at';
         }
-        
+
         // Check if metadata column exists in invoices table
         $checkStmt = $db->query("SHOW COLUMNS FROM invoices LIKE 'metadata'");
         $hasMetadataColumn = $checkStmt->rowCount() > 0;
-        
+
         // Use metadata column if it exists, otherwise use notes (which stores JSON metadata)
         $metadataField = $hasMetadataColumn ? 'i.metadata' : 'i.notes';
-        
+
         // Build WHERE clause
         $whereConditions = ["1=1"];
         $params = [];
-        
+
         // Search by user name or email
         if ($search) {
             $whereConditions[] = "(u.name LIKE :search OR u.email LIKE :search)";
             $params[':search'] = '%' . $search . '%';
         }
-        
+
         // Filter by status
         if ($statusFilter) {
             $whereConditions[] = "p.status = :status";
             $params[':status'] = $statusFilter;
         }
-        
+
         // Filter by payment method
         if ($methodFilter) {
             $whereConditions[] = "p.payment_method = :method";
             $params[':method'] = $methodFilter;
         }
-        
+
         // Filter by type (requires checking invoice metadata)
         if ($typeFilter) {
             if ($typeFilter === 'license_addition') {
@@ -464,7 +464,7 @@ class SuperAdminController extends Controller
                 $whereConditions[] = "(" . $metadataField . " IS NULL OR (" . $metadataField . " NOT LIKE '%is_license_addition%' AND " . $metadataField . " NOT LIKE '%is_extra_update%' AND " . $metadataField . " NOT LIKE '%is_plan_change%'))";
             }
         }
-        
+
         // Build base query
         $baseSql = "SELECT p.*,
                    s.status as subscription_status,
@@ -483,7 +483,7 @@ class SuperAdminController extends Controller
             INNER JOIN plans pl ON s.plan_id = pl.id
             LEFT JOIN invoices i ON p.invoice_id = i.id
             WHERE " . implode(' AND ', $whereConditions);
-        
+
         // Get total count for pagination (simplified query without ORDER BY)
         $countSql = "SELECT COUNT(DISTINCT p.id) as total
             FROM payments p
@@ -492,7 +492,7 @@ class SuperAdminController extends Controller
             INNER JOIN plans pl ON s.plan_id = pl.id
             LEFT JOIN invoices i ON p.invoice_id = i.id
             WHERE " . implode(' AND ', $whereConditions);
-        
+
         $countParams = [];
         foreach ($params as $key => $value) {
             // Skip type filter params that use LIKE with JSON
@@ -501,7 +501,7 @@ class SuperAdminController extends Controller
             }
             $countParams[$key] = $value;
         }
-        
+
         // Re-add type filter conditions for count query
         if ($typeFilter) {
             if ($typeFilter === 'license_addition') {
@@ -520,12 +520,12 @@ class SuperAdminController extends Controller
                 $countSql .= " AND (" . $metadataField . " IS NULL OR (" . $metadataField . " NOT LIKE '%is_license_addition%' AND " . $metadataField . " NOT LIKE '%is_extra_update%' AND " . $metadataField . " NOT LIKE '%is_plan_change%'))";
             }
         }
-        
+
         $countStmt = $db->prepare($countSql);
         $countStmt->execute($countParams);
         $totalCount = (int)$countStmt->fetch()['total'];
         $totalPages = ceil($totalCount / $perPage);
-        
+
         // Build ORDER BY clause
         $orderBy = "p." . $sortBy;
         if ($sortBy === 'user_name') {
@@ -533,10 +533,10 @@ class SuperAdminController extends Controller
         } elseif ($sortBy === 'plan_name') {
             $orderBy = "pl.name";
         }
-        
+
         // Build final query with sorting and pagination
         $sql = $baseSql . " ORDER BY " . $orderBy . " " . $sortOrder . " LIMIT :limit OFFSET :offset";
-        
+
         $stmt = $db->prepare($sql);
         foreach ($params as $key => $value) {
             $stmt->bindValue($key, $value);
@@ -544,7 +544,7 @@ class SuperAdminController extends Controller
         $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
         $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
         $stmt->execute();
-        
+
         $payments = $stmt->fetchAll() ?: [];
 
         // Decode metadata for each payment/invoice
@@ -553,7 +553,7 @@ class SuperAdminController extends Controller
             if (isset($payment['metadata']) && $payment['metadata']) {
                 $payment['metadata'] = is_string($payment['metadata']) ? json_decode($payment['metadata'], true) : $payment['metadata'];
             }
-            
+
             // Decode invoice metadata if exists
             if (isset($payment['invoice_metadata']) && $payment['invoice_metadata']) {
                 $payment['invoice_metadata'] = is_string($payment['invoice_metadata']) ? json_decode($payment['invoice_metadata'], true) : $payment['invoice_metadata'];
@@ -567,7 +567,7 @@ class SuperAdminController extends Controller
         unset($payment);
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/payments/index.html.twig',
             'page' => ['titulo' => 'Gestão de Pagamentos'],
@@ -637,7 +637,7 @@ class SuperAdminController extends Controller
             // Use PaymentService to confirm payment (this handles all the logic)
             // Generate a unique external payment ID for admin approval
             $externalPaymentId = 'admin_approval_' . time() . '_' . $paymentId;
-            
+
             // Update external_payment_id if not set
             if (empty($payment['external_payment_id'])) {
                 global $db;
@@ -660,12 +660,12 @@ class SuperAdminController extends Controller
                 global $db;
                 $currentMetadata = [];
                 if (!empty($payment['metadata'])) {
-                    $currentMetadata = is_string($payment['metadata']) 
-                        ? json_decode($payment['metadata'], true) 
+                    $currentMetadata = is_string($payment['metadata'])
+                        ? json_decode($payment['metadata'], true)
                         : $payment['metadata'];
                 }
                 $currentMetadata['admin_approval'] = $approvalMetadata;
-                
+
                 $updateStmt = $db->prepare("UPDATE payments SET metadata = :metadata WHERE id = :id");
                 $updateStmt->execute([
                     ':metadata' => json_encode($currentMetadata),
@@ -726,99 +726,99 @@ class SuperAdminController extends Controller
         $messages = $this->getSessionMessages();
 
         global $db;
-        
+
         $stmt = $db->query("
-            SELECT c.*, 
+            SELECT c.*,
                    u.name as admin_name,
                    u.email as admin_email
             FROM condominiums c
             INNER JOIN users u ON u.id = c.user_id
             ORDER BY c.created_at DESC
         ");
-        
+
         $condominiums = $stmt->fetchAll() ?: [];
-        
+
         // Add statistics for each condominium
         foreach ($condominiums as &$condominium) {
             $id = $condominium['id'];
-            
+
             // Basic stats
             $fracStmt = $db->prepare("SELECT COUNT(*) as count FROM fractions WHERE condominium_id = :id");
             $fracStmt->execute([':id' => $id]);
             $fracResult = $fracStmt->fetch();
             $condominium['total_fractions'] = (int)($fracResult['count'] ?? 0);
-            
+
             $resStmt = $db->prepare("SELECT COUNT(DISTINCT user_id) as count FROM condominium_users WHERE condominium_id = :id AND (ended_at IS NULL OR ended_at > CURDATE())");
             $resStmt->execute([':id' => $id]);
             $resResult = $resStmt->fetch();
             $condominium['total_residents'] = (int)($resResult['count'] ?? 0);
-            
+
             // Activity stats (last 30 days)
             $thirtyDaysAgo = date('Y-m-d H:i:s', strtotime('-30 days'));
-            
+
             // Messages (last 30 days)
             $msgStmt = $db->prepare("SELECT COUNT(*) as count FROM messages WHERE condominium_id = :id AND created_at >= :date");
             $msgStmt->execute([':id' => $id, ':date' => $thirtyDaysAgo]);
             $msgResult = $msgStmt->fetch();
             $condominium['recent_messages'] = (int)($msgResult['count'] ?? 0);
-            
+
             // Total messages
             $msgTotalStmt = $db->prepare("SELECT COUNT(*) as count FROM messages WHERE condominium_id = :id");
             $msgTotalStmt->execute([':id' => $id]);
             $msgTotalResult = $msgTotalStmt->fetch();
             $condominium['total_messages'] = (int)($msgTotalResult['count'] ?? 0);
-            
+
             // Occurrences (last 30 days)
             $occStmt = $db->prepare("SELECT COUNT(*) as count FROM occurrences WHERE condominium_id = :id AND created_at >= :date");
             $occStmt->execute([':id' => $id, ':date' => $thirtyDaysAgo]);
             $occResult = $occStmt->fetch();
             $condominium['recent_occurrences'] = (int)($occResult['count'] ?? 0);
-            
+
             // Total occurrences
             $occTotalStmt = $db->prepare("SELECT COUNT(*) as count FROM occurrences WHERE condominium_id = :id");
             $occTotalStmt->execute([':id' => $id]);
             $occTotalResult = $occTotalStmt->fetch();
             $condominium['total_occurrences'] = (int)($occTotalResult['count'] ?? 0);
-            
+
             // Documents (last 30 days)
             $docStmt = $db->prepare("SELECT COUNT(*) as count FROM documents WHERE condominium_id = :id AND created_at >= :date");
             $docStmt->execute([':id' => $id, ':date' => $thirtyDaysAgo]);
             $docResult = $docStmt->fetch();
             $condominium['recent_documents'] = (int)($docResult['count'] ?? 0);
-            
+
             // Total documents
             $docTotalStmt = $db->prepare("SELECT COUNT(*) as count FROM documents WHERE condominium_id = :id");
             $docTotalStmt->execute([':id' => $id]);
             $docTotalResult = $docTotalStmt->fetch();
             $condominium['total_documents'] = (int)($docTotalResult['count'] ?? 0);
-            
+
             // Reservations (last 30 days)
             $resStmt = $db->prepare("SELECT COUNT(*) as count FROM reservations WHERE condominium_id = :id AND created_at >= :date");
             $resStmt->execute([':id' => $id, ':date' => $thirtyDaysAgo]);
             $resResult = $resStmt->fetch();
             $condominium['recent_reservations'] = (int)($resResult['count'] ?? 0);
-            
+
             // Total reservations
             $resTotalStmt = $db->prepare("SELECT COUNT(*) as count FROM reservations WHERE condominium_id = :id");
             $resTotalStmt->execute([':id' => $id]);
             $resTotalResult = $resTotalStmt->fetch();
             $condominium['total_reservations'] = (int)($resTotalResult['count'] ?? 0);
-            
+
             // Assemblies (last 30 days)
             $asmStmt = $db->prepare("SELECT COUNT(*) as count FROM assemblies WHERE condominium_id = :id AND created_at >= :date");
             $asmStmt->execute([':id' => $id, ':date' => $thirtyDaysAgo]);
             $asmResult = $asmStmt->fetch();
             $condominium['recent_assemblies'] = (int)($asmResult['count'] ?? 0);
-            
+
             // Total assemblies
             $asmTotalStmt = $db->prepare("SELECT COUNT(*) as count FROM assemblies WHERE condominium_id = :id");
             $asmTotalStmt->execute([':id' => $id]);
             $asmTotalResult = $asmTotalStmt->fetch();
             $condominium['total_assemblies'] = (int)($asmTotalResult['count'] ?? 0);
-            
+
             // Calculate activity score (weighted sum)
             // Recent activity gets more weight
-            $condominium['activity_score'] = 
+            $condominium['activity_score'] =
                 ($condominium['recent_messages'] * 2) +
                 ($condominium['recent_occurrences'] * 3) +
                 ($condominium['recent_documents'] * 1) +
@@ -831,12 +831,12 @@ class SuperAdminController extends Controller
                 ($condominium['total_assemblies'] * 0.1);
         }
         unset($condominium);
-        
+
         // Sort by activity score
         usort($condominiums, function($a, $b) {
             return $b['activity_score'] <=> $a['activity_score'];
         });
-        
+
         // Get top 20 for chart
         $top20 = array_slice($condominiums, 0, 20);
         $chartData = [
@@ -848,7 +848,7 @@ class SuperAdminController extends Controller
         ];
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/condominiums/index.html.twig',
             'page' => ['titulo' => 'Gestão de Condomínios'],
@@ -874,7 +874,7 @@ class SuperAdminController extends Controller
         RoleMiddleware::requireSuperAdmin();
 
         global $db;
-        
+
         $condominium = $this->condominiumModel->findById($id);
         if (!$condominium) {
             $_SESSION['error'] = 'Condomínio não encontrado.';
@@ -893,10 +893,10 @@ class SuperAdminController extends Controller
         $stats = $this->getCondominiumStatistics($id);
 
         $this->loadPageTranslations('dashboard');
-        
+
         // Check if it's a modal request (via AJAX or modal parameter)
         $isModal = isset($_GET['modal']) || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest');
-        
+
         if ($isModal) {
             // Return only the content without main template
             // BASE_URL is already a global Twig variable, so it's available
@@ -906,7 +906,7 @@ class SuperAdminController extends Controller
                 'is_modal' => true,
                 'BASE_URL' => BASE_URL
             ];
-            
+
             echo $GLOBALS['twig']->render('pages/admin/condominiums/stats.html.twig', $modalData);
         } else {
             // Return full page with template
@@ -1031,7 +1031,7 @@ class SuperAdminController extends Controller
 
         $oldPlan = $this->planModel->findById($subscription['plan_id']);
         $newPlan = $this->planModel->findById($newPlanId);
-        
+
         if (!$newPlan) {
             $_SESSION['error'] = 'Plano não encontrado.';
             header('Location: ' . BASE_URL . 'admin/subscriptions');
@@ -1139,7 +1139,7 @@ class SuperAdminController extends Controller
     protected function getCondominiumStatistics(int $condominiumId): array
     {
         global $db;
-        
+
         $stats = [];
 
         // Total fractions
@@ -1147,7 +1147,7 @@ class SuperAdminController extends Controller
         $stmt->execute([':id' => $condominiumId]);
         $result = $stmt->fetch();
         $stats['total_fractions'] = (int)($result['count'] ?? 0);
-        
+
         // Active fractions
         $stmt = $db->prepare("SELECT COUNT(*) as count FROM fractions WHERE condominium_id = :id AND is_active = TRUE");
         $stmt->execute([':id' => $condominiumId]);
@@ -1281,11 +1281,11 @@ class SuperAdminController extends Controller
     protected function formatBytes(int $bytes, int $precision = 2): string
     {
         $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        
+
         for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
             $bytes /= 1024;
         }
-        
+
         return round($bytes, $precision) . ' ' . $units[$i];
     }
 
@@ -1340,17 +1340,17 @@ class SuperAdminController extends Controller
         }
 
         global $db;
-        
+
         try {
             $db->beginTransaction();
-            
+
             $oldRole = $targetUser['role'];
             $currentUser = AuthMiddleware::user();
-            
+
             // Update target user to super_admin
             $stmt = $db->prepare("UPDATE users SET role = 'super_admin' WHERE id = :id");
             $stmt->execute([':id' => $targetUserId]);
-            
+
             // Log audit with detailed information
             $this->logAudit([
                 'action' => 'super_admin_assigned',
@@ -1358,9 +1358,9 @@ class SuperAdminController extends Controller
                 'model_id' => $targetUserId,
                 'description' => "Cargo de super admin atribuído a {$targetUser['name']} ({$targetUser['email']}, ID: {$targetUserId}). Role anterior: {$oldRole} → Novo role: super_admin. Ação realizada por: {$currentUser['name']} ({$currentUser['email']}, ID: {$currentUserId})"
             ]);
-            
+
             $db->commit();
-            
+
             $_SESSION['success'] = "Cargo de super admin atribuído com sucesso a {$targetUser['name']}.";
         } catch (\Exception $e) {
             if ($db->inTransaction()) {
@@ -1468,17 +1468,17 @@ class SuperAdminController extends Controller
         }
 
         global $db;
-        
+
         try {
             $db->beginTransaction();
-            
+
             $oldRole = $targetUser['role'];
             $currentUser = AuthMiddleware::user();
-            
+
             // Update target user role
             $stmt = $db->prepare("UPDATE users SET role = :role WHERE id = :id");
             $stmt->execute([':id' => $targetUserId, ':role' => $newRole]);
-            
+
             // Log audit with detailed information
             $this->logAudit([
                 'action' => 'super_admin_removed',
@@ -1486,9 +1486,9 @@ class SuperAdminController extends Controller
                 'model_id' => $targetUserId,
                 'description' => "Cargo de super admin removido de {$targetUser['name']} ({$targetUser['email']}, ID: {$targetUserId}). Role anterior: {$oldRole} → Novo role: {$newRole}. Ação realizada por: {$currentUser['name']} ({$currentUser['email']}, ID: {$currentUserId})"
             ]);
-            
+
             $db->commit();
-            
+
             $_SESSION['success'] = "Cargo de super admin removido com sucesso. {$targetUser['name']} agora tem role: {$newRole}.";
         } catch (\Exception $e) {
             if ($db->inTransaction()) {
@@ -1518,75 +1518,75 @@ class SuperAdminController extends Controller
         RoleMiddleware::requireSuperAdmin();
 
         global $db;
-        
+
         // Get filter parameters
         $auditTypeFilter = $_GET['audit_type'] ?? 'all'; // 'all', 'general', 'payments', 'financial', 'subscriptions', 'documents'
         $actionFilter = $_GET['action'] ?? '';
         $modelFilter = $_GET['model'] ?? '';
         $userIdFilter = isset($_GET['user_id']) && $_GET['user_id'] !== '' ? (int)$_GET['user_id'] : null;
-        
+
         // Default to today if no date filters provided
         $hasDateFilter = isset($_GET['date_from']) || isset($_GET['date_to']);
         $dateFrom = $_GET['date_from'] ?? ($hasDateFilter ? '' : date('Y-m-d'));
         $dateTo = $_GET['date_to'] ?? ($hasDateFilter ? '' : date('Y-m-d'));
-        
+
         $search = $_GET['search'] ?? '';
         $page = isset($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
         $perPage = isset($_GET['per_page']) && $_GET['per_page'] > 0 ? (int)$_GET['per_page'] : 50;
         $sortBy = $_GET['sort_by'] ?? 'created_at';
         $sortOrder = isset($_GET['sort_order']) && strtoupper($_GET['sort_order']) === 'ASC' ? 'ASC' : 'DESC';
-        
+
         // Build where conditions
         $whereConditions = [];
         $params = [];
-        
+
         if (!empty($actionFilter)) {
             $whereConditions[] = "action = :action";
             $params[':action'] = $actionFilter;
         }
-        
+
         if (!empty($modelFilter)) {
             $whereConditions[] = "model = :model";
             $params[':model'] = $modelFilter;
         }
-        
+
         if ($userIdFilter !== null) {
             $whereConditions[] = "user_id = :user_id";
             $params[':user_id'] = $userIdFilter;
         }
-        
+
         // Optimized date filtering
         if (!empty($dateFrom)) {
             $whereConditions[] = "created_at >= :date_from_start";
             $params[':date_from_start'] = $dateFrom . ' 00:00:00';
         }
-        
+
         if (!empty($dateTo)) {
             $whereConditions[] = "created_at <= :date_to_end";
             $params[':date_to_end'] = $dateTo . ' 23:59:59';
         }
-        
+
         // Search in description
         if (!empty($search)) {
             $whereConditions[] = "description LIKE :search";
             $params[':search'] = '%' . $search . '%';
         }
-        
+
         $whereClause = !empty($whereConditions) ? 'WHERE ' . implode(' AND ', $whereConditions) : '';
-        
+
         // Validate sort column
         $allowedSortColumns = ['created_at', 'action', 'model', 'user_id'];
         if (!in_array($sortBy, $allowedSortColumns)) {
             $sortBy = 'created_at';
         }
-        
+
         // Build UNION query for all audit tables with normalized columns
         $unionQueries = [];
-        
+
         // General audit logs
         if ($auditTypeFilter === 'all' || $auditTypeFilter === 'general') {
             $unionQueries[] = "
-                SELECT 
+                SELECT
                     id,
                     user_id,
                     action,
@@ -1606,11 +1606,11 @@ class SuperAdminController extends Controller
                 {$whereClause}
             ";
         }
-        
+
         // Payment audits
         if ($auditTypeFilter === 'all' || $auditTypeFilter === 'payments') {
             $unionQueries[] = "
-                SELECT 
+                SELECT
                     id,
                     user_id,
                     action,
@@ -1630,11 +1630,11 @@ class SuperAdminController extends Controller
                 {$whereClause}
             ";
         }
-        
+
         // Financial audits
         if ($auditTypeFilter === 'all' || $auditTypeFilter === 'financial') {
             $unionQueries[] = "
-                SELECT 
+                SELECT
                     id,
                     user_id,
                     action,
@@ -1654,11 +1654,11 @@ class SuperAdminController extends Controller
                 {$whereClause}
             ";
         }
-        
+
         // Subscription audits
         if ($auditTypeFilter === 'all' || $auditTypeFilter === 'subscriptions') {
             $unionQueries[] = "
-                SELECT 
+                SELECT
                     id,
                     user_id,
                     action,
@@ -1678,11 +1678,11 @@ class SuperAdminController extends Controller
                 {$whereClause}
             ";
         }
-        
+
         // Document audits
         if ($auditTypeFilter === 'all' || $auditTypeFilter === 'documents') {
             $unionQueries[] = "
-                SELECT 
+                SELECT
                     id,
                     user_id,
                     action,
@@ -1702,11 +1702,11 @@ class SuperAdminController extends Controller
                 {$whereClause}
             ";
         }
-        
+
         if (empty($unionQueries)) {
             $unionQueries[] = "SELECT NULL as id, NULL as user_id, NULL as action, NULL as model, NULL as model_id, NULL as description, NULL as ip_address, NULL as user_agent, NULL as created_at, NULL as audit_type, NULL as amount, NULL as payment_method, NULL as status, NULL as subscription_id, NULL as payment_id WHERE 1=0";
         }
-        
+
         // Count total records
         $countSql = "
             SELECT COUNT(*) as total FROM (
@@ -1720,18 +1720,18 @@ class SuperAdminController extends Controller
         $countStmt->execute();
         $totalCount = (int)$countStmt->fetch()['total'];
         $totalPages = $totalCount > 0 ? ceil($totalCount / $perPage) : 1;
-        
+
         // Ensure page is within valid range
         if ($page > $totalPages && $totalPages > 0) {
             $page = $totalPages;
         }
-        
+
         // Main query with user join
         $offset = ($page - 1) * $perPage;
         $orderByClause = "combined_audits.{$sortBy} {$sortOrder}";
-        
+
         $sql = "
-            SELECT 
+            SELECT
                 combined_audits.*,
                 u.name as user_name,
                 u.email as user_email,
@@ -1743,7 +1743,7 @@ class SuperAdminController extends Controller
             ORDER BY {$orderByClause}
             LIMIT :limit OFFSET :offset
         ";
-        
+
         $stmt = $db->prepare($sql);
         foreach ($params as $key => $value) {
             $stmt->bindValue($key, $value);
@@ -1752,15 +1752,15 @@ class SuperAdminController extends Controller
         $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
         $stmt->execute();
         $logs = $stmt->fetchAll() ?: [];
-        
+
         // Enrich document logs with additional data
         foreach ($logs as &$log) {
             if ($log['audit_type'] === 'documents' && $log['id']) {
                 // Get full document audit data
                 $docStmt = $db->prepare("
-                    SELECT document_type, document_id, assembly_id, receipt_id, fee_id, 
+                    SELECT document_type, document_id, assembly_id, receipt_id, fee_id,
                            file_path, file_name, file_size, metadata
-                    FROM audit_documents 
+                    FROM audit_documents
                     WHERE id = :id
                 ");
                 $docStmt->execute([':id' => $log['id']]);
@@ -1779,10 +1779,10 @@ class SuperAdminController extends Controller
             }
         }
         unset($log);
-        
+
         // Get unique actions and models from all audit tables (last 30 days)
         $recentDateLimit = date('Y-m-d', strtotime('-30 days'));
-        
+
         // Get actions from all tables
         $actionsSql = "
             SELECT DISTINCT action FROM (
@@ -1802,7 +1802,7 @@ class SuperAdminController extends Controller
         $actionsStmt = $db->prepare($actionsSql);
         $actionsStmt->execute([':recent_date' => $recentDateLimit . ' 00:00:00']);
         $actions = $actionsStmt->fetchAll(\PDO::FETCH_COLUMN);
-        
+
         // Get models from all tables
         $modelsSql = "
             SELECT DISTINCT model FROM (
@@ -1823,7 +1823,7 @@ class SuperAdminController extends Controller
         $modelsStmt = $db->prepare($modelsSql);
         $modelsStmt->execute([':recent_date' => $recentDateLimit . ' 00:00:00']);
         $models = $modelsStmt->fetchAll(\PDO::FETCH_COLUMN);
-        
+
         // Get users from all audit tables
         $usersSql = "
             SELECT DISTINCT u.id, u.name, u.email FROM (
@@ -1844,7 +1844,7 @@ class SuperAdminController extends Controller
         $usersStmt = $db->prepare($usersSql);
         $usersStmt->execute([':recent_date' => $recentDateLimit . ' 00:00:00']);
         $users = $usersStmt->fetchAll() ?: [];
-        
+
         // If a user is selected but not in recent users list, add it
         if ($userIdFilter !== null) {
             $userFound = false;
@@ -1854,7 +1854,7 @@ class SuperAdminController extends Controller
                     break;
                 }
             }
-            
+
             if (!$userFound) {
                 $selectedUserStmt = $db->prepare("SELECT id, name, email FROM users WHERE id = :user_id");
                 $selectedUserStmt->execute([':user_id' => $userIdFilter]);
@@ -1866,7 +1866,7 @@ class SuperAdminController extends Controller
         }
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/audit-logs/index.html.twig',
             'page' => ['titulo' => 'Logs de Auditoria'],
@@ -1907,26 +1907,26 @@ class SuperAdminController extends Controller
         RoleMiddleware::requireSuperAdmin();
 
         global $db;
-        
+
         $query = $_GET['q'] ?? '';
         $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 20;
-        
+
         if (empty($query) || strlen($query) < 2) {
             header('Content-Type: application/json');
             echo json_encode([]);
             exit;
         }
-        
+
         // Search users who have audit logs (from all audit tables)
         $searchTerm = '%' . $query . '%';
-        
+
         // Optimized query: search users and check if they have audit logs
         // Using EXISTS for better performance than IN with UNION
         $sql = "
             SELECT DISTINCT u.id, u.name, u.email, u.role
             FROM users u
             WHERE (
-                u.name LIKE :search 
+                u.name LIKE :search
                 OR u.email LIKE :search
             )
             AND (
@@ -1938,13 +1938,13 @@ class SuperAdminController extends Controller
             ORDER BY u.name ASC
             LIMIT :limit
         ";
-        
+
         $stmt = $db->prepare($sql);
         $stmt->bindValue(':search', $searchTerm);
         $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
         $stmt->execute();
         $users = $stmt->fetchAll() ?: [];
-        
+
         // Format for autocomplete
         $results = [];
         foreach ($users as $user) {
@@ -1956,7 +1956,7 @@ class SuperAdminController extends Controller
                 'role' => $user['role']
             ];
         }
-        
+
         header('Content-Type: application/json');
         echo json_encode($results);
         exit;
@@ -1978,7 +1978,7 @@ class SuperAdminController extends Controller
         $success = $messages['success'];
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/plans/index.html.twig',
             'page' => ['titulo' => 'Gestão de Planos'],
@@ -2006,7 +2006,7 @@ class SuperAdminController extends Controller
         $success = $messages['success'];
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/plans/form.html.twig',
             'page' => ['titulo' => 'Criar Plano'],
@@ -2045,7 +2045,7 @@ class SuperAdminController extends Controller
         $description = Security::sanitize($_POST['description'] ?? '');
         $priceMonthly = floatval($_POST['price_monthly'] ?? 0);
         $priceYearly = !empty($_POST['price_yearly']) ? floatval($_POST['price_yearly']) : null;
-        
+
         // Novos campos do modelo de licenças
         $planType = Security::sanitize($_POST['plan_type'] ?? null);
         $licenseMin = !empty($_POST['license_min']) ? intval($_POST['license_min']) : null;
@@ -2054,7 +2054,7 @@ class SuperAdminController extends Controller
         $allowOverage = isset($_POST['allow_overage']) ? (bool)$_POST['allow_overage'] : false;
         $pricingMode = Security::sanitize($_POST['pricing_mode'] ?? 'flat');
         $annualDiscountPercentage = !empty($_POST['annual_discount_percentage']) ? floatval($_POST['annual_discount_percentage']) : 0;
-        
+
         // Campos legados (compatibilidade)
         $limitCondominios = !empty($_POST['limit_condominios']) ? intval($_POST['limit_condominios']) : null;
         $limitFracoes = !empty($_POST['limit_fracoes']) ? intval($_POST['limit_fracoes']) : null;
@@ -2090,7 +2090,7 @@ class SuperAdminController extends Controller
                 'is_active' => $isActive,
                 'sort_order' => $sortOrder
             ];
-            
+
             // Adicionar campos do novo modelo se existirem na tabela
             if ($planType) {
                 $planData['plan_type'] = $planType;
@@ -2101,7 +2101,7 @@ class SuperAdminController extends Controller
                 $planData['pricing_mode'] = $pricingMode;
                 $planData['annual_discount_percentage'] = $annualDiscountPercentage;
             }
-            
+
             $planId = $this->planModel->create($planData);
 
             $this->logAudit([
@@ -2147,7 +2147,7 @@ class SuperAdminController extends Controller
         }
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/plans/form.html.twig',
             'page' => ['titulo' => 'Editar Plano'],
@@ -2193,7 +2193,7 @@ class SuperAdminController extends Controller
         $description = Security::sanitize($_POST['description'] ?? '');
         $priceMonthly = floatval($_POST['price_monthly'] ?? 0);
         $priceYearly = !empty($_POST['price_yearly']) ? floatval($_POST['price_yearly']) : null;
-        
+
         // Novos campos do modelo de licenças
         $planType = Security::sanitize($_POST['plan_type'] ?? null);
         $licenseMin = !empty($_POST['license_min']) ? intval($_POST['license_min']) : null;
@@ -2202,7 +2202,7 @@ class SuperAdminController extends Controller
         $allowOverage = isset($_POST['allow_overage']) ? (bool)$_POST['allow_overage'] : false;
         $pricingMode = Security::sanitize($_POST['pricing_mode'] ?? 'flat');
         $annualDiscountPercentage = !empty($_POST['annual_discount_percentage']) ? floatval($_POST['annual_discount_percentage']) : 0;
-        
+
         // Campos legados (compatibilidade)
         $limitCondominios = !empty($_POST['limit_condominios']) ? intval($_POST['limit_condominios']) : null;
         $limitFracoes = !empty($_POST['limit_fracoes']) ? intval($_POST['limit_fracoes']) : null;
@@ -2238,7 +2238,7 @@ class SuperAdminController extends Controller
                 'is_active' => $isActive,
                 'sort_order' => $sortOrder
             ];
-            
+
             // Adicionar campos do novo modelo se existirem na tabela
             if ($planType) {
                 $planData['plan_type'] = $planType;
@@ -2249,7 +2249,7 @@ class SuperAdminController extends Controller
                 $planData['pricing_mode'] = $pricingMode;
                 $planData['annual_discount_percentage'] = $annualDiscountPercentage;
             }
-            
+
             $success = $this->planModel->update($id, $planData);
 
             if ($success) {
@@ -2353,7 +2353,7 @@ class SuperAdminController extends Controller
 
         try {
             $success = $this->planModel->delete($id);
-            
+
             if ($success) {
                 $this->logAudit([
                     'action' => 'plan_deleted',
@@ -2388,7 +2388,7 @@ class SuperAdminController extends Controller
         $promotions = $this->promotionModel->getAll();
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/promotions/index.html.twig',
             'page' => ['titulo' => 'Gestão de Promoções'],
@@ -2414,7 +2414,7 @@ class SuperAdminController extends Controller
         $plans = $this->planModel->getAll();
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/promotions/form.html.twig',
             'page' => ['titulo' => 'Criar Promoção'],
@@ -2448,7 +2448,7 @@ class SuperAdminController extends Controller
                 @ini_set('xdebug.mode', implode(',', $modes));
             }
         }
-        
+
         // Start output buffering to capture any debug output
         if (ob_get_level() === 0) {
             ob_start();
@@ -2519,10 +2519,10 @@ class SuperAdminController extends Controller
         if (ob_get_level() > 0) {
             ob_clean();
         }
-        
+
         // Render template (Twig uses its own output buffering internally)
         $output = $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
-        
+
         // Clean any Xdebug output that might have been added to buffer during render
         if (ob_get_level() > 0) {
             $bufferContent = ob_get_contents();
@@ -2532,7 +2532,7 @@ class SuperAdminController extends Controller
             }
             ob_end_clean();
         }
-        
+
         // Filter out any Xdebug trace output from the rendered output
         // Xdebug function traces typically start with "PHP N." where N is a number
         // This removes lines that start with "PHP" followed by a number and period
@@ -2546,12 +2546,12 @@ class SuperAdminController extends Controller
             $filteredLines[] = $line;
         }
         $output = implode("\n", $filteredLines);
-        
+
         // Restore original Xdebug mode if it was changed
         if ($originalXdebugMode !== null) {
             @ini_set('xdebug.mode', $originalXdebugMode);
         }
-        
+
         echo $output;
     }
 
@@ -2577,7 +2577,7 @@ class SuperAdminController extends Controller
         }
 
         $logService = new LogService();
-        
+
         if ($logService->clearLog()) {
             $_SESSION['success'] = 'Log PHP limpo com sucesso.';
             $this->auditService->log([
@@ -2720,7 +2720,7 @@ class SuperAdminController extends Controller
         $plans = $this->planModel->getAll();
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/promotions/form.html.twig',
             'page' => ['titulo' => 'Editar Promoção'],
@@ -2970,7 +2970,7 @@ class SuperAdminController extends Controller
         $pricingTiers = $this->extraCondominiumsPricingModel->getByPlanId($planId);
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/plans/extra-condominiums-pricing.html.twig',
             'page' => ['titulo' => 'Preços de Condomínios Extras - ' . $plan['name']],
@@ -2999,7 +2999,7 @@ class SuperAdminController extends Controller
         }
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/plans/extra-condominiums-pricing-form.html.twig',
             'page' => ['titulo' => 'Criar Escalão de Preço - ' . $plan['name']],
@@ -3108,7 +3108,7 @@ class SuperAdminController extends Controller
         }
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/plans/extra-condominiums-pricing-form.html.twig',
             'page' => ['titulo' => 'Editar Escalão de Preço - ' . $plan['name']],
@@ -3323,7 +3323,7 @@ class SuperAdminController extends Controller
         $tiers = $this->planPricingTierModel->getByPlanId($planId, false);
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/plans/pricing-tiers.html.twig',
             'page' => ['titulo' => 'Escalões de Pricing - ' . $plan['name']],
@@ -3359,7 +3359,7 @@ class SuperAdminController extends Controller
         $success = $messages['success'];
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/plans/pricing-tier-form.html.twig',
             'page' => ['titulo' => 'Criar Escalão de Pricing'],
@@ -3475,7 +3475,7 @@ class SuperAdminController extends Controller
         $success = $messages['success'];
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/admin/plans/pricing-tier-form.html.twig',
             'page' => ['titulo' => 'Editar Escalão de Pricing'],
@@ -3639,10 +3639,10 @@ class SuperAdminController extends Controller
         $error = $_SESSION['error'] ?? null;
         $success = $_SESSION['success'] ?? null;
         $info = $_SESSION['info'] ?? null;
-        
+
         // Clear messages after retrieving
         unset($_SESSION['error'], $_SESSION['success'], $_SESSION['info']);
-        
+
         return [
             'error' => $error,
             'success' => $success,
@@ -3656,7 +3656,7 @@ class SuperAdminController extends Controller
     protected function logAudit(array $data): void
     {
         global $db;
-        
+
         if (!$db) {
             return;
         }
