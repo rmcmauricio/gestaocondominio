@@ -178,13 +178,10 @@ class AssemblyController extends Controller
             $formattedDate = date('d/m/Y H:i', strtotime($scheduledDate));
             $notificationMessage = "Uma assembleia foi agendada: {$assemblyTitle} em {$formattedDate}";
             
-            error_log("AssemblyController: Creating notifications for " . count($users) . " users for assembly ID: {$assemblyId}");
-            
-            $notificationsCreated = 0;
             foreach ($users as $user) {
                 try {
                     // Create notification (this will also send email if preferences allow and not demo)
-                    $result = $this->notificationService->createNotification(
+                    $this->notificationService->createNotification(
                         $user['id'],
                         $condominiumId,
                         'assembly',
@@ -192,19 +189,11 @@ class AssemblyController extends Controller
                         $notificationMessage,
                         $assemblyLink
                     );
-                    if ($result) {
-                        $notificationsCreated++;
-                        error_log("AssemblyController: Notification created successfully for user ID: {$user['id']} ({$user['email']})");
-                    } else {
-                        error_log("AssemblyController: Failed to create notification for user ID: {$user['id']} ({$user['email']}) - createNotification returned false");
-                    }
                 } catch (\Exception $e) {
                     // Log error but don't fail assembly creation
                     error_log("AssemblyController: Exception creating notification for user ID {$user['id']} ({$user['email']}): " . $e->getMessage());
                 }
             }
-            
-            error_log("AssemblyController: Created {$notificationsCreated} notifications out of " . count($users) . " users for assembly ID: {$assemblyId}");
 
             $_SESSION['success'] = 'Assembleia criada com sucesso!';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);

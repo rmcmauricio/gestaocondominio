@@ -17,6 +17,7 @@ use App\Models\PlanExtraCondominiumsPricing;
 use App\Models\PlanPricingTier;
 use App\Services\AuditService;
 use App\Services\PaymentService;
+use App\Services\LogService;
 
 class SuperAdminController extends Controller
 {
@@ -2424,6 +2425,172 @@ class SuperAdminController extends Controller
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * View PHP error logs
+     */
+    public function phpLogs()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        // Temporarily suppress Xdebug function trace output if Xdebug is enabled
+        $originalXdebugMode = null;
+        if (function_exists('xdebug_info') && extension_loaded('xdebug')) {
+            // Try to disable function trace output
+            $originalXdebugMode = ini_get('xdebug.mode');
+            if ($originalXdebugMode !== false) {
+                $modes = explode(',', $originalXdebugMode);
+                $modes = array_filter($modes, function($mode) {
+                    return trim($mode) !== 'trace';
+                });
+                @ini_set('xdebug.mode', implode(',', $modes));
+            }
+        }
+        
+        // Start output buffering to capture any debug output
+        if (ob_get_level() === 0) {
+            ob_start();
+        }
+
+        $logService = new LogService();
+
+        // Get filter parameters
+        $page = isset($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
+        $perPage = isset($_GET['per_page']) && $_GET['per_page'] > 0 ? min((int)$_GET['per_page'], 500) : 50;
+        $search = $_GET['search'] ?? '';
+        $dateFrom = $_GET['date_from'] ?? '';
+        $dateTo = $_GET['date_to'] ?? '';
+        $level = $_GET['level'] ?? '';
+        $direction = isset($_GET['direction']) && $_GET['direction'] === 'asc' ? 'asc' : 'desc';
+
+        $filters = [
+            'search' => $search,
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+            'level' => $level,
+            'direction' => $direction
+        ];
+
+        // Calculate offset
+        $offset = ($page - 1) * $perPage;
+
+        // Get log lines
+        $logLines = $logService->readLogLines($offset, $perPage, $filters);
+
+        // Get total count (with limit for performance)
+        $totalCount = $logService->countLogLines($filters);
+        $totalPages = ceil($totalCount / $perPage);
+
+        // Get file info
+        $fileInfo = $logService->getLogFileInfo();
+
+        // Get session messages
+        $messages = $this->getSessionMessages();
+
+        $this->loadPageTranslations('dashboard');
+
+        $this->data += [
+            'viewName' => 'pages/admin/php-logs/index.html.twig',
+            'page' => ['titulo' => 'Logs PHP'],
+            'log_lines' => $logLines,
+            'file_info' => $fileInfo,
+            'filters' => [
+                'search' => $search,
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'level' => $level,
+                'direction' => $direction
+            ],
+            'pagination' => [
+                'current_page' => $page,
+                'total_pages' => $totalPages,
+                'total_count' => $totalCount,
+                'per_page' => $perPage
+            ],
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        // Clean any debug output that might have been sent (e.g., from Xdebug)
+        if (ob_get_level() > 0) {
+            ob_clean();
+        }
+        
+        // Render template (Twig uses its own output buffering internally)
+        $output = $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        
+        // Clean any Xdebug output that might have been added to buffer during render
+        if (ob_get_level() > 0) {
+            $bufferContent = ob_get_contents();
+            // Check if buffer contains Xdebug trace output (starts with "PHP N.")
+            if (!empty($bufferContent) && preg_match('/^PHP \d+\./', trim($bufferContent))) {
+                ob_clean(); // Remove Xdebug output
+            }
+            ob_end_clean();
+        }
+        
+        // Filter out any Xdebug trace output from the rendered output
+        // Xdebug function traces typically start with "PHP N." where N is a number
+        // This removes lines that start with "PHP" followed by a number and period
+        $lines = explode("\n", $output);
+        $filteredLines = [];
+        foreach ($lines as $line) {
+            // Skip lines that look like Xdebug function trace output
+            if (preg_match('/^PHP \d+\./', trim($line))) {
+                continue;
+            }
+            $filteredLines[] = $line;
+        }
+        $output = implode("\n", $filteredLines);
+        
+        // Restore original Xdebug mode if it was changed
+        if ($originalXdebugMode !== null) {
+            @ini_set('xdebug.mode', $originalXdebugMode);
+        }
+        
+        echo $output;
+    }
+
+    /**
+     * Clear PHP error log
+     */
+    public function clearPhpLog()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Método inválido.';
+            header('Location: ' . BASE_URL . 'admin/php-logs');
+            exit;
+        }
+
+        // Verify CSRF token
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/php-logs');
+            exit;
+        }
+
+        $logService = new LogService();
+        
+        if ($logService->clearLog()) {
+            $_SESSION['success'] = 'Log PHP limpo com sucesso.';
+            $this->auditService->log([
+                'action' => 'php_log_cleared',
+                'model' => 'system',
+                'description' => 'Log PHP foi limpo pelo super admin'
+            ]);
+        } else {
+            $_SESSION['error'] = 'Erro ao limpar log PHP.';
+        }
+
+        header('Location: ' . BASE_URL . 'admin/php-logs');
+        exit;
     }
 
     /**

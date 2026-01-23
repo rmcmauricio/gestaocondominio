@@ -150,11 +150,6 @@ class RoleMiddleware
         // This must be checked BEFORE checking if user is owner, so view mode takes precedence
         $viewModeKey = "condominium_{$condominiumId}_view_mode";
         
-        // Debug: Log session state (remove in production)
-        if (defined('APP_ENV') && APP_ENV !== 'production') {
-            error_log("RoleMiddleware::getUserRoleInCondominium - ViewModeKey: {$viewModeKey}, Session value: " . ($_SESSION[$viewModeKey] ?? 'NOT SET') . ", UserId: {$userId}, CondominiumId: {$condominiumId}");
-        }
-        
         if (isset($_SESSION[$viewModeKey]) && !empty($_SESSION[$viewModeKey])) {
             $viewMode = $_SESSION[$viewModeKey];
             
@@ -171,9 +166,6 @@ class RoleMiddleware
                 ]);
                 if ($stmt->fetch()) {
                     $hasAdminRole = true;
-                    if (defined('APP_ENV') && APP_ENV !== 'production') {
-                        error_log("RoleMiddleware::getUserRoleInCondominium - User is owner (hasAdminRole = true)");
-                    }
                 }
                 
                 // Check condominium_users table for roles
@@ -190,23 +182,13 @@ class RoleMiddleware
                 ]);
                 $results = $stmt->fetchAll();
                 
-                if (defined('APP_ENV') && APP_ENV !== 'production') {
-                    error_log("RoleMiddleware::getUserRoleInCondominium - Found " . count($results) . " condominium_users entries");
-                }
-                
                 foreach ($results as $result) {
                     if ($result['role'] === 'admin') {
                         $hasAdminRole = true;
-                        if (defined('APP_ENV') && APP_ENV !== 'production') {
-                            error_log("RoleMiddleware::getUserRoleInCondominium - Found admin role entry");
-                        }
                     }
                     if ($result['fraction_id'] !== null) {
                         // Has fraction association (condomino role)
                         $hasCondominoRole = true;
-                        if (defined('APP_ENV') && APP_ENV !== 'production') {
-                            error_log("RoleMiddleware::getUserRoleInCondominium - Found fraction_id: " . $result['fraction_id'] . " (hasCondominoRole = true)");
-                        }
                     }
                 }
                 
@@ -216,26 +198,13 @@ class RoleMiddleware
                 if ($hasAdminRole && $hasCondominoRole) {
                     // Return the view mode from session (admin or condomino)
                     // This overrides the default admin role for owners
-                    if (defined('APP_ENV') && APP_ENV !== 'production') {
-                        error_log("RoleMiddleware::getUserRoleInCondominium - Returning view mode: {$viewMode} (hasAdminRole: " . ($hasAdminRole ? 'true' : 'false') . ", hasCondominoRole: " . ($hasCondominoRole ? 'true' : 'false') . ")");
-                    }
                     return $viewMode;
                 } elseif ($viewMode === 'condomino' && $hasCondominoRole && !$hasAdminRole) {
                     // User is only condomino and view_mode is condomino - respect it
-                    if (defined('APP_ENV') && APP_ENV !== 'production') {
-                        error_log("RoleMiddleware::getUserRoleInCondominium - Returning condomino view mode (user is only condomino)");
-                    }
                     return 'condomino';
                 } elseif ($viewMode === 'admin' && $hasAdminRole && !$hasCondominoRole) {
                     // User is only admin and view_mode is admin - respect it
-                    if (defined('APP_ENV') && APP_ENV !== 'production') {
-                        error_log("RoleMiddleware::getUserRoleInCondominium - Returning admin view mode (user is only admin)");
-                    }
                     return 'admin';
-                } else {
-                    if (defined('APP_ENV') && APP_ENV !== 'production') {
-                        error_log("RoleMiddleware::getUserRoleInCondominium - View mode set but doesn't match user's roles (hasAdminRole: " . ($hasAdminRole ? 'true' : 'false') . ", hasCondominoRole: " . ($hasCondominoRole ? 'true' : 'false') . ", viewMode: {$viewMode}) - Will fall through to default role check");
-                    }
                 }
             }
         }

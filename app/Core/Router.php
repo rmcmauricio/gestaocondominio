@@ -97,12 +97,6 @@ class Router extends Controller
             $uri = '/' . $uri;
         }
 
-        // Debug: Log routes and URI (remove in production)
-        if (APP_ENV !== 'production') {
-            error_log("Router Debug - Original URI: $originalUri, Processed URI: $uri, Method: $method");
-            error_log("Router Debug - Registered routes: " . json_encode($this->routes));
-        }
-
         foreach ($this->routes as $route) {
             $routePath = $route['path'];
             
@@ -120,10 +114,6 @@ class Router extends Controller
             }
             $pattern = str_replace('/', '\/', $pattern);
             $pattern = '/^' . $pattern . '$/';
-
-            if (APP_ENV !== 'production') {
-                error_log("Router Debug - Testing route: $routePath against URI: $uri with pattern: $pattern");
-            }
 
             if ($method === $route['method'] && preg_match($pattern, $uri, $matches)) {
                 array_shift($matches); // remove o full match

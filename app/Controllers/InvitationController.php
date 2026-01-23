@@ -7,15 +7,18 @@ use App\Core\Security;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Services\InvitationService;
+use App\Services\AuditService;
 
 class InvitationController extends Controller
 {
     protected $invitationService;
+    protected $auditService;
 
     public function __construct()
     {
         parent::__construct();
         $this->invitationService = new InvitationService();
+        $this->auditService = new AuditService();
     }
 
     public function create(int $condominiumId, int $fractionId = null)
@@ -70,10 +73,7 @@ class InvitationController extends Controller
         $fractionId = !empty($_POST['fraction_id']) && $_POST['fraction_id'] !== '' ? (int)$_POST['fraction_id'] : null;
         $role = Security::sanitize($_POST['role'] ?? 'condomino');
 
-        error_log("InvitationController::store - Received data: email={$email}, name={$name}, fractionId=" . ($fractionId ?? 'null') . ", role={$role}");
-
         if (empty($email) || empty($name)) {
-            error_log("InvitationController::store - Validation failed: empty email or name");
             $_SESSION['error'] = 'Por favor, preencha todos os campos obrigatórios.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/invitations/create');
             exit;
@@ -81,7 +81,6 @@ class InvitationController extends Controller
 
         // Validate email format
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            error_log("InvitationController::store - Invalid email format: {$email}");
             $_SESSION['error'] = 'Por favor, insira um email válido.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/invitations/create');
             exit;
@@ -90,14 +89,19 @@ class InvitationController extends Controller
         try {
             if ($this->invitationService->sendInvitation($condominiumId, $fractionId, $email, $name, $role)) {
                 $_SESSION['success'] = 'Convite enviado com sucesso!';
+                
+                // Log audit: invitation sent is an important administrative action
+                $this->auditService->log([
+                    'action' => 'invitation_sent',
+                    'model' => 'invitation',
+                    'model_id' => null,
+                    'description' => "Convite enviado para {$name} ({$email}) no condomínio ID {$condominiumId}" . ($fractionId ? " - Fração ID {$fractionId}" : "") . " - Papel: {$role}"
+                ]);
             } else {
-                // Check logs for more details
-                error_log("InvitationController: Failed to send invitation for email: {$email}, fraction_id: " . ($fractionId ?? 'null'));
-                $_SESSION['error'] = 'Erro ao enviar convite. Verifique os logs para mais detalhes.';
+                $_SESSION['error'] = 'Erro ao enviar convite.';
             }
         } catch (\Exception $e) {
             error_log("InvitationController exception: " . $e->getMessage());
-            error_log("InvitationController trace: " . $e->getTraceAsString());
             $_SESSION['error'] = 'Erro ao enviar convite: ' . $e->getMessage();
         }
 
@@ -214,8 +218,27 @@ class InvitationController extends Controller
 
         $fractionId = !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null;
 
+        // Get invitation details before revoking for audit log
+        global $db;
+        $invitationDetails = null;
+        if ($db) {
+            $stmt = $db->prepare("SELECT email, name FROM invitations WHERE id = :id AND condominium_id = :condominium_id LIMIT 1");
+            $stmt->execute([':id' => $invitationId, ':condominium_id' => $condominiumId]);
+            $invitationDetails = $stmt->fetch();
+        }
+
         if ($this->invitationService->revokeInvitation($invitationId, $condominiumId)) {
             $_SESSION['success'] = 'Convite revogado com sucesso!';
+            
+            // Log audit: invitation revoked is an important administrative action
+            $email = $invitationDetails['email'] ?? 'N/A';
+            $name = $invitationDetails['name'] ?? 'N/A';
+            $this->auditService->log([
+                'action' => 'invitation_revoked',
+                'model' => 'invitation',
+                'model_id' => $invitationId,
+                'description' => "Convite revogado para {$name} ({$email}) no condomínio ID {$condominiumId}"
+            ]);
         } else {
             $_SESSION['error'] = 'Erro ao revogar convite. Convite não encontrado ou já foi aceite.';
         }

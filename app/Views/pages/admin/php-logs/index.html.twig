@@ -1,0 +1,294 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-file-text"></i> Logs PHP</h2>
+            <p class="text-muted mb-0">Visualizar e pesquisar logs de erro do PHP</p>
+        </div>
+        <div>
+            <a href="{{ BASE_URL }}admin/php-logs" class="btn btn-secondary me-2">
+                <i class="bi bi-arrow-clockwise"></i> Atualizar
+            </a>
+            <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- File Info -->
+    {% if file_info.exists %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <strong>Tamanho:</strong> {{ file_info.size_formatted }}
+                </div>
+                <div class="col-md-3">
+                    <strong>Última atualização:</strong> {{ file_info.last_modified }}
+                </div>
+                <div class="col-md-3">
+                    <strong>Total de linhas:</strong> {{ pagination.total_count|number_format(0, ',', '.') }}
+                </div>
+                <div class="col-md-3 text-end">
+                    <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#clearLogModal">
+                        <i class="bi bi-trash"></i> Limpar Log
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> O ficheiro de log não existe ou não foi encontrado.
+    </div>
+    {% endif %}
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ BASE_URL }}admin/php-logs" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="search" class="form-label">Pesquisar</label>
+                        <input type="text" class="form-control" id="search" name="search" 
+                               value="{{ filters.search }}" placeholder="Texto a pesquisar...">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="date_from" class="form-label">Data Desde</label>
+                        <input type="date" class="form-control" id="date_from" name="date_from" 
+                               value="{{ filters.date_from }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="date_to" class="form-label">Data Até</label>
+                        <input type="date" class="form-control" id="date_to" name="date_to" 
+                               value="{{ filters.date_to }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="level" class="form-label">Nível</label>
+                        <select class="form-select" id="level" name="level">
+                            <option value="">Todos</option>
+                            <option value="ERROR" {% if filters.level == 'ERROR' %}selected{% endif %}>ERROR</option>
+                            <option value="WARNING" {% if filters.level == 'WARNING' %}selected{% endif %}>WARNING</option>
+                            <option value="NOTICE" {% if filters.level == 'NOTICE' %}selected{% endif %}>NOTICE</option>
+                            <option value="INFO" {% if filters.level == 'INFO' %}selected{% endif %}>INFO</option>
+                            <option value="DEBUG" {% if filters.level == 'DEBUG' %}selected{% endif %}>DEBUG</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="direction" class="form-label">Ordenação</label>
+                        <select class="form-select" id="direction" name="direction">
+                            <option value="desc" {% if filters.direction == 'desc' %}selected{% endif %}>Mais Recentes</option>
+                            <option value="asc" {% if filters.direction == 'asc' %}selected{% endif %}>Mais Antigas</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-search"></i> Filtrar
+                        </button>
+                        <a href="{{ BASE_URL }}admin/php-logs" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Limpar Filtros
+                        </a>
+                        <label for="per_page" class="ms-3">Linhas por página:</label>
+                        <select class="form-select d-inline-block" id="per_page" name="per_page" style="width: auto;" onchange="this.form.submit()">
+                            <option value="25" {% if pagination.per_page == 25 %}selected{% endif %}>25</option>
+                            <option value="50" {% if pagination.per_page == 50 %}selected{% endif %}>50</option>
+                            <option value="100" {% if pagination.per_page == 100 %}selected{% endif %}>100</option>
+                            <option value="200" {% if pagination.per_page == 200 %}selected{% endif %}>200</option>
+                            <option value="500" {% if pagination.per_page == 500 %}selected{% endif %}>500</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    {% if file_info.exists %}
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                <i class="bi bi-list-ul"></i> Entradas de Log
+                <span class="badge bg-primary ms-2">{{ pagination.total_count|number_format(0, ',', '.') }}</span>
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            {% if log_lines|length > 0 %}
+            <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
+                <table class="table table-hover table-striped mb-0">
+                    <thead class="table-dark sticky-top">
+                        <tr>
+                            <th style="width: 180px;">Data/Hora</th>
+                            <th style="width: 100px;">Nível</th>
+                            <th>Mensagem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in log_lines %}
+                        <tr>
+                            <td class="text-nowrap">
+                                {% if log.date and log.time %}
+                                <small>{{ log.date }}<br>{{ log.time }}</small>
+                                {% else %}
+                                <small class="text-muted">-</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% set levelClass = 'secondary' %}
+                                {% if log.level == 'ERROR' %}
+                                    {% set levelClass = 'danger' %}
+                                {% elseif log.level == 'WARNING' %}
+                                    {% set levelClass = 'warning' %}
+                                {% elseif log.level == 'NOTICE' %}
+                                    {% set levelClass = 'info' %}
+                                {% elseif log.level == 'DEBUG' %}
+                                    {% set levelClass = 'dark' %}
+                                {% endif %}
+                                <span class="badge bg-{{ levelClass }}">{{ log.level }}</span>
+                            </td>
+                            <td>
+                                <div class="log-message" style="font-family: monospace; font-size: 0.9em;">
+                                    {% if filters.search %}
+                                        {% set highlighted = log.message|trim|replace({(filters.search): '<mark>' ~ filters.search ~ '</mark>'}) %}
+                                        {{ highlighted|raw }}
+                                    {% else %}
+                                        {{ log.message|trim|escape }}
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                <p class="text-muted mt-3">Nenhuma entrada de log encontrada{% if filters.search or filters.date_from or filters.date_to or filters.level %} com os filtros aplicados{% endif %}.</p>
+            </div>
+            {% endif %}
+        </div>
+        {% if pagination.total_pages > 1 %}
+        <div class="card-footer">
+            <nav aria-label="Navegação de páginas">
+                <ul class="pagination mb-0 justify-content-center">
+                    {% set queryParams = [] %}
+                    {% if filters.search %}{% set queryParams = queryParams|merge(['search=' ~ filters.search]) %}{% endif %}
+                    {% if filters.date_from %}{% set queryParams = queryParams|merge(['date_from=' ~ filters.date_from]) %}{% endif %}
+                    {% if filters.date_to %}{% set queryParams = queryParams|merge(['date_to=' ~ filters.date_to]) %}{% endif %}
+                    {% if filters.level %}{% set queryParams = queryParams|merge(['level=' ~ filters.level]) %}{% endif %}
+                    {% if filters.direction %}{% set queryParams = queryParams|merge(['direction=' ~ filters.direction]) %}{% endif %}
+                    {% set queryParams = queryParams|merge(['per_page=' ~ pagination.per_page]) %}
+                    {% set queryString = queryParams|join('&') %}
+
+                    {% if pagination.current_page > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ BASE_URL }}admin/php-logs?page={{ pagination.current_page - 1 }}{% if queryString %}&{{ queryString }}{% endif %}">
+                            <i class="bi bi-chevron-left"></i> Anterior
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="bi bi-chevron-left"></i> Anterior</span>
+                    </li>
+                    {% endif %}
+
+                    {% for i in range(max(1, pagination.current_page - 2), min(pagination.total_pages, pagination.current_page + 2)) %}
+                    <li class="page-item {% if i == pagination.current_page %}active{% endif %}">
+                        <a class="page-link" href="{{ BASE_URL }}admin/php-logs?page={{ i }}{% if queryString %}&{{ queryString }}{% endif %}">{{ i }}</a>
+                    </li>
+                    {% endfor %}
+
+                    {% if pagination.current_page < pagination.total_pages %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ BASE_URL }}admin/php-logs?page={{ pagination.current_page + 1 }}{% if queryString %}&{{ queryString }}{% endif %}">
+                            Seguinte <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Seguinte <i class="bi bi-chevron-right"></i></span>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            <div class="text-center mt-2">
+                <small class="text-muted">
+                    Página {{ pagination.current_page }} de {{ pagination.total_pages }}
+                    ({{ ((pagination.current_page - 1) * pagination.per_page + 1)|number_format(0, ',', '.') }} - 
+                    {{ min(pagination.current_page * pagination.per_page, pagination.total_count)|number_format(0, ',', '.') }} 
+                    de {{ pagination.total_count|number_format(0, ',', '.') }} entradas)
+                </small>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Clear Log Modal -->
+<div class="modal fade" id="clearLogModal" tabindex="-1" aria-labelledby="clearLogModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="clearLogModalLabel">Limpar Log PHP</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem a certeza que deseja limpar o ficheiro de log PHP?</p>
+                <p class="text-danger"><strong>Atenção:</strong> Esta ação não pode ser desfeita. Todos os registos serão apagados permanentemente.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="POST" action="{{ BASE_URL }}admin/php-logs/clear" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Limpar Log
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.log-message {
+    word-break: break-word;
+    white-space: normal;
+    max-width: 800px;
+    padding: 0;
+    margin: 0;
+}
+
+.log-message mark {
+    background-color: #ffeb3b;
+    padding: 2px 4px;
+    border-radius: 2px;
+}
+
+.table th {
+    font-weight: 600;
+}
+
+.table-responsive {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+}
+</style>

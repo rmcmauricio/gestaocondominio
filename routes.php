@@ -414,5 +414,9 @@ $router->post('/admin/promotions/{id}', 'App\Controllers\SuperAdminController@up
 $router->post('/admin/promotions/{id}/toggle-active', 'App\Controllers\SuperAdminController@togglePromotionActive');
 $router->post('/admin/promotions/{id}/delete', 'App\Controllers\SuperAdminController@deletePromotion');
 
+// PHP Logs (super admin only)
+$router->get('/admin/php-logs', 'App\Controllers\SuperAdminController@phpLogs');
+$router->post('/admin/php-logs/clear', 'App\Controllers\SuperAdminController@clearPhpLog');
+
 // Add your routes here
 

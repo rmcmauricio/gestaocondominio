@@ -208,9 +208,6 @@ class EmailService
         // Check if we're in development mode
         $isDevelopment = (strtolower($appEnv) === 'development');
         
-        // Log environment info for debugging
-        error_log("EmailService Debug: APP_ENV={$appEnv}, isDevelopment=" . ($isDevelopment ? 'YES' : 'NO') . ", DEV_EMAIL=" . ($devEmail ?: 'NOT SET') . ", Original recipient: {$originalTo}");
-        
         // In development, if DEV_EMAIL is not set, block email sending
         if ($isDevelopment && empty($devEmail)) {
             error_log("EmailService: BLOCKED - Development mode but DEV_EMAIL not set. Email to {$originalTo} was blocked. Please set DEV_EMAIL in .env file.");
@@ -219,7 +216,6 @@ class EmailService
 
         // Redirect to DEV_EMAIL in development environment
         if ($isDevelopment && !empty($devEmail)) {
-            error_log("EmailService: Redirecting email from {$originalTo} to DEV_EMAIL: {$devEmail}");
             $to = $devEmail;
             
             // Modify subject to indicate it's a dev redirect

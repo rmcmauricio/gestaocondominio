@@ -397,9 +397,6 @@ class Controller
             $mergedData['template_id'] = $previewTemplateId;
         }
         
-        // Debug: Log template_id for troubleshooting (remove in production)
-        // error_log("Template ID Debug - hasPreviewInData: " . ($hasPreviewInData ? 'YES' : 'NO') . ", previewTemplateId: " . var_export($previewTemplateId, true) . ", baseMergedData[template_id]: " . var_export($baseMergedData['template_id'] ?? 'NOT SET', true) . ", mergedData[template_id]: " . var_export($mergedData['template_id'] ?? 'NOT SET', true));
-        
         // Ensure condominium from data is used if present (URL parameter always wins)
         if (isset($mergedData['condominium']) && isset($mergedData['condominium']['id'])) {
             $_SESSION['current_condominium_id'] = $mergedData['condominium']['id'];

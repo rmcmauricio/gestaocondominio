@@ -475,9 +475,6 @@ class CondominiumController extends Controller
             }
         }
         
-        // Debug: Uncomment to see preview values
-        // error_log("Preview Debug - GET[preview_template]: " . var_export($_GET['preview_template'] ?? 'NOT SET', true) . ", hasPreviewParam: " . ($hasPreviewParam ? 'YES' : 'NO') . ", previewTemplate: " . var_export($previewTemplate, true));
-
         // Template options with descriptions
         $templateOptions = [
             null => ['name' => 'Padrão', 'description' => 'Template padrão do sistema'],
@@ -509,9 +506,6 @@ class CondominiumController extends Controller
             // No preview - use current template from database
             $templateIdForRendering = $currentTemplate;
         }
-        
-        // Debug: Log preview values (uncomment to debug)
-        // error_log("CondominiumController Debug - hasPreviewParam: " . ($hasPreviewParam ? 'YES' : 'NO') . ", previewTemplate: " . var_export($previewTemplate, true) . ", currentTemplate: " . var_export($currentTemplate, true) . ", templateIdForRendering: " . var_export($templateIdForRendering, true));
         
         // Build data array - IMPORTANT: template_id must be set for preview to work
         $this->data += [
@@ -1270,25 +1264,27 @@ class CondominiumController extends Controller
         
         // Toggle view mode: if currently admin (or null/default), switch to condomino; if condomino, switch to admin
         // Use ONLY the session value, not the effective role (which would create a circular dependency)
-        if (defined('APP_ENV') && APP_ENV !== 'production') {
-            error_log("CondominiumController::switchViewMode - Current mode in session: " . ($currentMode ?? 'null'));
-        }
-        
+        $newMode = null;
         if ($currentMode === 'condomino') {
             // Currently viewing as condomino -> switch to admin
             $_SESSION[$viewModeKey] = 'admin';
             $_SESSION['success'] = 'Modo alterado para Administrador.';
-            if (defined('APP_ENV') && APP_ENV !== 'production') {
-                error_log("CondominiumController::switchViewMode - Setting view mode to 'admin' for condominium {$condominiumId}");
-            }
+            $newMode = 'admin';
         } else {
             // Currently viewing as admin (or null/default) -> switch to condomino
             $_SESSION[$viewModeKey] = 'condomino';
             $_SESSION['success'] = 'Modo alterado para Condómino.';
-            if (defined('APP_ENV') && APP_ENV !== 'production') {
-                error_log("CondominiumController::switchViewMode - Setting view mode to 'condomino' for condominium {$condominiumId}");
-            }
+            $newMode = 'condomino';
         }
+        
+        // Log audit: view mode change is an important security action
+        $auditService = new \App\Services\AuditService();
+        $auditService->log([
+            'action' => 'view_mode_changed',
+            'model' => 'condominium',
+            'model_id' => $condominiumId,
+            'description' => "Modo de visualização alterado de '{$currentMode}' para '{$newMode}' no condomínio ID {$condominiumId}"
+        ]);
         
         // Redirect back to the same page the user was on (or condominium overview if no referer)
         $redirectUrl = $_SERVER['HTTP_REFERER'] ?? BASE_URL . 'condominiums/' . $condominiumId;
