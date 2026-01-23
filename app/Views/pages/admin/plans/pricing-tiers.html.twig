@@ -111,32 +111,6 @@
                                 </div>
                             </td>
                         </tr>
-
-                        <!-- Delete Modal -->
-                        <div class="modal fade" id="deleteModal{{ tier.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ tier.id }}" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <div class="modal-content">
-                                    <div class="modal-header bg-danger text-white">
-                                        <h5 class="modal-title" id="deleteModalLabel{{ tier.id }}">Deletar Escalão</h5>
-                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <form method="POST" action="{{ BASE_URL }}admin/plans/{{ plan.id }}/pricing-tiers/{{ tier.id }}/delete">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <div class="modal-body">
-                                            <p>Tem certeza que deseja deletar este escalão?</p>
-                                            <div class="alert alert-warning">
-                                                <small><strong>Escalão:</strong> {{ tier.min_licenses }}{% if tier.max_licenses %} - {{ tier.max_licenses }}{% else %}+{% endif %} licenças<br>
-                                                <strong>Preço:</strong> €{{ tier.price_per_license|number_format(2, ',', '.') }} por licença</small>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                            <button type="submit" class="btn btn-danger">Deletar</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -150,3 +124,31 @@
         </div>
     </div>
 </div>
+
+<!-- Delete Modals -->
+{% for tier in tiers %}
+<div class="modal fade" id="deleteModal{{ tier.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ tier.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel{{ tier.id }}">Deletar Escalão</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/plans/{{ plan.id }}/pricing-tiers/{{ tier.id }}/delete">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <p>Tem certeza que deseja deletar este escalão?</p>
+                    <div class="alert alert-warning">
+                        <small><strong>Escalão:</strong> {{ tier.min_licenses }}{% if tier.max_licenses %} - {{ tier.max_licenses }}{% else %}+{% endif %} licenças<br>
+                        <strong>Preço:</strong> €{{ tier.price_per_license|number_format(2, ',', '.') }} por licença</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Deletar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}

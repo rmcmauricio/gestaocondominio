@@ -11,10 +11,41 @@ class DatabaseSeeder
 
     public function run(): void
     {
+        // Apagar tiers primeiro (para evitar problemas com foreign keys)
+        $this->deleteExistingPricingTiers();
+        // Depois apagar e recriar os planos
         $this->seedPlans();
         $this->seedSuperAdmin();
         $this->seedPaymentMethods();
+        // Por fim, criar os tiers novamente
         $this->seedPlanPricingTiers();
+    }
+
+    /**
+     * Delete existing pricing tiers for plans that will be seeded
+     */
+    protected function deleteExistingPricingTiers(): void
+    {
+        try {
+            // Verificar se a tabela existe
+            $checkStmt = $this->db->query("SHOW TABLES LIKE 'plan_pricing_tiers'");
+            if ($checkStmt->rowCount() > 0) {
+                // Buscar IDs dos planos que serão seedados
+                $planStmt = $this->db->query("SELECT id FROM plans WHERE slug IN ('condominio', 'professional', 'enterprise')");
+                $plans = $planStmt->fetchAll();
+                
+                if (!empty($plans)) {
+                    $planIds = array_column($plans, 'id');
+                    $placeholders = implode(',', array_fill(0, count($planIds), '?'));
+                    
+                    // Apagar tiers dos planos que serão seedados
+                    $deleteStmt = $this->db->prepare("DELETE FROM plan_pricing_tiers WHERE plan_id IN ($placeholders)");
+                    $deleteStmt->execute($planIds);
+                }
+            }
+        } catch (\Exception $e) {
+            // Tabela não existe ou erro ao apagar - continuar normalmente
+        }
     }
 
     protected function seedPlans(): void
@@ -95,9 +126,9 @@ class DatabaseSeeder
         $checkStmt = $this->db->query("SHOW COLUMNS FROM plans LIKE 'plan_type'");
         $hasNewColumns = $checkStmt->rowCount() > 0;
 
+        // Preparar statements para INSERT e UPDATE
         if ($hasNewColumns) {
-            // Usar novo formato com campos de licenças
-            $stmt = $this->db->prepare("
+            $insertStmt = $this->db->prepare("
                 INSERT INTO plans (
                     name, slug, description, price_monthly, price_yearly,
                     plan_type, license_min, license_limit, allow_multiple_condos,
@@ -110,48 +141,71 @@ class DatabaseSeeder
                     :allow_overage, :pricing_mode, :annual_discount_percentage,
                     :limit_condominios, :limit_fracoes, :features, :is_active, :sort_order
                 )
-                ON DUPLICATE KEY UPDATE
-                    description = VALUES(description),
-                    price_monthly = VALUES(price_monthly),
-                    price_yearly = VALUES(price_yearly),
-                    plan_type = VALUES(plan_type),
-                    license_min = VALUES(license_min),
-                    license_limit = VALUES(license_limit),
-                    allow_multiple_condos = VALUES(allow_multiple_condos),
-                    allow_overage = VALUES(allow_overage),
-                    pricing_mode = VALUES(pricing_mode),
-                    annual_discount_percentage = VALUES(annual_discount_percentage),
-                    limit_condominios = VALUES(limit_condominios),
-                    limit_fracoes = VALUES(limit_fracoes),
-                    features = VALUES(features),
-                    is_active = VALUES(is_active),
-                    sort_order = VALUES(sort_order)
+            ");
+            
+            $updateStmt = $this->db->prepare("
+                UPDATE plans SET
+                    name = :name,
+                    description = :description,
+                    price_monthly = :price_monthly,
+                    price_yearly = :price_yearly,
+                    plan_type = :plan_type,
+                    license_min = :license_min,
+                    license_limit = :license_limit,
+                    allow_multiple_condos = :allow_multiple_condos,
+                    allow_overage = :allow_overage,
+                    pricing_mode = :pricing_mode,
+                    annual_discount_percentage = :annual_discount_percentage,
+                    limit_condominios = :limit_condominios,
+                    limit_fracoes = :limit_fracoes,
+                    features = :features,
+                    is_active = :is_active,
+                    sort_order = :sort_order
+                WHERE slug = :slug
             ");
         } else {
             // Fallback para formato antigo (compatibilidade)
-            $stmt = $this->db->prepare("
+            $insertStmt = $this->db->prepare("
                 INSERT INTO plans (name, slug, description, price_monthly, price_yearly, limit_condominios, limit_fracoes, features, is_active, sort_order)
                 VALUES (:name, :slug, :description, :price_monthly, :price_yearly, :limit_condominios, :limit_fracoes, :features, :is_active, :sort_order)
-                ON DUPLICATE KEY UPDATE
-                    description = VALUES(description),
-                    price_monthly = VALUES(price_monthly),
-                    price_yearly = VALUES(price_yearly),
-                    limit_condominios = VALUES(limit_condominios),
-                    limit_fracoes = VALUES(limit_fracoes),
-                    features = VALUES(features),
-                    is_active = VALUES(is_active),
-                    sort_order = VALUES(sort_order)
+            ");
+            
+            $updateStmt = $this->db->prepare("
+                UPDATE plans SET
+                    name = :name,
+                    description = :description,
+                    price_monthly = :price_monthly,
+                    price_yearly = :price_yearly,
+                    limit_condominios = :limit_condominios,
+                    limit_fracoes = :limit_fracoes,
+                    features = :features,
+                    is_active = :is_active,
+                    sort_order = :sort_order
+                WHERE slug = :slug
             ");
         }
 
+        // Verificar se plano existe pelo slug e fazer UPDATE ou INSERT
+        $checkPlanStmt = $this->db->prepare("SELECT id FROM plans WHERE slug = :slug LIMIT 1");
+
         foreach ($plans as $plan) {
+            $checkPlanStmt->execute([':slug' => $plan['slug']]);
+            $existingPlan = $checkPlanStmt->fetch();
+
             if ($hasNewColumns) {
                 // Converter booleanos para inteiros (MySQL BOOLEAN = TINYINT)
                 $planData = $plan;
                 $planData['allow_multiple_condos'] = $plan['allow_multiple_condos'] ? 1 : 0;
                 $planData['allow_overage'] = $plan['allow_overage'] ? 1 : 0;
                 $planData['is_active'] = $plan['is_active'] ? 1 : 0;
-                $stmt->execute($planData);
+                
+                if ($existingPlan) {
+                    // Plano existe - fazer UPDATE (preserva o ID e não quebra foreign keys)
+                    $updateStmt->execute($planData);
+                } else {
+                    // Plano não existe - fazer INSERT
+                    $insertStmt->execute($planData);
+                }
             } else {
                 // Remover campos novos se não existirem
                 $oldPlan = [
@@ -166,7 +220,14 @@ class DatabaseSeeder
                     'is_active' => $plan['is_active'] ? 1 : 0,
                     'sort_order' => $plan['sort_order']
                 ];
-                $stmt->execute($oldPlan);
+                
+                if ($existingPlan) {
+                    // Plano existe - fazer UPDATE (preserva o ID e não quebra foreign keys)
+                    $updateStmt->execute($oldPlan);
+                } else {
+                    // Plano não existe - fazer INSERT
+                    $insertStmt->execute($oldPlan);
+                }
             }
         }
 
