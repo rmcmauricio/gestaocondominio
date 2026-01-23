@@ -37,9 +37,7 @@
                     <hr>
 
                     <div class="message-content" style="word-wrap: break-word;">
-                        {% autoescape false %}
-                        {{ message.message }}
-                        {% endautoescape %}
+                        {{ message.message|sanitize_html|raw }}
                     </div>
 
                     {% if attachments %}
@@ -107,9 +105,7 @@
                                     </div>
                                 </div>
                                 <div class="message-content bg-light p-3 rounded" style="border-left: 4px solid {% if reply_is_sent %}#28a745{% else %}#0d6efd{% endif %};">
-                                    {% autoescape false %}
-                                    {{ reply.message }}
-                                    {% endautoescape %}
+                                    {{ reply.message|sanitize_html|raw }}
                                 </div>
                                 {% if reply.attachments %}
                                 <div class="mt-2">

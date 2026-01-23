@@ -7,6 +7,8 @@ use App\Core\Security;
 use App\Models\User;
 use App\Core\EmailService;
 use App\Services\GoogleOAuthService;
+use App\Services\SecurityLogger;
+use App\Middleware\RateLimitMiddleware;
 
 class AuthController extends Controller
 {
@@ -101,9 +103,19 @@ class AuthController extends Controller
             exit;
         }
 
+        // Check rate limit BEFORE processing login attempt
+        try {
+            RateLimitMiddleware::require('login');
+        } catch (\Exception $e) {
+            $_SESSION['login_error'] = $e->getMessage();
+            header('Location: ' . BASE_URL . 'login');
+            exit;
+        }
+
         // Verify CSRF token
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
+            RateLimitMiddleware::recordAttempt('login');
             $_SESSION['login_error'] = 'Token de segurança inválido.';
             header('Location: ' . BASE_URL . 'login');
             exit;
@@ -115,12 +127,14 @@ class AuthController extends Controller
 
         // Basic validation
         if (empty($email) || empty($password)) {
+            RateLimitMiddleware::recordAttempt('login');
             $_SESSION['login_error'] = 'Por favor, preencha todos os campos.';
             header('Location: ' . BASE_URL . 'login');
             exit;
         }
 
         if (!Security::validateEmail($email)) {
+            RateLimitMiddleware::recordAttempt('login');
             $_SESSION['login_error'] = 'Email inválido.';
             header('Location: ' . BASE_URL . 'login');
             exit;
@@ -130,6 +144,10 @@ class AuthController extends Controller
         $user = $this->userModel->findByEmail($email);
         
         if (!$user || !$this->userModel->verifyPassword($email, $password)) {
+            RateLimitMiddleware::recordAttempt('login');
+            // Log failed login attempt
+            $securityLogger = new SecurityLogger();
+            $securityLogger->logFailedLogin($email, 'invalid_credentials');
             $_SESSION['login_error'] = 'Email ou senha incorretos.';
             header('Location: ' . BASE_URL . 'login');
             exit;
@@ -137,6 +155,7 @@ class AuthController extends Controller
 
         // Check if user is active
         if ($user['status'] !== 'active') {
+            RateLimitMiddleware::recordAttempt('login');
             $_SESSION['login_error'] = 'A sua conta está suspensa ou inativa.';
             header('Location: ' . BASE_URL . 'login');
             exit;
@@ -152,12 +171,16 @@ class AuthController extends Controller
             }
 
             if (!Security::verifyTOTP($user['two_factor_secret'], $twoFactorCode)) {
+                RateLimitMiddleware::recordAttempt('login');
                 $_SESSION['login_error'] = 'Código de autenticação inválido.';
                 header('Location: ' . BASE_URL . 'login');
                 exit;
             }
         }
 
+        // Regenerate session ID on successful login to prevent session fixation
+        session_regenerate_id(true);
+        
         // Set user session
         $_SESSION['user'] = [
             'id' => $user['id'],
@@ -165,9 +188,19 @@ class AuthController extends Controller
             'name' => $user['name'],
             'role' => $user['role']
         ];
+        
+        // Set session creation time for periodic regeneration
+        $_SESSION['created'] = time();
+
+        // Reset rate limit on successful login
+        RateLimitMiddleware::reset('login', $email);
 
         // Update last login
         $this->userModel->updateLastLogin($user['id']);
+
+        // Log successful login
+        $securityLogger = new SecurityLogger();
+        $securityLogger->logSuccessfulLogin($user['id'], $email);
 
         // Log audit
         $this->logAudit($user['id'], 'login', 'User logged in');
@@ -211,9 +244,19 @@ class AuthController extends Controller
             exit;
         }
 
+        // Check rate limit BEFORE processing registration
+        try {
+            RateLimitMiddleware::require('register');
+        } catch (\Exception $e) {
+            $_SESSION['register_error'] = $e->getMessage();
+            header('Location: ' . BASE_URL . 'register');
+            exit;
+        }
+
         // Verify CSRF token
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
+            RateLimitMiddleware::recordAttempt('register');
             $_SESSION['register_error'] = 'Token de segurança inválido.';
             header('Location: ' . BASE_URL . 'register');
             exit;
@@ -230,36 +273,44 @@ class AuthController extends Controller
 
         // Validation
         if (empty($email) || empty($password) || empty($name)) {
+            RateLimitMiddleware::recordAttempt('register');
             $_SESSION['register_error'] = 'Por favor, preencha todos os campos obrigatórios.';
             header('Location: ' . BASE_URL . 'register');
             exit;
         }
 
         if (empty($accountType) || !in_array($accountType, ['user', 'admin'])) {
+            RateLimitMiddleware::recordAttempt('register');
             $_SESSION['register_error'] = 'Por favor, selecione o tipo de conta.';
             header('Location: ' . BASE_URL . 'register');
             exit;
         }
 
         if (!Security::validateEmail($email)) {
+            RateLimitMiddleware::recordAttempt('register');
             $_SESSION['register_error'] = 'Email inválido.';
             header('Location: ' . BASE_URL . 'register');
             exit;
         }
 
-        if (strlen($password) < 8) {
-            $_SESSION['register_error'] = 'A senha deve ter pelo menos 8 caracteres.';
+        // Validate password strength
+        $passwordValidation = Security::validatePasswordStrength($password, $email, $name);
+        if (!$passwordValidation['valid']) {
+            RateLimitMiddleware::recordAttempt('register');
+            $_SESSION['register_error'] = implode(' ', $passwordValidation['errors']);
             header('Location: ' . BASE_URL . 'register');
             exit;
         }
 
         if ($password !== $passwordConfirm) {
+            RateLimitMiddleware::recordAttempt('register');
             $_SESSION['register_error'] = 'As senhas não coincidem.';
             header('Location: ' . BASE_URL . 'register');
             exit;
         }
 
         if (!$terms) {
+            RateLimitMiddleware::recordAttempt('register');
             $_SESSION['register_error'] = 'Deve aceitar os Termos e Condições para continuar.';
             header('Location: ' . BASE_URL . 'register');
             exit;
@@ -267,6 +318,7 @@ class AuthController extends Controller
 
         // Check if email already exists
         if ($this->userModel->findByEmail($email)) {
+            RateLimitMiddleware::recordAttempt('register');
             $_SESSION['register_error'] = 'Este email já está registado.';
             header('Location: ' . BASE_URL . 'register');
             exit;
@@ -356,8 +408,18 @@ class AuthController extends Controller
             exit;
         }
 
+        // Check rate limit BEFORE processing password reset request
+        try {
+            RateLimitMiddleware::require('forgot_password');
+        } catch (\Exception $e) {
+            $_SESSION['forgot_error'] = $e->getMessage();
+            header('Location: ' . BASE_URL . 'forgot-password');
+            exit;
+        }
+
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
+            RateLimitMiddleware::recordAttempt('forgot_password');
             $_SESSION['forgot_error'] = 'Token de segurança inválido.';
             header('Location: ' . BASE_URL . 'forgot-password');
             exit;
@@ -366,12 +428,17 @@ class AuthController extends Controller
         $email = Security::sanitize($_POST['email'] ?? '');
 
         if (empty($email) || !Security::validateEmail($email)) {
+            RateLimitMiddleware::recordAttempt('forgot_password');
             $_SESSION['forgot_error'] = 'Email inválido.';
             header('Location: ' . BASE_URL . 'forgot-password');
             exit;
         }
 
         $token = $this->userModel->createPasswordResetToken($email);
+        
+        // Log password reset request
+        $securityLogger = new SecurityLogger();
+        $securityLogger->logPasswordResetRequest($email);
         
         if ($token) {
             // Get user info to send personalized email
@@ -388,9 +455,15 @@ class AuthController extends Controller
                 }
             }
             
+            // Reset rate limit on successful request (even if email doesn't exist, to prevent enumeration)
+            RateLimitMiddleware::reset('forgot_password', $email);
+            
             // Always show success message (don't reveal if email exists for security)
             $_SESSION['forgot_success'] = 'Se o email existir, receberá um link para redefinir a senha.';
         } else {
+            // Reset rate limit on successful request (even if email doesn't exist, to prevent enumeration)
+            RateLimitMiddleware::reset('forgot_password', $email);
+            
             // Don't reveal if email exists for security
             $_SESSION['forgot_success'] = 'Se o email existir, receberá um link para redefinir a senha.';
         }
@@ -401,18 +474,46 @@ class AuthController extends Controller
 
     public function resetPassword()
     {
+        // Security: Accept token from GET only for initial verification, then store in session
         $token = $_GET['token'] ?? '';
 
         if (empty($token)) {
-            $_SESSION['login_error'] = 'Token inválido.';
+            // Check if token is already in session (from previous verification)
+            $token = $_SESSION['password_reset_token'] ?? '';
+            
+            if (empty($token)) {
+                $_SESSION['login_error'] = 'Token inválido ou link expirado.';
+                header('Location: ' . BASE_URL . 'login');
+                exit;
+            }
+        } else {
+            // Verify token and store in session for security (remove from URL)
+            $reset = $this->userModel->verifyPasswordResetToken($token);
+            
+            if (!$reset) {
+                $_SESSION['login_error'] = 'Token inválido ou expirado.';
+                header('Location: ' . BASE_URL . 'login');
+                exit;
+            }
+            
+            // Store verified token in session (expires in 10 minutes for security)
+            $_SESSION['password_reset_token'] = $token;
+            $_SESSION['password_reset_token_time'] = time();
+        }
+
+        // Verify token from session is still valid
+        $reset = $this->userModel->verifyPasswordResetToken($token);
+        if (!$reset) {
+            unset($_SESSION['password_reset_token'], $_SESSION['password_reset_token_time']);
+            $_SESSION['login_error'] = 'Token inválido ou expirado.';
             header('Location: ' . BASE_URL . 'login');
             exit;
         }
 
-        $reset = $this->userModel->verifyPasswordResetToken($token);
-        
-        if (!$reset) {
-            $_SESSION['login_error'] = 'Token inválido ou expirado.';
+        // Check if session token is too old (10 minutes max)
+        if (isset($_SESSION['password_reset_token_time']) && (time() - $_SESSION['password_reset_token_time']) > 600) {
+            unset($_SESSION['password_reset_token'], $_SESSION['password_reset_token_time']);
+            $_SESSION['login_error'] = 'Sessão expirada. Por favor, solicite um novo link de redefinição.';
             header('Location: ' . BASE_URL . 'login');
             exit;
         }
@@ -426,7 +527,6 @@ class AuthController extends Controller
                 'description' => 'Reset your password'
             ],
             'error' => $_SESSION['reset_error'] ?? null,
-            'token' => $token,
             'csrf_token' => Security::generateCSRFToken()
         ];
         
@@ -445,29 +545,47 @@ class AuthController extends Controller
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
             $_SESSION['reset_error'] = 'Token de segurança inválido.';
-            header('Location: ' . BASE_URL . 'reset-password?token=' . ($_POST['token'] ?? ''));
+            header('Location: ' . BASE_URL . 'reset-password');
             exit;
         }
 
-        $token = $_POST['token'] ?? '';
+        // Security: Get token from session, not POST/GET
+        $token = $_SESSION['password_reset_token'] ?? '';
+        
+        if (empty($token)) {
+            $_SESSION['reset_error'] = 'Token inválido ou sessão expirada. Por favor, solicite um novo link.';
+            header('Location: ' . BASE_URL . 'login');
+            exit;
+        }
+
+        // Check if session token is too old (10 minutes max)
+        if (isset($_SESSION['password_reset_token_time']) && (time() - $_SESSION['password_reset_token_time']) > 600) {
+            unset($_SESSION['password_reset_token'], $_SESSION['password_reset_token_time']);
+            $_SESSION['reset_error'] = 'Sessão expirada. Por favor, solicite um novo link de redefinição.';
+            header('Location: ' . BASE_URL . 'login');
+            exit;
+        }
+
         $password = $_POST['password'] ?? '';
         $passwordConfirm = $_POST['password_confirm'] ?? '';
 
-        if (empty($token) || empty($password)) {
+        if (empty($password)) {
             $_SESSION['reset_error'] = 'Por favor, preencha todos os campos.';
-            header('Location: ' . BASE_URL . 'reset-password?token=' . $token);
+            header('Location: ' . BASE_URL . 'reset-password');
             exit;
         }
 
-        if (strlen($password) < 8) {
-            $_SESSION['reset_error'] = 'A senha deve ter pelo menos 8 caracteres.';
-            header('Location: ' . BASE_URL . 'reset-password?token=' . $token);
+        // Validate password strength
+        $passwordValidation = Security::validatePasswordStrength($password, $userEmail ?? null, $userName ?? null);
+        if (!$passwordValidation['valid']) {
+            $_SESSION['reset_error'] = implode(' ', $passwordValidation['errors']);
+            header('Location: ' . BASE_URL . 'reset-password');
             exit;
         }
 
         if ($password !== $passwordConfirm) {
             $_SESSION['reset_error'] = 'As senhas não coincidem.';
-            header('Location: ' . BASE_URL . 'reset-password?token=' . $token);
+            header('Location: ' . BASE_URL . 'reset-password');
             exit;
         }
 
@@ -485,6 +603,15 @@ class AuthController extends Controller
         }
         
         if ($this->userModel->resetPassword($token, $password)) {
+            // Clear token from session after successful reset
+            unset($_SESSION['password_reset_token'], $_SESSION['password_reset_token_time']);
+            
+            // Log successful password reset
+            if ($userEmail) {
+                $securityLogger = new SecurityLogger();
+                $securityLogger->logPasswordResetSuccess($userEmail);
+            }
+            
             // Send success email if we have user info
             if ($userEmail && $userName) {
                 $emailService = new EmailService();
@@ -499,8 +626,10 @@ class AuthController extends Controller
             header('Location: ' . BASE_URL . 'login');
             exit;
         } else {
+            // Clear invalid token from session
+            unset($_SESSION['password_reset_token'], $_SESSION['password_reset_token_time']);
             $_SESSION['reset_error'] = 'Erro ao redefinir senha. Token inválido ou expirado.';
-            header('Location: ' . BASE_URL . 'reset-password?token=' . $token);
+            header('Location: ' . BASE_URL . 'login');
             exit;
         }
     }

@@ -173,7 +173,11 @@ class User extends Model
             return false;
         }
 
-        $sql = "UPDATE users SET " . implode(', ', $fields) . ", updated_at = NOW() WHERE id = :id";
+        // Detect SQLite for compatibility
+        $isSQLite = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'sqlite';
+        $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
+        
+        $sql = "UPDATE users SET " . implode(', ', $fields) . ", updated_at = {$timestampFunc} WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
         return $stmt->execute($params);
@@ -188,7 +192,11 @@ class User extends Model
             return false;
         }
 
-        $stmt = $this->db->prepare("UPDATE users SET last_login_at = NOW() WHERE id = :id");
+        // Detect SQLite for compatibility
+        $isSQLite = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'sqlite';
+        $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
+        
+        $stmt = $this->db->prepare("UPDATE users SET last_login_at = {$timestampFunc} WHERE id = :id");
         return $stmt->execute([':id' => $id]);
     }
 
@@ -247,6 +255,7 @@ class User extends Model
 
     /**
      * Create password reset token
+     * Security: Invalidates all previous tokens for the email before creating a new one
      */
     public function createPasswordResetToken(string $email): ?string
     {
@@ -258,6 +267,22 @@ class User extends Model
         if (!$user) {
             return null;
         }
+
+        // Security: Invalidate all previous tokens for this email
+        $invalidateStmt = $this->db->prepare("
+            UPDATE password_resets 
+            SET used_at = NOW() 
+            WHERE email = :email 
+            AND used_at IS NULL
+        ");
+        $invalidateStmt->execute([':email' => $email]);
+
+        // Clean up expired tokens (older than 24 hours)
+        $cleanupStmt = $this->db->prepare("
+            DELETE FROM password_resets 
+            WHERE expires_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        ");
+        $cleanupStmt->execute();
 
         $token = Security::generateToken();
         $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
@@ -278,10 +303,26 @@ class User extends Model
 
     /**
      * Verify password reset token
+     * Security: Includes attempt limit check
      */
     public function verifyPasswordResetToken(string $token): ?array
     {
         if (!$this->db) {
+            return null;
+        }
+
+        // Security: Check attempt count (prevent brute force on tokens)
+        // Store attempts in session
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        
+        $attemptKey = "password_reset_attempts_{$token}";
+        $attempts = $_SESSION[$attemptKey] ?? 0;
+        
+        if ($attempts >= 5) {
+            // Too many attempts - mark token as used for security
+            $this->markPasswordResetTokenAsUsed($token);
             return null;
         }
 
@@ -294,7 +335,17 @@ class User extends Model
         ");
 
         $stmt->execute([':token' => $token]);
-        return $stmt->fetch() ?: null;
+        $result = $stmt->fetch() ?: null;
+        
+        if (!$result) {
+            // Increment attempt counter
+            $_SESSION[$attemptKey] = $attempts + 1;
+        } else {
+            // Reset attempts on successful verification
+            unset($_SESSION[$attemptKey]);
+        }
+        
+        return $result;
     }
 
     /**

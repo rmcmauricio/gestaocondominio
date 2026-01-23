@@ -60,6 +60,58 @@ class Security
     }
 
     /**
+     * Sanitize HTML content - allows safe HTML tags but removes scripts and dangerous attributes
+     * @param string $html HTML content to sanitize
+     * @return string Sanitized HTML
+     */
+    public static function sanitizeHtml(string $html): string
+    {
+        if (empty($html)) {
+            return '';
+        }
+
+        // List of allowed HTML tags for rich text content
+        $allowedTags = '<p><br><br/><strong><b><em><i><u><ul><ol><li><h1><h2><h3><h4><h5><h6><a><img><blockquote><code><pre><div><span>';
+        
+        // First, strip all tags except allowed ones
+        $html = strip_tags($html, $allowedTags);
+        
+        // Remove dangerous attributes (onclick, onerror, etc.) using regex
+        // Remove javascript: and data: URLs from href and src attributes
+        $html = preg_replace_callback('/<(a|img)\s+([^>]*)>/i', function($matches) {
+            $tag = $matches[1];
+            $attrs = $matches[2];
+            
+            // Remove dangerous attributes
+            $attrs = preg_replace('/\s*(on\w+|javascript:|data:)\s*=\s*["\'][^"\']*["\']/i', '', $attrs);
+            $attrs = preg_replace('/\s*(on\w+|javascript:|data:)\s*=\s*[^\s>]+/i', '', $attrs);
+            
+            // Clean up href/src attributes - only allow http/https
+            if ($tag === 'a') {
+                $attrs = preg_replace('/href\s*=\s*["\'](?!https?:\/\/)[^"\']*["\']/i', '', $attrs);
+            } elseif ($tag === 'img') {
+                $attrs = preg_replace('/src\s*=\s*["\'](?!https?:\/\/|data:image\/)[^"\']*["\']/i', '', $attrs);
+            }
+            
+            return '<' . $tag . ' ' . trim($attrs) . '>';
+        }, $html);
+        
+        // Remove any remaining script tags and their content
+        $html = preg_replace('/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi', '', $html);
+        
+        // Remove style tags that could contain malicious CSS
+        $html = preg_replace('/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi', '', $html);
+        
+        // Remove iframe tags
+        $html = preg_replace('/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi', '', $html);
+        
+        // Remove object and embed tags
+        $html = preg_replace('/<(object|embed)\b[^<]*(?:(?!<\/\1>)<[^<]*)*<\/\1>/gi', '', $html);
+        
+        return trim($html);
+    }
+
+    /**
      * Validate email
      */
     public static function validateEmail(string $email): bool
@@ -137,6 +189,95 @@ class Security
         }
         
         return isset($_SESSION['csrf_token']) && !empty($token) && hash_equals($_SESSION['csrf_token'], $token);
+    }
+
+    /**
+     * Validate password strength
+     * 
+     * @param string $password Password to validate
+     * @param string|null $email Optional email to check if password contains user info
+     * @param string|null $name Optional name to check if password contains user info
+     * @return array ['valid' => bool, 'errors' => string[]]
+     */
+    public static function validatePasswordStrength(string $password, ?string $email = null, ?string $name = null): array
+    {
+        $errors = [];
+        
+        // Minimum length
+        if (strlen($password) < 8) {
+            $errors[] = 'A senha deve ter pelo menos 8 caracteres.';
+        }
+        
+        // Maximum length (prevent DoS)
+        if (strlen($password) > 128) {
+            $errors[] = 'A senha não pode ter mais de 128 caracteres.';
+        }
+        
+        // Check for uppercase letter
+        if (!preg_match('/[A-Z]/', $password)) {
+            $errors[] = 'A senha deve conter pelo menos uma letra maiúscula.';
+        }
+        
+        // Check for lowercase letter
+        if (!preg_match('/[a-z]/', $password)) {
+            $errors[] = 'A senha deve conter pelo menos uma letra minúscula.';
+        }
+        
+        // Check for number
+        if (!preg_match('/[0-9]/', $password)) {
+            $errors[] = 'A senha deve conter pelo menos um número.';
+        }
+        
+        // Check for special character
+        if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+            $errors[] = 'A senha deve conter pelo menos um caractere especial.';
+        }
+        
+        // Check against common passwords
+        $commonPasswords = [
+            'password', '12345678', '123456789', '1234567890', 'qwerty', 'abc123',
+            'password123', 'admin123', 'letmein', 'welcome', 'monkey', '1234567',
+            'sunshine', 'princess', 'qwerty123', 'football', 'iloveyou', '123123'
+        ];
+        
+        if (in_array(strtolower($password), $commonPasswords)) {
+            $errors[] = 'A senha é muito comum. Por favor, escolha uma senha mais segura.';
+        }
+        
+        // Check if password contains email (if provided)
+        if ($email) {
+            $emailParts = explode('@', $email);
+            $emailLocal = strtolower($emailParts[0] ?? '');
+            if (!empty($emailLocal) && strlen($emailLocal) >= 3 && stripos($password, $emailLocal) !== false) {
+                $errors[] = 'A senha não deve conter partes do seu email.';
+            }
+        }
+        
+        // Check if password contains name (if provided)
+        if ($name) {
+            $nameParts = explode(' ', strtolower($name));
+            foreach ($nameParts as $part) {
+                if (strlen($part) >= 3 && stripos($password, $part) !== false) {
+                    $errors[] = 'A senha não deve conter partes do seu nome.';
+                    break;
+                }
+            }
+        }
+        
+        // Check for repeated characters (e.g., "aaaa" or "1111")
+        if (preg_match('/(.)\1{3,}/', $password)) {
+            $errors[] = 'A senha não deve conter caracteres repetidos.';
+        }
+        
+        // Check for sequential characters (e.g., "1234" or "abcd")
+        if (preg_match('/(012|123|234|345|456|567|678|789|abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)/i', $password)) {
+            $errors[] = 'A senha não deve conter sequências simples.';
+        }
+        
+        return [
+            'valid' => empty($errors),
+            'errors' => $errors
+        ];
     }
 
     /**

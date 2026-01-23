@@ -122,10 +122,27 @@ class LicenseService
 
     /**
      * Recalculate and update license count for subscription
+     * For Base plan (condominio), applies minimum to used_licenses.
+     * For Pro/Enterprise, stores actual count (minimum applied separately for pricing).
      */
     public function recalculateAndUpdate(int $subscriptionId): int
     {
         $count = $this->countActiveLicenses($subscriptionId);
+        
+        // For Base plan, apply minimum to used_licenses
+        $subscription = $this->subscriptionModel->findById($subscriptionId);
+        if ($subscription) {
+            $plan = $this->planModel->findById($subscription['plan_id']);
+            if ($plan && ($plan['plan_type'] ?? null) === 'condominio') {
+                $licenseMin = (int)($plan['license_min'] ?? 0);
+                $chargeMinimum = $subscription['charge_minimum'] ?? true;
+                
+                if ($chargeMinimum && $count < $licenseMin) {
+                    $count = $licenseMin;
+                }
+            }
+        }
+        
         $this->subscriptionModel->updateUsedLicenses($subscriptionId, $count);
         return $count;
     }

@@ -23,17 +23,21 @@ class SubscriptionCondominium extends Model
             throw new \Exception("Condomínio já está associado a esta subscrição.");
         }
 
+        // Detect SQLite for compatibility
+        $isSQLite = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'sqlite';
+        $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
+
         // If there's a detached record, reactivate it
         $detached = $this->getBySubscriptionAndCondominium($subscriptionId, $condominiumId, 'detached');
         if ($detached) {
             $stmt = $this->db->prepare("
                 UPDATE subscription_condominiums 
                 SET status = 'active', 
-                    attached_at = NOW(),
+                    attached_at = {$timestampFunc},
                     detached_at = NULL,
                     detached_by = NULL,
                     notes = NULL,
-                    updated_at = NOW()
+                    updated_at = {$timestampFunc}
                 WHERE id = :id
             ");
             $stmt->execute([':id' => $detached['id']]);
@@ -46,7 +50,7 @@ class SubscriptionCondominium extends Model
                 subscription_id, condominium_id, status, attached_at
             )
             VALUES (
-                :subscription_id, :condominium_id, 'active', NOW()
+                :subscription_id, :condominium_id, 'active', {$timestampFunc}
             )
         ");
 
@@ -67,13 +71,17 @@ class SubscriptionCondominium extends Model
             return false;
         }
 
+        // Detect SQLite for compatibility
+        $isSQLite = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'sqlite';
+        $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
+
         $stmt = $this->db->prepare("
             UPDATE subscription_condominiums 
             SET status = 'detached',
-                detached_at = NOW(),
+                detached_at = {$timestampFunc},
                 detached_by = :detached_by,
                 notes = :notes,
-                updated_at = NOW()
+                updated_at = {$timestampFunc}
             WHERE subscription_id = :subscription_id 
             AND condominium_id = :condominium_id
             AND status = 'active'

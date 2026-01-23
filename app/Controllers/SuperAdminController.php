@@ -395,12 +395,25 @@ class SuperAdminController extends Controller
         global $db;
 
         // Get filter and search parameters
-        $search = trim($_GET['search'] ?? '');
-        $statusFilter = $_GET['status'] ?? '';
-        $methodFilter = $_GET['method'] ?? '';
-        $typeFilter = $_GET['type'] ?? '';
-        $sortBy = $_GET['sort'] ?? 'created_at';
-        $sortOrder = strtoupper($_GET['order'] ?? 'DESC');
+        $search = Security::sanitize(trim($_GET['search'] ?? ''));
+        // Validate status against allowed values
+        $allowedStatuses = ['pending', 'completed', 'failed', 'cancelled', 'refunded'];
+        $statusInput = Security::sanitize($_GET['status'] ?? '');
+        $statusFilter = in_array($statusInput, $allowedStatuses) ? $statusInput : '';
+        // Validate method against allowed values
+        $allowedMethods = ['card', 'mbway', 'bank_transfer', 'paypal'];
+        $methodInput = Security::sanitize($_GET['method'] ?? '');
+        $methodFilter = in_array($methodInput, $allowedMethods) ? $methodInput : '';
+        // Validate type against allowed values
+        $allowedTypes = ['subscription', 'one_time', 'trial'];
+        $typeInput = Security::sanitize($_GET['type'] ?? '');
+        $typeFilter = in_array($typeInput, $allowedTypes) ? $typeInput : '';
+        // Validate sort column
+        $allowedSortColumns = ['created_at', 'amount', 'status', 'method'];
+        $sortInput = Security::sanitize($_GET['sort'] ?? 'created_at');
+        $sortBy = in_array($sortInput, $allowedSortColumns) ? $sortInput : 'created_at';
+        $sortOrderInput = strtoupper(Security::sanitize($_GET['order'] ?? 'DESC'));
+        $sortOrder = in_array($sortOrderInput, ['ASC', 'DESC']) ? $sortOrderInput : 'DESC';
         $page = max(1, (int)($_GET['page'] ?? 1));
         $perPage = 20;
         $offset = ($page - 1) * $perPage;
@@ -1519,22 +1532,32 @@ class SuperAdminController extends Controller
 
         global $db;
 
-        // Get filter parameters
-        $auditTypeFilter = $_GET['audit_type'] ?? 'all'; // 'all', 'general', 'payments', 'financial', 'subscriptions', 'documents'
-        $actionFilter = $_GET['action'] ?? '';
-        $modelFilter = $_GET['model'] ?? '';
+        // Get filter parameters - sanitize and validate all inputs
+        // Validate audit type against allowed values
+        $allowedAuditTypes = ['all', 'general', 'payments', 'financial', 'subscriptions', 'documents'];
+        $auditTypeInput = Security::sanitize($_GET['audit_type'] ?? 'all');
+        $auditTypeFilter = in_array($auditTypeInput, $allowedAuditTypes) ? $auditTypeInput : 'all';
+        $actionFilter = Security::sanitize($_GET['action'] ?? '');
+        $modelFilter = Security::sanitize($_GET['model'] ?? '');
         $userIdFilter = isset($_GET['user_id']) && $_GET['user_id'] !== '' ? (int)$_GET['user_id'] : null;
 
         // Default to today if no date filters provided
         $hasDateFilter = isset($_GET['date_from']) || isset($_GET['date_to']);
-        $dateFrom = $_GET['date_from'] ?? ($hasDateFilter ? '' : date('Y-m-d'));
-        $dateTo = $_GET['date_to'] ?? ($hasDateFilter ? '' : date('Y-m-d'));
+        $dateFromInput = Security::sanitize($_GET['date_from'] ?? '');
+        $dateToInput = Security::sanitize($_GET['date_to'] ?? '');
+        // Validate date format (YYYY-MM-DD)
+        $dateFrom = ($hasDateFilter && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFromInput)) ? $dateFromInput : ($hasDateFilter ? '' : date('Y-m-d'));
+        $dateTo = ($hasDateFilter && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateToInput)) ? $dateToInput : ($hasDateFilter ? '' : date('Y-m-d'));
 
-        $search = $_GET['search'] ?? '';
+        $search = Security::sanitize($_GET['search'] ?? '');
         $page = isset($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
-        $perPage = isset($_GET['per_page']) && $_GET['per_page'] > 0 ? (int)$_GET['per_page'] : 50;
-        $sortBy = $_GET['sort_by'] ?? 'created_at';
-        $sortOrder = isset($_GET['sort_order']) && strtoupper($_GET['sort_order']) === 'ASC' ? 'ASC' : 'DESC';
+        $perPage = isset($_GET['per_page']) && $_GET['per_page'] > 0 ? min((int)$_GET['per_page'], 100) : 50; // Limit per_page to 100
+        // Validate sort column
+        $allowedSortColumns = ['created_at', 'action', 'model', 'user_id'];
+        $sortInput = Security::sanitize($_GET['sort_by'] ?? 'created_at');
+        $sortBy = in_array($sortInput, $allowedSortColumns) ? $sortInput : 'created_at';
+        $sortOrderInput = isset($_GET['sort_order']) && strtoupper(Security::sanitize($_GET['sort_order'])) === 'ASC' ? 'ASC' : 'DESC';
+        $sortOrder = $sortOrderInput;
 
         // Build where conditions
         $whereConditions = [];
@@ -1908,8 +1931,8 @@ class SuperAdminController extends Controller
 
         global $db;
 
-        $query = $_GET['q'] ?? '';
-        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 20;
+        $query = Security::sanitize($_GET['q'] ?? '');
+        $limit = isset($_GET['limit']) ? min((int)$_GET['limit'], 100) : 20; // Limit to max 100 results
 
         if (empty($query) || strlen($query) < 2) {
             header('Content-Type: application/json');
@@ -2456,13 +2479,16 @@ class SuperAdminController extends Controller
 
         $logService = new LogService();
 
-        // Get filter parameters
+        // Get filter parameters - sanitize all inputs
         $page = isset($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
         $perPage = isset($_GET['per_page']) && $_GET['per_page'] > 0 ? min((int)$_GET['per_page'], 500) : 50;
-        $search = $_GET['search'] ?? '';
-        $dateFrom = $_GET['date_from'] ?? '';
-        $dateTo = $_GET['date_to'] ?? '';
-        $level = $_GET['level'] ?? '';
+        $search = Security::sanitize($_GET['search'] ?? '');
+        $dateFrom = Security::sanitize($_GET['date_from'] ?? '');
+        $dateTo = Security::sanitize($_GET['date_to'] ?? '');
+        // Validate level against allowed values
+        $allowedLevels = ['ERROR', 'WARNING', 'NOTICE', 'INFO', 'DEBUG'];
+        $levelInput = Security::sanitize($_GET['level'] ?? '');
+        $level = in_array($levelInput, $allowedLevels) ? $levelInput : '';
         $direction = isset($_GET['direction']) && $_GET['direction'] === 'asc' ? 'asc' : 'desc';
 
         $filters = [

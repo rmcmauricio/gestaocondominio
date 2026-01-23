@@ -145,7 +145,11 @@ class Condominium extends Model
             return false;
         }
 
-        $sql = "UPDATE condominiums SET " . implode(', ', $fields) . ", updated_at = NOW() WHERE id = :id";
+        // Detect SQLite for compatibility
+        $isSQLite = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'sqlite';
+        $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
+
+        $sql = "UPDATE condominiums SET " . implode(', ', $fields) . ", updated_at = {$timestampFunc} WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
         return $stmt->execute($params);
@@ -252,12 +256,16 @@ class Condominium extends Model
             return false;
         }
 
+        // Detect SQLite for compatibility
+        $isSQLite = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'sqlite';
+        $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
+
         $stmt = $this->db->prepare("
             UPDATE condominiums 
             SET subscription_status = 'locked',
-                locked_at = NOW(),
+                locked_at = {$timestampFunc},
                 locked_reason = :reason,
-                updated_at = NOW()
+                updated_at = {$timestampFunc}
             WHERE id = :id
         ");
 
@@ -276,12 +284,16 @@ class Condominium extends Model
             return false;
         }
 
+        // Detect SQLite for compatibility
+        $isSQLite = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'sqlite';
+        $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
+
         $stmt = $this->db->prepare("
             UPDATE condominiums 
             SET subscription_status = 'active',
                 locked_at = NULL,
                 locked_reason = NULL,
-                updated_at = NOW()
+                updated_at = {$timestampFunc}
             WHERE id = :id
         ");
 

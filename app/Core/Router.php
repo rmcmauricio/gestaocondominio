@@ -132,6 +132,9 @@ class Router extends Controller
                     return;
                 }
 
+                // Apply security headers
+                \App\Middleware\SecurityHeadersMiddleware::apply();
+                
                 // Check subscription middleware before calling controller
                 \App\Middleware\SubscriptionMiddleware::handle();
 
@@ -140,6 +143,9 @@ class Router extends Controller
             }
         }
 
+         // Apply security headers even for 404 errors
+         \App\Middleware\SecurityHeadersMiddleware::apply();
+         
          $this->renderError("Página não encontrada", 404);
 
     }

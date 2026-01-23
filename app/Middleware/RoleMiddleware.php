@@ -304,6 +304,72 @@ class RoleMiddleware
     }
 
     /**
+     * Verify that a resource belongs to a condominium
+     * Centralized helper to prevent authorization bypass
+     * 
+     * @param string $table Table name
+     * @param int $resourceId Resource ID
+     * @param int $condominiumId Expected condominium ID
+     * @return bool True if resource belongs to condominium
+     */
+    public static function verifyResourceBelongsToCondominium(string $table, int $resourceId, int $condominiumId): bool
+    {
+        global $db;
+        if (!$db) {
+            return false;
+        }
+
+        // Whitelist of allowed tables with condominium_id column
+        $allowedTables = [
+            'occurrences',
+            'messages',
+            'documents',
+            'fractions',
+            'spaces',
+            'reservations',
+            'votes',
+            'standalone_votes',
+            'financial_transactions',
+            'receipts'
+        ];
+
+        if (!in_array($table, $allowedTables)) {
+            return false;
+        }
+
+        try {
+            $stmt = $db->prepare("SELECT condominium_id FROM `{$table}` WHERE id = :id LIMIT 1");
+            $stmt->execute([':id' => $resourceId]);
+            $result = $stmt->fetch();
+            
+            return $result && (int)$result['condominium_id'] === $condominiumId;
+        } catch (\Exception $e) {
+            error_log("Error verifying resource ownership: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Require that a resource belongs to a condominium
+     * Throws exception or redirects if verification fails
+     * 
+     * @param string $table Table name
+     * @param int $resourceId Resource ID
+     * @param int $condominiumId Expected condominium ID
+     * @throws \Exception If resource doesn't belong to condominium
+     */
+    public static function requireResourceBelongsToCondominium(string $table, int $resourceId, int $condominiumId): void
+    {
+        if (!self::verifyResourceBelongsToCondominium($table, $resourceId, $condominiumId)) {
+            // Log unauthorized access attempt
+            $securityLogger = new \App\Services\SecurityLogger();
+            $securityLogger->logUnauthorizedAccess("{$table}:{$resourceId}", 'resource_access');
+            
+            throw new \Exception("Recurso não encontrado ou sem permissão de acesso.");
+        }
+    }
+
+    /**
      * Check if user has admin role in specific condominium
      */
     public static function isAdminInCondominium(int $userId, int $condominiumId): bool

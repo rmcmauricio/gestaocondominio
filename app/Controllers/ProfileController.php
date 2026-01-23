@@ -6,6 +6,8 @@ use App\Core\Controller;
 use App\Core\Security;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\DemoProtectionMiddleware;
+use App\Middleware\RateLimitMiddleware;
+use App\Services\SecurityLogger;
 use App\Models\User;
 use App\Models\UserEmailPreference;
 
@@ -197,8 +199,21 @@ class ProfileController extends Controller
             exit;
         }
 
+        // Check rate limit for password change
+        try {
+            RateLimitMiddleware::require('password_change');
+        } catch (\Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+            header('Location: ' . BASE_URL . 'profile');
+            exit;
+        }
+
         // Verify current password
         if (!Security::verifyPassword($currentPassword, $user['password'])) {
+            RateLimitMiddleware::recordAttempt('password_change');
+            // Log failed password change attempt
+            $securityLogger = new SecurityLogger();
+            $securityLogger->logSuspiciousActivity('failed_password_change', ['user_id' => $userId]);
             $_SESSION['error'] = 'Palavra-passe atual incorreta.';
             header('Location: ' . BASE_URL . 'profile');
             exit;
@@ -211,33 +226,18 @@ class ProfileController extends Controller
             exit;
         }
 
-        // Validate new password strength
-        if (strlen($newPassword) < 8) {
-            $_SESSION['error'] = 'A nova palavra-passe deve ter pelo menos 8 caracteres.';
-            header('Location: ' . BASE_URL . 'profile');
-            exit;
-        }
-
-        if (!preg_match('/[A-Z]/', $newPassword)) {
-            $_SESSION['error'] = 'A nova palavra-passe deve conter pelo menos uma letra maiúscula.';
-            header('Location: ' . BASE_URL . 'profile');
-            exit;
-        }
-
-        if (!preg_match('/[a-z]/', $newPassword)) {
-            $_SESSION['error'] = 'A nova palavra-passe deve conter pelo menos uma letra minúscula.';
-            header('Location: ' . BASE_URL . 'profile');
-            exit;
-        }
-
-        if (!preg_match('/[0-9]/', $newPassword)) {
-            $_SESSION['error'] = 'A nova palavra-passe deve conter pelo menos um número.';
+        // Validate new password strength (comprehensive validation)
+        $passwordValidation = Security::validatePasswordStrength($newPassword, $user['email'] ?? null, $user['name'] ?? null);
+        if (!$passwordValidation['valid']) {
+            RateLimitMiddleware::recordAttempt('password_change');
+            $_SESSION['error'] = implode(' ', $passwordValidation['errors']);
             header('Location: ' . BASE_URL . 'profile');
             exit;
         }
 
         // Check if passwords match
         if ($newPassword !== $confirmPassword) {
+            RateLimitMiddleware::recordAttempt('password_change');
             $_SESSION['error'] = 'As palavras-passe não coincidem.';
             header('Location: ' . BASE_URL . 'profile');
             exit;
@@ -245,8 +245,16 @@ class ProfileController extends Controller
 
         // Update password
         if ($this->userModel->update($userId, ['password' => $newPassword])) {
+            // Reset rate limit on success
+            RateLimitMiddleware::reset('password_change');
+            
+            // Log password change
+            $securityLogger = new SecurityLogger();
+            $securityLogger->logAccountModification('password_change', $userId);
+            
             $_SESSION['success'] = 'Palavra-passe alterada com sucesso!';
         } else {
+            RateLimitMiddleware::recordAttempt('password_change');
             $_SESSION['error'] = 'Erro ao alterar palavra-passe. Tente novamente.';
         }
 

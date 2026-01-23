@@ -184,9 +184,18 @@ class OccurrenceController extends Controller
 
         $userId = AuthMiddleware::userId();
 
-        // Handle file uploads
+        // Handle file uploads with rate limiting
         $attachments = [];
         if (isset($_FILES['attachments']) && is_array($_FILES['attachments']['name'])) {
+            // Check rate limit for file uploads
+            try {
+                \App\Middleware\RateLimitMiddleware::require('file_upload');
+            } catch (\Exception $e) {
+                $_SESSION['error'] = $e->getMessage();
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/occurrences/create');
+                exit;
+            }
+            
             foreach ($_FILES['attachments']['name'] as $key => $name) {
                 if ($_FILES['attachments']['error'][$key] === UPLOAD_ERR_OK) {
                     try {
@@ -199,7 +208,9 @@ class OccurrenceController extends Controller
                         ];
                         $fileData = $this->fileStorageService->upload($file, $condominiumId, 'occurrences', 'attachments');
                         $attachments[] = $fileData['file_path'];
+                        \App\Middleware\RateLimitMiddleware::recordAttempt('file_upload');
                     } catch (\Exception $e) {
+                        \App\Middleware\RateLimitMiddleware::recordAttempt('file_upload');
                         error_log("File upload error: " . $e->getMessage());
                     }
                 }
@@ -209,10 +220,8 @@ class OccurrenceController extends Controller
         try {
             // Get HTML description content from TinyMCE
             $descriptionContent = $_POST['description'] ?? '';
-            // Basic HTML sanitization - allow common formatting tags
-            $allowedTags = '<p><br><br/><strong><b><em><i><u><ul><ol><li><h1><h2><h3><h4><h5><h6><a><img><blockquote><code><pre><div><span>';
-            $descriptionContent = strip_tags($descriptionContent, $allowedTags);
-            // Don't escape HTML - we want to store it as-is for rendering
+            // Sanitize HTML content - allows safe tags but removes scripts and dangerous attributes
+            $descriptionContent = Security::sanitizeHtml($descriptionContent);
             
             $occurrenceId = $this->occurrenceModel->create([
                 'condominium_id' => $condominiumId,
@@ -247,8 +256,18 @@ class OccurrenceController extends Controller
 
         $occurrence = $this->occurrenceModel->findById($id);
         
-        if (!$occurrence || $occurrence['condominium_id'] != $condominiumId) {
+        // Security: Verify resource belongs to condominium
+        if (!$occurrence) {
             $_SESSION['error'] = 'Ocorrência não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/occurrences');
+            exit;
+        }
+        
+        // Verify ownership using centralized helper
+        try {
+            RoleMiddleware::requireResourceBelongsToCondominium('occurrences', $id, $condominiumId);
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Ocorrência não encontrada ou sem permissão de acesso.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/occurrences');
             exit;
         }
@@ -548,32 +567,34 @@ class OccurrenceController extends Controller
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
 
-        header('Content-Type: application/json');
-
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(400);
-            echo json_encode(['error' => 'Método não permitido']);
-            exit;
+            $this->jsonError('Método não permitido', 400, 'INVALID_METHOD');
         }
 
         if (empty($_FILES['file'])) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Nenhum ficheiro enviado']);
-            exit;
+            $this->jsonError('Nenhum ficheiro enviado', 400, 'NO_FILE');
+        }
+
+        // Check rate limit for file uploads
+        try {
+            \App\Middleware\RateLimitMiddleware::require('file_upload');
+        } catch (\Exception $e) {
+            $this->jsonError($e, 429, 'RATE_LIMIT_EXCEEDED');
         }
 
         try {
             $uploadResult = $this->fileStorageService->upload($_FILES['file'], $condominiumId, 'occurrences', 'inline', 2097152);
             
+            // Record successful upload
+            \App\Middleware\RateLimitMiddleware::recordAttempt('file_upload');
+            
             // Return URL for TinyMCE
             $fileUrl = $this->fileStorageService->getFileUrl($uploadResult['file_path']);
             
-            echo json_encode([
-                'location' => $fileUrl
-            ]);
+            $this->jsonSuccess(['location' => $fileUrl]);
         } catch (\Exception $e) {
-            http_response_code(400);
-            echo json_encode(['error' => $e->getMessage()]);
+            \App\Middleware\RateLimitMiddleware::recordAttempt('file_upload');
+            $this->jsonError($e, 400, 'UPLOAD_ERROR');
         }
         exit;
     }

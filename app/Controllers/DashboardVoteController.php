@@ -31,49 +31,35 @@ class DashboardVoteController extends Controller
         RoleMiddleware::requireCondominiumAccess($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(405);
-            echo json_encode(['error' => 'Método não permitido']);
-            exit;
+            $this->jsonError('Método não permitido', 405, 'INVALID_METHOD');
         }
-
-        header('Content-Type: application/json');
 
         // Verify CSRF token
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!\App\Core\Security::verifyCSRFToken($csrfToken)) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Token de segurança inválido']);
-            exit;
+            $this->jsonError('Token de segurança inválido', 403, 'INVALID_CSRF');
         }
 
         $vote = $this->voteModel->findById($voteId);
         if (!$vote || $vote['condominium_id'] != $condominiumId) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Votação não encontrada']);
-            exit;
+            $this->jsonError('Votação não encontrada', 404, 'VOTE_NOT_FOUND');
         }
 
         if ($vote['status'] !== 'open') {
-            http_response_code(400);
-            echo json_encode(['error' => 'Esta votação não está aberta para votação']);
-            exit;
+            $this->jsonError('Esta votação não está aberta para votação', 400, 'VOTE_NOT_OPEN');
         }
 
         $userId = AuthMiddleware::userId();
         $voteOptionId = (int)($_POST['vote_option_id'] ?? 0);
 
         if ($voteOptionId <= 0) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Opção de voto inválida']);
-            exit;
+            $this->jsonError('Opção de voto inválida', 400, 'INVALID_VOTE_OPTION');
         }
 
         // Verify option belongs to condominium
         $option = $this->optionModel->findById($voteOptionId);
         if (!$option || $option['condominium_id'] != $condominiumId || !$option['is_active']) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Opção de voto inválida']);
-            exit;
+            $this->jsonError('Opção de voto inválida', 400, 'INVALID_VOTE_OPTION');
         }
 
         // Get user's fraction for this condominium
@@ -88,9 +74,7 @@ class DashboardVoteController extends Controller
         }
 
         if (!$userFraction) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Não tem uma fração associada neste condomínio']);
-            exit;
+            $this->jsonError('Não tem uma fração associada neste condomínio', 403, 'NO_FRACTION');
         }
 
         try {
@@ -106,15 +90,12 @@ class DashboardVoteController extends Controller
             $results = $this->voteModel->getResults($voteId);
             $userVote = $this->responseModel->getByFraction($voteId, $userFraction);
 
-            echo json_encode([
-                'success' => true,
-                'message' => 'Voto registado com sucesso!',
+            $this->jsonSuccess([
                 'results' => $results,
                 'user_vote' => $userVote
-            ]);
+            ], 'Voto registado com sucesso!');
         } catch (\Exception $e) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Erro ao registar voto: ' . $e->getMessage()]);
+            $this->jsonError($e, 500, 'VOTE_ERROR');
         }
     }
 }

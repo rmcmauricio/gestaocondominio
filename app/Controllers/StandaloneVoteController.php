@@ -489,9 +489,7 @@ class StandaloneVoteController extends Controller
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             if ($this->isAjaxRequest()) {
-                http_response_code(405);
-                echo json_encode(['error' => 'Método não permitido']);
-                exit;
+                $this->jsonError('Método não permitido', 405, 'INVALID_METHOD');
             }
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
             exit;
@@ -500,9 +498,7 @@ class StandaloneVoteController extends Controller
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
             if ($this->isAjaxRequest()) {
-                http_response_code(403);
-                echo json_encode(['error' => 'Token de segurança inválido']);
-                exit;
+                $this->jsonError('Token de segurança inválido', 403, 'INVALID_CSRF');
             }
             $_SESSION['error'] = 'Token de segurança inválido.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -512,9 +508,7 @@ class StandaloneVoteController extends Controller
         $vote = $this->voteModel->findById($voteId);
         if (!$vote || $vote['condominium_id'] != $condominiumId) {
             if ($this->isAjaxRequest()) {
-                http_response_code(404);
-                echo json_encode(['error' => 'Votação não encontrada']);
-                exit;
+                $this->jsonError('Votação não encontrada', 404, 'VOTE_NOT_FOUND');
             }
             $_SESSION['error'] = 'Votação não encontrada.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes');
@@ -523,9 +517,7 @@ class StandaloneVoteController extends Controller
 
         if ($vote['status'] !== 'open') {
             if ($this->isAjaxRequest()) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Esta votação não está aberta para votação']);
-                exit;
+                $this->jsonError('Esta votação não está aberta para votação', 400, 'VOTE_NOT_OPEN');
             }
             $_SESSION['error'] = 'Esta votação não está aberta para votação.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -537,9 +529,7 @@ class StandaloneVoteController extends Controller
 
         if ($voteOptionId <= 0) {
             if ($this->isAjaxRequest()) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Opção de voto inválida']);
-                exit;
+                $this->jsonError('Opção de voto inválida', 400, 'INVALID_VOTE_OPTION');
             }
             $_SESSION['error'] = 'Opção de voto inválida.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -550,9 +540,7 @@ class StandaloneVoteController extends Controller
         $option = $this->optionModel->findById($voteOptionId);
         if (!$option || $option['condominium_id'] != $condominiumId || !$option['is_active']) {
             if ($this->isAjaxRequest()) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Opção de voto inválida']);
-                exit;
+                $this->jsonError('Opção de voto inválida', 400, 'INVALID_VOTE_OPTION');
             }
             $_SESSION['error'] = 'Opção de voto inválida.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -563,9 +551,7 @@ class StandaloneVoteController extends Controller
         $allowedOptionIds = $vote['allowed_options'] ?? [];
         if (!empty($allowedOptionIds) && !in_array($voteOptionId, $allowedOptionIds)) {
             if ($this->isAjaxRequest()) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Esta opção não está permitida nesta votação']);
-                exit;
+                $this->jsonError('Esta opção não está permitida nesta votação', 400, 'OPTION_NOT_ALLOWED');
             }
             $_SESSION['error'] = 'Esta opção não está permitida nesta votação.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -585,9 +571,7 @@ class StandaloneVoteController extends Controller
 
         if (!$userFraction) {
             if ($this->isAjaxRequest()) {
-                http_response_code(403);
-                echo json_encode(['error' => 'Não tem uma fração associada neste condomínio']);
-                exit;
+                $this->jsonError('Não tem uma fração associada neste condomínio', 403, 'NO_FRACTION');
             }
             $_SESSION['error'] = 'Não tem uma fração associada neste condomínio.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -628,11 +612,9 @@ class StandaloneVoteController extends Controller
             $_SESSION['success'] = 'Voto registado com sucesso!';
         } catch (\Exception $e) {
             if ($this->isAjaxRequest()) {
-                http_response_code(500);
-                echo json_encode(['error' => 'Erro ao registar voto: ' . $e->getMessage()]);
-                exit;
+                $this->jsonError($e, 500, 'VOTE_ERROR');
             }
-            $_SESSION['error'] = 'Erro ao registar voto: ' . $e->getMessage();
+            $_SESSION['error'] = 'Erro ao registar voto. Por favor, tente novamente.';
         }
 
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);

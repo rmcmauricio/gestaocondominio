@@ -803,10 +803,9 @@ class CondominiumController extends Controller
 
         try {
             $this->condominiumModel->update($id, $updateData);
-            echo json_encode(['success' => true, 'message' => 'Template atualizado com sucesso!']);
+            $this->jsonSuccess([], 'Template atualizado com sucesso!');
         } catch (\Exception $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'message' => 'Erro ao atualizar template: ' . $e->getMessage()]);
+            $this->jsonError($e, 500, 'TEMPLATE_UPDATE_ERROR');
         }
         exit;
     }

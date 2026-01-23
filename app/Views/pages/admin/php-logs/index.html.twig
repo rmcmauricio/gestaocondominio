@@ -166,8 +166,9 @@
                             <td>
                                 <div class="log-message" style="font-family: monospace; font-size: 0.9em;">
                                     {% if filters.search %}
-                                        {% set highlighted = log.message|trim|replace({(filters.search): '<mark>' ~ filters.search ~ '</mark>'}) %}
-                                        {{ highlighted|raw }}
+                                        {% set searchEscaped = filters.search|escape %}
+                                        {% set highlighted = log.message|trim|replace({(filters.search): '<mark>' ~ searchEscaped ~ '</mark>'}) %}
+                                        {{ highlighted|sanitize_html|raw }}
                                     {% else %}
                                         {{ log.message|trim|escape }}
                                     {% endif %}

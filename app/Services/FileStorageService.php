@@ -120,8 +120,41 @@ class FileStorageService
             throw new \Exception("Tipo de ficheiro não permitido");
         }
 
-        // Generate unique filename
-        $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+        // Sanitize filename - remove dangerous characters and path traversal attempts
+        $originalName = basename($file['name']); // Remove any path components
+        $originalName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName); // Only allow safe characters
+        $originalName = preg_replace('/\.{2,}/', '.', $originalName); // Remove multiple dots
+        $originalName = trim($originalName, '.'); // Remove leading/trailing dots
+        
+        // Get extension from sanitized name
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        
+        // Validate extension against MIME type to prevent extension spoofing
+        $allowedExtensions = [
+            'image/jpeg' => ['jpg', 'jpeg'],
+            'image/png' => ['png'],
+            'image/gif' => ['gif'],
+            'image/webp' => ['webp'],
+            'application/pdf' => ['pdf'],
+            'application/msword' => ['doc'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => ['docx'],
+            'application/vnd.ms-excel' => ['xls'],
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => ['xlsx'],
+            'text/plain' => ['txt']
+        ];
+        
+        if (isset($allowedExtensions[$mimeType])) {
+            if (!in_array($extension, $allowedExtensions[$mimeType])) {
+                throw new \Exception("Extensão do ficheiro não corresponde ao tipo MIME");
+            }
+        }
+        
+        // Verify file content matches MIME type (basic check)
+        if (!$this->verifyFileContent($file['tmp_name'], $mimeType, $extension)) {
+            throw new \Exception("Conteúdo do ficheiro não corresponde ao tipo declarado");
+        }
+        
+        // Generate unique filename with sanitized extension
         $filename = uniqid('file_', true) . '.' . $extension;
         
         // Create folder structure: condominiums/{condominium_id}/{type}/{subfolder}/{year}/{month}/
@@ -209,8 +242,27 @@ class FileStorageService
             throw new \Exception("Apenas imagens são permitidas (JPEG, PNG, GIF, WebP)");
         }
 
+        // Sanitize filename - remove dangerous characters
+        $originalName = basename($file['name']);
+        $originalName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
+        $originalName = preg_replace('/\.{2,}/', '.', $originalName);
+        $originalName = trim($originalName, '.');
+        
+        // Get extension from sanitized name
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        
+        // Validate extension against MIME type
+        $allowedImageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        if (!in_array($extension, $allowedImageExtensions)) {
+            throw new \Exception("Extensão de ficheiro inválida para logo");
+        }
+        
+        // Verify file content matches image type
+        if (!$this->verifyFileContent($file['tmp_name'], $mimeType, $extension)) {
+            throw new \Exception("Conteúdo do ficheiro não corresponde ao tipo de imagem");
+        }
+        
         // Generate filename: logo.{ext}
-        $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
         $filename = 'logo.' . $extension;
         
         // Create folder structure: condominiums/{condominium_id}/logo/
@@ -243,6 +295,62 @@ class FileStorageService
             'file_size' => $file['size'],
             'mime_type' => $mimeType
         ];
+    }
+
+    /**
+     * Verify file content matches declared MIME type
+     * 
+     * @param string $filePath Path to uploaded file
+     * @param string $mimeType Detected MIME type
+     * @param string $extension File extension
+     * @return bool True if content matches type
+     */
+    protected function verifyFileContent(string $filePath, string $mimeType, string $extension): bool
+    {
+        if (!file_exists($filePath) || !is_readable($filePath)) {
+            return false;
+        }
+        
+        // Read first bytes to verify file signature
+        $handle = fopen($filePath, 'rb');
+        if (!$handle) {
+            return false;
+        }
+        
+        $bytes = fread($handle, 12); // Read first 12 bytes
+        fclose($handle);
+        
+        if ($bytes === false) {
+            return false;
+        }
+        
+        // Check file signatures (magic bytes)
+        $signatures = [
+            'image/jpeg' => ["\xFF\xD8\xFF"],
+            'image/png' => ["\x89\x50\x4E\x47\x0D\x0A\x1A\x0A"],
+            'image/gif' => ["\x47\x49\x46\x38\x37\x61", "\x47\x49\x46\x38\x39\x61"], // GIF87a or GIF89a
+            'image/webp' => ["\x52\x49\x46\x46"], // RIFF (WebP starts with RIFF)
+            'application/pdf' => ["\x25\x50\x44\x46"], // %PDF
+        ];
+        
+        // For images, verify signature
+        if (isset($signatures[$mimeType])) {
+            foreach ($signatures[$mimeType] as $signature) {
+                if (substr($bytes, 0, strlen($signature)) === $signature) {
+                    // Special check for WebP - must have WEBP after RIFF
+                    if ($mimeType === 'image/webp' && strpos($bytes, 'WEBP') === false) {
+                        continue;
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // For other file types, basic validation
+        // Office documents and text files are harder to verify without libraries
+        // So we rely on MIME type detection and extension validation
+        return true;
     }
 
     /**

@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Core\Model;
+use PDO;
+use PDOException;
 
 class Fraction extends Model
 {
@@ -244,12 +246,35 @@ class Fraction extends Model
             return 0;
         }
 
-        // Check if archived_at column exists
-        $checkStmt = $this->db->query("SHOW COLUMNS FROM fractions LIKE 'archived_at'");
-        $hasArchivedAt = $checkStmt->rowCount() > 0;
+        $isSQLite = $this->db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite';
         
-        $checkStmt2 = $this->db->query("SHOW COLUMNS FROM fractions LIKE 'license_consumed'");
-        $hasLicenseConsumed = $checkStmt2->rowCount() > 0;
+        // Check if archived_at column exists
+        $hasArchivedAt = false;
+        $hasLicenseConsumed = false;
+        
+        if ($isSQLite) {
+            // SQLite: Try to query the column, catch error if it doesn't exist
+            try {
+                $this->db->query("SELECT archived_at FROM fractions LIMIT 1");
+                $hasArchivedAt = true;
+            } catch (PDOException $e) {
+                $hasArchivedAt = false;
+            }
+            
+            try {
+                $this->db->query("SELECT license_consumed FROM fractions LIMIT 1");
+                $hasLicenseConsumed = true;
+            } catch (PDOException $e) {
+                $hasLicenseConsumed = false;
+            }
+        } else {
+            // MySQL: Use SHOW COLUMNS
+            $checkStmt = $this->db->query("SHOW COLUMNS FROM fractions LIKE 'archived_at'");
+            $hasArchivedAt = $checkStmt->rowCount() > 0;
+            
+            $checkStmt2 = $this->db->query("SHOW COLUMNS FROM fractions LIKE 'license_consumed'");
+            $hasLicenseConsumed = $checkStmt2->rowCount() > 0;
+        }
 
         $sql = "SELECT COUNT(*) as count 
                 FROM fractions 

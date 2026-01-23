@@ -222,11 +222,11 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const planPromotions = {{ plan_promotions|json_encode|raw }};
-    const plans = {{ plans|json_encode|raw }};
+    const planPromotions = {{ plan_promotions|json_encode }};
+    const plans = {{ plans|json_encode }};
     
     {% if business_plan and extra_condominiums_pricing %}
-    const pricingTiers = {{ extra_condominiums_pricing|json_encode|raw }};
+    const pricingTiers = {{ extra_condominiums_pricing|json_encode }};
     const businessPlanId = {{ business_plan.id }};
     
     // Create pricing lookup

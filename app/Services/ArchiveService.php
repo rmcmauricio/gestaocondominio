@@ -199,8 +199,28 @@ class ArchiveService
      */
     protected function archiveTable(string $sourceTable, string $archiveTable, string $cutoffDate, bool $dryRun = false): int
     {
-        // Get all columns from source table
-        $columnsStmt = $this->db->query("SHOW COLUMNS FROM {$sourceTable}");
+        // Whitelist of allowed table names to prevent SQL injection
+        $allowedTables = [
+            'audit_logs' => 'audit_logs_archive',
+            'audit_payments' => 'audit_payments_archive',
+            'audit_subscriptions' => 'audit_subscriptions_archive',
+            'audit_financial' => 'audit_financial_archive',
+            'audit_documents' => 'audit_documents_archive',
+        ];
+        
+        // Validate table names against whitelist
+        if (!isset($allowedTables[$sourceTable]) || $allowedTables[$sourceTable] !== $archiveTable) {
+            throw new \InvalidArgumentException("Invalid table name: {$sourceTable} or {$archiveTable}");
+        }
+        
+        // Sanitize table names - only allow alphanumeric and underscore
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $sourceTable) || !preg_match('/^[a-zA-Z0-9_]+$/', $archiveTable)) {
+            throw new \InvalidArgumentException("Invalid table name format");
+        }
+        
+        // Use prepared statement with backticks for table names (PDO doesn't support table name parameters)
+        // Since we've validated against whitelist, this is safe
+        $columnsStmt = $this->db->query("SHOW COLUMNS FROM `{$sourceTable}`");
         $columns = $columnsStmt->fetchAll();
         
         $columnNames = array_column($columns, 'Field');
@@ -208,11 +228,12 @@ class ArchiveService
         $placeholders = ':' . implode(', :', $columnNames);
 
         // Get records to archive
+        // Table names are validated against whitelist above, so safe to use
         $stmt = $this->db->prepare("
             SELECT {$columnList}
-            FROM {$sourceTable}
+            FROM `{$sourceTable}`
             WHERE created_at <= :cutoff_date
-            AND id NOT IN (SELECT id FROM {$archiveTable})
+            AND id NOT IN (SELECT id FROM `{$archiveTable}`)
             ORDER BY created_at ASC
             LIMIT 1000
         ");
@@ -236,11 +257,12 @@ class ArchiveService
             foreach ($records as $record) {
                 try {
                     // Build insert statement with all columns + archived_at
+                    // Table names are validated against whitelist above, so safe to use
                     $archiveColumns = $columnList . ', archived_at';
                     $archivePlaceholders = $placeholders . ', NOW()';
                     
                     $insertStmt = $this->db->prepare("
-                        INSERT INTO {$archiveTable} ({$archiveColumns})
+                        INSERT INTO `{$archiveTable}` ({$archiveColumns})
                         VALUES ({$archivePlaceholders})
                     ");
 
@@ -252,7 +274,8 @@ class ArchiveService
                     $insertStmt->execute($params);
 
                     // Delete from original table
-                    $deleteStmt = $this->db->prepare("DELETE FROM {$sourceTable} WHERE id = :id");
+                    // Table name is validated against whitelist above, so safe to use
+                    $deleteStmt = $this->db->prepare("DELETE FROM `{$sourceTable}` WHERE id = :id");
                     $deleteStmt->execute([':id' => $record['id']]);
 
                     $archived++;
@@ -285,31 +308,41 @@ class ArchiveService
 
         $stats = [];
 
+        // Whitelist of archive tables for safe queries
+        $archiveTables = [
+            'notifications_archive',
+            'audit_logs_archive',
+            'audit_payments_archive',
+            'audit_subscriptions_archive',
+            'audit_financial_archive',
+            'audit_documents_archive'
+        ];
+        
         // Count archived notifications
-        $stmt = $this->db->query("SELECT COUNT(*) as count FROM notifications_archive");
+        $stmt = $this->db->query("SELECT COUNT(*) as count FROM `notifications_archive`");
         $stats['notifications'] = (int)$stmt->fetch()['count'];
 
         // Count archived audit logs
-        $stmt = $this->db->query("SELECT COUNT(*) as count FROM audit_logs_archive");
+        $stmt = $this->db->query("SELECT COUNT(*) as count FROM `audit_logs_archive`");
         $stats['audit_logs'] = (int)$stmt->fetch()['count'];
 
-        $stmt = $this->db->query("SELECT COUNT(*) as count FROM audit_payments_archive");
+        $stmt = $this->db->query("SELECT COUNT(*) as count FROM `audit_payments_archive`");
         $stats['audit_payments'] = (int)$stmt->fetch()['count'];
 
-        $stmt = $this->db->query("SELECT COUNT(*) as count FROM audit_subscriptions_archive");
+        $stmt = $this->db->query("SELECT COUNT(*) as count FROM `audit_subscriptions_archive`");
         $stats['audit_subscriptions'] = (int)$stmt->fetch()['count'];
 
-        $stmt = $this->db->query("SELECT COUNT(*) as count FROM audit_financial_archive");
+        $stmt = $this->db->query("SELECT COUNT(*) as count FROM `audit_financial_archive`");
         $stats['audit_financial'] = (int)$stmt->fetch()['count'];
 
-        $stmt = $this->db->query("SELECT COUNT(*) as count FROM audit_documents_archive");
+        $stmt = $this->db->query("SELECT COUNT(*) as count FROM `audit_documents_archive`");
         $stats['audit_documents'] = (int)$stmt->fetch()['count'];
 
         // Get oldest archived date
-        $stmt = $this->db->query("SELECT MIN(archived_at) as oldest FROM notifications_archive");
+        $stmt = $this->db->query("SELECT MIN(archived_at) as oldest FROM `notifications_archive`");
         $stats['oldest_notification_archive'] = $stmt->fetch()['oldest'];
 
-        $stmt = $this->db->query("SELECT MIN(archived_at) as oldest FROM audit_logs_archive");
+        $stmt = $this->db->query("SELECT MIN(archived_at) as oldest FROM `audit_logs_archive`");
         $stats['oldest_audit_archive'] = $stmt->fetch()['oldest'];
 
         return $stats;

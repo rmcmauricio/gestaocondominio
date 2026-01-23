@@ -1677,25 +1677,20 @@ class SubscriptionController extends Controller
      */
     public function validatePromotionCode()
     {
-        header('Content-Type: application/json');
-        
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            echo json_encode(['valid' => false, 'error' => 'Método não permitido']);
-            exit;
+            $this->jsonError('Método não permitido', 405, 'INVALID_METHOD');
         }
 
         $planId = (int)($_POST['plan_id'] ?? 0);
         $code = trim($_POST['code'] ?? '');
         
         if (!$planId || !$code) {
-            echo json_encode(['valid' => false, 'error' => 'Dados inválidos']);
-            exit;
+            $this->jsonError('Dados inválidos', 400, 'INVALID_DATA');
         }
 
         $plan = $this->planModel->findById($planId);
         if (!$plan) {
-            echo json_encode(['valid' => false, 'error' => 'Plano não encontrado']);
-            exit;
+            $this->jsonError('Plano não encontrado', 404, 'PLAN_NOT_FOUND');
         }
 
         $userId = null;
@@ -1921,17 +1916,16 @@ class SubscriptionController extends Controller
         $subscription = $this->subscriptionModel->getActiveSubscription($userId);
 
         if (!$subscription) {
-            echo json_encode(['error' => 'Subscrição não encontrada']);
-            exit;
+            $this->jsonError('Subscrição não encontrada', 404, 'SUBSCRIPTION_NOT_FOUND');
         }
 
         $projectedUnits = isset($_GET['projected_units']) ? (int)$_GET['projected_units'] : null;
 
         try {
             $preview = $this->subscriptionService->getSubscriptionPricingPreview($subscription['id'], $projectedUnits);
-            echo json_encode($preview);
+            $this->jsonSuccess($preview);
         } catch (\Exception $e) {
-            echo json_encode(['error' => $e->getMessage()]);
+            $this->jsonError($e, 500, 'PRICING_PREVIEW_ERROR');
         }
         exit;
     }

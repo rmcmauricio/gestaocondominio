@@ -488,4 +488,87 @@ class Controller
         global $twig;
         echo $twig->render($templatePath, $data);
     }
+
+    /**
+     * Send secure JSON error response
+     * Prevents exposure of sensitive information in production
+     * 
+     * @param \Exception|string $error Error message or exception
+     * @param int $code HTTP status code
+     * @param string|null $errorCode Optional error code for client reference
+     */
+    protected function jsonError($error, int $code = 400, ?string $errorCode = null): void
+    {
+        http_response_code($code);
+        header('Content-Type: application/json');
+        
+        $isProduction = defined('APP_ENV') && APP_ENV === 'production';
+        
+        // In production, return generic messages; in development, include details
+        if ($isProduction) {
+            $message = 'An error occurred. Please try again later.';
+            if ($errorCode) {
+                $message .= ' Error code: ' . $errorCode;
+            }
+        } else {
+            // In development, include full error details
+            if ($error instanceof \Exception) {
+                $message = $error->getMessage();
+            } else {
+                $message = $error;
+            }
+        }
+        
+        $response = [
+            'success' => false,
+            'error' => $message,
+            'code' => $code
+        ];
+        
+        if ($errorCode) {
+            $response['error_code'] = $errorCode;
+        }
+        
+        // Log full error details regardless of environment
+        if ($error instanceof \Exception) {
+            error_log(sprintf(
+                'JSON Error [%s]: %s in %s:%d - %s',
+                $errorCode ?? 'UNKNOWN',
+                $error->getMessage(),
+                $error->getFile(),
+                $error->getLine(),
+                $error->getTraceAsString()
+            ));
+        } else {
+            error_log(sprintf('JSON Error [%s]: %s', $errorCode ?? 'UNKNOWN', $message));
+        }
+        
+        echo json_encode($response);
+        exit;
+    }
+
+    /**
+     * Send secure JSON success response
+     * 
+     * @param array $data Response data
+     * @param string|null $message Optional success message
+     * @param int $code HTTP status code
+     */
+    protected function jsonSuccess(array $data = [], ?string $message = null, int $code = 200): void
+    {
+        http_response_code($code);
+        header('Content-Type: application/json');
+        
+        $response = [
+            'success' => true,
+            'data' => $data
+        ];
+        
+        if ($message) {
+            $response['message'] = $message;
+        }
+        
+        echo json_encode($response);
+        exit;
+    }
 }

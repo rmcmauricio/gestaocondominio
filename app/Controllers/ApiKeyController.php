@@ -5,6 +5,8 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\Security;
 use App\Middleware\AuthMiddleware;
+use App\Middleware\RateLimitMiddleware;
+use App\Services\SecurityLogger;
 use App\Models\User;
 use App\Models\Subscription;
 use App\Models\Plan;
@@ -71,11 +73,21 @@ class ApiKeyController extends Controller
             exit;
         }
 
+        // Check rate limit for API key generation
+        try {
+            RateLimitMiddleware::require('api_key_generate');
+        } catch (\Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+            header('Location: ' . BASE_URL . 'api-keys');
+            exit;
+        }
+
         $userId = AuthMiddleware::userId();
         $subscription = $this->subscriptionModel->getActiveSubscription($userId);
         $plan = $subscription ? $this->planModel->findById($subscription['plan_id']) : null;
 
         if (!$plan || $plan['slug'] !== 'business') {
+            RateLimitMiddleware::recordAttempt('api_key_generate');
             $_SESSION['error'] = 'Acesso à API requer plano BUSINESS.';
             header('Location: ' . BASE_URL . 'api-keys');
             exit;
@@ -84,12 +96,18 @@ class ApiKeyController extends Controller
         try {
             $apiKey = $this->userModel->generateApiKey($userId);
             
+            // Log API key generation
+            $securityLogger = new SecurityLogger();
+            $securityLogger->logApiKeyUsage('generated', $userId);
+            
             $_SESSION['api_key_generated'] = $apiKey;
             $_SESSION['success'] = 'API Key gerada com sucesso! Guarde-a em segurança, pois não será exibida novamente.';
             header('Location: ' . BASE_URL . 'api-keys');
             exit;
         } catch (\Exception $e) {
-            $_SESSION['error'] = 'Erro ao gerar API Key: ' . $e->getMessage();
+            RateLimitMiddleware::recordAttempt('api_key_generate');
+            $_SESSION['error'] = 'Erro ao gerar API Key. Por favor, tente novamente.';
+            error_log("API Key generation error for user {$userId}: " . $e->getMessage());
             header('Location: ' . BASE_URL . 'api-keys');
             exit;
         }

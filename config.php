@@ -38,15 +38,27 @@ if (!defined('APP_ENV')) {
     define('APP_ENV', $config['APP_ENV'] ?? 'development');
 }
 
-// Configure error logging for development
-if (APP_ENV !== 'production') {
-    $logDir = __DIR__ . '/logs';
-    if (!is_dir($logDir)) {
-        @mkdir($logDir, 0755, true);
-    }
+// Configure error handling based on environment
+$logDir = __DIR__ . '/logs';
+if (!is_dir($logDir)) {
+    @mkdir($logDir, 0750, true);
+}
+
+if (APP_ENV === 'production') {
+    // Production: Hide errors from users, log everything
+    ini_set('display_errors', '0');
+    ini_set('display_startup_errors', '0');
+    ini_set('log_errors', '1');
+    ini_set('error_log', $logDir . '/php_error.log');
+    error_reporting(E_ALL); // Still log all errors
+} else {
+    // Development: Show errors but also log them
     $logFile = $logDir . '/php_error.log';
     ini_set('log_errors', '1');
     ini_set('error_log', $logFile);
+    // Display errors in development for debugging
+    ini_set('display_errors', '1');
+    ini_set('display_startup_errors', '1');
 }
 
 // Base path configuration (set in .env or default to empty)
@@ -120,6 +132,11 @@ $twig->addGlobal('VERSION', VERSION);
 
 // Breadcrumbs: needs_context to receive full Twig context
 $twig->addFunction(new \Twig\TwigFunction('get_breadcrumbs', [\App\Services\BreadcrumbService::class, 'getBreadcrumbs'], ['needs_context' => true]));
+
+// Add HTML sanitization filter for safe HTML rendering
+$twig->addFilter(new \Twig\TwigFilter('sanitize_html', function($html) {
+    return \App\Core\Security::sanitizeHtml($html);
+}, ['is_safe' => ['html']]));
 
 // Make Twig available globally
 $GLOBALS['twig'] = $twig;
