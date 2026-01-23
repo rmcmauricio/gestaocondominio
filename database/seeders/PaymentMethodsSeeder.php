@@ -31,15 +31,6 @@ class PaymentMethodsSeeder
                 ])
             ],
             [
-                'method_key' => 'sepa',
-                'enabled' => 1,
-                'config_data' => json_encode([
-                    'name' => 'Débito Direto SEPA',
-                    'icon' => 'bi bi-arrow-repeat',
-                    'description' => 'Débito automático mensal'
-                ])
-            ],
-            [
                 'method_key' => 'direct_debit',
                 'enabled' => 1,
                 'config_data' => json_encode([

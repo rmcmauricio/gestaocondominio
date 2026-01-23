@@ -50,11 +50,9 @@ class PlanPricingTierSeeder
     protected function seedCondominioTiers(int $planId): void
     {
         $tiers = [
-            ['min_licenses' => 10, 'max_licenses' => 14, 'price_per_license' => 1.00, 'sort_order' => 1],
-            ['min_licenses' => 15, 'max_licenses' => 19, 'price_per_license' => 0.95, 'sort_order' => 2],
-            ['min_licenses' => 20, 'max_licenses' => 29, 'price_per_license' => 0.90, 'sort_order' => 3],
-            ['min_licenses' => 30, 'max_licenses' => 39, 'price_per_license' => 0.85, 'sort_order' => 4],
-            ['min_licenses' => 40, 'max_licenses' => null, 'price_per_license' => 0.80, 'sort_order' => 5],
+            ['min_licenses' => 10, 'max_licenses' => 19, 'price_per_license' => 1.00, 'sort_order' => 1],
+            ['min_licenses' => 20, 'max_licenses' => 39, 'price_per_license' => 0.90, 'sort_order' => 3],
+            ['min_licenses' => 40, 'max_licenses' => null, 'price_per_license' => 0.85, 'sort_order' => 5],
         ];
 
         $this->insertTiers($planId, $tiers);
@@ -63,10 +61,9 @@ class PlanPricingTierSeeder
     protected function seedProfessionalTiers(int $planId): void
     {
         $tiers = [
-            ['min_licenses' => 50, 'max_licenses' => 99, 'price_per_license' => 0.75, 'sort_order' => 1],
-            ['min_licenses' => 100, 'max_licenses' => 199, 'price_per_license' => 0.70, 'sort_order' => 2],
-            ['min_licenses' => 200, 'max_licenses' => 499, 'price_per_license' => 0.65, 'sort_order' => 3],
-            ['min_licenses' => 500, 'max_licenses' => null, 'price_per_license' => 0.60, 'sort_order' => 4],
+            ['min_licenses' => 50, 'max_licenses' => 199, 'price_per_license' => 0.90, 'sort_order' => 1],
+            ['min_licenses' => 200, 'max_licenses' => 499, 'price_per_license' => 0.85, 'sort_order' => 3],
+            ['min_licenses' => 500, 'max_licenses' => null, 'price_per_license' => 0.75, 'sort_order' => 4],
         ];
 
         $this->insertTiers($planId, $tiers);
@@ -76,10 +73,9 @@ class PlanPricingTierSeeder
     {
         // Enterprise tiers - o mais barato a 0.60€
         $tiers = [
-            ['min_licenses' => 200, 'max_licenses' => 499, 'price_per_license' => 0.60, 'sort_order' => 1],
-            ['min_licenses' => 500, 'max_licenses' => 999, 'price_per_license' => 0.60, 'sort_order' => 2],
-            ['min_licenses' => 1000, 'max_licenses' => 1999, 'price_per_license' => 0.60, 'sort_order' => 3],
-            ['min_licenses' => 2000, 'max_licenses' => null, 'price_per_license' => 0.60, 'sort_order' => 4],
+            ['min_licenses' => 200, 'max_licenses' => 499, 'price_per_license' => 0.85, 'sort_order' => 1],
+            ['min_licenses' => 500, 'max_licenses' => 1999, 'price_per_license' => 0.75, 'sort_order' => 2],
+            ['min_licenses' => 2000, 'max_licenses' => null, 'price_per_license' => 0.65, 'sort_order' => 4],
         ];
 
         $this->insertTiers($planId, $tiers);

@@ -36,8 +36,8 @@ class DatabaseSeeder
                 'name' => 'Condomínio',
                 'slug' => 'condominio',
                 'description' => 'Plano base ideal para pequenos condomínios',
-                'price_monthly' => 10.00, // Preço base (será calculado por tier)
-                'price_yearly' => 100.00,
+                'price_monthly' => 9.99, // Preço base (será calculado por tier)
+                'price_yearly' => 99.99,
                 'plan_type' => 'condominio',
                 'license_min' => 10,
                 'license_limit' => null,
@@ -55,8 +55,8 @@ class DatabaseSeeder
                 'name' => 'Professional',
                 'slug' => 'professional',
                 'description' => 'Plano completo para gestão profissional com múltiplos condomínios',
-                'price_monthly' => 30.00, // Preço base (será calculado por tier)
-                'price_yearly' => 300.00,
+                'price_monthly' => 39.99, // Preço base (será calculado por tier)
+                'price_yearly' => 399.99,
                 'plan_type' => 'professional',
                 'license_min' => 50,
                 'license_limit' => null,
@@ -74,8 +74,8 @@ class DatabaseSeeder
                 'name' => 'Enterprise',
                 'slug' => 'enterprise',
                 'description' => 'Solução empresarial com todas as funcionalidades e suporte a overage',
-                'price_monthly' => 70.00, // Preço base (será calculado por tier)
-                'price_yearly' => 700.00,
+                'price_monthly' => 169.99, // Preço base (será calculado por tier)
+                'price_yearly' => 1699.99,
                 'plan_type' => 'enterprise',
                 'license_min' => 200,
                 'license_limit' => null,
@@ -259,11 +259,11 @@ class DatabaseSeeder
         ];
 
         $checkStmt = $this->db->prepare("
-            SELECT id FROM plan_extra_condominiums_pricing 
-            WHERE plan_id = :plan_id AND min_condominios = :min_condominios 
+            SELECT id FROM plan_extra_condominiums_pricing
+            WHERE plan_id = :plan_id AND min_condominios = :min_condominios
             LIMIT 1
         ");
-        
+
         $insertStmt = $this->db->prepare("
             INSERT INTO plan_extra_condominiums_pricing (
                 plan_id, min_condominios, max_condominios, price_per_condominium, is_active, sort_order
@@ -272,7 +272,7 @@ class DatabaseSeeder
                 :plan_id, :min_condominios, :max_condominios, :price_per_condominium, :is_active, :sort_order
             )
         ");
-        
+
         $updateStmt = $this->db->prepare("
             UPDATE plan_extra_condominiums_pricing SET
                 max_condominios = :max_condominios,
@@ -288,7 +288,7 @@ class DatabaseSeeder
                 ':min_condominios' => $tier['min_condominios']
             ]);
             $existing = $checkStmt->fetch();
-            
+
             if ($existing) {
                 $updateStmt->execute($tier);
             } else {
@@ -308,12 +308,12 @@ class DatabaseSeeder
             // Criar super admin padrão
             // Password: Admin@2024 (deve ser alterado após primeiro login)
             $password = password_hash('Admin@2024', PASSWORD_ARGON2ID);
-            
+
             $stmt = $this->db->prepare("
                 INSERT INTO users (email, password, name, role, status, email_verified_at)
                 VALUES (:email, :password, :name, 'super_admin', 'active', NOW())
             ");
-            
+
             $stmt->execute([
                 'email' => 'admin@predio.pt',
                 'password' => $password,
