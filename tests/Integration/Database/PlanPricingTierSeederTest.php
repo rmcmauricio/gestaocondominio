@@ -341,13 +341,13 @@ class PlanPricingTierSeederTest extends TestCase
         $this->assertEquals(20, (int)$tiers[1]['min_licenses']);
         $this->assertEquals(39, (int)$tiers[1]['max_licenses']);
         $this->assertEqualsWithDelta(0.95, (float)$tiers[1]['price_per_license'], 0.01);
-        $this->assertEquals(3, (int)$tiers[1]['sort_order']);
+        $this->assertEquals(2, (int)$tiers[1]['sort_order']);
 
         // Verify third tier
         $this->assertEquals(40, (int)$tiers[2]['min_licenses']);
         $this->assertNull($tiers[2]['max_licenses']);
         $this->assertEqualsWithDelta(0.90, (float)$tiers[2]['price_per_license'], 0.01);
-        $this->assertEquals(5, (int)$tiers[2]['sort_order']);
+        $this->assertEquals(3, (int)$tiers[2]['sort_order']);
     }
 
     /**
@@ -388,13 +388,13 @@ class PlanPricingTierSeederTest extends TestCase
         $this->assertEquals(200, (int)$tiers[1]['min_licenses']);
         $this->assertEquals(499, (int)$tiers[1]['max_licenses']);
         $this->assertEqualsWithDelta(0.80, (float)$tiers[1]['price_per_license'], 0.01);
-        $this->assertEquals(3, (int)$tiers[1]['sort_order']);
+        $this->assertEquals(2, (int)$tiers[1]['sort_order']);
 
         // Verify third tier
         $this->assertEquals(500, (int)$tiers[2]['min_licenses']);
         $this->assertNull($tiers[2]['max_licenses']);
         $this->assertEquals('0.75', (string)$tiers[2]['price_per_license']);
-        $this->assertEquals(4, (int)$tiers[2]['sort_order']);
+        $this->assertEquals(3, (int)$tiers[2]['sort_order']);
     }
 
     /**
@@ -441,7 +441,7 @@ class PlanPricingTierSeederTest extends TestCase
         $this->assertEquals(2000, (int)$tiers[2]['min_licenses']);
         $this->assertNull($tiers[2]['max_licenses']);
         $this->assertEqualsWithDelta(0.65, (float)$tiers[2]['price_per_license'], 0.01);
-        $this->assertEquals(4, (int)$tiers[2]['sort_order']);
+        $this->assertEquals(3, (int)$tiers[2]['sort_order']);
     }
 
     /**
@@ -482,6 +482,16 @@ class PlanPricingTierSeederTest extends TestCase
         $firstRun = $tiersStmt->fetch();
         $firstCount = (int)$firstRun['count'];
         
+        // Get a specific tier to verify it gets updated
+        $tierStmt = $this->db->query("
+            SELECT * FROM plan_pricing_tiers 
+            WHERE plan_id = (SELECT id FROM plans WHERE slug = 'condominio') 
+            AND min_licenses = 10 
+            LIMIT 1
+        ");
+        $tierBefore = $tierStmt->fetch();
+        $this->assertNotFalse($tierBefore, 'Tier should exist after first run');
+        
         // Run second time
         $seeder->run();
         
@@ -490,9 +500,20 @@ class PlanPricingTierSeederTest extends TestCase
         $secondRun = $tiersStmt->fetch();
         $secondCount = (int)$secondRun['count'];
         
-        // Should have double the tiers (seeder doesn't check for duplicates)
-        // This is expected behavior - seeder just inserts
-        $this->assertEquals($firstCount * 2, $secondCount, 
-            'Seeder should insert tiers again when run multiple times');
+        // Should have the same number of tiers (seeder is now idempotent)
+        $this->assertEquals($firstCount, $secondCount, 
+            'Seeder should not create duplicate tiers when run multiple times');
+        
+        // Verify the tier was updated (updated_at should be different)
+        $tierStmt = $this->db->query("
+            SELECT * FROM plan_pricing_tiers 
+            WHERE plan_id = (SELECT id FROM plans WHERE slug = 'condominio') 
+            AND min_licenses = 10 
+            LIMIT 1
+        ");
+        $tierAfter = $tierStmt->fetch();
+        $this->assertNotFalse($tierAfter, 'Tier should still exist after second run');
+        $this->assertEquals($tierBefore['price_per_license'], $tierAfter['price_per_license'], 
+            'Tier price should remain the same');
     }
 }

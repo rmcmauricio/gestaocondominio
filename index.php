@@ -1,10 +1,20 @@
 <?php
+/**
+ * Get base path for redirects (works before config.php is loaded)
+ * @return string Base path (e.g., '/predio' or '')
+ */
+function getBasePathForRedirect(): string {
+    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+    $basePath = str_replace(basename($scriptName), '', $scriptName);
+    return rtrim($basePath, '/');
+}
+
 // Configure secure session settings before starting session
 if (session_status() === PHP_SESSION_NONE) {
     // Set secure session cookie parameters
-    $isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
+    $isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ||
                (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-    
+
     session_set_cookie_params([
         'lifetime' => 0, // Session cookie expires when browser closes
         'path' => '/',
@@ -13,9 +23,9 @@ if (session_status() === PHP_SESSION_NONE) {
         'httponly' => true, // Prevent JavaScript access
         'samesite' => 'Lax' // CSRF protection
     ]);
-    
+
     session_start();
-    
+
     // Regenerate session ID periodically to prevent session fixation
     if (!isset($_SESSION['created'])) {
         $_SESSION['created'] = time();
@@ -24,7 +34,7 @@ if (session_status() === PHP_SESSION_NONE) {
         session_regenerate_id(true);
         $_SESSION['created'] = time();
     }
-    
+
     // Security: Session integrity check - verify session fingerprint
     if (isset($_SESSION['user'])) {
         // Create session fingerprint from IP and User Agent
@@ -34,7 +44,7 @@ if (session_status() === PHP_SESSION_NONE) {
         }
         $currentUserAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
         $currentFingerprint = hash('sha256', $currentIp . $currentUserAgent);
-        
+
         // Check if fingerprint exists and matches
         if (!isset($_SESSION['fingerprint'])) {
             // First time - store fingerprint
@@ -43,19 +53,19 @@ if (session_status() === PHP_SESSION_NONE) {
             // Fingerprint changed - possible session hijacking
             // Log security event
             error_log("SECURITY WARNING: Session fingerprint mismatch for user ID: " . ($_SESSION['user']['id'] ?? 'unknown'));
-            
+
             // Destroy session and force re-login
             session_destroy();
             session_start();
             $_SESSION['login_error'] = 'Sessão inválida detectada. Por favor, faça login novamente.';
-            
+
             // Redirect to login if not already there
             if (strpos($_SERVER['REQUEST_URI'] ?? '', '/login') === false) {
-                header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'login');
+                header('Location: ' . getBasePathForRedirect() . '/login');
                 exit;
             }
         }
-        
+
         // Check for session timeout due to inactivity (30 minutes)
         $inactivityTimeout = 1800; // 30 minutes
         if (isset($_SESSION['last_activity'])) {
@@ -64,11 +74,11 @@ if (session_status() === PHP_SESSION_NONE) {
                 session_destroy();
                 session_start();
                 $_SESSION['login_error'] = 'Sua sessão expirou devido à inatividade. Por favor, faça login novamente.';
-                header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'login');
+                header('Location: ' . getBasePathForRedirect() . '/login');
                 exit;
             }
         }
-        
+
         // Update last activity timestamp
         $_SESSION['last_activity'] = time();
     }

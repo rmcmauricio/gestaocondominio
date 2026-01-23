@@ -34,6 +34,14 @@ class SubscriptionService
 
     /**
      * Start trial subscription
+     * 
+     * @param int $userId User ID
+     * @param int $planId Plan ID
+     * @param int $trialDays Number of trial days (default: 14)
+     * @param int $extraCondominiums DEPRECATED: Kept for backward compatibility with old Business plan. Not used in new license-based model.
+     * @param int|null $promotionId Optional promotion ID
+     * @param float|null $originalPrice Optional original price for promotion
+     * @return int Subscription ID
      */
     public function startTrial(int $userId, int $planId, int $trialDays = 14, int $extraCondominiums = 0, ?int $promotionId = null, ?float $originalPrice = null): int
     {
@@ -67,15 +75,22 @@ class SubscriptionService
             }
         }
 
+        // For new license-based plans, extraCondominiums is not used
+        // Only kept for backward compatibility with old Business plan
+        $planType = $plan['plan_type'] ?? null;
         $subscriptionData = [
             'user_id' => $userId,
             'plan_id' => $planId,
-            'extra_condominiums' => $extraCondominiums,
             'status' => 'trial',
             'trial_ends_at' => $trialEndsAt,
             'current_period_start' => $now,
             'current_period_end' => $periodEnd
         ];
+
+        // Only set extra_condominiums for legacy plans (Business plan without plan_type)
+        if (!$planType && $plan['slug'] === 'business') {
+            $subscriptionData['extra_condominiums'] = $extraCondominiums;
+        }
 
         // Add promotion fields if promotion is being applied
         if ($promotionId) {
@@ -291,6 +306,12 @@ class SubscriptionService
 
     /**
      * Change subscription plan - creates pending subscription instead of updating existing
+     * 
+     * @param int $userId User ID
+     * @param int $newPlanId New plan ID
+     * @param int|null $promotionId Optional promotion ID
+     * @param int $extraCondominiums DEPRECATED: Kept for backward compatibility with old Business plan. Not used in new license-based model.
+     * @return int Subscription ID
      */
     public function changePlan(int $userId, int $newPlanId, ?int $promotionId = null, int $extraCondominiums = 0): int
     {
@@ -340,10 +361,12 @@ class SubscriptionService
             }
         }
 
-        // Calculate total with extra condominiums if Business plan
+        // Calculate total with extra condominiums if Business plan (legacy)
         // IMPORTANT: Extras are NOT discounted, only base plan price is discounted
+        // For new license-based plans, extraCondominiums is ignored
+        $planType = $newPlan['plan_type'] ?? null;
         $totalAmount = $finalPrice;
-        if ($newPlan['slug'] === 'business' && $extraCondominiums > 0) {
+        if (!$planType && $newPlan['slug'] === 'business' && $extraCondominiums > 0) {
             $extraCondominiumsPricingModel = new \App\Models\PlanExtraCondominiumsPricing();
             $pricePerCondominium = $extraCondominiumsPricingModel->getPriceForCondominiums(
                 $newPlanId, 
@@ -359,10 +382,14 @@ class SubscriptionService
         if ($pendingSubscription) {
             $subscriptionData = [
                 'plan_id' => $newPlanId,
-                'extra_condominiums' => $extraCondominiums,
                 'current_period_start' => $periodStart,
                 'current_period_end' => $periodEnd
             ];
+
+            // Only set extra_condominiums for legacy Business plan
+            if (!$planType && $newPlan['slug'] === 'business') {
+                $subscriptionData['extra_condominiums'] = $extraCondominiums;
+            }
 
             if ($finalPromotionId) {
                 $subscriptionData['promotion_id'] = $finalPromotionId;
@@ -388,11 +415,15 @@ class SubscriptionService
             $subscriptionData = [
                 'user_id' => $userId,
                 'plan_id' => $newPlanId,
-                'extra_condominiums' => $extraCondominiums,
                 'status' => 'pending',
                 'current_period_start' => $periodStart,
                 'current_period_end' => $periodEnd
             ];
+
+            // Only set extra_condominiums for legacy Business plan
+            if (!$planType && $newPlan['slug'] === 'business') {
+                $subscriptionData['extra_condominiums'] = $extraCondominiums;
+            }
 
             if ($finalPromotionId) {
                 $subscriptionData['promotion_id'] = $finalPromotionId;

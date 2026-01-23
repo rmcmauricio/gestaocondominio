@@ -111,6 +111,37 @@ A classe `TestCase` fornece os seguintes métodos auxiliares:
 - `assertGuest(): void` - Verifica se o utilizador não está autenticado
 - `assertUserRole(string $role): void` - Verifica o role do utilizador
 - `cleanUpDatabase(): void` - Limpa dados de teste da base de dados
+- `getMockPDO(): PDO` - Retorna uma conexão PDO SQLite em memória
+
+### DatabaseMockHelper
+
+A classe `Tests\Helpers\DatabaseMockHelper` fornece utilitários para criar mocks de base de dados:
+
+- `createInMemoryDatabase(): PDO` - Cria uma base de dados SQLite em memória
+- `createMockPlan(array $attributes = []): array` - Cria dados mock de um plano
+- `createMockPricingTier(int $planId, array $attributes = []): array` - Cria dados mock de um pricing tier
+- `createMockSubscription(int $userId, int $planId, array $attributes = []): array` - Cria dados mock de uma subscrição
+- `setupBasicTables(PDO $pdo): void` - Cria tabelas básicas na base de dados
+- `insertMockData(PDO $pdo, string $table, array $data): int` - Insere dados mock na base de dados
+
+**Exemplo de uso:**
+
+```php
+use Tests\Helpers\DatabaseMockHelper;
+
+// Criar base de dados em memória
+$pdo = DatabaseMockHelper::createInMemoryDatabase();
+DatabaseMockHelper::setupBasicTables($pdo);
+
+// Criar dados mock
+$plan = DatabaseMockHelper::createMockPlan(['slug' => 'condominio']);
+$planId = DatabaseMockHelper::insertMockData($pdo, 'plans', $plan);
+
+// Usar na base de dados
+$stmt = $pdo->prepare("SELECT * FROM plans WHERE id = ?");
+$stmt->execute([$planId]);
+$result = $stmt->fetch();
+```
 
 ### Testes Unitários
 

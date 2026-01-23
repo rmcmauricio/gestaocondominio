@@ -10,6 +10,8 @@ Este documento descreve todos os scripts CLI (cron jobs) disponíveis no sistema
 4. [Troubleshooting](#troubleshooting)
 5. [Monitorização](#monitorização)
 
+**Nota:** Para documentação específica sobre monitorização de licenças, consulte também `docs/LICENSE_BASED_SUBSCRIPTIONS.md` e `docs/TROUBLESHOOTING_SUBSCRIPTIONS.md`.
+
 ## Visão Geral
 
 O sistema utiliza scripts CLI PHP para executar tarefas agendadas automaticamente. Estes scripts devem ser configurados através de cron jobs (Linux/Mac) ou Task Scheduler (Windows).
@@ -304,6 +306,64 @@ php cli/verify-data-integrity.php --fix --dry-run
 
 ---
 
+### 8. Monitorização de Licenças
+
+**Ficheiro:** `cli/monitor-licenses.php`
+
+**Descrição:** Monitoriza uso de licenças e envia alertas para subscrições próximas do limite e condomínios bloqueados há muito tempo. Gera relatórios semanais de uso.
+
+**Uso:**
+```bash
+php cli/monitor-licenses.php [--alerts] [--report] [--long-locked] [--threshold=0.8] [--days=30]
+```
+
+**Parâmetros:**
+- `--alerts`: Verificar e enviar alertas para subscrições próximas do limite (padrão se nenhum parâmetro for especificado)
+- `--report`: Gerar relatório semanal de uso de licenças
+- `--long-locked`: Verificar e alertar sobre condomínios bloqueados há muito tempo
+- `--threshold=X`: Percentagem de limite para alertas (padrão: 0.8 = 80%)
+- `--days=X`: Número de dias para considerar condomínio "bloqueado há muito tempo" (padrão: 30)
+
+**Frequência recomendada:**
+- Alertas: Diariamente às 9h00
+- Relatório: Semanalmente, segunda-feira às 8h00
+- Long-locked: Semanalmente, segunda-feira às 8h00
+
+**Exemplo:**
+```bash
+# Verificar subscrições próximas do limite (80%) e enviar alertas
+php cli/monitor-licenses.php --alerts
+
+# Verificar com threshold de 90%
+php cli/monitor-licenses.php --alerts --threshold=0.9
+
+# Gerar relatório semanal
+php cli/monitor-licenses.php --report
+
+# Verificar condomínios bloqueados há 30+ dias
+php cli/monitor-licenses.php --long-locked
+
+# Verificar condomínios bloqueados há 60+ dias
+php cli/monitor-licenses.php --long-locked --days=60
+
+# Executar todas as verificações
+php cli/monitor-licenses.php --alerts --report --long-locked
+```
+
+**Funcionalidades:**
+- **Alertas de Limite**: Identifica subscrições que estão a utilizar 80% ou mais do limite de licenças e envia emails de aviso
+- **Relatório Semanal**: Gera relatório completo com estatísticas de uso de licenças, breakdown por tipo de plano, e contagem de condomínios bloqueados
+- **Condomínios Bloqueados**: Identifica condomínios bloqueados há X dias e envia alertas para os utilizadores
+- **Respeita Preferências**: Só envia emails se o utilizador tiver notificações por email ativadas
+- **Logging Detalhado**: Gera output detalhado sobre todas as verificações realizadas
+
+**Notas:**
+- Os alertas são enviados apenas uma vez por execução (não há verificação de duplicados entre execuções)
+- O relatório é gerado com dados do último período de 7 dias
+- Condomínios bloqueados são identificados pela coluna `subscription_status = 'locked'` e `locked_at`
+
+---
+
 ## Configuração
 
 ### Linux/Mac (crontab)
@@ -336,6 +396,15 @@ Adicione as seguintes linhas (ajuste os caminhos conforme necessário):
 
 # Verificação de integridade (semanalmente, segunda-feira às 4h00)
 0 4 * * 1 cd /caminho/para/predio && php cli/verify-data-integrity.php >> /var/log/integrity.log 2>&1
+
+# Monitorização de licenças - alertas (diariamente às 9h00)
+0 9 * * * cd /caminho/para/predio && php cli/monitor-licenses.php --alerts >> /var/log/license-monitoring.log 2>&1
+
+# Monitorização de licenças - relatório semanal (segunda-feira às 8h00)
+0 8 * * 1 cd /caminho/para/predio && php cli/monitor-licenses.php --report >> /var/log/license-report.log 2>&1
+
+# Monitorização de licenças - condomínios bloqueados (segunda-feira às 8h00)
+0 8 * * 1 cd /caminho/para/predio && php cli/monitor-licenses.php --long-locked >> /var/log/license-locked.log 2>&1
 ```
 
 ### Windows (Task Scheduler)
@@ -344,16 +413,34 @@ Adicione as seguintes linhas (ajuste os caminhos conforme necessário):
 2. Crie uma nova tarefa agendada para cada script
 3. Configure:
    - **Program/script:** `C:\xampp\php\php.exe` (ou caminho do PHP)
-   - **Add arguments:** `cli/subscription-renewal-reminder.php`
+   - **Add arguments:** `cli/subscription-renewal-reminder.php` (ou outro script)
    - **Start in:** `C:\xampp\htdocs\predio` (ou caminho do projeto)
    - **Trigger:** Configure conforme frequência recomendada
+
+**Exemplo para monitorização de licenças:**
+- **Nome:** Monitorização de Licenças - Alertas
+- **Program/script:** `C:\xampp\php\php.exe`
+- **Add arguments:** `cli/monitor-licenses.php --alerts`
+- **Start in:** `C:\xampp\htdocs\predio`
+- **Trigger:** Diariamente às 9h00
+
+- **Nome:** Monitorização de Licenças - Relatório Semanal
+- **Program/script:** `C:\xampp\php\php.exe`
+- **Add arguments:** `cli/monitor-licenses.php --report`
+- **Start in:** `C:\xampp\htdocs\predio`
+- **Trigger:** Semanalmente, segunda-feira às 8h00
 
 ### Verificar se os crons estão a funcionar
 
 Execute manualmente cada script para verificar se funciona:
 
 ```bash
+# Testar aviso de renovação
 php cli/subscription-renewal-reminder.php --dry-run
+
+# Testar monitorização de licenças
+php cli/monitor-licenses.php --alerts
+php cli/monitor-licenses.php --report
 ```
 
 ## Troubleshooting
@@ -430,6 +517,8 @@ Configure alertas para:
 - Erros críticos nos logs
 - Subscrições expiradas não processadas
 - Quotas em atraso não notificadas
+- Subscrições próximas do limite de licenças (via `monitor-licenses.php`)
+- Condomínios bloqueados há muito tempo (via `monitor-licenses.php`)
 
 ### Estatísticas
 
@@ -438,6 +527,7 @@ Execute scripts com `--dry-run` periodicamente para ver estatísticas:
 ```bash
 php cli/verify-data-integrity.php
 php cli/archive-old-data.php --dry-run
+php cli/monitor-licenses.php --report
 ```
 
 ## Considerações Importantes

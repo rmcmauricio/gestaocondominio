@@ -106,9 +106,26 @@
    - Executar testes de aceitação
 
 2. **Migração de Dados**
-   - Executar migração 098 em produção
-   - Validar dados migrados
+   - Executar migração 098 em desenvolvimento/produção
+   - Validar dados migrados usando script de validação
    - Verificar integridade das associações
+   
+   **Como executar a migração:**
+   ```bash
+   php cli/migrate.php up
+   ```
+   
+   **Como validar a migração:**
+   ```bash
+   php cli/validate-migration-098.php
+   ```
+   
+   O script de validação verifica:
+   - Se a migração foi executada
+   - Se todas as colunas necessárias existem
+   - Se as subscrições foram migradas corretamente
+   - Se as contagens de licenças estão corretas
+   - Se as associações de condomínios estão corretas
 
 3. **Validação em Produção**
    - Testar fluxos completos

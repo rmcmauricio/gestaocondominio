@@ -22,6 +22,7 @@
         "dompdf/dompdf": "^3.1",
         "google/apiclient": "^2.15",
         "phpmailer/phpmailer": "^6.11",
+        "phpoffice/phpspreadsheet": "^2.0",
         "twig/twig": "^3.20"
     },
     "require-dev": {

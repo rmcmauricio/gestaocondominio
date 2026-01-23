@@ -294,6 +294,7 @@ POST /subscription/add-active-licenses
 - Executar `POST /subscription/recalculate-licenses` manualmente
 - Verificar se frações estão marcadas como `is_active = TRUE`
 - Verificar se `archived_at IS NULL`
+- Verificar se `license_consumed = TRUE` (ou NULL)
 
 ### Condomínio bloqueado após desassociação
 - Normal: condomínios desassociados ficam bloqueados por padrão
@@ -304,3 +305,176 @@ POST /subscription/add-active-licenses
 - Verificar se pricing tiers estão ativos (`is_active = TRUE`)
 - Verificar `pricing_mode` do plano (flat vs progressive)
 - Verificar se `license_min` está sendo aplicado corretamente
+
+### Erro: "Plano Base permite apenas um condomínio"
+- O plano Condomínio (Base) só permite associar um condomínio
+- Para múltiplos condomínios, fazer upgrade para Professional ou Enterprise
+
+### Erro: "Excederia o limite de licenças"
+- Verificar `license_limit` da subscrição
+- Verificar se plano permite `allow_overage = true` (apenas Enterprise)
+- Considerar adicionar licenças extras ou fazer upgrade
+
+### Condomínio não aparece na lista para associar
+- Verificar se condomínio já está associado a outra subscrição
+- Verificar se condomínio está bloqueado (`subscription_status = 'locked'`)
+- Verificar se subscrição permite múltiplos condomínios
+
+### Licenças extras não são aplicadas
+- Verificar se invoice foi pago (licenças extras só são aplicadas após pagamento)
+- Verificar se subscrição está ativa
+- Executar recálculo manual de licenças
+
+## FAQ
+
+### Como funciona o mínimo de licenças?
+O mínimo de licenças (`license_min`) é aplicado automaticamente. Se um condomínio tem menos frações ativas que o mínimo, o sistema cobra pelo mínimo mesmo assim.
+
+**Exemplo:** Plano Base com mínimo de 10 licenças, mas condomínio tem apenas 6 frações ativas → cobra por 10 licenças.
+
+### Posso exceder o limite de licenças?
+Apenas planos Enterprise permitem exceder o limite (`allow_overage = true`). Planos Condomínio e Professional bloqueiam operações quando o limite é atingido.
+
+### Como adicionar mais licenças?
+1. Via interface: `POST /subscription/add-active-licenses` com `extra_licenses`
+2. Um invoice é criado para pagamento
+3. Após pagamento, `license_limit` é atualizado automaticamente
+
+### O que acontece quando desassocio um condomínio?
+- O condomínio fica bloqueado (`subscription_status = 'locked'`)
+- As licenças são recalculadas automaticamente
+- O condomínio não permite operações até ser re-associado ou desbloqueado
+
+### Como migrar de um plano para outro?
+1. Escolher novo plano: `POST /subscription/change-plan`
+2. Uma subscrição pendente é criada
+3. Pagar invoice gerado
+4. Subscrição antiga expira e nova é ativada
+
+### Como funciona o pricing por escalões?
+O preço depende do número total de licenças:
+- **Modo Flat**: Todas as licenças são cobradas ao preço do escalão em que o total se enquadra
+- **Modo Progressive**: Licenças são cobradas progressivamente por escalão
+
+## Exemplos de Uso da API
+
+### Obter informações da subscrição atual
+```php
+GET /subscription
+Response: {
+    "subscription": {
+        "id": 1,
+        "plan_name": "Professional",
+        "used_licenses": 70,
+        "license_limit": 100,
+        "remaining_licenses": 30
+    }
+}
+```
+
+### Preview de preços antes de associar condomínio
+```php
+GET /subscription/pricing-preview?projected_units=80
+Response: {
+    "monthly_price": 64.00,
+    "breakdown": [
+        {
+            "tier": "50-99",
+            "licenses": 30,
+            "price_per_license": 0.85,
+            "subtotal": 25.50
+        },
+        {
+            "tier": "100-199",
+            "licenses": 50,
+            "price_per_license": 0.80,
+            "subtotal": 40.00
+        }
+    ]
+}
+```
+
+### Associar condomínio (Professional/Enterprise)
+```php
+POST /subscription/attach-condominium
+Body: {
+    "condominium_id": 5,
+    "csrf_token": "..."
+}
+Response: {
+    "success": true,
+    "message": "Condomínio associado com sucesso",
+    "new_license_count": 85
+}
+```
+
+### Adicionar licenças extras
+```php
+POST /subscription/add-active-licenses
+Body: {
+    "extra_licenses": 20,
+    "csrf_token": "..."
+}
+Response: {
+    "success": true,
+    "invoice_id": 123,
+    "amount": 16.00,
+    "message": "Invoice criado. Após pagamento, as licenças serão adicionadas."
+}
+```
+
+## Monitorização
+
+### Script de Monitorização
+Execute o script CLI para monitorizar uso de licenças:
+
+```bash
+# Verificar subscrições próximas do limite (80%)
+php cli/monitor-licenses.php --alerts
+
+# Gerar relatório semanal
+php cli/monitor-licenses.php --report
+
+# Verificar condomínios bloqueados há 30+ dias
+php cli/monitor-licenses.php --long-locked --days=30
+
+# Executar todas as verificações
+php cli/monitor-licenses.php --alerts --report --long-locked
+```
+
+### LicenseMonitoringService
+O serviço fornece métodos para:
+- `checkSubscriptionsNearLimit(float $threshold = 0.8)` - Verificar subscrições próximas do limite
+- `sendLimitAlerts(float $threshold = 0.8)` - Enviar alertas por email
+- `generateWeeklyReport()` - Gerar relatório semanal
+- `checkLongLockedCondominiums(int $days = 30)` - Verificar condomínios bloqueados há muito tempo
+
+### Configurar Cron Job
+Adicione ao crontab para monitorização automática:
+
+```bash
+# Verificar limites diariamente às 9h
+0 9 * * * php /path/to/cli/monitor-licenses.php --alerts
+
+# Gerar relatório semanal (segundas-feiras às 8h)
+0 8 * * 1 php /path/to/cli/monitor-licenses.php --report
+```
+
+## Validação da Migração
+
+Após executar a migração 098, valide os dados:
+
+```bash
+php cli/validate-migration-098.php
+```
+
+O script verifica:
+- Se a migração foi executada
+- Se todas as colunas necessárias existem
+- Se as subscrições foram migradas corretamente
+- Se as contagens de licenças estão corretas
+- Se as associações de condomínios estão corretas
+- Se há subscrições órfãs
+- Se há referências quebradas
+- Se há frações órfãs
+- Se os preços dos tiers estão corretos

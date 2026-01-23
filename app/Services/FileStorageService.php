@@ -366,6 +366,69 @@ class FileStorageService
         
         return round($bytes, 2) . ' ' . $units[$pow];
     }
+
+    /**
+     * Save generated file content (not uploaded)
+     * @param string $content File content to save
+     * @param string $filename Original filename
+     * @param int $condominiumId Condominium ID
+     * @param string $type Type of file: 'documents', 'reports', etc.
+     * @param string $mimeType MIME type (default: application/pdf)
+     * @return array File data with file_path, file_name, file_size, mime_type
+     */
+    public function saveGeneratedFile(string $content, string $filename, int $condominiumId, string $type = 'documents', string $mimeType = 'application/pdf'): array
+    {
+        // Sanitize filename
+        $originalName = basename($filename);
+        $originalName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
+        $originalName = preg_replace('/\.{2,}/', '.', $originalName);
+        $originalName = trim($originalName, '.');
+        
+        // Get extension from filename or MIME type
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        if (!$extension) {
+            // Determine extension from MIME type
+            $extensionMap = [
+                'application/pdf' => 'pdf',
+                'text/html' => 'html',
+                'text/plain' => 'txt',
+                'application/vnd.ms-excel' => 'xls',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx'
+            ];
+            $extension = $extensionMap[$mimeType] ?? 'txt';
+        }
+        
+        // Generate unique filename
+        $uniqueFilename = uniqid('report_', true) . '.' . $extension;
+        
+        // Create folder structure: condominiums/{condominium_id}/{type}/{year}/{month}/
+        $year = date('Y');
+        $month = date('m');
+        $storagePath = 'condominiums/' . $condominiumId . '/' . $type;
+        $storagePath .= '/' . $year . '/' . $month . '/';
+        $fullPath = $this->basePath . '/' . $storagePath;
+
+        if (!is_dir($fullPath)) {
+            mkdir($fullPath, 0755, true);
+        }
+
+        $filePath = $storagePath . $uniqueFilename;
+        $fullFilePath = $fullPath . $uniqueFilename;
+
+        // Save content to file
+        if (file_put_contents($fullFilePath, $content) === false) {
+            throw new \Exception("Erro ao guardar ficheiro gerado");
+        }
+
+        $fileSize = filesize($fullFilePath);
+
+        return [
+            'file_path' => $filePath,
+            'file_name' => $originalName ?: $uniqueFilename,
+            'file_size' => $fileSize,
+            'mime_type' => $mimeType
+        ];
+    }
 }
 
 

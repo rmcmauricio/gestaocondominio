@@ -199,6 +199,17 @@ $router->post('/condominiums/{condominium_id}/finances/reports/budget-vs-actual'
 $router->post('/condominiums/{condominium_id}/finances/reports/delinquency', 'App\Controllers\ReportController@delinquencyReport');
 $router->post('/condominiums/{condominium_id}/finances/reports/occurrences', 'App\Controllers\ReportController@occurrenceReport');
 $router->post('/condominiums/{condominium_id}/finances/reports/occurrences-by-supplier', 'App\Controllers\ReportController@occurrenceBySupplierReport');
+$router->post('/condominiums/{condominium_id}/finances/reports/custom', 'App\Controllers\ReportController@custom');
+$router->post('/condominiums/{condominium_id}/finances/reports/save', 'App\Controllers\ReportController@saveReport');
+$router->get('/condominiums/{condominium_id}/finances/reports/balance-sheet/print', 'App\Controllers\ReportController@balanceSheetPrint');
+$router->get('/condominiums/{condominium_id}/finances/reports/fees/print', 'App\Controllers\ReportController@feesReportPrint');
+$router->get('/condominiums/{condominium_id}/finances/reports/expenses/print', 'App\Controllers\ReportController@expensesReportPrint');
+$router->get('/condominiums/{condominium_id}/finances/reports/cash-flow/print', 'App\Controllers\ReportController@cashFlowPrint');
+$router->get('/condominiums/{condominium_id}/finances/reports/budget-vs-actual/print', 'App\Controllers\ReportController@budgetVsActualPrint');
+$router->get('/condominiums/{condominium_id}/finances/reports/delinquency/print', 'App\Controllers\ReportController@delinquencyReportPrint');
+$router->get('/condominiums/{condominium_id}/finances/reports/occurrences/print', 'App\Controllers\ReportController@occurrenceReportPrint');
+$router->get('/condominiums/{condominium_id}/finances/reports/occurrences-by-supplier/print', 'App\Controllers\ReportController@occurrenceBySupplierReportPrint');
+$router->get('/condominiums/{condominium_id}/finances/reports/custom/print', 'App\Controllers\ReportController@customPrint');
 
 // Document routes
 $router->get('/condominiums/{condominium_id}/documents', 'App\Controllers\DocumentController@index');

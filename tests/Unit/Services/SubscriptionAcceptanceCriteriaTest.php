@@ -3,6 +3,10 @@
 namespace Tests\Unit\Services;
 
 use Tests\Helpers\TestCase;
+use Tests\Helpers\DatabaseMockHelper;
+use App\Services\SubscriptionService;
+use App\Services\LicenseService;
+use PDO;
 
 /**
  * Acceptance Criteria Tests for License-Based Subscription System
@@ -17,6 +21,25 @@ use Tests\Helpers\TestCase;
  */
 class SubscriptionAcceptanceCriteriaTest extends TestCase
 {
+    protected $db;
+    protected $subscriptionService;
+    protected $licenseService;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        
+        // Create in-memory database
+        $this->db = DatabaseMockHelper::createInMemoryDatabase();
+        DatabaseMockHelper::setupSubscriptionTables($this->db);
+        
+        // Setup global $db for models
+        global $db;
+        $db = $this->db;
+        
+        $this->subscriptionService = new SubscriptionService();
+        $this->licenseService = new LicenseService();
+    }
     /**
      * Acceptance Criteria 1: Base plan with 6 fractions => used_licenses = 10 (minimum)
      * 
@@ -31,14 +54,62 @@ class SubscriptionAcceptanceCriteriaTest extends TestCase
      */
     public function testBasePlanAppliesMinimumWithSixFractions(): void
     {
-        // This test would require:
-        // 1. Mock Plan with plan_type='condominio', license_min=10
-        // 2. Mock Subscription with Base plan
-        // 3. Mock Condominium with 6 active fractions
-        // 4. Call recalculateUsedLicenses()
-        // 5. Assert used_licenses = 10
-        
-        $this->markTestIncomplete('Requires database mocking setup');
+        // Create user
+        $userId = DatabaseMockHelper::insertMockData($this->db, 'users', [
+            'id' => 1,
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'hashed',
+            'role' => 'admin',
+            'status' => 'active'
+        ]);
+
+        // Create Base plan
+        $planData = DatabaseMockHelper::createMockPlan([
+            'plan_type' => 'condominio',
+            'license_min' => 10,
+            'allow_multiple_condos' => false,
+            'slug' => 'condominio'
+        ]);
+        $planId = DatabaseMockHelper::insertMockData($this->db, 'plans', $planData);
+
+        // Create subscription
+        $subscriptionData = DatabaseMockHelper::createMockSubscription($userId, $planId, [
+            'condominium_id' => null,
+            'used_licenses' => 0,
+            'charge_minimum' => true
+        ]);
+        $subscriptionId = DatabaseMockHelper::insertMockData($this->db, 'subscriptions', $subscriptionData);
+
+        // Create condominium
+        $condoData = DatabaseMockHelper::createMockCondominium($userId, [
+            'subscription_id' => $subscriptionId
+        ]);
+        $condoId = DatabaseMockHelper::insertMockData($this->db, 'condominiums', $condoData);
+
+        // Update subscription with condominium_id
+        $this->db->prepare("UPDATE subscriptions SET condominium_id = :condo_id WHERE id = :id")
+            ->execute([':condo_id' => $condoId, ':id' => $subscriptionId]);
+
+        // Create 6 active fractions
+        for ($i = 1; $i <= 6; $i++) {
+            $fractionData = DatabaseMockHelper::createMockFraction($condoId, [
+                'identifier' => "A{$i}",
+                'is_active' => true
+            ]);
+            DatabaseMockHelper::insertMockData($this->db, 'fractions', $fractionData);
+        }
+
+        // Recalculate licenses
+        $this->licenseService->recalculateAndUpdate($subscriptionId);
+
+        // Verify used_licenses = 10 (minimum applied)
+        $stmt = $this->db->prepare("SELECT used_licenses, charge_minimum FROM subscriptions WHERE id = :id");
+        $stmt->execute([':id' => $subscriptionId]);
+        $subscription = $stmt->fetch();
+
+        $this->assertEquals(10, (int)$subscription['used_licenses'], 'Base plan should apply minimum of 10 licenses');
+        $this->assertTrue((bool)$subscription['charge_minimum'], 'charge_minimum should be true');
     }
 
     /**
@@ -53,12 +124,43 @@ class SubscriptionAcceptanceCriteriaTest extends TestCase
      */
     public function testBasePlanCannotAttachSecondCondominium(): void
     {
-        // This test would require:
-        // 1. Mock Base plan subscription with one condominium
-        // 2. Try to attach second condominium
-        // 3. Assert exception is thrown
+        // Create user
+        $userId = DatabaseMockHelper::insertMockData($this->db, 'users', [
+            'id' => 1,
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'hashed',
+            'role' => 'admin',
+            'status' => 'active'
+        ]);
+
+        // Create Base plan
+        $planData = DatabaseMockHelper::createMockPlan([
+            'plan_type' => 'condominio',
+            'license_min' => 10,
+            'allow_multiple_condos' => false,
+            'slug' => 'condominio'
+        ]);
+        $planId = DatabaseMockHelper::insertMockData($this->db, 'plans', $planData);
+
+        // Create subscription with first condominium
+        $condo1Data = DatabaseMockHelper::createMockCondominium($userId);
+        $condo1Id = DatabaseMockHelper::insertMockData($this->db, 'condominiums', $condo1Data);
+
+        $subscriptionData = DatabaseMockHelper::createMockSubscription($userId, $planId, [
+            'condominium_id' => $condo1Id
+        ]);
+        $subscriptionId = DatabaseMockHelper::insertMockData($this->db, 'subscriptions', $subscriptionData);
+
+        // Create second condominium
+        $condo2Data = DatabaseMockHelper::createMockCondominium($userId, ['name' => 'Second Condominium']);
+        $condo2Id = DatabaseMockHelper::insertMockData($this->db, 'condominiums', $condo2Data);
+
+        // Try to attach second condominium - should throw exception
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Plano Base permite apenas um condomínio');
         
-        $this->markTestIncomplete('Requires database mocking setup');
+        $this->subscriptionService->attachCondominium($subscriptionId, $condo2Id, $userId);
     }
 
     /**
@@ -75,16 +177,65 @@ class SubscriptionAcceptanceCriteriaTest extends TestCase
      */
     public function testProPlanSumsAllCondominiums(): void
     {
-        // This test would require:
-        // 1. Mock Professional plan with license_min=50
-        // 2. Mock Subscription with Professional plan
-        // 3. Mock Condominium 1 with 30 active fractions
-        // 4. Mock Condominium 2 with 40 active fractions
-        // 5. Attach both condominiums
-        // 6. Call recalculateUsedLicenses()
-        // 7. Assert used_licenses = 70
+        // Create user
+        $userId = DatabaseMockHelper::insertMockData($this->db, 'users', [
+            'id' => 1,
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'hashed',
+            'role' => 'admin',
+            'status' => 'active'
+        ]);
+
+        // Create Professional plan
+        $planData = DatabaseMockHelper::createMockPlan([
+            'plan_type' => 'professional',
+            'license_min' => 50,
+            'allow_multiple_condos' => true,
+            'slug' => 'professional'
+        ]);
+        $planId = DatabaseMockHelper::insertMockData($this->db, 'plans', $planData);
+
+        // Create subscription
+        $subscriptionData = DatabaseMockHelper::createMockSubscription($userId, $planId, [
+            'used_licenses' => 0
+        ]);
+        $subscriptionId = DatabaseMockHelper::insertMockData($this->db, 'subscriptions', $subscriptionData);
+
+        // Create condominium 1 with 30 fractions
+        $condo1Data = DatabaseMockHelper::createMockCondominium($userId, ['name' => 'Condo 1']);
+        $condo1Id = DatabaseMockHelper::insertMockData($this->db, 'condominiums', $condo1Data);
         
-        $this->markTestIncomplete('Requires database mocking setup');
+        for ($i = 1; $i <= 30; $i++) {
+            $fractionData = DatabaseMockHelper::createMockFraction($condo1Id, [
+                'identifier' => "A{$i}",
+                'is_active' => true
+            ]);
+            DatabaseMockHelper::insertMockData($this->db, 'fractions', $fractionData);
+        }
+
+        // Create condominium 2 with 40 fractions
+        $condo2Data = DatabaseMockHelper::createMockCondominium($userId, ['name' => 'Condo 2']);
+        $condo2Id = DatabaseMockHelper::insertMockData($this->db, 'condominiums', $condo2Data);
+        
+        for ($i = 1; $i <= 40; $i++) {
+            $fractionData = DatabaseMockHelper::createMockFraction($condo2Id, [
+                'identifier' => "B{$i}",
+                'is_active' => true
+            ]);
+            DatabaseMockHelper::insertMockData($this->db, 'fractions', $fractionData);
+        }
+
+        // Attach both condominiums
+        $this->subscriptionService->attachCondominium($subscriptionId, $condo1Id, $userId);
+        $this->subscriptionService->attachCondominium($subscriptionId, $condo2Id, $userId);
+
+        // Verify used_licenses = 70
+        $stmt = $this->db->prepare("SELECT used_licenses FROM subscriptions WHERE id = :id");
+        $stmt->execute([':id' => $subscriptionId]);
+        $subscription = $stmt->fetch();
+
+        $this->assertEquals(70, (int)$subscription['used_licenses'], 'Professional plan should sum all condominiums: 30 + 40 = 70');
     }
 
     /**
@@ -99,13 +250,72 @@ class SubscriptionAcceptanceCriteriaTest extends TestCase
      */
     public function testProPlanRecalculatesAfterDetach(): void
     {
-        // This test would require:
-        // 1. Mock Professional plan subscription with 70 licenses (30+40)
-        // 2. Detach condominium with 40 fractions
-        // 3. Call recalculateUsedLicenses()
-        // 4. Assert used_licenses = 30
+        // Create user
+        $userId = DatabaseMockHelper::insertMockData($this->db, 'users', [
+            'id' => 1,
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'hashed',
+            'role' => 'admin',
+            'status' => 'active'
+        ]);
+
+        // Create Professional plan
+        $planData = DatabaseMockHelper::createMockPlan([
+            'plan_type' => 'professional',
+            'license_min' => 50,
+            'allow_multiple_condos' => true,
+            'slug' => 'professional'
+        ]);
+        $planId = DatabaseMockHelper::insertMockData($this->db, 'plans', $planData);
+
+        // Create subscription
+        $subscriptionData = DatabaseMockHelper::createMockSubscription($userId, $planId);
+        $subscriptionId = DatabaseMockHelper::insertMockData($this->db, 'subscriptions', $subscriptionData);
+
+        // Create condominium 1 with 30 fractions
+        $condo1Data = DatabaseMockHelper::createMockCondominium($userId, ['name' => 'Condo 1']);
+        $condo1Id = DatabaseMockHelper::insertMockData($this->db, 'condominiums', $condo1Data);
         
-        $this->markTestIncomplete('Requires database mocking setup');
+        for ($i = 1; $i <= 30; $i++) {
+            $fractionData = DatabaseMockHelper::createMockFraction($condo1Id, [
+                'identifier' => "A{$i}",
+                'is_active' => true
+            ]);
+            DatabaseMockHelper::insertMockData($this->db, 'fractions', $fractionData);
+        }
+
+        // Create condominium 2 with 40 fractions
+        $condo2Data = DatabaseMockHelper::createMockCondominium($userId, ['name' => 'Condo 2']);
+        $condo2Id = DatabaseMockHelper::insertMockData($this->db, 'condominiums', $condo2Data);
+        
+        for ($i = 1; $i <= 40; $i++) {
+            $fractionData = DatabaseMockHelper::createMockFraction($condo2Id, [
+                'identifier' => "B{$i}",
+                'is_active' => true
+            ]);
+            DatabaseMockHelper::insertMockData($this->db, 'fractions', $fractionData);
+        }
+
+        // Attach both condominiums
+        $this->subscriptionService->attachCondominium($subscriptionId, $condo1Id, $userId);
+        $this->subscriptionService->attachCondominium($subscriptionId, $condo2Id, $userId);
+
+        // Verify initial count is 70
+        $stmt = $this->db->prepare("SELECT used_licenses FROM subscriptions WHERE id = :id");
+        $stmt->execute([':id' => $subscriptionId]);
+        $subscription = $stmt->fetch();
+        $this->assertEquals(70, (int)$subscription['used_licenses'], 'Initial count should be 70');
+
+        // Detach condominium with 40 fractions
+        $this->subscriptionService->detachCondominium($subscriptionId, $condo2Id, $userId, 'Test detach');
+
+        // Verify used_licenses = 30 after detach
+        $stmt = $this->db->prepare("SELECT used_licenses FROM subscriptions WHERE id = :id");
+        $stmt->execute([':id' => $subscriptionId]);
+        $subscription = $stmt->fetch();
+
+        $this->assertEquals(30, (int)$subscription['used_licenses'], 'After detaching 40-fraction condominium, should have 30 licenses');
     }
 
     /**
@@ -123,12 +333,50 @@ class SubscriptionAcceptanceCriteriaTest extends TestCase
      */
     public function testProPlanBlocksExceedingLimitWithoutOverage(): void
     {
-        // This test would require:
-        // 1. Mock Professional plan subscription with license_limit=60, used_licenses=60
-        // 2. Try to activate fraction or attach condominium
-        // 3. Assert operation fails with appropriate error
+        // Create user
+        $userId = DatabaseMockHelper::insertMockData($this->db, 'users', [
+            'id' => 1,
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'hashed',
+            'role' => 'admin',
+            'status' => 'active'
+        ]);
+
+        // Create Professional plan
+        $planData = DatabaseMockHelper::createMockPlan([
+            'plan_type' => 'professional',
+            'license_min' => 50,
+            'allow_multiple_condos' => true,
+            'slug' => 'professional'
+        ]);
+        $planId = DatabaseMockHelper::insertMockData($this->db, 'plans', $planData);
+
+        // Create subscription with license_limit=60, used_licenses=60, allow_overage=false
+        $subscriptionData = DatabaseMockHelper::createMockSubscription($userId, $planId, [
+            'used_licenses' => 60,
+            'license_limit' => 60,
+            'allow_overage' => false
+        ]);
+        $subscriptionId = DatabaseMockHelper::insertMockData($this->db, 'subscriptions', $subscriptionData);
+
+        // Create condominium with 5 active fractions (would exceed limit)
+        $condoData = DatabaseMockHelper::createMockCondominium($userId);
+        $condoId = DatabaseMockHelper::insertMockData($this->db, 'condominiums', $condoData);
         
-        $this->markTestIncomplete('Requires database mocking setup');
+        for ($i = 1; $i <= 5; $i++) {
+            $fractionData = DatabaseMockHelper::createMockFraction($condoId, [
+                'identifier' => "A{$i}",
+                'is_active' => true
+            ]);
+            DatabaseMockHelper::insertMockData($this->db, 'fractions', $fractionData);
+        }
+
+        // Try to attach condominium - should throw exception
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Excederia o limite');
+        
+        $this->subscriptionService->attachCondominium($subscriptionId, $condoId, $userId);
     }
 
     /**
@@ -144,14 +392,60 @@ class SubscriptionAcceptanceCriteriaTest extends TestCase
      */
     public function testDetachedCondominiumIsLocked(): void
     {
-        // This test would require:
-        // 1. Mock subscription with condominium
-        // 2. Detach condominium
-        // 3. Assert condominium subscription_status = 'locked'
-        // 4. Assert locked_at is set
-        // 5. Assert locked_reason is set
+        // Create user
+        $userId = DatabaseMockHelper::insertMockData($this->db, 'users', [
+            'id' => 1,
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'hashed',
+            'role' => 'admin',
+            'status' => 'active'
+        ]);
+
+        // Create Professional plan
+        $planData = DatabaseMockHelper::createMockPlan([
+            'plan_type' => 'professional',
+            'license_min' => 50,
+            'allow_multiple_condos' => true,
+            'slug' => 'professional'
+        ]);
+        $planId = DatabaseMockHelper::insertMockData($this->db, 'plans', $planData);
+
+        // Create subscription
+        $subscriptionData = DatabaseMockHelper::createMockSubscription($userId, $planId);
+        $subscriptionId = DatabaseMockHelper::insertMockData($this->db, 'subscriptions', $subscriptionData);
+
+        // Create two condominiums
+        $condo1Data = DatabaseMockHelper::createMockCondominium($userId, ['name' => 'Condo 1']);
+        $condo1Id = DatabaseMockHelper::insertMockData($this->db, 'condominiums', $condo1Data);
         
-        $this->markTestIncomplete('Requires database mocking setup');
+        $condo2Data = DatabaseMockHelper::createMockCondominium($userId, ['name' => 'Condo 2']);
+        $condo2Id = DatabaseMockHelper::insertMockData($this->db, 'condominiums', $condo2Data);
+
+        // Create fractions for both
+        for ($i = 1; $i <= 10; $i++) {
+            DatabaseMockHelper::insertMockData($this->db, 'fractions', 
+                DatabaseMockHelper::createMockFraction($condo1Id, ['identifier' => "A{$i}"]));
+            DatabaseMockHelper::insertMockData($this->db, 'fractions', 
+                DatabaseMockHelper::createMockFraction($condo2Id, ['identifier' => "B{$i}"]));
+        }
+
+        // Attach both condominiums
+        $this->subscriptionService->attachCondominium($subscriptionId, $condo1Id, $userId);
+        $this->subscriptionService->attachCondominium($subscriptionId, $condo2Id, $userId);
+
+        // Detach condominium 2
+        $reason = 'Test detach reason';
+        $this->subscriptionService->detachCondominium($subscriptionId, $condo2Id, $userId, $reason);
+
+        // Verify condominium is locked
+        $stmt = $this->db->prepare("SELECT subscription_status, locked_at, locked_reason FROM condominiums WHERE id = :id");
+        $stmt->execute([':id' => $condo2Id]);
+        $condominium = $stmt->fetch();
+
+        $this->assertEquals('locked', $condominium['subscription_status'], 'Condominium should be locked after detach');
+        $this->assertNotNull($condominium['locked_at'], 'locked_at should be set');
+        $this->assertEquals($reason, $condominium['locked_reason'], 'locked_reason should match detach reason');
     }
 
     /**
@@ -169,12 +463,54 @@ class SubscriptionAcceptanceCriteriaTest extends TestCase
      */
     public function testEnterprisePlanAllowsOverage(): void
     {
-        // This test would require:
-        // 1. Mock Enterprise plan subscription with license_limit=200, used_licenses=200, allow_overage=true
-        // 2. Try to activate fraction
-        // 3. Assert operation succeeds
-        // 4. Assert used_licenses > 200
+        // Create user
+        $userId = DatabaseMockHelper::insertMockData($this->db, 'users', [
+            'id' => 1,
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'hashed',
+            'role' => 'admin',
+            'status' => 'active'
+        ]);
+
+        // Create Enterprise plan
+        $planData = DatabaseMockHelper::createMockPlan([
+            'plan_type' => 'enterprise',
+            'license_min' => 200,
+            'allow_multiple_condos' => true,
+            'slug' => 'enterprise'
+        ]);
+        $planId = DatabaseMockHelper::insertMockData($this->db, 'plans', $planData);
+
+        // Create subscription with license_limit=200, used_licenses=200, allow_overage=true
+        $subscriptionData = DatabaseMockHelper::createMockSubscription($userId, $planId, [
+            'used_licenses' => 200,
+            'license_limit' => 200,
+            'allow_overage' => true
+        ]);
+        $subscriptionId = DatabaseMockHelper::insertMockData($this->db, 'subscriptions', $subscriptionData);
+
+        // Create condominium with 10 active fractions (would exceed limit but overage is allowed)
+        $condoData = DatabaseMockHelper::createMockCondominium($userId);
+        $condoId = DatabaseMockHelper::insertMockData($this->db, 'condominiums', $condoData);
         
-        $this->markTestIncomplete('Requires database mocking setup');
+        for ($i = 1; $i <= 10; $i++) {
+            $fractionData = DatabaseMockHelper::createMockFraction($condoId, [
+                'identifier' => "A{$i}",
+                'is_active' => true
+            ]);
+            DatabaseMockHelper::insertMockData($this->db, 'fractions', $fractionData);
+        }
+
+        // Attach condominium - should succeed because allow_overage=true
+        $this->subscriptionService->attachCondominium($subscriptionId, $condoId, $userId);
+
+        // Verify used_licenses > 200 (210 = 200 + 10)
+        $stmt = $this->db->prepare("SELECT used_licenses FROM subscriptions WHERE id = :id");
+        $stmt->execute([':id' => $subscriptionId]);
+        $subscription = $stmt->fetch();
+
+        $this->assertGreaterThan(200, (int)$subscription['used_licenses'], 'Enterprise plan should allow overage beyond limit');
+        $this->assertEquals(210, (int)$subscription['used_licenses'], 'Used licenses should be 210 (200 + 10)');
     }
 }
