@@ -56,17 +56,98 @@
                     </div>
                 </div>
 
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label for="limit_condominios" class="form-label">Limite de Condomínios</label>
-                        <input type="number" class="form-control" id="limit_condominios" name="limit_condominios" value="{{ plan.limit_condominios|default('') }}" min="0">
-                        <small class="form-text text-muted">Deixe em branco para ilimitado</small>
+                <!-- Novo Modelo de Licenças -->
+                <div class="card mb-4 border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="bi bi-key"></i> Modelo de Licenças</h6>
                     </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="plan_type" class="form-label">Tipo de Plano</label>
+                                <select class="form-select" id="plan_type" name="plan_type">
+                                    <option value="">-- Selecione --</option>
+                                    <option value="condominio" {% if plan.plan_type|default('') == 'condominio' %}selected{% endif %}>Condomínio (Base)</option>
+                                    <option value="professional" {% if plan.plan_type|default('') == 'professional' %}selected{% endif %}>Professional</option>
+                                    <option value="enterprise" {% if plan.plan_type|default('') == 'enterprise' %}selected{% endif %}>Enterprise</option>
+                                </select>
+                                <small class="form-text text-muted">Tipo do plano no novo modelo baseado em licenças</small>
+                            </div>
 
-                    <div class="col-md-6 mb-3">
-                        <label for="limit_fracoes" class="form-label">Limite de Frações</label>
-                        <input type="number" class="form-control" id="limit_fracoes" name="limit_fracoes" value="{{ plan.limit_fracoes|default('') }}" min="0">
-                        <small class="form-text text-muted">Deixe em branco para ilimitado</small>
+                            <div class="col-md-6 mb-3">
+                                <label for="license_min" class="form-label">Mínimo de Licenças</label>
+                                <input type="number" class="form-control" id="license_min" name="license_min" value="{{ plan.license_min|default('') }}" min="0">
+                                <small class="form-text text-muted">Número mínimo de licenças (frações ativas) sempre cobrado</small>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="license_limit" class="form-label">Limite de Licenças</label>
+                                <input type="number" class="form-control" id="license_limit" name="license_limit" value="{{ plan.license_limit|default('') }}" min="0">
+                                <small class="form-text text-muted">Limite máximo (deixe em branco para ilimitado)</small>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="pricing_mode" class="form-label">Modo de Pricing</label>
+                                <select class="form-select" id="pricing_mode" name="pricing_mode">
+                                    <option value="flat" {% if plan.pricing_mode|default('flat') == 'flat' %}selected{% endif %}>Flat (Todos ao mesmo preço do escalão)</option>
+                                    <option value="progressive" {% if plan.pricing_mode|default('') == 'progressive' %}selected{% endif %}>Progressive (Proporcional por escalão)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="allow_multiple_condos" name="allow_multiple_condos" value="1" {% if plan.allow_multiple_condos|default(false) %}checked{% endif %}>
+                                    <label class="form-check-label" for="allow_multiple_condos">
+                                        Permitir Múltiplos Condomínios
+                                    </label>
+                                    <small class="form-text text-muted d-block">Se marcado, permite associar múltiplos condomínios à subscrição</small>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="allow_overage" name="allow_overage" value="1" {% if plan.allow_overage|default(false) %}checked{% endif %}>
+                                    <label class="form-check-label" for="allow_overage">
+                                        Permitir Overage
+                                    </label>
+                                    <small class="form-text text-muted d-block">Se marcado, permite exceder o limite de licenças (apenas Enterprise)</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="annual_discount_percentage" class="form-label">Desconto Anual (%)</label>
+                                <input type="number" class="form-control" id="annual_discount_percentage" name="annual_discount_percentage" value="{{ plan.annual_discount_percentage|default('0') }}" step="0.01" min="0" max="100">
+                                <small class="form-text text-muted">Percentagem de desconto para pagamento anual</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campos Legados (Compatibilidade) -->
+                <div class="card mb-4 border-secondary">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0"><i class="bi bi-info-circle"></i> Campos Legados (Compatibilidade)</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="limit_condominios" class="form-label">Limite de Condomínios (Legado)</label>
+                                <input type="number" class="form-control" id="limit_condominios" name="limit_condominios" value="{{ plan.limit_condominios|default('') }}" min="0">
+                                <small class="form-text text-muted">Mantido para compatibilidade - não usado no novo modelo</small>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="limit_fracoes" class="form-label">Limite de Frações (Legado)</label>
+                                <input type="number" class="form-control" id="limit_fracoes" name="limit_fracoes" value="{{ plan.limit_fracoes|default('') }}" min="0">
+                                <small class="form-text text-muted">Mantido para compatibilidade - não usado no novo modelo</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

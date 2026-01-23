@@ -106,6 +106,185 @@
                                 <i class="bi bi-clock-history"></i> Criada em: {{ subscription.created_at|date('d/m/Y') }}
                             </div>
 
+                            {% if subscription.plan_type %}
+                            <!-- License Information -->
+                            <div class="border-top pt-3 mb-3">
+                                <h6 class="mb-3"><i class="bi bi-key"></i> Informações de Licenças</h6>
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-check-circle text-success me-2"></i>
+                                            <div>
+                                                <small class="text-muted d-block">Licenças Usadas</small>
+                                                <strong class="fs-5">{{ used_licenses|default(0) }}</strong>
+                                                {% if license_limit %}
+                                                    <span class="text-muted">/ {{ license_limit }}</span>
+                                                    <br><small class="text-muted">
+                                                        {% if subscription_plan and subscription_plan.license_min %}
+                                                            {% set extra_licenses_count = (subscription.extra_licenses|default(0)) + 0 %}
+                                                            {{ subscription_plan.license_min }} incluídas
+                                                            {% if extra_licenses_count > 0 and license_limit > subscription_plan.license_min %}
+                                                                + {{ extra_licenses_count }} extras
+                                                            {% endif %}
+                                                        {% else %}
+                                                            {{ license_limit }} disponíveis
+                                                        {% endif %}
+                                                    </small>
+                                                {% else %}
+                                                    <br><small class="text-muted">
+                                                        {% if subscription_plan and subscription_plan.license_min %}
+                                                            {% set extra_licenses_count = (subscription.extra_licenses|default(0)) + 0 %}
+                                                            {{ subscription_plan.license_min }} incluídas
+                                                            {% if extra_licenses_count > 0 %}
+                                                                + {{ extra_licenses_count }} extras
+                                                            {% endif %}
+                                                        {% endif %}
+                                                    </small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-building text-primary me-2"></i>
+                                            <div>
+                                                <small class="text-muted d-block">Condomínios Associados</small>
+                                                <strong class="fs-5">{{ associated_condominiums|length }}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {% if license_limit %}
+                                <div class="progress mb-2" style="height: 20px;">
+                                    {% set usage_percent = (used_licenses / license_limit * 100)|round %}
+                                    <div class="progress-bar {% if usage_percent >= 90 %}bg-danger{% elseif usage_percent >= 75 %}bg-warning{% else %}bg-success{% endif %}" 
+                                         role="progressbar" 
+                                         style="width: {{ usage_percent }}%"
+                                         aria-valuenow="{{ used_licenses }}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="{{ license_limit }}">
+                                        {{ usage_percent }}%
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                {% if pricing_preview %}
+                                <div class="alert alert-light mb-2">
+                                    <small>
+                                        <strong>Preço Mensal:</strong> €{{ pricing_preview.monthly_price|number_format(2, ',', '.') }}
+                                        {% if pricing_preview.annual_price %}
+                                            | <strong>Preço Anual:</strong> €{{ pricing_preview.annual_price|number_format(2, ',', '.') }}
+                                            {% if pricing_preview.annual_discount > 0 %}
+                                                <span class="text-success">({{ pricing_preview.annual_discount }}% desconto)</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                {% endif %}
+                                
+                                {% if subscription.plan_type %}
+                                <!-- Pending License Addition Alert -->
+                                {% if has_pending_license_addition and pending_license_addition %}
+                                <div class="alert alert-warning mb-3">
+                                    <div class="d-flex justify-content-between align-items-start flex-wrap">
+                                        <div class="flex-grow-1">
+                                            <i class="bi bi-exclamation-triangle"></i> <strong>Atenção:</strong> Tem um pagamento pendente para ativar {{ pending_license_addition.additional_licenses }} fração(ões) extra(s). Complete o pagamento para ativar.
+                                        </div>
+                                        <div class="d-flex gap-2 mt-2 mt-md-0">
+                                            <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-sm btn-primary" title="Completar pagamento">
+                                                <i class="bi bi-credit-card"></i> Completar Pagamento
+                                            </a>
+                                            <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-license-addition" class="d-inline-block" onsubmit="return confirm('Tem a certeza que deseja cancelar este pagamento pendente?');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancelar pagamento pendente">
+                                                    <i class="bi bi-x-circle"></i> Cancelar
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                <!-- Add extra licenses for active subscription -->
+                                <div class="border-top pt-3 mt-3 mb-3">
+                                    <h6 class="mb-3"><i class="bi bi-plus-circle"></i> Adicionar Frações Extras</h6>
+                                    <form method="POST" action="{{ BASE_URL }}subscription/add-active-licenses" id="addActiveLicensesForm">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <div class="mb-3">
+                                            <label for="active_extra_licenses" class="form-label small">Número de frações extras a adicionar:</label>
+                                            <input type="number" 
+                                                   class="form-control form-control-sm" 
+                                                   id="active_extra_licenses" 
+                                                   name="extra_licenses"
+                                                   value="0" 
+                                                   min="0"
+                                                   data-plan-id="{{ subscription.plan_id }}"
+                                                   data-current-licenses="{{ license_limit|default(used_licenses) }}"
+                                                   data-current-extra-licenses="{{ subscription.extra_licenses|default(0) }}"
+                                                   data-license-min="{{ subscription_plan.license_min|default(0) }}">
+                                            <small class="text-muted d-block mt-1">
+                                                Frações atuais: <strong>{{ used_licenses }}</strong>
+                                                {% if subscription_plan and subscription_plan.license_min and license_limit %}
+                                                    {% set extra_licenses_count = used_licenses - subscription_plan.license_min %}
+                                                    {% if extra_licenses_count > 0 %}
+                                                        ({{ subscription_plan.license_min }} incluídas + {{ extra_licenses_count }} extras)
+                                                    {% else %}
+                                                        ({{ subscription_plan.license_min }} incluídas no plano)
+                                                    {% endif %}
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                        <div class="alert alert-info small mb-2" id="active_licenses_price_info" style="display: none;">
+                                            <strong>Preço adicional mensal:</strong> <span id="active_licenses_price_amount">€0,00</span>/mês
+                                        </div>
+                                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                                            <i class="bi bi-check-circle"></i> Adicionar Frações e Gerar Pagamento
+                                        </button>
+                                    </form>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Associated Condominiums -->
+                            {% if subscription.plan_type != 'condominio' or (subscription.plan_type == 'condominio' and subscription.allow_multiple_condos) %}
+                            <div class="border-top pt-3 mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="mb-0"><i class="bi bi-building"></i> Condomínios Associados</h6>
+                                    {% if not user.is_demo %}
+                                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#attachCondominiumModal">
+                                        <i class="bi bi-plus-circle"></i> Associar Condomínio
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if associated_condominiums %}
+                                <div class="list-group">
+                                    {% for condo in associated_condominiums %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>{{ condo.condominium_name }}</strong>
+                                            <br><small class="text-muted">{{ condo.condominium_address }}</small>
+                                        </div>
+                                        {% if not user.is_demo and subscription.plan_type != 'condominio' %}
+                                        <form method="POST" action="{{ BASE_URL }}subscription/detach-condominium" class="d-inline" onsubmit="return confirm('Tem certeza que deseja desassociar este condomínio?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <input type="hidden" name="condominium_id" value="{{ condo.condominium_id }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-x-circle"></i> Desassociar
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p class="text-muted small mb-0">Nenhum condomínio associado.</p>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            {% endif %}
+
                             {% if subscription.plan_slug == 'business' and extra_condominiums_pricing %}
                             <div class="border-top pt-3">
                                 <h6 class="mb-3">Condomínios Extras</h6>
@@ -370,6 +549,45 @@
                                 <i class="bi bi-building"></i> Condomínios extras: {{ pending_subscription.extra_condominiums }}
                             </div>
                             {% endif %}
+                            
+                            {% set pending_plan = plans|filter(p => p.id == pending_subscription.plan_id)|first %}
+                            {% if pending_plan and pending_plan.plan_type %}
+                            <!-- License-based plan: Add extra licenses -->
+                            <div class="border-top pt-3 mt-3 mb-3">
+                                <h6 class="mb-3"><i class="bi bi-key"></i> Frações Extras</h6>
+                                <form method="POST" action="{{ BASE_URL }}subscription/update-pending-licenses" id="updatePendingLicensesForm">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <div class="mb-3">
+                                        <label for="pending_extra_licenses" class="form-label small">Número de frações extras:</label>
+                                        <input type="number" 
+                                               class="form-control form-control-sm" 
+                                               id="pending_extra_licenses" 
+                                               name="extra_licenses"
+                                               value="{{ pending_subscription.extra_licenses|default(0) }}" 
+                                               min="0"
+                                               data-plan-id="{{ pending_subscription.plan_id }}"
+                                               data-license-min="{{ pending_plan.license_min|default(0) }}">
+                                        <small class="text-muted d-block mt-1">
+                                            Frações incluídas: <strong>{{ pending_plan.license_min|default(0) }}</strong>
+                                            {% if pending_subscription.extra_licenses|default(0) > 0 %}
+                                                + <strong>{{ pending_subscription.extra_licenses }}</strong> extras = 
+                                                <strong>{{ pending_plan.license_min|default(0) + pending_subscription.extra_licenses }}</strong> total
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    <div class="alert alert-info small mb-2" id="pending_licenses_price_info" style="display: none;">
+                                        <strong>Preço das frações extras:</strong> <span id="pending_licenses_price_amount">€0,00</span>/mês
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong class="d-block mb-1">Total Mensal:</strong>
+                                        <span class="h5 text-primary" id="pending_licenses_total_display">€{{ (pending_total_price ?: pending_subscription.price_monthly)|number_format(2, ',', '.') }}</span>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                                        <i class="bi bi-check-circle"></i> Atualizar Frações Extras
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}
                         </div>
                         <div class="col-md-4 text-end">
                             <a href="{{ BASE_URL }}payments/{{ pending_subscription.id }}/create" class="btn btn-primary w-100 mb-2">
@@ -465,6 +683,48 @@
                                         <span class="text-muted small">/mês</span>
                                     </div>
                                     <p class="text-muted small mb-3 lh-sm">{{ plan.description }}</p>
+                                    
+                                    {% if plan.plan_type %}
+                                    <!-- License-based plan information -->
+                                    <div class="border-top pt-3 mb-3">
+                                        {% if plan.license_min %}
+                                        <div class="mb-2">
+                                            <small class="text-muted d-block mb-1">
+                                                <i class="bi bi-key"></i> <strong>Frações Incluídas:</strong>
+                                            </small>
+                                            <span class="h5 text-primary">{{ plan.license_min }}</span>
+                                            <span class="text-muted small"> frações</span>
+                                        </div>
+                                        {% endif %}
+                                        
+                                        {% if plan_pricing_tiers[plan.id] is defined and plan_pricing_tiers[plan.id]|length > 0 %}
+                                        <div class="mt-3">
+                                            <small class="text-muted d-block mb-2 fw-bold">
+                                                <i class="bi bi-calculator"></i> Preços por Fração Extra:
+                                            </small>
+                                            <div class="small">
+                                                {% for tier in plan_pricing_tiers[plan.id] %}
+                                                {% if tier.is_active %}
+                                                <div class="mb-1">
+                                                    <span class="text-muted">
+                                                        {% if tier.max_licenses %}
+                                                            {{ tier.min_licenses }}-{{ tier.max_licenses }} frações:
+                                                        {% else %}
+                                                            {{ tier.min_licenses }}+ frações:
+                                                        {% endif %}
+                                                    </span>
+                                                    <strong class="text-success ms-1">€{{ tier.price_per_license|number_format(2, ',', '.') }}/fração</strong>
+                                                </div>
+                                                {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                            <small class="text-muted d-block mt-2">
+                                                <i class="bi bi-info-circle"></i> Preços mensais por fração extra
+                                            </small>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
                                     
                                     {% if plan.features %}
                                     <div class="text-start mb-3 flex-grow-1">
@@ -1089,5 +1349,287 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+{% endif %}
+
+{% if pending_subscription %}
+{% set pending_plan = plans|filter(p => p.id == pending_subscription.plan_id)|first %}
+{% if pending_plan and pending_plan.plan_type and plan_pricing_tiers[pending_subscription.plan_id] is defined %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const pricingTiers = {{ plan_pricing_tiers[pending_subscription.plan_id]|json_encode|raw }};
+    const planBasePrice = {{ pending_subscription.price_monthly }};
+    const licenseMin = {{ pending_plan.license_min|default(0) }};
+    const pricingMode = '{{ pending_plan.pricing_mode|default("flat") }}';
+    
+    const input = document.getElementById('pending_extra_licenses');
+    const priceInfo = document.getElementById('pending_licenses_price_info');
+    const priceAmount = document.getElementById('pending_licenses_price_amount');
+    const totalDisplay = document.getElementById('pending_licenses_total_display');
+    
+    if (!input) return;
+    
+    function calculatePrice(extraLicenses) {
+        const totalLicenses = licenseMin + extraLicenses;
+        
+        if (totalLicenses <= licenseMin) {
+            return { base: planBasePrice, extra: 0, total: planBasePrice };
+        }
+        
+        // Find tier for total licenses
+        const sortedTiers = [...pricingTiers].sort((a, b) => b.min_licenses - a.min_licenses);
+        let pricePerLicense = 0;
+        
+        for (const tier of sortedTiers) {
+            if (tier.is_active && totalLicenses >= tier.min_licenses) {
+                if (tier.max_licenses === null || totalLicenses <= tier.max_licenses) {
+                    pricePerLicense = parseFloat(tier.price_per_license);
+                    break;
+                }
+            }
+        }
+        
+        if (pricePerLicense === 0 && sortedTiers.length > 0) {
+            pricePerLicense = parseFloat(sortedTiers[sortedTiers.length - 1].price_per_license);
+        }
+        
+        const totalPrice = pricingMode === 'flat' 
+            ? pricePerLicense * totalLicenses
+            : calculateProgressivePrice(totalLicenses, sortedTiers);
+        
+        const extraPrice = totalPrice - planBasePrice;
+        
+        return {
+            base: planBasePrice,
+            extra: extraPrice,
+            total: totalPrice
+        };
+    }
+    
+    function calculateProgressivePrice(totalLicenses, tiers) {
+        let total = 0;
+        let remaining = totalLicenses;
+        const sorted = [...tiers].sort((a, b) => a.min_licenses - b.min_licenses);
+        
+        for (const tier of sorted) {
+            if (remaining <= 0) break;
+            if (totalLicenses >= tier.min_licenses && tier.is_active) {
+                const tierMax = tier.max_licenses || Infinity;
+                const licensesInTier = Math.min(remaining, tierMax - tier.min_licenses + 1);
+                total += parseFloat(tier.price_per_license) * licensesInTier;
+                remaining -= licensesInTier;
+            }
+        }
+        
+        return total;
+    }
+    
+    function updatePrice() {
+        const extraLicenses = parseInt(input.value) || 0;
+        const prices = calculatePrice(extraLicenses);
+        
+        const formatPrice = (price) => price.toFixed(2).replace('.', ',');
+        
+        if (extraLicenses > 0) {
+            priceInfo.style.display = 'block';
+            priceAmount.textContent = '€' + formatPrice(prices.extra);
+        } else {
+            priceInfo.style.display = 'none';
+        }
+        
+        totalDisplay.textContent = '€' + formatPrice(prices.total);
+    }
+    
+    input.addEventListener('input', updatePrice);
+    input.addEventListener('change', updatePrice);
+    updatePrice();
+});
+</script>
+{% endif %}
+{% endif %}
+
+{% if subscription and subscription.plan_type and plan_pricing_tiers[subscription.plan_id] is defined %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const pricingTiers = {{ plan_pricing_tiers[subscription.plan_id]|json_encode|raw }};
+    const currentTotalLicenses = {{ license_limit|default(subscription_plan.license_min|default(0)) }};
+    const licenseMin = {{ subscription_plan.license_min|default(0) }};
+    const pricingMode = '{{ subscription_plan.pricing_mode|default("flat") }}';
+    
+    const input = document.getElementById('active_extra_licenses');
+    const priceInfo = document.getElementById('active_licenses_price_info');
+    const priceAmount = document.getElementById('active_licenses_price_amount');
+    
+    if (!input) return;
+    
+    function calculatePriceForLicenses(totalLicenses) {
+        if (!pricingTiers || pricingTiers.length === 0) {
+            return 0;
+        }
+        
+        if (pricingMode === 'flat') {
+            // Flat pricing: find the tier that applies to this license count
+            // Sort tiers by min_licenses descending to find the highest applicable tier first
+            const sortedTiers = [...pricingTiers]
+                .filter(tier => tier.is_active)
+                .sort((a, b) => b.min_licenses - a.min_licenses);
+            
+            let pricePerLicense = 0;
+            for (const tier of sortedTiers) {
+                if (totalLicenses >= tier.min_licenses) {
+                    if (tier.max_licenses === null || totalLicenses <= tier.max_licenses) {
+                        pricePerLicense = parseFloat(tier.price_per_license);
+                        break;
+                    }
+                }
+            }
+            
+            // If no tier found, use the lowest tier (shouldn't happen)
+            if (pricePerLicense === 0 && sortedTiers.length > 0) {
+                const lowestTier = sortedTiers[sortedTiers.length - 1];
+                pricePerLicense = parseFloat(lowestTier.price_per_license);
+            }
+            
+            return pricePerLicense * totalLicenses;
+        } else {
+            // Progressive pricing: calculate tier by tier
+            const sortedTiers = [...pricingTiers].sort((a, b) => a.min_licenses - b.min_licenses);
+            return calculateProgressivePrice(totalLicenses, sortedTiers);
+        }
+    }
+    
+    function calculateProgressivePrice(totalLicenses, tiers) {
+        let total = 0;
+        let remainingLicenses = totalLicenses;
+        const sorted = [...tiers].sort((a, b) => a.min_licenses - b.min_licenses);
+        
+        for (const tier of sorted) {
+            if (remainingLicenses <= 0) break;
+            
+            const tierMin = tier.min_licenses;
+            const tierMax = tier.max_licenses === null ? Number.MAX_SAFE_INTEGER : tier.max_licenses;
+            
+            if (totalLicenses >= tierMin && tier.is_active) {
+                let licensesInTier = 0;
+                
+                if (tierMax === null || totalLicenses <= tierMax) {
+                    // All remaining licenses fall in this tier
+                    licensesInTier = remainingLicenses;
+                } else {
+                    // Partial: calculate how many licenses in this tier range
+                    // This matches the backend logic: min(remainingLicenses, tierMax - max(tierMin - 1, totalLicenses - remainingLicenses) + 1)
+                    const lowerBound = Math.max(tierMin - 1, totalLicenses - remainingLicenses);
+                    licensesInTier = Math.min(remainingLicenses, tierMax - lowerBound + 1);
+                }
+                
+                if (licensesInTier > 0) {
+                    total += parseFloat(tier.price_per_license) * licensesInTier;
+                    remainingLicenses -= licensesInTier;
+                }
+            }
+        }
+        
+        return total;
+    }
+    
+    function updatePrice() {
+        const additionalLicenses = parseInt(input.value) || 0;
+        
+        if (additionalLicenses <= 0) {
+            priceInfo.style.display = 'none';
+            return;
+        }
+        
+        // Calculate current total licenses
+        const currentTotal = currentTotalLicenses;
+        
+        // For flat pricing: charge additional licenses at the CURRENT tier price
+        // Find the tier that applies to current total licenses
+        const sortedTiers = [...pricingTiers]
+            .filter(tier => tier.is_active)
+            .sort((a, b) => b.min_licenses - a.min_licenses);
+        
+        let pricePerLicense = 0;
+        for (const tier of sortedTiers) {
+            if (currentTotal >= tier.min_licenses) {
+                if (tier.max_licenses === null || currentTotal <= tier.max_licenses) {
+                    pricePerLicense = parseFloat(tier.price_per_license);
+                    break;
+                }
+            }
+        }
+        
+        // If no tier found, use the lowest tier
+        if (pricePerLicense === 0 && sortedTiers.length > 0) {
+            const lowestTier = sortedTiers[sortedTiers.length - 1];
+            pricePerLicense = parseFloat(lowestTier.price_per_license);
+        }
+        
+        // Calculate additional price: additional licenses * current tier price
+        const additionalPrice = additionalLicenses * pricePerLicense;
+        
+        const formatPrice = (price) => price.toFixed(2).replace('.', ',');
+        
+        priceInfo.style.display = 'block';
+        priceAmount.textContent = '€' + formatPrice(additionalPrice);
+    }
+    
+    input.addEventListener('input', updatePrice);
+    input.addEventListener('change', updatePrice);
+    updatePrice();
+});
+</script>
+{% endif %}
+
+<!-- Attach Condominium Modal -->
+{% if subscription and subscription.plan_type != 'condominio' and user.condominiums %}
+<div class="modal fade" id="attachCondominiumModal" tabindex="-1" aria-labelledby="attachCondominiumModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="attachCondominiumModalLabel">
+                    <i class="bi bi-building"></i> Associar Condomínio
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}subscription/attach-condominium">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    
+                    <div class="mb-3">
+                        <label for="modal_condominium_id" class="form-label">Selecione o condomínio:</label>
+                        <select class="form-select" id="modal_condominium_id" name="condominium_id" required>
+                            <option value="">-- Selecione um condomínio --</option>
+                            {% for condo in user.condominiums %}
+                            {% set is_associated = false %}
+                            {% for ac in associated_condominiums %}
+                                {% if ac.condominium_id == condo.id %}
+                                    {% set is_associated = true %}
+                                {% endif %}
+                            {% endfor %}
+                            {% if not is_associated %}
+                            <option value="{{ condo.id }}">{{ condo.name }} - {{ condo.address }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="alert alert-info small mb-0">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Nota:</strong> Ao associar um condomínio, todas as frações ativas desse condomínio serão contabilizadas nas suas licenças.
+                        {% if license_limit %}
+                        <br>Limite atual: {{ used_licenses }}/{{ license_limit }} licenças.
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Associar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endif %}
 

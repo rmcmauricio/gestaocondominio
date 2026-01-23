@@ -229,6 +229,81 @@ class Condominium extends Model
         
         return null;
     }
+
+    /**
+     * Get count of active fractions for condominium
+     */
+    public function getActiveFractionsCount(int $condominiumId): int
+    {
+        if (!$this->db) {
+            return 0;
+        }
+
+        $fractionModel = new Fraction();
+        return $fractionModel->getActiveCountByCondominium($condominiumId);
+    }
+
+    /**
+     * Lock condominium (block access)
+     */
+    public function lock(int $condominiumId, ?int $userId = null, ?string $reason = null): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE condominiums 
+            SET subscription_status = 'locked',
+                locked_at = NOW(),
+                locked_reason = :reason,
+                updated_at = NOW()
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([
+            ':id' => $condominiumId,
+            ':reason' => $reason
+        ]);
+    }
+
+    /**
+     * Unlock condominium (restore access)
+     */
+    public function unlock(int $condominiumId): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE condominiums 
+            SET subscription_status = 'active',
+                locked_at = NULL,
+                locked_reason = NULL,
+                updated_at = NOW()
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([':id' => $condominiumId]);
+    }
+
+    /**
+     * Check if condominium is locked
+     */
+    public function isLocked(int $condominiumId): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $condominium = $this->findById($condominiumId);
+        if (!$condominium) {
+            return false;
+        }
+
+        return ($condominium['subscription_status'] ?? 'active') === 'locked';
+    }
 }
 
 

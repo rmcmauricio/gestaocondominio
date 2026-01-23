@@ -215,6 +215,97 @@ class Plan extends Model
         $stmt = $this->db->prepare("DELETE FROM plans WHERE id = :id");
         return $stmt->execute([':id' => $id]);
     }
+
+    /**
+     * Get pricing tiers for a plan
+     */
+    public function getPricingTiers(int $planId): array
+    {
+        $tierModel = new PlanPricingTier();
+        return $tierModel->getByPlanId($planId, true);
+    }
+
+    /**
+     * Get the pricing tier that applies to a specific license count
+     */
+    public function getTierForLicenses(int $planId, int $licenseCount): ?array
+    {
+        $tierModel = new PlanPricingTier();
+        return $tierModel->findTierForCount($planId, $licenseCount);
+    }
+
+    /**
+     * Calculate price for a given license count using tiered pricing
+     */
+    public function calculatePrice(int $planId, int $licenseCount, string $mode = 'flat'): float
+    {
+        $plan = $this->findById($planId);
+        if (!$plan) {
+            return 0.0;
+        }
+
+        // If plan doesn't use tiered pricing, use base price_monthly
+        $tiers = $this->getPricingTiers($planId);
+        if (empty($tiers)) {
+            return (float)($plan['price_monthly'] ?? 0);
+        }
+
+        $pricingMode = $plan['pricing_mode'] ?? 'flat';
+        if ($mode !== 'flat' && $mode !== 'progressive') {
+            $mode = $pricingMode;
+        }
+
+        if ($mode === 'flat') {
+            // Flat pricing: all licenses at the price of the tier they fall into
+            $tier = $this->getTierForLicenses($planId, $licenseCount);
+            if ($tier) {
+                return (float)$tier['price_per_license'] * $licenseCount;
+            }
+        } else {
+            // Progressive pricing: calculate by summing each tier range
+            // This matches the logic in PricingService
+            $totalPrice = 0.0;
+            $remainingLicenses = $licenseCount;
+            
+            // Sort tiers by min_licenses ascending
+            usort($tiers, function($a, $b) {
+                return $a['min_licenses'] <=> $b['min_licenses'];
+            });
+
+            foreach ($tiers as $tier) {
+                if ($remainingLicenses <= 0) {
+                    break;
+                }
+
+                $tierMin = $tier['min_licenses'];
+                $tierMax = $tier['max_licenses'] ?? PHP_INT_MAX;
+                $tierPrice = (float)$tier['price_per_license'];
+
+                if ($licenseCount >= $tierMin) {
+                    // Calculate how many licenses fall in this tier
+                    $licensesInTier = 0;
+                    
+                    if ($tierMax === null || $licenseCount <= $tierMax) {
+                        // All remaining licenses fall in this tier
+                        $licensesInTier = $remainingLicenses;
+                    } else {
+                        // Partial: calculate how many licenses in this tier range
+                        // This matches PricingService logic
+                        $licensesInTier = min($remainingLicenses, $tierMax - max($tierMin - 1, $licenseCount - $remainingLicenses) + 1);
+                    }
+                    
+                    if ($licensesInTier > 0) {
+                        $totalPrice += $tierPrice * $licensesInTier;
+                        $remainingLicenses -= $licensesInTier;
+                    }
+                }
+            }
+
+            return $totalPrice;
+        }
+
+        return 0.0;
+    }
 }
 
 

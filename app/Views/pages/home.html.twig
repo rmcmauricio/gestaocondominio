@@ -411,6 +411,48 @@
                         
                         <p class="text-muted mb-4">{{ plan.description }}</p>
                         
+                        {% if plan.plan_type %}
+                        <!-- License-based plan information -->
+                        <div class="border-top border-bottom py-3 mb-4">
+                            {% if plan.license_min %}
+                            <div class="mb-3">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="bi bi-key"></i> <strong>Frações Incluídas:</strong>
+                                </small>
+                                <span class="h4 text-primary">{{ plan.license_min }}</span>
+                                <span class="text-muted small"> frações</span>
+                            </div>
+                            {% endif %}
+                            
+                            {% if plan_pricing_tiers[plan.id] is defined and plan_pricing_tiers[plan.id]|length > 0 %}
+                            <div class="mt-3">
+                                <small class="text-muted d-block mb-2 fw-bold">
+                                    <i class="bi bi-calculator"></i> Preços por Fração Extra:
+                                </small>
+                                <div class="small">
+                                    {% for tier in plan_pricing_tiers[plan.id] %}
+                                    {% if tier.is_active %}
+                                    <div class="mb-1">
+                                        <span class="text-muted">
+                                            {% if tier.max_licenses %}
+                                                {{ tier.min_licenses }}-{{ tier.max_licenses }} frações:
+                                            {% else %}
+                                                {{ tier.min_licenses }}+ frações:
+                                            {% endif %}
+                                        </span>
+                                        <strong class="text-success ms-1">€{{ tier.price_per_license|number_format(2, ',', '.') }}/fração</strong>
+                                    </div>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                                <small class="text-muted d-block mt-2">
+                                    <i class="bi bi-info-circle"></i> Preços mensais por fração extra
+                                </small>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
                         <ul class="list-unstyled text-start mb-4">
                             {% if plan.limit_condominios %}
                             <li class="mb-2"><i class="bi bi-check-circle text-success"></i> {% if plan.slug == 'business' %}Até {{ plan.limit_condominios }} condomínios (sem extras){% else %}{{ plan.limit_condominios }} condomínio(s){% endif %}</li>

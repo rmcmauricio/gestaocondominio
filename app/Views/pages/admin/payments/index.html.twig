@@ -1,31 +1,186 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2>Consulta de Pagamentos</h2>
-            <p class="text-muted mb-0">Visualizar todos os pagamentos das subscrições</p>
+            <h2>Gestão de Pagamentos</h2>
+            <p class="text-muted mb-0">Aprovar pagamentos pendentes manualmente</p>
         </div>
         <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Voltar
         </a>
     </div>
 
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if info %}
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        {{ info }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- Filters and Search -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ BASE_URL }}admin/payments" class="row g-3">
+                <div class="col-md-4">
+                    <label for="search" class="form-label">
+                        <i class="bi bi-search"></i> Pesquisar Utilizador
+                    </label>
+                    <input type="text" 
+                           class="form-control" 
+                           id="search" 
+                           name="search" 
+                           value="{{ search }}" 
+                           placeholder="Nome ou email do utilizador...">
+                </div>
+                <div class="col-md-2">
+                    <label for="status" class="form-label">Status</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">Todos</option>
+                        <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pendente</option>
+                        <option value="processing" {% if status_filter == 'processing' %}selected{% endif %}>Processando</option>
+                        <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completo</option>
+                        <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Falhado</option>
+                        <option value="refunded" {% if status_filter == 'refunded' %}selected{% endif %}>Reembolsado</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="method" class="form-label">Método</label>
+                    <select class="form-select" id="method" name="method">
+                        <option value="">Todos</option>
+                        <option value="card" {% if method_filter == 'card' %}selected{% endif %}>Cartão</option>
+                        <option value="multibanco" {% if method_filter == 'multibanco' %}selected{% endif %}>Multibanco</option>
+                        <option value="mbway" {% if method_filter == 'mbway' %}selected{% endif %}>MB Way</option>
+                        <option value="transfer" {% if method_filter == 'transfer' %}selected{% endif %}>Transferência</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="type" class="form-label">Tipo</label>
+                    <select class="form-select" id="type" name="type">
+                        <option value="">Todos</option>
+                        <option value="subscription" {% if type_filter == 'subscription' %}selected{% endif %}>Subscrição</option>
+                        <option value="license_addition" {% if type_filter == 'license_addition' %}selected{% endif %}>Frações Extras</option>
+                        <option value="extra_update" {% if type_filter == 'extra_update' %}selected{% endif %}>Condomínios Extras</option>
+                        <option value="plan_change" {% if type_filter == 'plan_change' %}selected{% endif %}>Mudança de Plano</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-funnel"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+            {% if search or status_filter or method_filter or type_filter %}
+            <div class="mt-3">
+                <a href="{{ BASE_URL }}admin/payments" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-x-circle"></i> Limpar Filtros
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
     <div class="card shadow-sm">
         <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="bi bi-credit-card"></i> Pagamentos</h5>
+            <h5 class="mb-0">
+                <i class="bi bi-credit-card"></i> Gestão de Pagamentos
+                {% if total_count %}
+                <small class="ms-2">({{ total_count }} registo{{ total_count != 1 ? 's' : '' }})</small>
+                {% endif %}
+            </h5>
         </div>
         <div class="card-body">
+            {% if payments|length > 0 %}
             <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Utilizador</th>
-                            <th>Plano</th>
+                            <th>
+                                {% set new_order = (sort_by == 'id' and sort_order == 'ASC') ? 'DESC' : 'ASC' %}
+                                <a href="{{ BASE_URL }}admin/payments?sort=id&order={{ new_order }}{% if search %}&search={{ search|url_encode }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if method_filter %}&method={{ method_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}" 
+                                   class="text-white text-decoration-none">
+                                    ID
+                                    {% if sort_by == 'id' %}
+                                        {% if sort_order == 'ASC' %}
+                                            <i class="bi bi-arrow-up"></i>
+                                        {% else %}
+                                            <i class="bi bi-arrow-down"></i>
+                                        {% endif %}
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th>
+                                {% set new_order = (sort_by == 'user_name' and sort_order == 'ASC') ? 'DESC' : 'ASC' %}
+                                <a href="{{ BASE_URL }}admin/payments?sort=user_name&order={{ new_order }}{% if search %}&search={{ search|url_encode }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if method_filter %}&method={{ method_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}" 
+                                   class="text-white text-decoration-none">
+                                    Utilizador
+                                    {% if sort_by == 'user_name' %}
+                                        {% if sort_order == 'ASC' %}
+                                            <i class="bi bi-arrow-up"></i>
+                                        {% else %}
+                                            <i class="bi bi-arrow-down"></i>
+                                        {% endif %}
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th>Subscrição</th>
+                            <th>
+                                {% set new_order = (sort_by == 'amount' and sort_order == 'ASC') ? 'DESC' : 'ASC' %}
+                                <a href="{{ BASE_URL }}admin/payments?sort=amount&order={{ new_order }}{% if search %}&search={{ search|url_encode }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if method_filter %}&method={{ method_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}" 
+                                   class="text-white text-decoration-none">
+                                    Valor
+                                    {% if sort_by == 'amount' %}
+                                        {% if sort_order == 'ASC' %}
+                                            <i class="bi bi-arrow-up"></i>
+                                        {% else %}
+                                            <i class="bi bi-arrow-down"></i>
+                                        {% endif %}
+                                    {% endif %}
+                                </a>
+                            </th>
                             <th>Método</th>
-                            <th>Valor</th>
-                            <th>Status</th>
-                            <th>Referência</th>
-                            <th>Data</th>
+                            <th>
+                                {% set new_order = (sort_by == 'status' and sort_order == 'ASC') ? 'DESC' : 'ASC' %}
+                                <a href="{{ BASE_URL }}admin/payments?sort=status&order={{ new_order }}{% if search %}&search={{ search|url_encode }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if method_filter %}&method={{ method_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}" 
+                                   class="text-white text-decoration-none">
+                                    Status
+                                    {% if sort_by == 'status' %}
+                                        {% if sort_order == 'ASC' %}
+                                            <i class="bi bi-arrow-up"></i>
+                                        {% else %}
+                                            <i class="bi bi-arrow-down"></i>
+                                        {% endif %}
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th>Tipo</th>
+                            <th>
+                                {% set new_order = (sort_by == 'created_at' and sort_order == 'ASC') ? 'DESC' : 'ASC' %}
+                                <a href="{{ BASE_URL }}admin/payments?sort=created_at&order={{ new_order }}{% if search %}&search={{ search|url_encode }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if method_filter %}&method={{ method_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}" 
+                                   class="text-white text-decoration-none">
+                                    Criado em
+                                    {% if sort_by == 'created_at' %}
+                                        {% if sort_order == 'ASC' %}
+                                            <i class="bi bi-arrow-up"></i>
+                                        {% else %}
+                                            <i class="bi bi-arrow-down"></i>
+                                        {% endif %}
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th>Ações</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -37,58 +192,257 @@
                                 <small class="text-muted">{{ payment.user_email }}</small>
                             </td>
                             <td>
-                                {% if payment.plan_name %}
-                                    <span class="badge bg-primary">{{ payment.plan_name }}</span>
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
+                                <span class="badge bg-primary">{{ payment.plan_name }}</span><br>
+                                <small class="text-muted">Status: 
+                                    {% if payment.subscription_status == 'active' %}
+                                        <span class="badge bg-success">Ativa</span>
+                                    {% elseif payment.subscription_status == 'pending' %}
+                                        <span class="badge bg-warning">Pendente</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ payment.subscription_status }}</span>
+                                    {% endif %}
+                                </small>
                             </td>
                             <td>
-                                {% if payment.payment_method == 'multibanco' %}
-                                    <span class="badge bg-info"><i class="bi bi-bank"></i> Multibanco</span>
+                                <strong>€{{ payment.amount|number_format(2, ',', '.') }}</strong>
+                            </td>
+                            <td>
+                                {% if payment.payment_method == 'card' %}
+                                    <span class="badge bg-info">Cartão</span>
+                                {% elseif payment.payment_method == 'multibanco' %}
+                                    <span class="badge bg-primary">Multibanco</span>
                                 {% elseif payment.payment_method == 'mbway' %}
-                                    <span class="badge bg-success"><i class="bi bi-phone"></i> MBWay</span>
-                                {% elseif payment.payment_method == 'sepa' %}
-                                    <span class="badge bg-warning"><i class="bi bi-arrow-repeat"></i> SEPA</span>
-                                {% elseif payment.payment_method == 'direct_debit' %}
-                                    <span class="badge bg-primary"><i class="bi bi-arrow-repeat"></i> Débito Direto</span>
+                                    <span class="badge bg-success">MB Way</span>
+                                {% elseif payment.payment_method == 'transfer' %}
+                                    <span class="badge bg-secondary">Transferência</span>
                                 {% else %}
                                     <span class="badge bg-secondary">{{ payment.payment_method }}</span>
                                 {% endif %}
                             </td>
-                            <td><strong>€{{ payment.amount|number_format(2, ',', '.') }}</strong></td>
                             <td>
                                 {% if payment.status == 'completed' %}
-                                    <span class="badge bg-success">Concluído</span>
+                                    <span class="badge bg-success">Completo</span>
                                 {% elseif payment.status == 'pending' %}
                                     <span class="badge bg-warning">Pendente</span>
+                                {% elseif payment.status == 'processing' %}
+                                    <span class="badge bg-info">Processando</span>
                                 {% elseif payment.status == 'failed' %}
                                     <span class="badge bg-danger">Falhado</span>
+                                {% elseif payment.status == 'refunded' %}
+                                    <span class="badge bg-secondary">Reembolsado</span>
                                 {% else %}
                                     <span class="badge bg-secondary">{{ payment.status }}</span>
                                 {% endif %}
                             </td>
                             <td>
-                                {% if payment.reference %}
-                                    <code>{{ payment.reference }}</code>
-                                {% elseif payment.external_payment_id %}
-                                    <code>{{ payment.external_payment_id }}</code>
+                                {% set invoice_metadata = payment.invoice_metadata|default({}) %}
+                                {% if invoice_metadata.is_license_addition %}
+                                    <span class="badge bg-warning">
+                                        <i class="bi bi-plus-circle"></i> Frações Extras
+                                    </span>
+                                    {% if invoice_metadata.additional_licenses %}
+                                        <br><small class="text-muted">+{{ invoice_metadata.additional_licenses }} frações</small>
+                                    {% endif %}
+                                {% elseif invoice_metadata.is_extra_update %}
+                                    <span class="badge bg-info">
+                                        <i class="bi bi-building"></i> Condomínios Extras
+                                    </span>
+                                    {% if invoice_metadata.new_extra_condominiums %}
+                                        <br><small class="text-muted">{{ invoice_metadata.new_extra_condominiums }} condomínios</small>
+                                    {% endif %}
+                                {% elseif invoice_metadata.is_plan_change %}
+                                    <span class="badge bg-primary">
+                                        <i class="bi bi-arrow-repeat"></i> Mudança de Plano
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Subscrição</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ payment.created_at|date('d/m/Y H:i') }}
+                                {% if payment.processed_at %}
+                                    <br><small class="text-muted">Processado: {{ payment.processed_at|date('d/m/Y H:i') }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if payment.status == 'pending' %}
+                                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#approvePaymentModal{{ payment.id }}" title="Aprovar pagamento">
+                                        <i class="bi bi-check-circle"></i> Aprovar
+                                    </button>
                                 {% else %}
                                     <span class="text-muted">-</span>
                                 {% endif %}
-                            </td>
-                            <td>{{ payment.created_at|date('d/m/Y H:i') }}</td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="8" class="text-center text-muted">
-                                Nenhum pagamento encontrado.
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <nav aria-label="Paginação de pagamentos">
+                <ul class="pagination justify-content-center mt-4">
+                    {% set queryParams = [] %}
+                    {% if search %}{% set queryParams = queryParams|merge(['search=' ~ search|url_encode]) %}{% endif %}
+                    {% if status_filter %}{% set queryParams = queryParams|merge(['status=' ~ status_filter]) %}{% endif %}
+                    {% if method_filter %}{% set queryParams = queryParams|merge(['method=' ~ method_filter]) %}{% endif %}
+                    {% if type_filter %}{% set queryParams = queryParams|merge(['type=' ~ type_filter]) %}{% endif %}
+                    {% if sort_by %}{% set queryParams = queryParams|merge(['sort=' ~ sort_by]) %}{% endif %}
+                    {% if sort_order %}{% set queryParams = queryParams|merge(['order=' ~ sort_order]) %}{% endif %}
+                    {% set queryString = queryParams|join('&') %}
+
+                    <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
+                        <a class="page-link" href="{{ BASE_URL }}admin/payments?{{ queryString }}{% if queryString %}&{% endif %}page={{ current_page - 1 }}" aria-label="Anterior">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    
+                    {% for page_num in 1..total_pages %}
+                        {% if page_num == 1 or page_num == total_pages or (page_num >= current_page - 2 and page_num <= current_page + 2) %}
+                            <li class="page-item {% if page_num == current_page %}active{% endif %}">
+                                <a class="page-link" href="{{ BASE_URL }}admin/payments?{{ queryString }}{% if queryString %}&{% endif %}page={{ page_num }}">{{ page_num }}</a>
+                            </li>
+                        {% elseif page_num == current_page - 3 or page_num == current_page + 3 %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
+                        <a class="page-link" href="{{ BASE_URL }}admin/payments?{{ queryString }}{% if queryString %}&{% endif %}page={{ current_page + 1 }}" aria-label="Próximo">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                <p class="mt-3">Não há pagamentos registados{% if search or status_filter or method_filter or type_filter %} com os filtros aplicados{% endif %}.</p>
+            </div>
+            {% endif %}
         </div>
     </div>
+
+    <!-- Modals - Outside table to prevent positioning issues -->
+    {% for payment in payments %}
+        <!-- Approve Payment Modal -->
+        <div class="modal fade" id="approvePaymentModal{{ payment.id }}" tabindex="-1" aria-labelledby="approvePaymentModalLabel{{ payment.id }}" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title" id="approvePaymentModalLabel{{ payment.id }}">Aprovar Pagamento</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="POST" action="{{ BASE_URL }}admin/payments/approve">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="payment_id" value="{{ payment.id }}">
+                        <div class="modal-body">
+                            <p><strong>Utilizador:</strong> {{ payment.user_name }} ({{ payment.user_email }})</p>
+                            <p><strong>Plano:</strong> {{ payment.plan_name }}</p>
+                            <p><strong>Valor:</strong> €{{ payment.amount|number_format(2, ',', '.') }}</p>
+                            <p><strong>Método:</strong> {{ payment.payment_method }}</p>
+                            
+                            {% set invoice_metadata = payment.invoice_metadata|default({}) %}
+                            {% if invoice_metadata.is_license_addition %}
+                                <div class="alert alert-warning">
+                                    <strong>Tipo:</strong> Adição de Frações Extras<br>
+                                    <strong>Frações a adicionar:</strong> {{ invoice_metadata.additional_licenses|default(0) }}
+                                </div>
+                            {% elseif invoice_metadata.is_extra_update %}
+                                <div class="alert alert-info">
+                                    <strong>Tipo:</strong> Atualização de Condomínios Extras<br>
+                                    <strong>Novos condomínios extras:</strong> {{ invoice_metadata.new_extra_condominiums|default(0) }}
+                                </div>
+                            {% elseif invoice_metadata.is_plan_change %}
+                                <div class="alert alert-primary">
+                                    <strong>Tipo:</strong> Mudança de Plano
+                                </div>
+                            {% endif %}
+                            
+                            <div class="alert alert-warning">
+                                <small><i class="bi bi-exclamation-triangle"></i> Ao aprovar este pagamento, a subscrição e/ou extras serão ativados automaticamente.</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="admin_comment{{ payment.id }}" class="form-label">
+                                    <i class="bi bi-chat-left-text"></i> Comentário (opcional)
+                                </label>
+                                <textarea 
+                                    class="form-control" 
+                                    id="admin_comment{{ payment.id }}" 
+                                    name="admin_comment" 
+                                    rows="3" 
+                                    placeholder="Adicione um comentário sobre esta aprovação manual..."
+                                ></textarea>
+                                <small class="form-text text-muted">Este comentário será registado nos logs de auditoria.</small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle"></i> Aprovar Pagamento
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
 </div>
+
+<style>
+/* Ensure modals are positioned correctly */
+.modal {
+    position: fixed !important;
+    z-index: 1055 !important;
+}
+
+.modal-backdrop {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 1050 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+.table-responsive {
+    position: relative;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.modal-dialog-centered {
+    display: flex !important;
+    align-items: center !important;
+    min-height: calc(100% - 1rem) !important;
+}
+
+/* Sortable table headers */
+.card-header a {
+    transition: opacity 0.2s;
+}
+
+.card-header a:hover {
+    opacity: 0.8;
+}
+</style>
+
+<script>
+// Helper function to build query string
+function buildQueryString(params) {
+    const queryParts = [];
+    for (const key in params) {
+        if (params[key]) {
+            queryParts.push(key + '=' + encodeURIComponent(params[key]));
+        }
+    }
+    return queryParts.join('&');
+}
+</script>

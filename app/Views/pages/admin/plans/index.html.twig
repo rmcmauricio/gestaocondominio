@@ -69,14 +69,34 @@
                             </td>
                             <td>
                                 <small>
-                                    {% if plan.limit_condominios %}
-                                        Condomínios: {{ plan.limit_condominios }}<br>
+                                    {% if plan.plan_type %}
+                                        <strong>Tipo:</strong> {{ plan.plan_type|title }}<br>
                                     {% endif %}
-                                    {% if plan.limit_fracoes %}
-                                        Frações: {{ plan.limit_fracoes }}
+                                    {% if plan.license_min %}
+                                        <strong>Mín. Licenças:</strong> {{ plan.license_min }}<br>
                                     {% endif %}
-                                    {% if not plan.limit_condominios and not plan.limit_fracoes %}
-                                        <span class="text-muted">Sem limites</span>
+                                    {% if plan.license_limit %}
+                                        <strong>Limite:</strong> {{ plan.license_limit }}<br>
+                                    {% elseif plan.plan_type %}
+                                        <strong>Limite:</strong> Ilimitado<br>
+                                    {% endif %}
+                                    {% if plan.allow_multiple_condos %}
+                                        <span class="badge bg-info">Múltiplos Condomínios</span>
+                                    {% endif %}
+                                    {% if plan.allow_overage %}
+                                        <span class="badge bg-warning">Overage Permitido</span>
+                                    {% endif %}
+                                    {% if not plan.plan_type %}
+                                        <!-- Fallback para planos legados -->
+                                        {% if plan.limit_condominios %}
+                                            Condomínios: {{ plan.limit_condominios }}<br>
+                                        {% endif %}
+                                        {% if plan.limit_fracoes %}
+                                            Frações: {{ plan.limit_fracoes }}
+                                        {% endif %}
+                                        {% if not plan.limit_condominios and not plan.limit_fracoes %}
+                                            <span class="text-muted">Sem limites</span>
+                                        {% endif %}
                                     {% endif %}
                                 </small>
                             </td>
@@ -93,8 +113,11 @@
                                     <a href="{{ BASE_URL }}admin/plans/{{ plan.id }}/edit" class="btn btn-sm btn-info" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </a>
+                                    <a href="{{ BASE_URL }}admin/plans/{{ plan.id }}/pricing-tiers" class="btn btn-sm btn-success" title="Gerir Escalões de Pricing">
+                                        <i class="bi bi-graph-up"></i> Preços
+                                    </a>
                                     {% if plan.slug == 'business' %}
-                                    <a href="{{ BASE_URL }}admin/plans/{{ plan.id }}/extra-condominiums-pricing" class="btn btn-sm btn-success" title="Gerir Preços de Condomínios Extras">
+                                    <a href="{{ BASE_URL }}admin/plans/{{ plan.id }}/extra-condominiums-pricing" class="btn btn-sm btn-secondary" title="Gerir Preços de Condomínios Extras (Legado)">
                                         <i class="bi bi-tag"></i>
                                     </a>
                                     {% endif %}
@@ -110,31 +133,6 @@
                                 </div>
                             </td>
                         </tr>
-
-                        <!-- Delete Modal -->
-                        <div class="modal fade" id="deleteModal{{ plan.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ plan.id }}" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <div class="modal-content">
-                                    <div class="modal-header bg-danger text-white">
-                                        <h5 class="modal-title" id="deleteModalLabel{{ plan.id }}">Deletar Plano</h5>
-                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <form method="POST" action="{{ BASE_URL }}admin/plans/{{ plan.id }}/delete">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <div class="modal-body">
-                                            <p>Tem certeza que deseja deletar o plano <strong>{{ plan.name }}</strong>?</p>
-                                            <div class="alert alert-warning">
-                                                <small><i class="bi bi-exclamation-triangle"></i> Esta ação não pode ser desfeita. O plano só pode ser deletado se não houver subscrições ativas associadas.</small>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                            <button type="submit" class="btn btn-danger">Deletar</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
                         {% else %}
                         <tr>
                             <td colspan="9" class="text-center text-muted">
@@ -148,3 +146,30 @@
         </div>
     </div>
 </div>
+
+<!-- Modais de Delete (fora da tabela para evitar problemas de posicionamento) -->
+{% for plan in plans %}
+<div class="modal fade" id="deleteModal{{ plan.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ plan.id }}" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel{{ plan.id }}">Deletar Plano</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/plans/{{ plan.id }}/delete">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <p>Tem certeza que deseja deletar o plano <strong>{{ plan.name }}</strong>?</p>
+                    <div class="alert alert-warning">
+                        <small><i class="bi bi-exclamation-triangle"></i> Esta ação não pode ser desfeita. O plano só pode ser deletado se não houver subscrições ativas associadas.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Deletar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}

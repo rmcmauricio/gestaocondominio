@@ -6,6 +6,7 @@ use App\Core\Controller;
 use App\Models\Plan;
 use App\Models\Promotion;
 use App\Models\PlanExtraCondominiumsPricing;
+use App\Models\PlanPricingTier;
 
 class HomeController extends Controller
 {
@@ -62,6 +63,7 @@ class HomeController extends Controller
         $planPromotions = [];
         $businessPlan = null;
         $extraCondominiumsPricing = [];
+        $planPricingTiers = []; // Store pricing tiers for license-based plans
         
         foreach ($plans as $plan) {
             $visiblePromotion = $promotionModel->getVisibleForPlan($plan['id']);
@@ -73,6 +75,15 @@ class HomeController extends Controller
                 $businessPlan = $plan;
                 $extraCondominiumsPricingModel = new PlanExtraCondominiumsPricing();
                 $extraCondominiumsPricing = $extraCondominiumsPricingModel->getByPlanId($plan['id']);
+            }
+            
+            // Get pricing tiers for license-based plans (including condominio type)
+            if (!empty($plan['plan_type'])) {
+                $pricingTierModel = new PlanPricingTier();
+                $tiers = $pricingTierModel->getByPlanId($plan['id'], true);
+                if (!empty($tiers)) {
+                    $planPricingTiers[$plan['id']] = $tiers;
+                }
             }
         }
         
@@ -86,7 +97,8 @@ class HomeController extends Controller
             'plans' => $plans,
             'plan_promotions' => $planPromotions,
             'business_plan' => $businessPlan,
-            'extra_condominiums_pricing' => $extraCondominiumsPricing
+            'extra_condominiums_pricing' => $extraCondominiumsPricing,
+            'plan_pricing_tiers' => $planPricingTiers
         ];
         
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

@@ -14,6 +14,7 @@ class DatabaseSeeder
         $this->seedPlans();
         $this->seedSuperAdmin();
         $this->seedPaymentMethods();
+        $this->seedPlanPricingTiers();
     }
 
     protected function seedPlans(): void
@@ -29,38 +30,60 @@ class DatabaseSeeder
             'gestao_fornecedores' => true
         ]);
 
+        // Novos planos baseados em licenças
         $plans = [
             [
-                'name' => 'START',
-                'slug' => 'start',
-                'description' => 'Plano ideal para pequenos condomínios',
-                'price_monthly' => 9.90,
-                'price_yearly' => 99.00,
-                'limit_condominios' => 1,
-                'limit_fracoes' => 20,
+                'name' => 'Condomínio',
+                'slug' => 'condominio',
+                'description' => 'Plano base ideal para pequenos condomínios',
+                'price_monthly' => 10.00, // Preço base (será calculado por tier)
+                'price_yearly' => 100.00,
+                'plan_type' => 'condominio',
+                'license_min' => 10,
+                'license_limit' => null,
+                'allow_multiple_condos' => false,
+                'allow_overage' => false,
+                'pricing_mode' => 'flat',
+                'annual_discount_percentage' => 0,
+                'limit_condominios' => 1, // Mantido para compatibilidade
+                'limit_fracoes' => null, // Não usado no novo modelo
                 'features' => $commonFeatures,
                 'is_active' => true,
                 'sort_order' => 1
             ],
             [
-                'name' => 'PRO',
-                'slug' => 'pro',
-                'description' => 'Plano completo para gestão profissional',
-                'price_monthly' => 29.90,
-                'price_yearly' => 299.00,
-                'limit_condominios' => 5,
-                'limit_fracoes' => 150,
+                'name' => 'Professional',
+                'slug' => 'professional',
+                'description' => 'Plano completo para gestão profissional com múltiplos condomínios',
+                'price_monthly' => 30.00, // Preço base (será calculado por tier)
+                'price_yearly' => 300.00,
+                'plan_type' => 'professional',
+                'license_min' => 50,
+                'license_limit' => null,
+                'allow_multiple_condos' => true,
+                'allow_overage' => false,
+                'pricing_mode' => 'flat',
+                'annual_discount_percentage' => 0,
+                'limit_condominios' => null, // Ilimitado
+                'limit_fracoes' => null,
                 'features' => $commonFeatures,
                 'is_active' => true,
                 'sort_order' => 2
             ],
             [
-                'name' => 'BUSINESS',
-                'slug' => 'business',
-                'description' => 'Solução empresarial com todas as funcionalidades e frações extras disponíveis',
-                'price_monthly' => 59.90,
-                'price_yearly' => 599.00,
-                'limit_condominios' => 10,
+                'name' => 'Enterprise',
+                'slug' => 'enterprise',
+                'description' => 'Solução empresarial com todas as funcionalidades e suporte a overage',
+                'price_monthly' => 70.00, // Preço base (será calculado por tier)
+                'price_yearly' => 700.00,
+                'plan_type' => 'enterprise',
+                'license_min' => 200,
+                'license_limit' => null,
+                'allow_multiple_condos' => true,
+                'allow_overage' => true,
+                'pricing_mode' => 'flat',
+                'annual_discount_percentage' => 0,
+                'limit_condominios' => null, // Ilimitado
                 'limit_fracoes' => null,
                 'features' => $commonFeatures,
                 'is_active' => true,
@@ -68,27 +91,112 @@ class DatabaseSeeder
             ]
         ];
 
-        $stmt = $this->db->prepare("
-            INSERT INTO plans (name, slug, description, price_monthly, price_yearly, limit_condominios, limit_fracoes, features, is_active, sort_order)
-            VALUES (:name, :slug, :description, :price_monthly, :price_yearly, :limit_condominios, :limit_fracoes, :features, :is_active, :sort_order)
-            ON DUPLICATE KEY UPDATE
-                description = VALUES(description),
-                price_monthly = VALUES(price_monthly),
-                price_yearly = VALUES(price_yearly),
-                limit_condominios = VALUES(limit_condominios),
-                limit_fracoes = VALUES(limit_fracoes),
-                features = VALUES(features),
-                is_active = VALUES(is_active),
-                sort_order = VALUES(sort_order)
-        ");
+        // Verificar se colunas do novo modelo existem
+        $checkStmt = $this->db->query("SHOW COLUMNS FROM plans LIKE 'plan_type'");
+        $hasNewColumns = $checkStmt->rowCount() > 0;
 
-        foreach ($plans as $plan) {
-            $stmt->execute($plan);
+        if ($hasNewColumns) {
+            // Usar novo formato com campos de licenças
+            $stmt = $this->db->prepare("
+                INSERT INTO plans (
+                    name, slug, description, price_monthly, price_yearly,
+                    plan_type, license_min, license_limit, allow_multiple_condos,
+                    allow_overage, pricing_mode, annual_discount_percentage,
+                    limit_condominios, limit_fracoes, features, is_active, sort_order
+                )
+                VALUES (
+                    :name, :slug, :description, :price_monthly, :price_yearly,
+                    :plan_type, :license_min, :license_limit, :allow_multiple_condos,
+                    :allow_overage, :pricing_mode, :annual_discount_percentage,
+                    :limit_condominios, :limit_fracoes, :features, :is_active, :sort_order
+                )
+                ON DUPLICATE KEY UPDATE
+                    description = VALUES(description),
+                    price_monthly = VALUES(price_monthly),
+                    price_yearly = VALUES(price_yearly),
+                    plan_type = VALUES(plan_type),
+                    license_min = VALUES(license_min),
+                    license_limit = VALUES(license_limit),
+                    allow_multiple_condos = VALUES(allow_multiple_condos),
+                    allow_overage = VALUES(allow_overage),
+                    pricing_mode = VALUES(pricing_mode),
+                    annual_discount_percentage = VALUES(annual_discount_percentage),
+                    limit_condominios = VALUES(limit_condominios),
+                    limit_fracoes = VALUES(limit_fracoes),
+                    features = VALUES(features),
+                    is_active = VALUES(is_active),
+                    sort_order = VALUES(sort_order)
+            ");
+        } else {
+            // Fallback para formato antigo (compatibilidade)
+            $stmt = $this->db->prepare("
+                INSERT INTO plans (name, slug, description, price_monthly, price_yearly, limit_condominios, limit_fracoes, features, is_active, sort_order)
+                VALUES (:name, :slug, :description, :price_monthly, :price_yearly, :limit_condominios, :limit_fracoes, :features, :is_active, :sort_order)
+                ON DUPLICATE KEY UPDATE
+                    description = VALUES(description),
+                    price_monthly = VALUES(price_monthly),
+                    price_yearly = VALUES(price_yearly),
+                    limit_condominios = VALUES(limit_condominios),
+                    limit_fracoes = VALUES(limit_fracoes),
+                    features = VALUES(features),
+                    is_active = VALUES(is_active),
+                    sort_order = VALUES(sort_order)
+            ");
         }
 
-        // Seed preços escalonados para condomínios extras do plano Business
+        foreach ($plans as $plan) {
+            if ($hasNewColumns) {
+                // Converter booleanos para inteiros (MySQL BOOLEAN = TINYINT)
+                $planData = $plan;
+                $planData['allow_multiple_condos'] = $plan['allow_multiple_condos'] ? 1 : 0;
+                $planData['allow_overage'] = $plan['allow_overage'] ? 1 : 0;
+                $planData['is_active'] = $plan['is_active'] ? 1 : 0;
+                $stmt->execute($planData);
+            } else {
+                // Remover campos novos se não existirem
+                $oldPlan = [
+                    'name' => $plan['name'],
+                    'slug' => $plan['slug'],
+                    'description' => $plan['description'],
+                    'price_monthly' => $plan['price_monthly'],
+                    'price_yearly' => $plan['price_yearly'],
+                    'limit_condominios' => $plan['limit_condominios'],
+                    'limit_fracoes' => $plan['limit_fracoes'],
+                    'features' => $plan['features'],
+                    'is_active' => $plan['is_active'] ? 1 : 0,
+                    'sort_order' => $plan['sort_order']
+                ];
+                $stmt->execute($oldPlan);
+            }
+        }
+
+        // Seed preços escalonados para condomínios extras do plano Business (legado)
         // Nota: Esta função será chamada após a migração 087 ser executada
         $this->seedBusinessExtraCondominiumsPricing();
+    }
+
+    /**
+     * Seed plan pricing tiers
+     */
+    protected function seedPlanPricingTiers(): void
+    {
+        // Verificar se a tabela existe
+        $tableExists = false;
+        try {
+            $checkStmt = $this->db->query("SHOW TABLES LIKE 'plan_pricing_tiers'");
+            $tableExists = $checkStmt->rowCount() > 0;
+        } catch (\Exception $e) {
+            // Tabela não existe ainda
+            return;
+        }
+
+        if (!$tableExists) {
+            return; // Tabela ainda não foi criada
+        }
+
+        require __DIR__ . '/PlanPricingTierSeeder.php';
+        $seeder = new PlanPricingTierSeeder($this->db);
+        $seeder->run();
     }
 
     /**

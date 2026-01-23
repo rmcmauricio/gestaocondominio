@@ -9,22 +9,28 @@ use App\Middleware\RoleMiddleware;
 use App\Models\User;
 use App\Models\Subscription;
 use App\Models\Payment;
+use App\Models\Invoice;
 use App\Models\Condominium;
 use App\Models\Plan;
 use App\Models\Promotion;
 use App\Models\PlanExtraCondominiumsPricing;
+use App\Models\PlanPricingTier;
 use App\Services\AuditService;
+use App\Services\PaymentService;
 
 class SuperAdminController extends Controller
 {
     protected $userModel;
     protected $subscriptionModel;
     protected $paymentModel;
+    protected $invoiceModel;
     protected $condominiumModel;
     protected $planModel;
     protected $promotionModel;
     protected $extraCondominiumsPricingModel;
+    protected $planPricingTierModel;
     protected $auditService;
+    protected $paymentService;
 
     public function __construct()
     {
@@ -32,11 +38,14 @@ class SuperAdminController extends Controller
         $this->userModel = new User();
         $this->subscriptionModel = new Subscription();
         $this->paymentModel = new Payment();
+        $this->invoiceModel = new Invoice();
         $this->condominiumModel = new Condominium();
         $this->planModel = new Plan();
         $this->promotionModel = new Promotion();
         $this->extraCondominiumsPricingModel = new PlanExtraCondominiumsPricing();
+        $this->planPricingTierModel = new PlanPricingTier();
         $this->auditService = new AuditService();
+        $this->paymentService = new PaymentService();
     }
 
     /**
@@ -46,6 +55,9 @@ class SuperAdminController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireSuperAdmin();
+
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
 
         global $db;
         
@@ -120,6 +132,9 @@ class SuperAdminController extends Controller
             'roles' => $roles,
             'statuses' => $statuses,
             'current_user_id' => $currentUserId,
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info'],
             'csrf_token' => Security::generateCSRFToken(),
             'user' => AuthMiddleware::user()
         ];
@@ -134,6 +149,9 @@ class SuperAdminController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireSuperAdmin();
+
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
 
         global $db;
         
@@ -151,6 +169,34 @@ class SuperAdminController extends Controller
         
         $subscriptions = $stmt->fetchAll() ?: [];
 
+        // Get pending license additions for each subscription
+        $invoiceModel = new \App\Models\Invoice();
+        $pendingLicenseAdditions = [];
+        
+        foreach ($subscriptions as &$subscription) {
+            $pendingInvoice = $invoiceModel->getPendingBySubscriptionId($subscription['id']);
+            if ($pendingInvoice) {
+                $metadata = null;
+                if (isset($pendingInvoice['metadata']) && $pendingInvoice['metadata']) {
+                    $metadata = is_string($pendingInvoice['metadata']) ? json_decode($pendingInvoice['metadata'], true) : $pendingInvoice['metadata'];
+                } elseif (isset($pendingInvoice['notes']) && $pendingInvoice['notes']) {
+                    $decoded = json_decode($pendingInvoice['notes'], true);
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        $metadata = $decoded;
+                    }
+                }
+                
+                if ($metadata && isset($metadata['is_license_addition']) && $metadata['is_license_addition']) {
+                    $pendingLicenseAdditions[$subscription['id']] = [
+                        'invoice_id' => $pendingInvoice['id'],
+                        'additional_licenses' => (int)($metadata['additional_licenses'] ?? 0),
+                        'amount' => $pendingInvoice['amount']
+                    ];
+                }
+            }
+        }
+        unset($subscription);
+
         // Get all plans for plan change dropdown
         $plans = $this->planModel->getActivePlans();
 
@@ -161,11 +207,510 @@ class SuperAdminController extends Controller
             'page' => ['titulo' => 'Gestão de Subscrições'],
             'subscriptions' => $subscriptions,
             'plans' => $plans,
+            'pending_license_additions' => $pendingLicenseAdditions,
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info'],
             'csrf_token' => Security::generateCSRFToken(),
             'user' => AuthMiddleware::user()
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Approve pending license addition (process as free payment)
+     */
+    public function approveLicenseAddition()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/subscriptions');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/subscriptions');
+            exit;
+        }
+
+        $subscriptionId = (int)($_POST['subscription_id'] ?? 0);
+        if (!$subscriptionId) {
+            $_SESSION['error'] = 'Subscrição não especificada.';
+            header('Location: ' . BASE_URL . 'admin/subscriptions');
+            exit;
+        }
+
+        global $db;
+        
+        try {
+            $db->beginTransaction();
+
+            // Get subscription
+            $subscription = $this->subscriptionModel->findById($subscriptionId);
+            if (!$subscription) {
+                throw new \Exception('Subscrição não encontrada.');
+            }
+
+            // Get pending invoice with license addition
+            $invoiceModel = new \App\Models\Invoice();
+            $pendingInvoice = $invoiceModel->getPendingBySubscriptionId($subscriptionId);
+            
+            if (!$pendingInvoice) {
+                throw new \Exception('Não há pagamentos pendentes para esta subscrição.');
+            }
+
+            // Check metadata
+            $metadata = null;
+            if (isset($pendingInvoice['metadata']) && $pendingInvoice['metadata']) {
+                $metadata = is_string($pendingInvoice['metadata']) ? json_decode($pendingInvoice['metadata'], true) : $pendingInvoice['metadata'];
+            } elseif (isset($pendingInvoice['notes']) && $pendingInvoice['notes']) {
+                $decoded = json_decode($pendingInvoice['notes'], true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $metadata = $decoded;
+                }
+            }
+
+            if (!$metadata || !isset($metadata['is_license_addition']) || !$metadata['is_license_addition']) {
+                throw new \Exception('Esta invoice não está relacionada com adição de frações extras.');
+            }
+
+            // Get plan details
+            $plan = $this->planModel->findById($subscription['plan_id']);
+            if (!$plan || empty($plan['plan_type'])) {
+                throw new \Exception('Plano não encontrado ou inválido.');
+            }
+
+            // Extract metadata values
+            $newExtraLicenses = (int)($metadata['new_extra_licenses'] ?? null);
+            $newLicenseLimit = (int)($metadata['new_total_licenses'] ?? null);
+            $additionalLicenses = (int)($metadata['additional_licenses'] ?? 0);
+
+            if ($newExtraLicenses === null || $newLicenseLimit === null) {
+                throw new \Exception('Dados incompletos na invoice.');
+            }
+
+            // Create a free payment record for audit purposes
+            // Use 'transfer' as payment method since it's the closest to admin approval
+            $paymentData = [
+                'subscription_id' => $subscriptionId,
+                'invoice_id' => $pendingInvoice['id'],
+                'user_id' => $subscription['user_id'],
+                'amount' => 0.00,
+                'status' => 'completed',
+                'payment_method' => 'transfer', // Using transfer as it's closest to admin approval
+                'external_payment_id' => 'admin_approval_' . time() . '_' . $subscriptionId,
+                'reference' => "Aprovação administrativa de {$additionalLicenses} frações extras (gratuito)",
+                'metadata' => [
+                    'admin_approved' => true,
+                    'admin_user_id' => AuthMiddleware::userId(),
+                    'approved_at' => date('Y-m-d H:i:s'),
+                    'original_amount' => $pendingInvoice['amount']
+                ]
+            ];
+            $paymentId = $this->paymentModel->create($paymentData);
+            
+            // Update processed_at since payment is completed
+            $db->prepare("UPDATE payments SET processed_at = NOW() WHERE id = :id")->execute([':id' => $paymentId]);
+
+            // Mark invoice as paid
+            $invoiceModel->markAsPaid($pendingInvoice['id']);
+
+            // Update subscription with new licenses
+            // Note: price_monthly is not stored in subscriptions table, it's calculated from plan + tiers
+            
+            // Determine period start
+            $periodStart = $subscription['current_period_end'] ?? date('Y-m-d H:i:s');
+            if (!$subscription['current_period_end'] || strtotime($subscription['current_period_end']) < time()) {
+                $periodStart = date('Y-m-d H:i:s');
+            }
+            $newPeriodEnd = date('Y-m-d H:i:s', strtotime('+1 month', strtotime($periodStart)));
+
+            $updateData = [
+                'extra_licenses' => $newExtraLicenses,
+                'license_limit' => $newLicenseLimit,
+                'current_period_start' => $periodStart,
+                'current_period_end' => $newPeriodEnd
+            ];
+
+            // Ensure subscription is active
+            if ($subscription['status'] !== 'active') {
+                $updateData['status'] = 'active';
+            }
+
+            $this->subscriptionModel->update($subscriptionId, $updateData);
+
+            // Log the approval
+            $this->auditService->logSubscription([
+                'subscription_id' => $subscriptionId,
+                'user_id' => AuthMiddleware::userId(),
+                'action' => 'extra_licenses_approved',
+                'description' => "Aprovação administrativa: {$additionalLicenses} frações extras adicionadas gratuitamente (Total: {$subscription['license_limit']} → {$newLicenseLimit})"
+            ]);
+
+            // Log payment
+            $this->auditService->logPayment([
+                'payment_id' => $paymentId,
+                'subscription_id' => $subscriptionId,
+                'invoice_id' => $pendingInvoice['id'],
+                'user_id' => $subscription['user_id'],
+                'action' => 'admin_approval',
+                'payment_method' => 'admin_approval',
+                'amount' => 0.00,
+                'status' => 'completed',
+                'description' => "Aprovação administrativa de {$additionalLicenses} frações extras"
+            ]);
+
+            $db->commit();
+
+            $_SESSION['success'] = "{$additionalLicenses} fração(ões) extra(s) aprovada(s) com sucesso!";
+        } catch (\Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log("Error approving license addition: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao aprovar frações extras: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'admin/subscriptions');
+        exit;
+    }
+
+    /**
+     * List pending payments for admin approval
+     */
+    public function payments()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+
+        global $db;
+        
+        // Get filter and search parameters
+        $search = trim($_GET['search'] ?? '');
+        $statusFilter = $_GET['status'] ?? '';
+        $methodFilter = $_GET['method'] ?? '';
+        $typeFilter = $_GET['type'] ?? '';
+        $sortBy = $_GET['sort'] ?? 'created_at';
+        $sortOrder = strtoupper($_GET['order'] ?? 'DESC');
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $perPage = 20;
+        $offset = ($page - 1) * $perPage;
+        
+        // Validate sort order
+        if (!in_array($sortOrder, ['ASC', 'DESC'])) {
+            $sortOrder = 'DESC';
+        }
+        
+        // Validate sort column
+        $allowedSorts = ['id', 'created_at', 'amount', 'status', 'user_name', 'plan_name'];
+        if (!in_array($sortBy, $allowedSorts)) {
+            $sortBy = 'created_at';
+        }
+        
+        // Check if metadata column exists in invoices table
+        $checkStmt = $db->query("SHOW COLUMNS FROM invoices LIKE 'metadata'");
+        $hasMetadataColumn = $checkStmt->rowCount() > 0;
+        
+        // Use metadata column if it exists, otherwise use notes (which stores JSON metadata)
+        $metadataField = $hasMetadataColumn ? 'i.metadata' : 'i.notes';
+        
+        // Build WHERE clause
+        $whereConditions = ["1=1"];
+        $params = [];
+        
+        // Search by user name or email
+        if ($search) {
+            $whereConditions[] = "(u.name LIKE :search OR u.email LIKE :search)";
+            $params[':search'] = '%' . $search . '%';
+        }
+        
+        // Filter by status
+        if ($statusFilter) {
+            $whereConditions[] = "p.status = :status";
+            $params[':status'] = $statusFilter;
+        }
+        
+        // Filter by payment method
+        if ($methodFilter) {
+            $whereConditions[] = "p.payment_method = :method";
+            $params[':method'] = $methodFilter;
+        }
+        
+        // Filter by type (requires checking invoice metadata)
+        if ($typeFilter) {
+            if ($typeFilter === 'license_addition') {
+                $whereConditions[] = "(" . $metadataField . " LIKE :type_license OR " . $metadataField . " LIKE :type_license2)";
+                $params[':type_license'] = '%"is_license_addition":true%';
+                $params[':type_license2'] = '%is_license_addition%';
+            } elseif ($typeFilter === 'extra_update') {
+                $whereConditions[] = "(" . $metadataField . " LIKE :type_extra OR " . $metadataField . " LIKE :type_extra2)";
+                $params[':type_extra'] = '%"is_extra_update":true%';
+                $params[':type_extra2'] = '%is_extra_update%';
+            } elseif ($typeFilter === 'plan_change') {
+                $whereConditions[] = "(" . $metadataField . " LIKE :type_plan OR " . $metadataField . " LIKE :type_plan2)";
+                $params[':type_plan'] = '%"is_plan_change":true%';
+                $params[':type_plan2'] = '%is_plan_change%';
+            } elseif ($typeFilter === 'subscription') {
+                // Subscription type: no special metadata flags
+                $whereConditions[] = "(" . $metadataField . " IS NULL OR (" . $metadataField . " NOT LIKE '%is_license_addition%' AND " . $metadataField . " NOT LIKE '%is_extra_update%' AND " . $metadataField . " NOT LIKE '%is_plan_change%'))";
+            }
+        }
+        
+        // Build base query
+        $baseSql = "SELECT p.*,
+                   s.status as subscription_status,
+                   s.plan_id,
+                   u.name as user_name,
+                   u.email as user_email,
+                   pl.name as plan_name,
+                   pl.slug as plan_slug,
+                   i.amount as invoice_amount,
+                   i.status as invoice_status,
+                   " . $metadataField . " as invoice_metadata,
+                   i.notes as invoice_notes
+            FROM payments p
+            INNER JOIN subscriptions s ON p.subscription_id = s.id
+            INNER JOIN users u ON p.user_id = u.id
+            INNER JOIN plans pl ON s.plan_id = pl.id
+            LEFT JOIN invoices i ON p.invoice_id = i.id
+            WHERE " . implode(' AND ', $whereConditions);
+        
+        // Get total count for pagination (simplified query without ORDER BY)
+        $countSql = "SELECT COUNT(DISTINCT p.id) as total
+            FROM payments p
+            INNER JOIN subscriptions s ON p.subscription_id = s.id
+            INNER JOIN users u ON p.user_id = u.id
+            INNER JOIN plans pl ON s.plan_id = pl.id
+            LEFT JOIN invoices i ON p.invoice_id = i.id
+            WHERE " . implode(' AND ', $whereConditions);
+        
+        $countParams = [];
+        foreach ($params as $key => $value) {
+            // Skip type filter params that use LIKE with JSON
+            if (strpos($key, ':type_') === 0 && $typeFilter) {
+                continue; // Will handle separately
+            }
+            $countParams[$key] = $value;
+        }
+        
+        // Re-add type filter conditions for count query
+        if ($typeFilter) {
+            if ($typeFilter === 'license_addition') {
+                $countSql .= " AND (" . $metadataField . " LIKE :type_license OR " . $metadataField . " LIKE :type_license2)";
+                $countParams[':type_license'] = '%"is_license_addition":true%';
+                $countParams[':type_license2'] = '%is_license_addition%';
+            } elseif ($typeFilter === 'extra_update') {
+                $countSql .= " AND (" . $metadataField . " LIKE :type_extra OR " . $metadataField . " LIKE :type_extra2)";
+                $countParams[':type_extra'] = '%"is_extra_update":true%';
+                $countParams[':type_extra2'] = '%is_extra_update%';
+            } elseif ($typeFilter === 'plan_change') {
+                $countSql .= " AND (" . $metadataField . " LIKE :type_plan OR " . $metadataField . " LIKE :type_plan2)";
+                $countParams[':type_plan'] = '%"is_plan_change":true%';
+                $countParams[':type_plan2'] = '%is_plan_change%';
+            } elseif ($typeFilter === 'subscription') {
+                $countSql .= " AND (" . $metadataField . " IS NULL OR (" . $metadataField . " NOT LIKE '%is_license_addition%' AND " . $metadataField . " NOT LIKE '%is_extra_update%' AND " . $metadataField . " NOT LIKE '%is_plan_change%'))";
+            }
+        }
+        
+        $countStmt = $db->prepare($countSql);
+        $countStmt->execute($countParams);
+        $totalCount = (int)$countStmt->fetch()['total'];
+        $totalPages = ceil($totalCount / $perPage);
+        
+        // Build ORDER BY clause
+        $orderBy = "p." . $sortBy;
+        if ($sortBy === 'user_name') {
+            $orderBy = "u.name";
+        } elseif ($sortBy === 'plan_name') {
+            $orderBy = "pl.name";
+        }
+        
+        // Build final query with sorting and pagination
+        $sql = $baseSql . " ORDER BY " . $orderBy . " " . $sortOrder . " LIMIT :limit OFFSET :offset";
+        
+        $stmt = $db->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->execute();
+        
+        $payments = $stmt->fetchAll() ?: [];
+
+        // Decode metadata for each payment/invoice
+        foreach ($payments as &$payment) {
+            // Decode payment metadata if exists
+            if (isset($payment['metadata']) && $payment['metadata']) {
+                $payment['metadata'] = is_string($payment['metadata']) ? json_decode($payment['metadata'], true) : $payment['metadata'];
+            }
+            
+            // Decode invoice metadata if exists
+            if (isset($payment['invoice_metadata']) && $payment['invoice_metadata']) {
+                $payment['invoice_metadata'] = is_string($payment['invoice_metadata']) ? json_decode($payment['invoice_metadata'], true) : $payment['invoice_metadata'];
+            } elseif (isset($payment['invoice_notes']) && $payment['invoice_notes']) {
+                $decoded = json_decode($payment['invoice_notes'], true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $payment['invoice_metadata'] = $decoded;
+                }
+            }
+        }
+        unset($payment);
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/payments/index.html.twig',
+            'page' => ['titulo' => 'Gestão de Pagamentos'],
+            'payments' => $payments,
+            'search' => $search,
+            'status_filter' => $statusFilter,
+            'method_filter' => $methodFilter,
+            'type_filter' => $typeFilter,
+            'sort_by' => $sortBy,
+            'sort_order' => $sortOrder,
+            'current_page' => $page,
+            'total_pages' => $totalPages,
+            'total_count' => $totalCount,
+            'per_page' => $perPage,
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info'],
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Approve payment manually (mark as completed and process)
+     */
+    public function approvePayment()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/payments');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/payments');
+            exit;
+        }
+
+        $paymentId = (int)($_POST['payment_id'] ?? 0);
+        if (!$paymentId) {
+            $_SESSION['error'] = 'Pagamento não especificado.';
+            header('Location: ' . BASE_URL . 'admin/payments');
+            exit;
+        }
+
+        $adminComment = trim($_POST['admin_comment'] ?? '');
+
+        try {
+            // Get payment
+            $payment = $this->paymentModel->findById($paymentId);
+            if (!$payment) {
+                throw new \Exception('Pagamento não encontrado.');
+            }
+
+            if ($payment['status'] === 'completed') {
+                $_SESSION['info'] = 'Este pagamento já foi processado.';
+                header('Location: ' . BASE_URL . 'admin/payments');
+                exit;
+            }
+
+            // Use PaymentService to confirm payment (this handles all the logic)
+            // Generate a unique external payment ID for admin approval
+            $externalPaymentId = 'admin_approval_' . time() . '_' . $paymentId;
+            
+            // Update external_payment_id if not set
+            if (empty($payment['external_payment_id'])) {
+                global $db;
+                $db->prepare("UPDATE payments SET external_payment_id = :external_id WHERE id = :id")
+                   ->execute([':external_id' => $externalPaymentId, ':id' => $paymentId]);
+            } else {
+                $externalPaymentId = $payment['external_payment_id'];
+            }
+
+            // Prepare metadata with admin approval info and comment
+            $approvalMetadata = [
+                'approved_by' => AuthMiddleware::userId(),
+                'approved_at' => date('Y-m-d H:i:s'),
+                'approval_type' => 'manual_admin',
+                'admin_comment' => $adminComment
+            ];
+
+            // Update payment metadata with admin comment before confirming
+            if ($adminComment) {
+                global $db;
+                $currentMetadata = [];
+                if (!empty($payment['metadata'])) {
+                    $currentMetadata = is_string($payment['metadata']) 
+                        ? json_decode($payment['metadata'], true) 
+                        : $payment['metadata'];
+                }
+                $currentMetadata['admin_approval'] = $approvalMetadata;
+                
+                $updateStmt = $db->prepare("UPDATE payments SET metadata = :metadata WHERE id = :id");
+                $updateStmt->execute([
+                    ':metadata' => json_encode($currentMetadata),
+                    ':id' => $paymentId
+                ]);
+            }
+
+            // Confirm payment using PaymentService (this processes everything)
+            $result = $this->paymentService->confirmPayment($externalPaymentId, $approvalMetadata);
+
+            if ($result) {
+                // Build description with comment if provided
+                $description = "Pagamento aprovado manualmente pelo superadmin";
+                if ($adminComment) {
+                    $description .= ". Comentário: " . $adminComment;
+                }
+
+                // Log admin approval with detailed information
+                $this->auditService->logPayment([
+                    'payment_id' => $paymentId,
+                    'subscription_id' => $payment['subscription_id'],
+                    'invoice_id' => $payment['invoice_id'],
+                    'user_id' => $payment['user_id'],
+                    'action' => 'admin_manual_approval',
+                    'payment_method' => $payment['payment_method'] ?? 'admin_approval',
+                    'amount' => $payment['amount'],
+                    'status' => 'completed',
+                    'description' => $description,
+                    'metadata' => [
+                        'admin_user_id' => AuthMiddleware::userId(),
+                        'admin_comment' => $adminComment,
+                        'approved_at' => date('Y-m-d H:i:s')
+                    ]
+                ]);
+
+                $_SESSION['success'] = 'Pagamento aprovado e processado com sucesso!';
+            } else {
+                throw new \Exception('Erro ao processar o pagamento.');
+            }
+        } catch (\Exception $e) {
+            error_log("Error approving payment: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao aprovar pagamento: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'admin/payments');
+        exit;
     }
 
     /**
@@ -175,6 +720,9 @@ class SuperAdminController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireSuperAdmin();
+
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
 
         global $db;
         
@@ -306,6 +854,9 @@ class SuperAdminController extends Controller
             'condominiums' => $condominiums,
             'top20' => $top20,
             'chart_data' => $chartData,
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info'],
             'csrf_token' => Security::generateCSRFToken(),
             'user' => AuthMiddleware::user()
         ];
@@ -579,45 +1130,6 @@ class SuperAdminController extends Controller
 
         header('Location: ' . BASE_URL . 'admin/subscriptions');
         exit;
-    }
-
-    /**
-     * View payments
-     */
-    public function payments()
-    {
-        AuthMiddleware::require();
-        RoleMiddleware::requireSuperAdmin();
-
-        global $db;
-        
-        $stmt = $db->query("
-            SELECT p.*, 
-                   u.name as user_name,
-                   u.email as user_email,
-                   s.plan_id,
-                   pl.name as plan_name
-            FROM payments p
-            INNER JOIN users u ON u.id = p.user_id
-            LEFT JOIN subscriptions s ON s.id = p.subscription_id
-            LEFT JOIN plans pl ON pl.id = s.plan_id
-            ORDER BY p.created_at DESC
-            LIMIT 100
-        ");
-        
-        $payments = $stmt->fetchAll() ?: [];
-
-        $this->loadPageTranslations('dashboard');
-        
-        $this->data += [
-            'viewName' => 'pages/admin/payments/index.html.twig',
-            'page' => ['titulo' => 'Consulta de Pagamentos'],
-            'payments' => $payments,
-            'csrf_token' => Security::generateCSRFToken(),
-            'user' => AuthMiddleware::user()
-        ];
-
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
     }
 
     /**
@@ -1459,12 +1971,19 @@ class SuperAdminController extends Controller
 
         $plans = $this->planModel->getAll();
 
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+        $error = $messages['error'];
+        $success = $messages['success'];
+
         $this->loadPageTranslations('dashboard');
         
         $this->data += [
             'viewName' => 'pages/admin/plans/index.html.twig',
             'page' => ['titulo' => 'Gestão de Planos'],
             'plans' => $plans,
+            'error' => $error,
+            'success' => $success,
             'csrf_token' => Security::generateCSRFToken(),
             'user' => AuthMiddleware::user()
         ];
@@ -1480,12 +1999,19 @@ class SuperAdminController extends Controller
         AuthMiddleware::require();
         RoleMiddleware::requireSuperAdmin();
 
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+        $error = $messages['error'];
+        $success = $messages['success'];
+
         $this->loadPageTranslations('dashboard');
         
         $this->data += [
             'viewName' => 'pages/admin/plans/form.html.twig',
             'page' => ['titulo' => 'Criar Plano'],
             'plan' => null,
+            'error' => $error,
+            'success' => $success,
             'csrf_token' => Security::generateCSRFToken(),
             'user' => AuthMiddleware::user()
         ];
@@ -1518,6 +2044,17 @@ class SuperAdminController extends Controller
         $description = Security::sanitize($_POST['description'] ?? '');
         $priceMonthly = floatval($_POST['price_monthly'] ?? 0);
         $priceYearly = !empty($_POST['price_yearly']) ? floatval($_POST['price_yearly']) : null;
+        
+        // Novos campos do modelo de licenças
+        $planType = Security::sanitize($_POST['plan_type'] ?? null);
+        $licenseMin = !empty($_POST['license_min']) ? intval($_POST['license_min']) : null;
+        $licenseLimit = !empty($_POST['license_limit']) ? intval($_POST['license_limit']) : null;
+        $allowMultipleCondos = isset($_POST['allow_multiple_condos']) ? (bool)$_POST['allow_multiple_condos'] : false;
+        $allowOverage = isset($_POST['allow_overage']) ? (bool)$_POST['allow_overage'] : false;
+        $pricingMode = Security::sanitize($_POST['pricing_mode'] ?? 'flat');
+        $annualDiscountPercentage = !empty($_POST['annual_discount_percentage']) ? floatval($_POST['annual_discount_percentage']) : 0;
+        
+        // Campos legados (compatibilidade)
         $limitCondominios = !empty($_POST['limit_condominios']) ? intval($_POST['limit_condominios']) : null;
         $limitFracoes = !empty($_POST['limit_fracoes']) ? intval($_POST['limit_fracoes']) : null;
         $features = !empty($_POST['features']) ? json_decode($_POST['features'], true) : [];
@@ -1540,7 +2077,7 @@ class SuperAdminController extends Controller
         }
 
         try {
-            $planId = $this->planModel->create([
+            $planData = [
                 'name' => $name,
                 'slug' => $slug,
                 'description' => $description,
@@ -1551,7 +2088,20 @@ class SuperAdminController extends Controller
                 'features' => $features,
                 'is_active' => $isActive,
                 'sort_order' => $sortOrder
-            ]);
+            ];
+            
+            // Adicionar campos do novo modelo se existirem na tabela
+            if ($planType) {
+                $planData['plan_type'] = $planType;
+                $planData['license_min'] = $licenseMin;
+                $planData['license_limit'] = $licenseLimit;
+                $planData['allow_multiple_condos'] = $allowMultipleCondos ? 1 : 0;
+                $planData['allow_overage'] = $allowOverage ? 1 : 0;
+                $planData['pricing_mode'] = $pricingMode;
+                $planData['annual_discount_percentage'] = $annualDiscountPercentage;
+            }
+            
+            $planId = $this->planModel->create($planData);
 
             $this->logAudit([
                 'action' => 'plan_created',
@@ -1585,6 +2135,11 @@ class SuperAdminController extends Controller
             exit;
         }
 
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+        $error = $messages['error'];
+        $success = $messages['success'];
+
         // Decode features JSON
         if (!empty($plan['features'])) {
             $plan['features'] = json_decode($plan['features'], true);
@@ -1596,6 +2151,8 @@ class SuperAdminController extends Controller
             'viewName' => 'pages/admin/plans/form.html.twig',
             'page' => ['titulo' => 'Editar Plano'],
             'plan' => $plan,
+            'error' => $error,
+            'success' => $success,
             'csrf_token' => Security::generateCSRFToken(),
             'user' => AuthMiddleware::user()
         ];
@@ -1635,6 +2192,17 @@ class SuperAdminController extends Controller
         $description = Security::sanitize($_POST['description'] ?? '');
         $priceMonthly = floatval($_POST['price_monthly'] ?? 0);
         $priceYearly = !empty($_POST['price_yearly']) ? floatval($_POST['price_yearly']) : null;
+        
+        // Novos campos do modelo de licenças
+        $planType = Security::sanitize($_POST['plan_type'] ?? null);
+        $licenseMin = !empty($_POST['license_min']) ? intval($_POST['license_min']) : null;
+        $licenseLimit = !empty($_POST['license_limit']) ? intval($_POST['license_limit']) : null;
+        $allowMultipleCondos = isset($_POST['allow_multiple_condos']) ? (bool)$_POST['allow_multiple_condos'] : false;
+        $allowOverage = isset($_POST['allow_overage']) ? (bool)$_POST['allow_overage'] : false;
+        $pricingMode = Security::sanitize($_POST['pricing_mode'] ?? 'flat');
+        $annualDiscountPercentage = !empty($_POST['annual_discount_percentage']) ? floatval($_POST['annual_discount_percentage']) : 0;
+        
+        // Campos legados (compatibilidade)
         $limitCondominios = !empty($_POST['limit_condominios']) ? intval($_POST['limit_condominios']) : null;
         $limitFracoes = !empty($_POST['limit_fracoes']) ? intval($_POST['limit_fracoes']) : null;
         $features = !empty($_POST['features']) ? json_decode($_POST['features'], true) : [];
@@ -1657,7 +2225,7 @@ class SuperAdminController extends Controller
         }
 
         try {
-            $success = $this->planModel->update($id, [
+            $planData = [
                 'name' => $name,
                 'slug' => $slug,
                 'description' => $description,
@@ -1668,7 +2236,20 @@ class SuperAdminController extends Controller
                 'features' => $features,
                 'is_active' => $isActive,
                 'sort_order' => $sortOrder
-            ]);
+            ];
+            
+            // Adicionar campos do novo modelo se existirem na tabela
+            if ($planType) {
+                $planData['plan_type'] = $planType;
+                $planData['license_min'] = $licenseMin;
+                $planData['license_limit'] = $licenseLimit;
+                $planData['allow_multiple_condos'] = $allowMultipleCondos ? 1 : 0;
+                $planData['allow_overage'] = $allowOverage ? 1 : 0;
+                $planData['pricing_mode'] = $pricingMode;
+                $planData['annual_discount_percentage'] = $annualDiscountPercentage;
+            }
+            
+            $success = $this->planModel->update($id, $planData);
 
             if ($success) {
                 $this->logAudit([
@@ -1770,15 +2351,20 @@ class SuperAdminController extends Controller
         }
 
         try {
-            $this->planModel->delete($id);
-            $this->logAudit([
-                'action' => 'plan_deleted',
-                'model' => 'plan',
-                'model_id' => $id,
-                'description' => "Plano deletado: {$plan['name']}"
-            ]);
+            $success = $this->planModel->delete($id);
+            
+            if ($success) {
+                $this->logAudit([
+                    'action' => 'plan_deleted',
+                    'model' => 'plan',
+                    'model_id' => $id,
+                    'description' => "Plano deletado: {$plan['name']}"
+                ]);
 
-            $_SESSION['success'] = 'Plano deletado com sucesso.';
+                $_SESSION['success'] = 'Plano deletado com sucesso.';
+            } else {
+                $_SESSION['error'] = 'Erro ao deletar plano. Verifique se não há subscrições ativas associadas.';
+            }
         } catch (\Exception $e) {
             $_SESSION['error'] = 'Erro ao deletar plano: ' . $e->getMessage();
         }
@@ -1795,6 +2381,9 @@ class SuperAdminController extends Controller
         AuthMiddleware::require();
         RoleMiddleware::requireSuperAdmin();
 
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+
         $promotions = $this->promotionModel->getAll();
 
         $this->loadPageTranslations('dashboard');
@@ -1803,6 +2392,9 @@ class SuperAdminController extends Controller
             'viewName' => 'pages/admin/promotions/index.html.twig',
             'page' => ['titulo' => 'Gestão de Promoções'],
             'promotions' => $promotions,
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info'],
             'csrf_token' => Security::generateCSRFToken(),
             'user' => AuthMiddleware::user()
         ];
@@ -2539,6 +3131,356 @@ class SuperAdminController extends Controller
 
         header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/extra-condominiums-pricing');
         exit;
+    }
+
+    /**
+     * List pricing tiers for a plan
+     */
+    public function planPricingTiers(int $planId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $plan = $this->planModel->findById($planId);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+        $error = $messages['error'];
+        $success = $messages['success'];
+
+        $tiers = $this->planPricingTierModel->getByPlanId($planId, false);
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/plans/pricing-tiers.html.twig',
+            'page' => ['titulo' => 'Escalões de Pricing - ' . $plan['name']],
+            'plan' => $plan,
+            'tiers' => $tiers,
+            'error' => $error,
+            'success' => $success,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Show create pricing tier form
+     */
+    public function createPlanPricingTier(int $planId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $plan = $this->planModel->findById($planId);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+        $error = $messages['error'];
+        $success = $messages['success'];
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/plans/pricing-tier-form.html.twig',
+            'page' => ['titulo' => 'Criar Escalão de Pricing'],
+            'plan' => $plan,
+            'tier' => null,
+            'error' => $error,
+            'success' => $success,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Store new pricing tier
+     */
+    public function storePlanPricingTier(int $planId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers');
+            exit;
+        }
+
+        $plan = $this->planModel->findById($planId);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $minLicenses = intval($_POST['min_licenses'] ?? 0);
+        $maxLicenses = !empty($_POST['max_licenses']) ? intval($_POST['max_licenses']) : null;
+        $pricePerLicense = floatval($_POST['price_per_license'] ?? 0);
+        $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : true;
+        $sortOrder = intval($_POST['sort_order'] ?? 0);
+
+        // Validation
+        if ($minLicenses < 0 || $pricePerLicense < 0) {
+            $_SESSION['error'] = 'Dados inválidos. Verifique os campos obrigatórios.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers/create');
+            exit;
+        }
+
+        if ($maxLicenses !== null && $maxLicenses < $minLicenses) {
+            $_SESSION['error'] = 'O máximo de licenças deve ser maior ou igual ao mínimo.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers/create');
+            exit;
+        }
+
+        try {
+            $tierId = $this->planPricingTierModel->create([
+                'plan_id' => $planId,
+                'min_licenses' => $minLicenses,
+                'max_licenses' => $maxLicenses,
+                'price_per_license' => $pricePerLicense,
+                'is_active' => $isActive ? 1 : 0,
+                'sort_order' => $sortOrder
+            ]);
+
+            $this->logAudit([
+                'action' => 'pricing_tier_created',
+                'model' => 'plan_pricing_tier',
+                'model_id' => $tierId,
+                'description' => "Escalão de pricing criado para plano {$plan['name']}: {$minLicenses}-" . ($maxLicenses ?? '∞') . " licenças a €{$pricePerLicense}/licença"
+            ]);
+
+            $_SESSION['success'] = 'Escalão de pricing criado com sucesso.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao criar escalão de pricing: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers/create');
+            exit;
+        }
+    }
+
+    /**
+     * Show edit pricing tier form
+     */
+    public function editPlanPricingTier(int $planId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $plan = $this->planModel->findById($planId);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $tier = $this->planPricingTierModel->findById($id);
+        if (!$tier || $tier['plan_id'] != $planId) {
+            $_SESSION['error'] = 'Escalão de pricing não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers');
+            exit;
+        }
+
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+        $error = $messages['error'];
+        $success = $messages['success'];
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/admin/plans/pricing-tier-form.html.twig',
+            'page' => ['titulo' => 'Editar Escalão de Pricing'],
+            'plan' => $plan,
+            'tier' => $tier,
+            'error' => $error,
+            'success' => $success,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Update pricing tier
+     */
+    public function updatePlanPricingTier(int $planId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers');
+            exit;
+        }
+
+        $plan = $this->planModel->findById($planId);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $tier = $this->planPricingTierModel->findById($id);
+        if (!$tier || $tier['plan_id'] != $planId) {
+            $_SESSION['error'] = 'Escalão de pricing não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers');
+            exit;
+        }
+
+        $minLicenses = intval($_POST['min_licenses'] ?? 0);
+        $maxLicenses = !empty($_POST['max_licenses']) ? intval($_POST['max_licenses']) : null;
+        $pricePerLicense = floatval($_POST['price_per_license'] ?? 0);
+        $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : true;
+        $sortOrder = intval($_POST['sort_order'] ?? 0);
+
+        // Validation
+        if ($minLicenses < 0 || $pricePerLicense < 0) {
+            $_SESSION['error'] = 'Dados inválidos. Verifique os campos obrigatórios.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers/' . $id . '/edit');
+            exit;
+        }
+
+        if ($maxLicenses !== null && $maxLicenses < $minLicenses) {
+            $_SESSION['error'] = 'O máximo de licenças deve ser maior ou igual ao mínimo.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers/' . $id . '/edit');
+            exit;
+        }
+
+        try {
+            $success = $this->planPricingTierModel->update($id, [
+                'min_licenses' => $minLicenses,
+                'max_licenses' => $maxLicenses,
+                'price_per_license' => $pricePerLicense,
+                'is_active' => $isActive ? 1 : 0,
+                'sort_order' => $sortOrder
+            ]);
+
+            if ($success) {
+                $this->logAudit([
+                    'action' => 'pricing_tier_updated',
+                    'model' => 'plan_pricing_tier',
+                    'model_id' => $id,
+                    'description' => "Escalão de pricing atualizado para plano {$plan['name']}: {$minLicenses}-" . ($maxLicenses ?? '∞') . " licenças a €{$pricePerLicense}/licença"
+                ]);
+
+                $_SESSION['success'] = 'Escalão de pricing atualizado com sucesso.';
+            } else {
+                $_SESSION['error'] = 'Erro ao atualizar escalão de pricing.';
+            }
+
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers');
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao atualizar escalão de pricing: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers/' . $id . '/edit');
+            exit;
+        }
+    }
+
+    /**
+     * Delete pricing tier
+     */
+    public function deletePlanPricingTier(int $planId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers');
+            exit;
+        }
+
+        $plan = $this->planModel->findById($planId);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans');
+            exit;
+        }
+
+        $tier = $this->planPricingTierModel->findById($id);
+        if (!$tier || $tier['plan_id'] != $planId) {
+            $_SESSION['error'] = 'Escalão de pricing não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers');
+            exit;
+        }
+
+        try {
+            $success = $this->planPricingTierModel->delete($id);
+            if ($success) {
+                $this->logAudit([
+                    'action' => 'pricing_tier_deleted',
+                    'model' => 'plan_pricing_tier',
+                    'model_id' => $id,
+                    'description' => "Escalão de pricing deletado do plano {$plan['name']}"
+                ]);
+
+                $_SESSION['success'] = 'Escalão de pricing deletado com sucesso.';
+            } else {
+                $_SESSION['error'] = 'Erro ao deletar escalão de pricing.';
+            }
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao deletar escalão de pricing: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers');
+        exit;
+    }
+
+    /**
+     * Get and clear session messages
+     * Helper method to ensure messages are only shown once
+     */
+    protected function getSessionMessages(): array
+    {
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        $info = $_SESSION['info'] ?? null;
+        
+        // Clear messages after retrieving
+        unset($_SESSION['error'], $_SESSION['success'], $_SESSION['info']);
+        
+        return [
+            'error' => $error,
+            'success' => $success,
+            'info' => $info
+        ];
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Core\Model;
+use App\Services\LicenseService;
 
 class Subscription extends Model
 {
@@ -98,61 +99,71 @@ class Subscription extends Model
             throw new \Exception("Database connection not available");
         }
 
-        // Check if promotion columns exist
-        $checkStmt = $this->db->query("SHOW COLUMNS FROM subscriptions LIKE 'promotion_id'");
-        $hasPromoFields = $checkStmt->rowCount() > 0;
+        // Check which columns exist
+        $checkPromoStmt = $this->db->query("SHOW COLUMNS FROM subscriptions LIKE 'promotion_id'");
+        $hasPromoFields = $checkPromoStmt->rowCount() > 0;
+        
+        $checkLicenseStmt = $this->db->query("SHOW COLUMNS FROM subscriptions LIKE 'condominium_id'");
+        $hasLicenseFields = $checkLicenseStmt->rowCount() > 0;
+
+        // Build fields and values dynamically based on what exists
+        $fields = ['user_id', 'plan_id', 'extra_condominiums', 'status', 'trial_ends_at', 
+                   'current_period_start', 'current_period_end', 'payment_method'];
+        $placeholders = [':user_id', ':plan_id', ':extra_condominiums', ':status', ':trial_ends_at',
+                         ':current_period_start', ':current_period_end', ':payment_method'];
+        $values = [
+            ':user_id' => $data['user_id'],
+            ':plan_id' => $data['plan_id'],
+            ':extra_condominiums' => $data['extra_condominiums'] ?? 0,
+            ':status' => $data['status'] ?? 'trial',
+            ':trial_ends_at' => $data['trial_ends_at'] ?? null,
+            ':current_period_start' => $data['current_period_start'],
+            ':current_period_end' => $data['current_period_end'],
+            ':payment_method' => $data['payment_method'] ?? null
+        ];
 
         if ($hasPromoFields) {
-            $stmt = $this->db->prepare("
-                INSERT INTO subscriptions (
-                    user_id, plan_id, extra_condominiums, status, trial_ends_at, 
-                    current_period_start, current_period_end, payment_method,
-                    promotion_id, promotion_applied_at, promotion_ends_at, original_price_monthly
-                )
-                VALUES (
-                    :user_id, :plan_id, :extra_condominiums, :status, :trial_ends_at,
-                    :current_period_start, :current_period_end, :payment_method,
-                    :promotion_id, :promotion_applied_at, :promotion_ends_at, :original_price_monthly
-                )
-            ");
-
-            $stmt->execute([
-                ':user_id' => $data['user_id'],
-                ':plan_id' => $data['plan_id'],
-                ':extra_condominiums' => $data['extra_condominiums'] ?? 0,
-                ':status' => $data['status'] ?? 'trial',
-                ':trial_ends_at' => $data['trial_ends_at'] ?? null,
-                ':current_period_start' => $data['current_period_start'],
-                ':current_period_end' => $data['current_period_end'],
-                ':payment_method' => $data['payment_method'] ?? null,
-                ':promotion_id' => $data['promotion_id'] ?? null,
-                ':promotion_applied_at' => $data['promotion_applied_at'] ?? null,
-                ':promotion_ends_at' => $data['promotion_ends_at'] ?? null,
-                ':original_price_monthly' => $data['original_price_monthly'] ?? null
-            ]);
-        } else {
-            $stmt = $this->db->prepare("
-                INSERT INTO subscriptions (
-                    user_id, plan_id, extra_condominiums, status, trial_ends_at, 
-                    current_period_start, current_period_end, payment_method
-                )
-                VALUES (
-                    :user_id, :plan_id, :extra_condominiums, :status, :trial_ends_at,
-                    :current_period_start, :current_period_end, :payment_method
-                )
-            ");
-
-            $stmt->execute([
-                ':user_id' => $data['user_id'],
-                ':plan_id' => $data['plan_id'],
-                ':extra_condominiums' => $data['extra_condominiums'] ?? 0,
-                ':status' => $data['status'] ?? 'trial',
-                ':trial_ends_at' => $data['trial_ends_at'] ?? null,
-                ':current_period_start' => $data['current_period_start'],
-                ':current_period_end' => $data['current_period_end'],
-                ':payment_method' => $data['payment_method'] ?? null
-            ]);
+            $fields[] = 'promotion_id';
+            $fields[] = 'promotion_applied_at';
+            $fields[] = 'promotion_ends_at';
+            $fields[] = 'original_price_monthly';
+            $placeholders[] = ':promotion_id';
+            $placeholders[] = ':promotion_applied_at';
+            $placeholders[] = ':promotion_ends_at';
+            $placeholders[] = ':original_price_monthly';
+            $values[':promotion_id'] = $data['promotion_id'] ?? null;
+            $values[':promotion_applied_at'] = $data['promotion_applied_at'] ?? null;
+            $values[':promotion_ends_at'] = $data['promotion_ends_at'] ?? null;
+            $values[':original_price_monthly'] = $data['original_price_monthly'] ?? null;
         }
+
+        if ($hasLicenseFields) {
+            $fields[] = 'condominium_id';
+            $fields[] = 'used_licenses';
+            $fields[] = 'license_limit';
+            $fields[] = 'extra_licenses';
+            $fields[] = 'allow_overage';
+            $fields[] = 'proration_mode';
+            $fields[] = 'charge_minimum';
+            $placeholders[] = ':condominium_id';
+            $placeholders[] = ':used_licenses';
+            $placeholders[] = ':license_limit';
+            $placeholders[] = ':extra_licenses';
+            $placeholders[] = ':allow_overage';
+            $placeholders[] = ':proration_mode';
+            $placeholders[] = ':charge_minimum';
+            $values[':condominium_id'] = $data['condominium_id'] ?? null;
+            $values[':used_licenses'] = $data['used_licenses'] ?? 0;
+            $values[':license_limit'] = $data['license_limit'] ?? null;
+            $values[':extra_licenses'] = $data['extra_licenses'] ?? 0;
+            $values[':allow_overage'] = isset($data['allow_overage']) ? ($data['allow_overage'] ? 1 : 0) : 0;
+            $values[':proration_mode'] = $data['proration_mode'] ?? 'none';
+            $values[':charge_minimum'] = isset($data['charge_minimum']) ? ($data['charge_minimum'] ? 1 : 0) : 1;
+        }
+
+        $sql = "INSERT INTO subscriptions (" . implode(', ', $fields) . ") VALUES (" . implode(', ', $placeholders) . ")";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($values);
 
         return (int)$this->db->lastInsertId();
     }
@@ -206,6 +217,7 @@ class Subscription extends Model
 
     /**
      * Check if user can create condominium
+     * Updated for license-based model
      */
     public function canCreateCondominium(int $userId): bool
     {
@@ -215,25 +227,39 @@ class Subscription extends Model
             return false;
         }
 
-        // BUSINESS plan has unlimited condominiums
-        if ($subscription['limit_condominios'] === null) {
-            return true;
+        // Get plan details
+        $planModel = new Plan();
+        $plan = $planModel->findById($subscription['plan_id']);
+        
+        if (!$plan) {
+            return false;
         }
 
-        // Count existing condominiums
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*) as count 
-            FROM condominiums 
-            WHERE user_id = :user_id AND is_active = TRUE
-        ");
-        $stmt->execute([':user_id' => $userId]);
-        $result = $stmt->fetch();
+        // Check if plan allows multiple condominiums
+        $allowMultipleCondos = $plan['allow_multiple_condos'] ?? false;
+        $planType = $plan['plan_type'] ?? null;
 
-        return ($result['count'] ?? 0) < $subscription['limit_condominios'];
+        // Base plan (condominio) allows only one condominium
+        if ($planType === 'condominio' && !$allowMultipleCondos) {
+            // Check if subscription already has a condominium
+            if ($subscription['condominium_id']) {
+                return false; // Already has one condominium
+            }
+            
+            // Check if condominium is associated via subscription_condominiums
+            $subscriptionCondominiumModel = new SubscriptionCondominium();
+            $activeCount = $subscriptionCondominiumModel->countActiveBySubscription($subscription['id']);
+            return $activeCount === 0;
+        }
+
+        // Pro/Enterprise plans allow multiple condominiums
+        // No hard limit in new model - limited by licenses instead
+        return true;
     }
 
     /**
      * Check if user can create fraction
+     * Updated for license-based model - uses LicenseService
      */
     public function canCreateFraction(int $userId, int $condominiumId): bool
     {
@@ -243,21 +269,11 @@ class Subscription extends Model
             return false;
         }
 
-        // BUSINESS plan has unlimited fractions
-        if ($subscription['limit_fracoes'] === null) {
-            return true;
-        }
-
-        // Count existing fractions in condominium
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*) as count 
-            FROM fractions 
-            WHERE condominium_id = :condominium_id AND is_active = TRUE
-        ");
-        $stmt->execute([':condominium_id' => $condominiumId]);
-        $result = $stmt->fetch();
-
-        return ($result['count'] ?? 0) < $subscription['limit_fracoes'];
+        // Use LicenseService to validate license availability
+        $licenseService = new \App\Services\LicenseService();
+        $validation = $licenseService->validateLicenseAvailability($subscription['id'], 1);
+        
+        return $validation['available'] ?? false;
     }
 
     /**
@@ -408,6 +424,158 @@ class Subscription extends Model
         }
         
         return $expiredCount;
+    }
+
+    /**
+     * Get associated condominiums for subscription
+     */
+    public function getAssociatedCondominiums(int $subscriptionId): array
+    {
+        $subscriptionCondominiumModel = new SubscriptionCondominium();
+        return $subscriptionCondominiumModel->getBySubscription($subscriptionId, 'all');
+    }
+
+    /**
+     * Get active condominiums for subscription
+     */
+    public function getActiveCondominiums(int $subscriptionId): array
+    {
+        $subscriptionCondominiumModel = new SubscriptionCondominium();
+        return $subscriptionCondominiumModel->getActiveBySubscription($subscriptionId);
+    }
+
+    /**
+     * Calculate used licenses for subscription
+     */
+    public function calculateUsedLicenses(int $subscriptionId): int
+    {
+        if (!$this->db) {
+            return 0;
+        }
+
+        $subscription = $this->findById($subscriptionId);
+        if (!$subscription) {
+            return 0;
+        }
+
+        $planModel = new Plan();
+        $plan = $planModel->findById($subscription['plan_id']);
+        if (!$plan) {
+            return 0;
+        }
+
+        $planType = $plan['plan_type'] ?? null;
+
+        if ($planType === 'condominio') {
+            // Base plan: count active fractions from single condominium
+            if ($subscription['condominium_id']) {
+                $fractionModel = new Fraction();
+                $count = $fractionModel->getActiveCountByCondominium($subscription['condominium_id']);
+                // Return actual count, not minimum (minimum is only for pricing)
+                return $count;
+            }
+        } else {
+            // Pro/Enterprise: sum active fractions from all associated condominiums
+            $fractionModel = new Fraction();
+            $count = $fractionModel->getActiveCountBySubscription($subscriptionId);
+            // Return actual count, not minimum (minimum is only for pricing)
+            return $count;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Update used licenses cache
+     */
+    public function updateUsedLicenses(int $subscriptionId, int $count): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("UPDATE subscriptions SET used_licenses = :count WHERE id = :id");
+        return $stmt->execute([
+            ':id' => $subscriptionId,
+            ':count' => $count
+        ]);
+    }
+
+    /**
+     * Check if condominium can be attached to subscription
+     */
+    public function canAttachCondominium(int $subscriptionId, int $condominiumId): array
+    {
+        if (!$this->db) {
+            return ['can' => false, 'reason' => 'Database connection not available'];
+        }
+
+        $subscription = $this->findById($subscriptionId);
+        if (!$subscription) {
+            return ['can' => false, 'reason' => 'Subscrição não encontrada'];
+        }
+
+        $planModel = new Plan();
+        $plan = $planModel->findById($subscription['plan_id']);
+        if (!$plan) {
+            return ['can' => false, 'reason' => 'Plano não encontrado'];
+        }
+
+        // Check if plan allows multiple condominiums
+        if ($plan['plan_type'] === 'condominio' && !($plan['allow_multiple_condos'] ?? false)) {
+            // Base plan: check if already has a condominium
+            if ($subscription['condominium_id']) {
+                return ['can' => false, 'reason' => 'Plano Base permite apenas um condomínio'];
+            }
+        }
+
+        // Check if condominium is already attached
+        $subscriptionCondominiumModel = new SubscriptionCondominium();
+        $existing = $subscriptionCondominiumModel->getBySubscriptionAndCondominium($subscriptionId, $condominiumId, 'active');
+        if ($existing) {
+            return ['can' => false, 'reason' => 'Condomínio já está associado'];
+        }
+
+        // Check license limits
+        $fractionModel = new Fraction();
+        $newFractions = $fractionModel->getActiveCountByCondominium($condominiumId);
+        $currentLicenses = $subscription['used_licenses'] ?? 0;
+        $licenseLimit = $subscription['license_limit'] ?? null;
+        $allowOverage = $subscription['allow_overage'] ?? false;
+
+        if ($licenseLimit !== null && !$allowOverage) {
+            if ($currentLicenses + $newFractions > $licenseLimit) {
+                return [
+                    'can' => false, 
+                    'reason' => "Excederia o limite de licenças ({$licenseLimit}). Atual: {$currentLicenses}, Novo condomínio: {$newFractions}"
+                ];
+            }
+        }
+
+        return ['can' => true, 'reason' => ''];
+    }
+
+    /**
+     * Get subscription by condominium ID (for Base plan)
+     */
+    public function getByCondominiumId(int $condominiumId): ?array
+    {
+        if (!$this->db) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT s.*, p.name as plan_name, p.slug as plan_slug, p.price_monthly, p.plan_type, p.license_min, p.license_limit as plan_license_limit
+            FROM subscriptions s
+            INNER JOIN plans p ON s.plan_id = p.id
+            WHERE s.condominium_id = :condominium_id
+            AND s.status IN ('trial', 'active')
+            ORDER BY s.created_at DESC
+            LIMIT 1
+        ");
+        
+        $stmt->execute([':condominium_id' => $condominiumId]);
+        return $stmt->fetch() ?: null;
     }
 }
 

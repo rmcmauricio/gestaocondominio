@@ -6,6 +6,7 @@ use App\Models\Subscription;
 use App\Models\Payment;
 use App\Models\Invoice;
 use App\Models\PaymentMethodSettings;
+use App\Models\Promotion;
 use App\Services\AuditService;
 
 class PaymentService
@@ -494,14 +495,27 @@ class PaymentService
                         $newSubscriptionStatus = 'active';
                     } else {
                         // Regular subscription activation/update
-                        // Check if payment includes extra condominiums update
+                        // Check if payment includes extra condominiums update or license addition
                         $newExtraCondominiums = null;
+                        $newExtraLicenses = null;
+                        $newLicenseLimit = null;
+                        $licenseAdditionUpdated = false;
+                        
                         if ($payment['invoice_id']) {
                             $invoice = $this->invoiceModel->findById($payment['invoice_id']);
                             if ($invoice && isset($invoice['metadata']) && $invoice['metadata']) {
                                 $metadata = $invoice['metadata']; // Already decoded in findById
+                                
+                                // Check for extra condominiums update
                                 if (isset($metadata['is_extra_update']) && $metadata['is_extra_update']) {
                                     $newExtraCondominiums = (int)($metadata['new_extra_condominiums'] ?? null);
+                                }
+                                
+                                // Check for license addition
+                                if (isset($metadata['is_license_addition']) && $metadata['is_license_addition']) {
+                                    $newExtraLicenses = (int)($metadata['new_extra_licenses'] ?? null);
+                                    $newLicenseLimit = (int)($metadata['new_total_licenses'] ?? null);
+                                    $licenseAdditionUpdated = true;
                                 }
                             }
                         }
@@ -539,6 +553,16 @@ class PaymentService
                         if ($newExtraCondominiums !== null) {
                             $updateData['extra_condominiums'] = $newExtraCondominiums;
                             $extraCondominiumsUpdated = true;
+                        }
+                        
+                        // Update extra licenses if this payment includes license addition
+                        if ($newExtraLicenses !== null) {
+                            $updateData['extra_licenses'] = $newExtraLicenses;
+                            if ($newLicenseLimit !== null) {
+                                $updateData['license_limit'] = $newLicenseLimit;
+                                // Note: price_monthly is not stored in subscriptions table
+                                // Price is calculated dynamically from plan + tiers based on license_limit
+                            }
                         }
                         
                         $this->subscriptionModel->update($payment['subscription_id'], $updateData);
@@ -591,6 +615,17 @@ class PaymentService
                     'user_id' => $payment['user_id'],
                     'action' => 'extra_condominiums_activated',
                     'description' => "Condomínios extras ativados após confirmação de pagamento: " . ($subscription['extra_condominiums'] ?? 0)
+                ]);
+            }
+            
+            // Log license addition separately if applicable
+            if ($licenseAdditionUpdated && $payment['subscription_id']) {
+                $subscription = $this->subscriptionModel->findById($payment['subscription_id']);
+                $this->auditService->logSubscription([
+                    'subscription_id' => $payment['subscription_id'],
+                    'user_id' => $payment['user_id'],
+                    'action' => 'extra_licenses_activated',
+                    'description' => "Frações extras ativadas após confirmação de pagamento: " . ($subscription['extra_licenses'] ?? 0) . " extras (Total: " . ($subscription['license_limit'] ?? 0) . ")"
                 ]);
             }
             

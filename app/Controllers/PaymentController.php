@@ -77,17 +77,35 @@ class PaymentController extends Controller
         // Allow payment for:
         // 1. Trial users (even if trial hasn't expired yet)
         // 2. Canceled subscriptions
-        // 3. Active subscriptions that are expiring soon (within 7 days)
-        // 4. Active subscriptions with pending invoice for extra condominiums update
-        // 5. Pending subscriptions (plan change)
+        // 3. Expired subscriptions (need to pay backpayment)
+        // 4. Active subscriptions that are expiring soon (within 7 days)
+        // 5. Active subscriptions with pending invoice for extra condominiums update
+        // 6. Active subscriptions with pending invoice for license addition
+        // 7. Pending subscriptions (plan change)
         
         $isActive = $subscription['status'] === 'active';
         $isTrial = $subscription['status'] === 'trial';
         $isCanceled = $subscription['status'] === 'canceled';
+        $isExpired = $subscription['status'] === 'expired';
         $isPending = $subscription['status'] === 'pending';
         
-        // Block payment only if subscription is active, not expiring soon, AND no pending extra update invoice, AND not pending
-        if ($isActive && strtotime($subscription['current_period_end']) > strtotime('+7 days') && !$isExtraUpdateInvoice && !$isPending) {
+        // Calculate backpayment months if subscription is expired
+        $backpaymentMonths = 0;
+        if ($isExpired) {
+            $subscriptionService = new \App\Services\SubscriptionService();
+            $backpaymentMonths = $subscriptionService->calculateBackpaymentMonths($subscriptionId);
+        }
+        
+        // Check if there's a pending invoice for license addition
+        $isLicenseAdditionInvoice = false;
+        if ($pendingInvoice && $metadata) {
+            if (isset($metadata['is_license_addition']) && $metadata['is_license_addition']) {
+                $isLicenseAdditionInvoice = true;
+            }
+        }
+        
+        // Block payment only if subscription is active, not expiring soon, AND no pending extra update invoice, AND no pending license addition invoice, AND not pending
+        if ($isActive && strtotime($subscription['current_period_end']) > strtotime('+7 days') && !$isExtraUpdateInvoice && !$isLicenseAdditionInvoice && !$isPending) {
             $_SESSION['info'] = 'A sua subscrição está ativa até ' . date('d/m/Y', strtotime($subscription['current_period_end'])) . '.';
             header('Location: ' . BASE_URL . 'subscription');
             exit;
@@ -95,9 +113,17 @@ class PaymentController extends Controller
         
         // Allow trial users to pay anytime (before or after trial expires)
         // Allow canceled subscriptions to pay
+        // Allow expired subscriptions to pay (with backpayment)
         // Allow active subscriptions expiring soon to pay
         // Allow active subscriptions with pending extra update invoice to pay
         // Allow pending subscriptions to pay (plan change)
+        
+        // Calculate backpayment months if subscription is expired
+        $backpaymentMonths = 0;
+        if ($isExpired) {
+            $subscriptionService = new \App\Services\SubscriptionService();
+            $backpaymentMonths = $subscriptionService->calculateBackpaymentMonths($subscriptionId);
+        }
         
         $amount = $plan['price_monthly'];
         $extraCondominiums = (int)($subscription['extra_condominiums'] ?? 0);
@@ -126,6 +152,11 @@ class PaymentController extends Controller
                 if (isset($metadata['is_plan_change']) && $metadata['is_plan_change']) {
                     $isPlanChange = true;
                     $amount = $pendingInvoice['amount']; // Use invoice amount which already includes promotion discount
+                }
+                if (isset($metadata['is_license_addition']) && $metadata['is_license_addition']) {
+                    // For license addition, the invoice amount is the ADDITIONAL amount to pay
+                    // We'll calculate the total amount (current + additional) later
+                    // Don't set amount here, let it be calculated from base + extras
                 }
             }
         }
@@ -160,8 +191,73 @@ class PaymentController extends Controller
             }
         }
         
+        // Calculate extras price for license-based plans (including condominio)
+        $extraLicenses = 0;
+        $extraLicensesPrice = 0;
+        $planType = $plan['plan_type'] ?? null;
+        $licenseMin = (int)($plan['license_min'] ?? 0);
+        
+        // Get extra licenses from subscription or invoice metadata
+        $isLicenseAddition = false;
+        if ($planType) {
+            // Check invoice metadata first (for license additions)
+            if ($pendingInvoice && $metadata && isset($metadata['is_license_addition']) && $metadata['is_license_addition']) {
+                $isLicenseAddition = true;
+                $extraLicenses = (int)($metadata['additional_licenses'] ?? 0);
+                // For license addition, we need to calculate the total licenses (current + additional)
+                $currentExtraLicenses = (int)($metadata['old_extra_licenses'] ?? $subscription['extra_licenses'] ?? 0);
+                $totalExtraLicenses = $currentExtraLicenses + $extraLicenses;
+            } elseif ($pendingInvoice && $metadata && isset($metadata['additional_licenses'])) {
+                $extraLicenses = (int)($metadata['additional_licenses']);
+            } elseif ($isPending && isset($subscription['extra_licenses'])) {
+                // For pending subscriptions
+                $extraLicenses = (int)($subscription['extra_licenses'] ?? 0);
+            } elseif (isset($subscription['extra_licenses'])) {
+                // For active subscriptions
+                $extraLicenses = (int)($subscription['extra_licenses'] ?? 0);
+            }
+        }
+        
         // Calculate base amount based on scenario
-        if (($isPlanChange && $pendingInvoice) || ($isPending && $pendingInvoice)) {
+        // Handle license addition separately for active subscriptions
+        if ($isLicenseAddition && $isActive && $pendingInvoice) {
+            // For license addition in active subscriptions:
+            // - User is paying ONLY for the additional licenses
+            // - Invoice amount is the ADDITIONAL amount to pay now
+            // - Display should show ONLY the extra licenses being added, not the base package
+            
+            $pricingService = new \App\Services\PricingService();
+            $currentTotalLicenses = (int)($metadata['old_total_licenses'] ?? ($licenseMin + ($subscription['extra_licenses'] ?? 0)));
+            $newTotalLicenses = (int)($metadata['new_total_licenses'] ?? ($licenseMin + $totalExtraLicenses));
+            
+            // Calculate current price (what they're already paying)
+            $currentPriceBreakdown = $pricingService->getPriceBreakdown(
+                $plan['id'],
+                $currentTotalLicenses,
+                $plan['pricing_mode'] ?? 'flat'
+            );
+            
+            // Calculate new price (what they'll pay after adding licenses)
+            $newPriceBreakdown = $pricingService->getPriceBreakdown(
+                $plan['id'],
+                $newTotalLicenses,
+                $plan['pricing_mode'] ?? 'flat'
+            );
+            
+            // Amount to pay is ONLY the additional amount (difference)
+            $amount = $pendingInvoice['amount']; // This is the additional amount to pay
+            
+            // Extra licenses price is the additional amount (what they're paying now)
+            $extraLicensesPrice = $newPriceBreakdown['total'] - $currentPriceBreakdown['total'];
+            
+            // Base amount should be 0 for display purposes (they're not paying for base, only extras)
+            $baseAmount = 0;
+            $originalBaseAmount = 0;
+            $hasPromotion = false;
+            $promotionDiscount = 0;
+            
+            // Don't show base package in breakdown for license addition
+        } elseif (($isPlanChange && $pendingInvoice) || ($isPending && $pendingInvoice)) {
             // For plan changes or pending subscriptions, invoice amount already includes discounted base + extras
             // First, check if subscription has promotion to determine original price
             if (isset($subscription['promotion_id']) && $subscription['promotion_id'] && isset($subscription['original_price_monthly'])) {
@@ -169,8 +265,32 @@ class PaymentController extends Controller
             }
             
             // Calculate base amount from invoice (already discounted)
+            // First calculate extra licenses price if needed (only for pending subscriptions, not license addition)
+            if ($planType && $extraLicenses > 0 && $extraLicensesPrice == 0 && !$isLicenseAddition) {
+                $pricingService = new \App\Services\PricingService();
+                // For pending subscriptions: calculate price for total licenses
+                $totalLicenses = $licenseMin + $extraLicenses;
+                
+                $totalPriceBreakdown = $pricingService->getPriceBreakdown(
+                    $plan['id'],
+                    $totalLicenses,
+                    $plan['pricing_mode'] ?? 'flat'
+                );
+                
+                $basePriceBreakdown = $pricingService->getPriceBreakdown(
+                    $plan['id'],
+                    $licenseMin,
+                    $plan['pricing_mode'] ?? 'flat'
+                );
+                
+                $extraLicensesPrice = $totalPriceBreakdown['total'] - $basePriceBreakdown['total'];
+            }
+            
             if ($plan['slug'] === 'business' && $newExtraCondominiums > 0 && isset($extraCondominiumsPrice)) {
                 $baseAmount = $amount - $extraCondominiumsPrice;
+            } elseif ($planType && $extraLicensesPrice > 0 && !$isLicenseAddition) {
+                // For license-based plans with extra licenses (pending subscriptions)
+                $baseAmount = $amount - $extraLicensesPrice;
             } else {
                 $baseAmount = $amount;
             }
@@ -217,6 +337,12 @@ class PaymentController extends Controller
                                 $baseAmount = $calculatedBaseAmount;
                             }
                             // Otherwise, keep baseAmount from invoice and use calculated discount
+                        } elseif ($planType && $extraLicensesPrice > 0) {
+                            // For license-based plans with extra licenses
+                            $expectedTotal = $calculatedBaseAmount + $extraLicensesPrice;
+                            if (abs($amount - $expectedTotal) < 0.01) {
+                                $baseAmount = $calculatedBaseAmount;
+                            }
                         } else {
                             // If invoice amount matches calculated base amount, use calculated values
                             if (abs($amount - $calculatedBaseAmount) < 0.01) {
@@ -264,6 +390,84 @@ class PaymentController extends Controller
                     $baseAmount = $amount - $extraCondominiumsPrice;
                 }
             }
+            
+            // For license-based plans with extra licenses, calculate price
+            if ($planType && $extraLicenses > 0 && $extraLicensesPrice == 0) {
+                $pricingService = new \App\Services\PricingService();
+                $totalLicenses = $licenseMin + $extraLicenses;
+                
+                // Calculate price for total licenses
+                $totalPriceBreakdown = $pricingService->getPriceBreakdown(
+                    $plan['id'],
+                    $totalLicenses,
+                    $plan['pricing_mode'] ?? 'flat'
+                );
+                
+                // Calculate price for base licenses only
+                $basePriceBreakdown = $pricingService->getPriceBreakdown(
+                    $plan['id'],
+                    $licenseMin,
+                    $plan['pricing_mode'] ?? 'flat'
+                );
+                
+                $extraLicensesPrice = $totalPriceBreakdown['total'] - $basePriceBreakdown['total'];
+                $baseAmount = $basePriceBreakdown['total'];
+                
+                // Adjust amount if not from invoice
+                if (!$pendingInvoice) {
+                    $amount = $baseAmount + $extraLicensesPrice;
+                }
+            }
+        }
+        
+        // Final check: ensure extra licenses price is calculated if not done yet (only for non-license-addition cases)
+        if ($planType && $extraLicenses > 0 && $extraLicensesPrice == 0 && !$isLicenseAddition) {
+            $pricingService = new \App\Services\PricingService();
+            $totalLicenses = $licenseMin + $extraLicenses;
+            
+            $totalPriceBreakdown = $pricingService->getPriceBreakdown(
+                $plan['id'],
+                $totalLicenses,
+                $plan['pricing_mode'] ?? 'flat'
+            );
+            
+            $basePriceBreakdown = $pricingService->getPriceBreakdown(
+                $plan['id'],
+                $licenseMin,
+                $plan['pricing_mode'] ?? 'flat'
+            );
+            
+            $extraLicensesPrice = $totalPriceBreakdown['total'] - $basePriceBreakdown['total'];
+            
+            // Adjust base amount if it wasn't adjusted yet
+            if (abs($baseAmount - $originalBaseAmount) < 0.01) {
+                $baseAmount = $basePriceBreakdown['total'];
+            }
+            
+            // Adjust total amount if not from invoice
+            if (!$pendingInvoice && abs($amount - ($baseAmount + $extraLicensesPrice)) > 0.01) {
+                $amount = $baseAmount + $extraLicensesPrice;
+            }
+        }
+        
+        // Calculate total amount for expired subscriptions (backpayment + current month)
+        if ($isExpired && $backpaymentMonths > 0) {
+            // Calculate monthly price (base + extras)
+            $pricingService = new \App\Services\PricingService();
+            $licenseLimit = $subscription['license_limit'] ?? $plan['license_min'] ?? 0;
+            $pricingBreakdown = $pricingService->getPriceBreakdown(
+                $plan['id'],
+                $licenseLimit,
+                $plan['pricing_mode'] ?? 'flat'
+            );
+            $monthlyPrice = $pricingBreakdown['total'];
+            
+            // Total amount = monthly price * backpayment months
+            $amount = $monthlyPrice * $backpaymentMonths;
+            $baseAmount = $monthlyPrice; // Base amount for display (one month)
+            
+            // Note: For expired subscriptions, we charge all backpayment months
+            // The view will show breakdown: "X meses em atraso + 1 mês atual"
         }
         
         $paymentMethods = $this->paymentService->getAvailablePaymentMethods();
@@ -280,9 +484,16 @@ class PaymentController extends Controller
             'original_base_amount' => $originalBaseAmount,
             'has_promotion' => $hasPromotion,
             'promotion_discount' => $promotionDiscount,
+            'is_expired' => $isExpired,
+            'backpayment_months' => $backpaymentMonths,
             'extra_condominiums' => $newExtraCondominiums,
             'extra_condominiums_price' => $extraCondominiumsPrice,
             'price_per_condominium' => $pricePerCondominium,
+            'extra_licenses' => $isLicenseAddition ? ($extraLicenses ?? 0) : $extraLicenses,
+            'extra_licenses_price' => $extraLicensesPrice,
+            'license_min' => $licenseMin,
+            'plan_type' => $planType,
+            'is_license_addition' => $isLicenseAddition,
             'is_extra_update' => isset($metadata['is_extra_update']) && $metadata['is_extra_update'],
             'is_plan_change' => $isPlanChange,
             'payment_methods' => $paymentMethods,

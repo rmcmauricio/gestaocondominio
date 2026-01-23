@@ -1076,6 +1076,86 @@ Link: {$verificationUrl}
         return $this->sendEmail($email, $subject, $html, $text, 'notification', $userId);
     }
 
+    /**
+     * Get email template for subscription renewal reminder
+     */
+    public function getSubscriptionRenewalReminderTemplate(string $nome, string $planName, string $expirationDate, int $daysLeft, float $monthlyPrice, string $link): string
+    {
+        $html = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <title>Renovação de Subscrição</title>
+        </head>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <div style='background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;'>
+                <h1 style='margin: 0;'>Renovação de Subscrição</h1>
+            </div>
+            <div style='background-color: #f8f9fa; padding: 30px; border-radius: 0 0 5px 5px;'>
+                <p>Olá <strong>{$nome}</strong>,</p>
+                <p>A sua subscrição do plano <strong>{$planName}</strong> expira em <strong>{$daysLeft} dia(s)</strong> ({$expirationDate}).</p>
+                <div style='background-color: white; padding: 20px; border-left: 4px solid #007bff; margin: 20px 0;'>
+                    <p style='margin: 0;'><strong>Valor mensal:</strong> €" . number_format($monthlyPrice, 2, ',', '.') . "</p>
+                </div>
+                <p>Para renovar a sua subscrição e evitar o bloqueio do acesso, efetue o pagamento através do link abaixo.</p>
+                <div style='text-align: center; margin: 30px 0;'>
+                    <a href='{$link}' style='display: inline-block; padding: 15px 30px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;'>Renovar Subscrição</a>
+                </div>
+                <div style='background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;'>
+                    <p style='margin: 0;'><strong>⚠️ Importante:</strong> Se não renovar até {$expirationDate}, o acesso à gestão dos condomínios será bloqueado.</p>
+                </div>
+            </div>
+            <div style='text-align: center; margin-top: 20px; color: #666; font-size: 12px;'>
+                <p>© O Meu Prédio - Todos os direitos reservados</p>
+            </div>
+        </body>
+        </html>";
+        
+        return $html;
+    }
+
+    /**
+     * Get email template for subscription expiration
+     */
+    public function getSubscriptionExpiredTemplate(string $nome, string $planName, string $link): string
+    {
+        $html = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <title>Subscrição Expirada</title>
+        </head>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <div style='background-color: #dc3545; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;'>
+                <h1 style='margin: 0;'>Subscrição Expirada</h1>
+            </div>
+            <div style='background-color: #f8f9fa; padding: 30px; border-radius: 0 0 5px 5px;'>
+                <p>Olá <strong>{$nome}</strong>,</p>
+                <p>A sua subscrição do plano <strong>{$planName}</strong> expirou.</p>
+                <div style='background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 20px 0;'>
+                    <p style='margin: 0;'><strong>⚠️ Acesso Bloqueado:</strong> O acesso à gestão dos condomínios foi bloqueado até efetuar o pagamento.</p>
+                </div>
+                <p>Para reativar a sua subscrição, efetue o pagamento através do link abaixo.</p>
+                <div style='text-align: center; margin: 30px 0;'>
+                    <a href='{$link}' style='display: inline-block; padding: 15px 30px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;'>Renovar Subscrição</a>
+                </div>
+                <div style='background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;'>
+                    <p style='margin: 0;'><strong>ℹ️ Nota:</strong> Para reativar uma subscrição expirada, será necessário pagar os meses em atraso mais o mês atual.</p>
+                </div>
+            </div>
+            <div style='text-align: center; margin-top: 20px; color: #666; font-size: 12px;'>
+                <p>© O Meu Prédio - Todos os direitos reservados</p>
+            </div>
+        </body>
+        </html>";
+        
+        return $html;
+    }
+
     private function getNotificationEmailTemplate(string $nome, string $notificationType, string $title, string $message, ?string $link = null): string
     {
         $logoHtml = $this->getLogoInline();

@@ -63,10 +63,18 @@ $router->post('/subscription/cancel', 'App\Controllers\SubscriptionController@ca
 $router->post('/subscription/change-plan', 'App\Controllers\SubscriptionController@changePlan');
 $router->post('/subscription/update-extras', 'App\Controllers\SubscriptionController@updateExtras');
 $router->post('/subscription/update-pending-extras', 'App\Controllers\SubscriptionController@updatePendingExtras');
+$router->post('/subscription/update-pending-licenses', 'App\Controllers\SubscriptionController@updatePendingLicenses');
+$router->post('/subscription/add-active-licenses', 'App\Controllers\SubscriptionController@addActiveLicenses');
 $router->post('/subscription/cancel-pending-extras', 'App\Controllers\SubscriptionController@cancelPendingExtras');
+$router->post('/subscription/cancel-pending-license-addition', 'App\Controllers\SubscriptionController@cancelPendingLicenseAddition');
 $router->post('/subscription/cancel-pending-plan-change', 'App\Controllers\SubscriptionController@cancelPendingPlanChange');
 $router->post('/subscription/reactivate', 'App\Controllers\SubscriptionController@reactivate');
 $router->post('/subscription/validate-promotion-code', 'App\Controllers\SubscriptionController@validatePromotionCode');
+$router->get('/subscription/attach-condominium', 'App\Controllers\SubscriptionController@attachCondominiumView');
+$router->post('/subscription/attach-condominium', 'App\Controllers\SubscriptionController@attachCondominium');
+$router->post('/subscription/detach-condominium', 'App\Controllers\SubscriptionController@detachCondominium');
+$router->get('/subscription/pricing-preview', 'App\Controllers\SubscriptionController@pricingPreview');
+$router->post('/subscription/recalculate-licenses', 'App\Controllers\SubscriptionController@recalculateLicenses');
 
 // Dashboard routes (to be implemented)
 $router->get('/dashboard', 'App\Controllers\DashboardController@index');
@@ -357,6 +365,16 @@ $router->get('/admin/subscriptions', 'App\Controllers\SuperAdminController@subsc
 $router->post('/admin/subscriptions/activate', 'App\Controllers\SuperAdminController@activateSubscription');
 $router->post('/admin/subscriptions/change-plan', 'App\Controllers\SuperAdminController@changePlan');
 $router->post('/admin/subscriptions/deactivate', 'App\Controllers\SuperAdminController@deactivateSubscription');
+$router->post('/admin/subscriptions/approve-license-addition', 'App\Controllers\SuperAdminController@approveLicenseAddition');
+$router->get('/admin/payments', 'App\Controllers\SuperAdminController@payments');
+$router->post('/admin/payments/approve', 'App\Controllers\SuperAdminController@approvePayment');
+// New subscription management routes
+$router->get('/admin/subscriptions-manage', 'App\Controllers\Admin\SubscriptionManagementController@index');
+$router->get('/admin/subscriptions-manage/view/{id}', 'App\Controllers\Admin\SubscriptionManagementController@view');
+$router->post('/admin/subscriptions-manage/attach-condominium', 'App\Controllers\Admin\SubscriptionManagementController@attachCondominium');
+$router->post('/admin/subscriptions-manage/detach-condominium', 'App\Controllers\Admin\SubscriptionManagementController@detachCondominium');
+$router->post('/admin/subscriptions-manage/recalculate-licenses', 'App\Controllers\Admin\SubscriptionManagementController@recalculateLicenses');
+$router->post('/admin/subscriptions-manage/toggle-condominium-lock', 'App\Controllers\Admin\SubscriptionManagementController@toggleCondominiumLock');
 $router->get('/admin/condominiums', 'App\Controllers\SuperAdminController@condominiums');
 $router->get('/admin/condominiums/{id}/stats', 'App\Controllers\SuperAdminController@condominiumStats');
 $router->get('/admin/payments', 'App\Controllers\SuperAdminController@payments');
@@ -369,6 +387,14 @@ $router->get('/admin/plans/{id}/edit', 'App\Controllers\SuperAdminController@edi
 $router->post('/admin/plans/{id}', 'App\Controllers\SuperAdminController@updatePlan');
 $router->post('/admin/plans/{id}/toggle-active', 'App\Controllers\SuperAdminController@togglePlanActive');
 $router->post('/admin/plans/{id}/delete', 'App\Controllers\SuperAdminController@deletePlan');
+
+// Pricing Tiers (Escalões de Pricing)
+$router->get('/admin/plans/{plan_id}/pricing-tiers', 'App\Controllers\SuperAdminController@planPricingTiers');
+$router->get('/admin/plans/{plan_id}/pricing-tiers/create', 'App\Controllers\SuperAdminController@createPlanPricingTier');
+$router->post('/admin/plans/{plan_id}/pricing-tiers', 'App\Controllers\SuperAdminController@storePlanPricingTier');
+$router->get('/admin/plans/{plan_id}/pricing-tiers/{id}/edit', 'App\Controllers\SuperAdminController@editPlanPricingTier');
+$router->post('/admin/plans/{plan_id}/pricing-tiers/{id}', 'App\Controllers\SuperAdminController@updatePlanPricingTier');
+$router->post('/admin/plans/{plan_id}/pricing-tiers/{id}/delete', 'App\Controllers\SuperAdminController@deletePlanPricingTier');
 
 // Preços de Condomínios Extras
 $router->get('/admin/plans/{plan_id}/extra-condominiums-pricing', 'App\Controllers\SuperAdminController@extraCondominiumsPricing');

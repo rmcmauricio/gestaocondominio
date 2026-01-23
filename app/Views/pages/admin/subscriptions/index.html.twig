@@ -48,6 +48,11 @@
                             <td>
                                 <strong>{{ subscription.user_name }}</strong><br>
                                 <small class="text-muted">{{ subscription.user_email }}</small>
+                                {% if pending_license_additions[subscription.id] %}
+                                    <br><span class="badge bg-warning mt-1">
+                                        <i class="bi bi-exclamation-triangle"></i> {{ pending_license_additions[subscription.id].additional_licenses }} frações pendentes
+                                    </span>
+                                {% endif %}
                             </td>
                             <td>
                                 <span class="badge bg-primary">{{ subscription.plan_name }}</span>
@@ -86,6 +91,11 @@
                             </td>
                             <td>
                                 <div class="btn-group" role="group">
+                                    {% if pending_license_additions[subscription.id] %}
+                                    <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#approveLicenseModal{{ subscription.id }}" title="Aprovar frações extras">
+                                        <i class="bi bi-check-circle"></i> Aprovar Frações
+                                    </button>
+                                    {% endif %}
                                     {% if subscription.status != 'active' %}
                                     <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#activateModal{{ subscription.id }}" title="Ativar subscrição">
                                         <i class="bi bi-check-circle"></i> Ativar
@@ -117,6 +127,41 @@
 
     <!-- Modals - Outside table to prevent positioning issues -->
     {% for subscription in subscriptions %}
+        <!-- Approve License Addition Modal -->
+        {% if pending_license_additions[subscription.id] %}
+        <div class="modal fade" id="approveLicenseModal{{ subscription.id }}" tabindex="-1" aria-labelledby="approveLicenseModalLabel{{ subscription.id }}" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning">
+                        <h5 class="modal-title" id="approveLicenseModalLabel{{ subscription.id }}">Aprovar Frações Extras</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="POST" action="{{ BASE_URL }}admin/subscriptions/approve-license-addition">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="subscription_id" value="{{ subscription.id }}">
+                        <div class="modal-body">
+                            <p><strong>Utilizador:</strong> {{ subscription.user_name }} ({{ subscription.user_email }})</p>
+                            <p><strong>Plano:</strong> {{ subscription.plan_name }}</p>
+                            <div class="alert alert-info">
+                                <p class="mb-0"><strong>Frações extras pendentes:</strong> {{ pending_license_additions[subscription.id].additional_licenses }}</p>
+                                <p class="mb-0"><strong>Valor original:</strong> €{{ pending_license_additions[subscription.id].amount|number_format(2, ',', '.') }}</p>
+                            </div>
+                            <div class="alert alert-warning">
+                                <small><i class="bi bi-exclamation-triangle"></i> Esta ação irá aprovar as frações extras sem necessidade de pagamento. O pagamento será processado como gratuito.</small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-check-circle"></i> Aprovar Gratuitamente
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Activation Modal -->
         {% if subscription.status != 'active' %}
         <div class="modal fade" id="activateModal{{ subscription.id }}" tabindex="-1" aria-labelledby="activateModalLabel{{ subscription.id }}" aria-hidden="true">

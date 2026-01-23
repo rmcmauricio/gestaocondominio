@@ -234,5 +234,113 @@ class Fraction extends Model
         }
         return $out;
     }
+
+    /**
+     * Get count of active fractions by condominium
+     */
+    public function getActiveCountByCondominium(int $condominiumId): int
+    {
+        if (!$this->db) {
+            return 0;
+        }
+
+        // Check if archived_at column exists
+        $checkStmt = $this->db->query("SHOW COLUMNS FROM fractions LIKE 'archived_at'");
+        $hasArchivedAt = $checkStmt->rowCount() > 0;
+        
+        $checkStmt2 = $this->db->query("SHOW COLUMNS FROM fractions LIKE 'license_consumed'");
+        $hasLicenseConsumed = $checkStmt2->rowCount() > 0;
+
+        $sql = "SELECT COUNT(*) as count 
+                FROM fractions 
+                WHERE condominium_id = :condominium_id 
+                AND is_active = TRUE";
+        
+        if ($hasArchivedAt) {
+            $sql .= " AND archived_at IS NULL";
+        }
+        
+        if ($hasLicenseConsumed) {
+            $sql .= " AND (license_consumed IS NULL OR license_consumed = TRUE)";
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':condominium_id' => $condominiumId]);
+        $result = $stmt->fetch();
+        
+        return $result ? (int)$result['count'] : 0;
+    }
+
+    /**
+     * Get count of active fractions by subscription (sum of all associated condominiums)
+     */
+    public function getActiveCountBySubscription(int $subscriptionId): int
+    {
+        if (!$this->db) {
+            return 0;
+        }
+
+        // Get subscription to check plan type
+        $subscriptionModel = new Subscription();
+        $subscription = $subscriptionModel->findById($subscriptionId);
+        if (!$subscription) {
+            return 0;
+        }
+
+        $planModel = new Plan();
+        $plan = $planModel->findById($subscription['plan_id']);
+        if (!$plan) {
+            return 0;
+        }
+
+        if (($plan['plan_type'] ?? null) === 'condominio') {
+            // Base plan: count from single condominium
+            if ($subscription['condominium_id']) {
+                return $this->getActiveCountByCondominium($subscription['condominium_id']);
+            }
+            return 0;
+        } else {
+            // Pro/Enterprise: sum from all active associated condominiums
+            $subscriptionCondominiumModel = new SubscriptionCondominium();
+            $condominiums = $subscriptionCondominiumModel->getActiveBySubscription($subscriptionId);
+            
+            $total = 0;
+            foreach ($condominiums as $condo) {
+                $total += $this->getActiveCountByCondominium($condo['condominium_id']);
+            }
+            
+            return $total;
+        }
+    }
+
+    /**
+     * Archive fraction (mark as archived, doesn't count for licenses)
+     */
+    public function archive(int $fractionId): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        return $this->update($fractionId, [
+            'archived_at' => date('Y-m-d H:i:s'),
+            'license_consumed' => false
+        ]);
+    }
+
+    /**
+     * Unarchive fraction (restore to active, counts for licenses)
+     */
+    public function unarchive(int $fractionId): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        return $this->update($fractionId, [
+            'archived_at' => null,
+            'license_consumed' => true
+        ]);
+    }
 }
 
