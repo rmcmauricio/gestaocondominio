@@ -26,12 +26,17 @@ class Document extends Model
         $params = [':condominium_id' => $condominiumId];
 
         if (isset($filters['folder'])) {
-            if ($filters['folder'] === null) {
+            if ($filters['folder'] === null || $filters['folder'] === '') {
+                // Show only documents without folder (root level)
                 $sql .= " AND d.folder IS NULL";
             } else {
+                // Show only documents in the exact folder specified (not subfolders)
                 $sql .= " AND d.folder = :folder";
                 $params[':folder'] = $filters['folder'];
             }
+        } else {
+            // If folder filter is not set, default to showing only root documents
+            $sql .= " AND d.folder IS NULL";
         }
 
         if (isset($filters['document_type'])) {

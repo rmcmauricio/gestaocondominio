@@ -6,6 +6,7 @@ use App\Models\Fee;
 use App\Models\Receipt;
 use App\Models\Fraction;
 use App\Models\Condominium;
+use App\Models\Document;
 
 /**
  * Gera recibos para quotas totalmente liquidadas.
@@ -52,6 +53,7 @@ class ReceiptService
 
             $periodYear = (int)($fee['period_year'] ?? date('Y'));
             $receiptNumber = $receiptModel->generateReceiptNumber($condominiumId, $periodYear);
+            $fractionIdentifier = $fraction['identifier'] ?? '';
 
             $pdfService = new PdfService();
             $htmlContent = $pdfService->generateReceiptReceipt($fee, $fraction, $condominium, null, 'final');
@@ -71,7 +73,8 @@ class ReceiptService
                 'generated_by' => $userId
             ]);
 
-            $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber, $condominiumId);
+            // Generate PDF with folder structure
+            $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber, $condominiumId, $fractionIdentifier, (string)$periodYear, $userId);
             $fullPath = dirname(__DIR__, 2) . '/storage/' . $filePath;
             $fileSize = file_exists($fullPath) ? filesize($fullPath) : 0;
             $fileName = basename($filePath);
@@ -85,6 +88,31 @@ class ReceiptService
                     ':file_size' => $fileSize,
                     ':id' => $receiptId
                 ]);
+            }
+
+            // Create entry in documents table
+            try {
+                $receiptFolderService = new \App\Services\ReceiptFolderService();
+                $folderPath = $receiptFolderService->ensureReceiptFolders($condominiumId, (string)$periodYear, $fractionIdentifier, $userId);
+
+                $documentModel = new Document();
+                $documentModel->create([
+                    'condominium_id' => $condominiumId,
+                    'fraction_id' => (int)$fee['fraction_id'],
+                    'folder' => $folderPath,
+                    'title' => 'Recibo ' . $receiptNumber,
+                    'description' => 'Recibo gerado automaticamente para quota totalmente paga - Fração: ' . $fractionIdentifier . ' - Ano: ' . $periodYear,
+                    'file_path' => $filePath,
+                    'file_name' => $fileName,
+                    'file_size' => $fileSize,
+                    'mime_type' => 'application/pdf',
+                    'visibility' => 'fraction',
+                    'document_type' => 'receipt',
+                    'uploaded_by' => $userId
+                ]);
+            } catch (\Exception $e) {
+                // Log error but don't fail receipt generation
+                error_log("Error creating document entry for receipt: " . $e->getMessage());
             }
 
             // Log audit

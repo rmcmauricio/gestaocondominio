@@ -1111,7 +1111,9 @@ class FinanceController extends Controller
                 }
 
                 $pdfService = new \App\Services\PdfService();
-                $receiptNumber = $receiptModel->generateReceiptNumber($condominiumId, (int)$fee['period_year']);
+                $periodYear = (int)$fee['period_year'];
+                $receiptNumber = $receiptModel->generateReceiptNumber($condominiumId, $periodYear);
+                $fractionIdentifier = $fraction['identifier'] ?? '';
                 $htmlContent = $pdfService->generateReceiptReceipt($fee, $fraction, $condominium, null, 'final');
                 
                 // Create receipt record
@@ -1130,8 +1132,8 @@ class FinanceController extends Controller
                     'generated_by' => $userId
                 ]);
 
-                // Generate PDF
-                $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber, $condominiumId);
+                // Generate PDF with folder structure
+                $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber, $condominiumId, $fractionIdentifier, (string)$periodYear, $userId);
                 $fullPath = __DIR__ . '/../../storage/' . $filePath;
                 $fileSize = file_exists($fullPath) ? filesize($fullPath) : 0;
                 $fileName = basename($filePath);
@@ -1148,6 +1150,31 @@ class FinanceController extends Controller
                     ':file_size' => $fileSize,
                     ':id' => $receiptId
                 ]);
+
+                // Create entry in documents table
+                try {
+                    $receiptFolderService = new \App\Services\ReceiptFolderService();
+                    $folderPath = $receiptFolderService->ensureReceiptFolders($condominiumId, (string)$periodYear, $fractionIdentifier, $userId);
+
+                    $documentModel = new \App\Models\Document();
+                    $documentModel->create([
+                        'condominium_id' => $condominiumId,
+                        'fraction_id' => $fee['fraction_id'],
+                        'folder' => $folderPath,
+                        'title' => 'Recibo ' . $receiptNumber,
+                        'description' => 'Recibo regenerado para quota #' . $feeId . ' - Fração: ' . $fractionIdentifier . ' - Ano: ' . $periodYear,
+                        'file_path' => $filePath,
+                        'file_name' => $fileName,
+                        'file_size' => $fileSize,
+                        'mime_type' => 'application/pdf',
+                        'visibility' => 'fraction',
+                        'document_type' => 'receipt',
+                        'uploaded_by' => $userId
+                    ]);
+                } catch (\Exception $e) {
+                    // Log error but don't fail receipt generation
+                    error_log("Error creating document entry for receipt: " . $e->getMessage());
+                }
 
                 // Log audit
                 $auditService = new \App\Services\AuditService();

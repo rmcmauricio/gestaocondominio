@@ -19,7 +19,7 @@ class Folder extends Model
 
         $sql = "SELECT f.*, 
                        u.name as created_by_name,
-                       (SELECT COUNT(*) FROM documents d WHERE d.folder = f.path AND d.condominium_id = f.condominium_id 
+                       (SELECT COUNT(*) FROM documents d WHERE (d.folder = f.path OR d.folder LIKE CONCAT(f.path, '/%')) AND d.condominium_id = f.condominium_id 
                         AND (d.document_type != 'folder_placeholder' OR d.document_type IS NULL)
                         AND d.title != '.folder_placeholder') as document_count,
                        (SELECT COUNT(*) FROM folders f2 WHERE f2.parent_folder_id = f.id) as subfolder_count
@@ -56,7 +56,9 @@ class Folder extends Model
 
         $stmt = $this->db->prepare("
             SELECT f.*, 
-                   (SELECT COUNT(*) FROM documents d WHERE d.folder = f.path AND d.condominium_id = f.condominium_id) as document_count
+                   (SELECT COUNT(*) FROM documents d WHERE (d.folder = f.path OR d.folder LIKE CONCAT(f.path, '/%')) AND d.condominium_id = f.condominium_id 
+                    AND (d.document_type != 'folder_placeholder' OR d.document_type IS NULL)
+                    AND d.title != '.folder_placeholder') as document_count
             FROM folders f
             WHERE f.condominium_id = :condominium_id
             ORDER BY f.path ASC

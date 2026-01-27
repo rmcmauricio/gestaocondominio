@@ -874,6 +874,18 @@ class DemoSeeder
                 ':condominium_id' => $condominiumId,
                 ':demo_user_id' => $this->demoUserId
             ]);
+
+            // Delete document entries for receipts created by non-demo users
+            $deleteDocsStmt = $this->db->prepare("
+                DELETE FROM documents 
+                WHERE condominium_id = :condominium_id 
+                AND document_type = 'receipt' 
+                AND (uploaded_by IS NULL OR uploaded_by != :demo_user_id)
+            ");
+            $deleteDocsStmt->execute([
+                ':condominium_id' => $condominiumId,
+                ':demo_user_id' => $this->demoUserId
+            ]);
         } else {
             // If no demo user ID, delete all receipts for this condominium
             $receiptsStmt = $this->db->prepare("SELECT file_path FROM receipts WHERE condominium_id = :condominium_id");
@@ -895,6 +907,10 @@ class DemoSeeder
             }
             $deleteStmt = $this->db->prepare("DELETE FROM receipts WHERE condominium_id = :condominium_id");
             $deleteStmt->execute([':condominium_id' => $condominiumId]);
+
+            // Delete all document entries for receipts
+            $deleteDocsStmt = $this->db->prepare("DELETE FROM documents WHERE condominium_id = :condominium_id AND document_type = 'receipt'");
+            $deleteDocsStmt->execute([':condominium_id' => $condominiumId]);
         }
 
         // Store demo receipts data for later matching (if we have it)
@@ -948,19 +964,44 @@ class DemoSeeder
         // Delete revenues
         $this->db->exec("DELETE FROM revenues WHERE condominium_id = {$condominiumId}");
 
-        // Delete documents
-        $documentsStmt = $this->db->prepare("SELECT file_path FROM documents WHERE condominium_id = :condominium_id");
-        $documentsStmt->execute([':condominium_id' => $condominiumId]);
-        $documents = $documentsStmt->fetchAll();
-        foreach ($documents as $document) {
-            if (!empty($document['file_path'])) {
-                $fullPath = __DIR__ . '/../../storage/' . $document['file_path'];
-                if (file_exists($fullPath)) {
-                    @unlink($fullPath);
+        // Delete documents (but preserve receipt documents from demo user)
+        if ($this->demoUserId) {
+            // Delete document files except those from demo receipts
+            $documentsStmt = $this->db->prepare("
+                SELECT file_path FROM documents 
+                WHERE condominium_id = :condominium_id 
+                AND (document_type != 'receipt' OR uploaded_by != :demo_user_id)
+            ");
+            $documentsStmt->execute([
+                ':condominium_id' => $condominiumId,
+                ':demo_user_id' => $this->demoUserId
+            ]);
+            $documents = $documentsStmt->fetchAll();
+            foreach ($documents as $document) {
+                if (!empty($document['file_path'])) {
+                    $fullPath = __DIR__ . '/../../storage/' . $document['file_path'];
+                    if (file_exists($fullPath)) {
+                        @unlink($fullPath);
+                    }
                 }
             }
+            // Delete documents except receipt documents from demo user
+            $this->db->exec("DELETE FROM documents WHERE condominium_id = {$condominiumId} AND (document_type != 'receipt' OR uploaded_by != {$this->demoUserId})");
+        } else {
+            // If no demo user ID, delete all documents
+            $documentsStmt = $this->db->prepare("SELECT file_path FROM documents WHERE condominium_id = :condominium_id");
+            $documentsStmt->execute([':condominium_id' => $condominiumId]);
+            $documents = $documentsStmt->fetchAll();
+            foreach ($documents as $document) {
+                if (!empty($document['file_path'])) {
+                    $fullPath = __DIR__ . '/../../storage/' . $document['file_path'];
+                    if (file_exists($fullPath)) {
+                        @unlink($fullPath);
+                    }
+                }
+            }
+            $this->db->exec("DELETE FROM documents WHERE condominium_id = {$condominiumId}");
         }
-        $this->db->exec("DELETE FROM documents WHERE condominium_id = {$condominiumId}");
 
         // Delete notifications (only for this demo condominium)
         $this->db->exec("DELETE FROM notifications WHERE condominium_id = {$condominiumId}");
@@ -3716,7 +3757,9 @@ class DemoSeeder
                                 if ($condominium) {
                                     $pdfService = new \App\Services\PdfService();
                                     $htmlContent = $pdfService->generateReceiptReceipt($fee, $fraction, $condominium, null, 'final');
-                                    $newFilePath = $pdfService->generateReceiptPdf($htmlContent, $matchedReceipt['id'], $matchedReceipt['receipt_number'], $this->demoCondominiumId);
+                                    $periodYear = (int)$fee['period_year'];
+                                    $fractionIdentifier = $fraction['identifier'] ?? '';
+                                    $newFilePath = $pdfService->generateReceiptPdf($htmlContent, $matchedReceipt['id'], $matchedReceipt['receipt_number'], $this->demoCondominiumId, $fractionIdentifier, (string)$periodYear, $this->demoUserId);
                                     $newFullPath = __DIR__ . '/../../storage/' . $newFilePath;
                                     $fileSize = file_exists($newFullPath) ? filesize($newFullPath) : 0;
                                     $fileName = basename($newFilePath);
@@ -3732,6 +3775,46 @@ class DemoSeeder
                                         ':file_size' => $fileSize,
                                         ':id' => $matchedReceipt['id']
                                     ]);
+
+                                    // Create/update entry in documents table
+                                    try {
+                                        $receiptFolderService = new \App\Services\ReceiptFolderService();
+                                        $folderPath = $receiptFolderService->ensureReceiptFolders($this->demoCondominiumId, (string)$periodYear, $fractionIdentifier, $this->demoUserId);
+
+                                        // Check if document entry already exists
+                                        $docStmt = $this->db->prepare("
+                                            SELECT id FROM documents 
+                                            WHERE condominium_id = :condominium_id 
+                                            AND document_type = 'receipt' 
+                                            AND file_path = :file_path
+                                            LIMIT 1
+                                        ");
+                                        $docStmt->execute([
+                                            ':condominium_id' => $this->demoCondominiumId,
+                                            ':file_path' => $newFilePath
+                                        ]);
+                                        $existingDoc = $docStmt->fetch();
+
+                                        if (!$existingDoc) {
+                                            $documentModel = new \App\Models\Document();
+                                            $documentModel->create([
+                                                'condominium_id' => $this->demoCondominiumId,
+                                                'fraction_id' => $fee['fraction_id'],
+                                                'folder' => $folderPath,
+                                                'title' => 'Recibo ' . $matchedReceipt['receipt_number'],
+                                                'description' => 'Recibo demo - Fração: ' . $fractionIdentifier . ' - Ano: ' . $periodYear,
+                                                'file_path' => $newFilePath,
+                                                'file_name' => $fileName,
+                                                'file_size' => $fileSize,
+                                                'mime_type' => 'application/pdf',
+                                                'visibility' => 'fraction',
+                                                'document_type' => 'receipt',
+                                                'uploaded_by' => $this->demoUserId
+                                            ]);
+                                        }
+                                    } catch (\Exception $e) {
+                                        echo "   Aviso: Erro ao criar entrada em documents para recibo {$matchedReceipt['id']}: " . $e->getMessage() . "\n";
+                                    }
                                 }
                             }
                         }
@@ -3780,7 +3863,9 @@ class DemoSeeder
                         }
 
                         $pdfService = new \App\Services\PdfService();
-                        $receiptNumber = $receiptModel->generateReceiptNumber($this->demoCondominiumId, (int)$fee['period_year']);
+                        $periodYear = (int)$fee['period_year'];
+                        $receiptNumber = $receiptModel->generateReceiptNumber($this->demoCondominiumId, $periodYear);
+                        $fractionIdentifier = $fraction['identifier'] ?? '';
                         $htmlContent = $pdfService->generateReceiptReceipt($fee, $fraction, $condominium, null, 'final');
 
                         // Create receipt record
@@ -3799,8 +3884,8 @@ class DemoSeeder
                             'generated_by' => $this->demoUserId
                         ]);
 
-                        // Generate PDF (only if receipt doesn't exist)
-                        $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber, $this->demoCondominiumId);
+                        // Generate PDF with folder structure
+                        $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber, $this->demoCondominiumId, $fractionIdentifier, (string)$periodYear, $this->demoUserId);
                         $fullPath = __DIR__ . '/../../storage/' . $filePath;
                         $fileSize = file_exists($fullPath) ? filesize($fullPath) : 0;
                         $fileName = basename($filePath);
@@ -3817,6 +3902,30 @@ class DemoSeeder
                             ':file_size' => $fileSize,
                             ':id' => $receiptId
                         ]);
+
+                        // Create entry in documents table
+                        try {
+                            $receiptFolderService = new \App\Services\ReceiptFolderService();
+                            $folderPath = $receiptFolderService->ensureReceiptFolders($this->demoCondominiumId, (string)$periodYear, $fractionIdentifier, $this->demoUserId);
+
+                            $documentModel = new \App\Models\Document();
+                            $documentModel->create([
+                                'condominium_id' => $this->demoCondominiumId,
+                                'fraction_id' => $fee['fraction_id'],
+                                'folder' => $folderPath,
+                                'title' => 'Recibo ' . $receiptNumber,
+                                'description' => 'Recibo demo - Fração: ' . $fractionIdentifier . ' - Ano: ' . $periodYear,
+                                'file_path' => $filePath,
+                                'file_name' => $fileName,
+                                'file_size' => $fileSize,
+                                'mime_type' => 'application/pdf',
+                                'visibility' => 'fraction',
+                                'document_type' => 'receipt',
+                                'uploaded_by' => $this->demoUserId
+                            ]);
+                        } catch (\Exception $e) {
+                            echo "   Aviso: Erro ao criar entrada em documents para recibo {$receiptId}: " . $e->getMessage() . "\n";
+                        }
 
                         $receiptCount++;
                     } catch (\Exception $e) {

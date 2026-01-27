@@ -16,19 +16,19 @@ class PdfService
         if ($templateId === null) {
             $templateId = 1;
         }
-        
+
         // Validate template ID
         if ($templateId < 1 || $templateId > 17) {
             $templateId = 1; // Fallback to default
         }
-        
+
         $templateFile = __DIR__ . '/../Templates/document_templates/' . $documentType . '_template_' . $templateId . '.html';
-        
+
         // If template doesn't exist, fallback to template 1
         if (!file_exists($templateFile)) {
             $templateFile = __DIR__ . '/../Templates/document_templates/' . $documentType . '_template_1.html';
         }
-        
+
         return $templateFile;
     }
 
@@ -42,21 +42,21 @@ class PdfService
         if (!$logoPath) {
             return '';
         }
-        
+
         // Convert logo to base64 for DomPDF compatibility
         $fileStorageService = new \App\Services\FileStorageService();
         $fullPath = $fileStorageService->getFilePath($logoPath);
-        
+
         if (!file_exists($fullPath)) {
             return '';
         }
-        
+
         // Read file and convert to base64
         $imageData = file_get_contents($fullPath);
         if ($imageData === false) {
             return '';
         }
-        
+
         // Get MIME type from file extension
         $extension = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
         $mimeTypes = [
@@ -66,10 +66,10 @@ class PdfService
             'gif' => 'image/gif',
             'webp' => 'image/webp'
         ];
-        
+
         $mimeType = $mimeTypes[$extension] ?? 'image/jpeg';
         $base64 = base64_encode($imageData);
-        
+
         return '<img src="data:' . $mimeType . ';base64,' . $base64 . '" alt="Logo" class="header-logo">';
     }
 
@@ -80,20 +80,20 @@ class PdfService
     {
         // Simple HTML to PDF conversion
         // In production, use a library like TCPDF, DomPDF, or mPDF
-        
+
         $html = $this->getConvocationHtml($assembly, $attendees);
-        
+
         // Save to storage
         $filename = 'convocation_' . $assemblyId . '_' . time() . '.html';
         $filepath = __DIR__ . '/../../storage/documents/' . $filename;
-        
+
         $dir = dirname($filepath);
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
-        
+
         file_put_contents($filepath, $html);
-        
+
         return $filename;
     }
 
@@ -103,17 +103,17 @@ class PdfService
     public function generateMinutes(int $assemblyId, array $assembly, array $attendees, array $votes): string
     {
         $html = $this->getMinutesHtml($assembly, $attendees, $votes);
-        
+
         $filename = 'minutes_' . $assemblyId . '_' . time() . '.html';
         $filepath = __DIR__ . '/../../storage/documents/' . $filename;
-        
+
         $dir = dirname($filepath);
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
-        
+
         file_put_contents($filepath, $html);
-        
+
         return $filename;
     }
 
@@ -125,20 +125,20 @@ class PdfService
         // Get condominium info
         $condominiumModel = new \App\Models\Condominium();
         $condominium = $condominiumModel->findById($assembly['condominium_id']);
-        
+
         // Get template ID (null means default template, which will be handled by getTemplatePath)
         $templateId = $condominium ? $condominiumModel->getDocumentTemplate($assembly['condominium_id']) : 1;
         if ($templateId === null) {
             $templateId = 1; // Default template
         }
-        
+
         // Get logo path
         $logoPath = $condominium ? $condominiumModel->getLogoPath($assembly['condominium_id']) : null;
-        
+
         // Load template
         $templatePath = $this->getTemplatePath($templateId, 'convocation');
         $template = file_get_contents($templatePath);
-        
+
         // Prepare data
         $date = date('d/m/Y', strtotime($assembly['scheduled_date']));
         $time = date('H:i', strtotime($assembly['scheduled_date']));
@@ -147,7 +147,7 @@ class PdfService
         $location = $assembly['location'] ?? 'A definir';
         $description = nl2br(htmlspecialchars($assembly['description'] ?? $assembly['agenda'] ?? 'A definir na assembleia'));
         $generationDate = date('d/m/Y H:i');
-        
+
         // Replace placeholders
         $template = str_replace('{{LOGO_HTML}}', $this->getLogoHtml($logoPath), $template);
         $template = str_replace('{{ASSEMBLY_TITLE}}', htmlspecialchars($assembly['title'] ?? ''), $template);
@@ -158,7 +158,7 @@ class PdfService
         $template = str_replace('{{QUORUM}}', $quorum, $template);
         $template = str_replace('{{ASSEMBLY_DESCRIPTION}}', $description, $template);
         $template = str_replace('{{GENERATION_DATE}}', $generationDate, $template);
-        
+
         return $template;
     }
 
@@ -172,7 +172,7 @@ class PdfService
         $topics = $voteTopicModel->getByAssembly($assembly['id']);
         $agendaPointModel = new \App\Models\AssemblyAgendaPoint();
         $agendaPoints = $agendaPointModel->getByAssembly($assembly['id']);
-        
+
         // Calculate vote results
         $voteResults = [];
         $voteModel = new \App\Models\Vote();
@@ -181,10 +181,10 @@ class PdfService
             $res['votes_by_fraction'] = $voteModel->getByTopic($topic['id']);
             $voteResults[$topic['id']] = $res;
         }
-        
+
         return $this->populateMinutesTemplate($assembly, $attendees, $topics, $voteResults, $agendaPoints);
     }
-    
+
     /**
      * Get minutes HTML (old method - kept for backward compatibility but now uses templates)
      * @deprecated This method now delegates to populateMinutesTemplate
@@ -195,7 +195,7 @@ class PdfService
         $time = date('H:i', strtotime($assembly['scheduled_date']));
         // Map type for display
         $type = ($assembly['type'] === 'extraordinary' || $assembly['type'] === 'extraordinaria') ? 'Extraordinária' : 'Ordinária';
-        
+
         // Calculate total millage
         $totalMillage = 0;
         $attendeesList = '';
@@ -205,7 +205,7 @@ class PdfService
             $typeLabel = $attendee['attendance_type'] === 'proxy' ? ' (por procuração)' : '';
             $attendeesList .= "<tr><td>{$attendee['fraction_identifier']}</td><td>{$attendee['user_name']}</td><td>{$millage}‰</td><td>{$typeLabel}</td></tr>";
         }
-        
+
         // Get vote topics and results
         global $db;
         $voteTopicModel = new \App\Models\VoteTopic();
@@ -278,16 +278,16 @@ class PdfService
                 $results = $voteModel->calculateResults($topic['id']);
                 $votesSection .= '<div style="margin: 20px 0; padding: 15px; background-color: #f9f9f9; border-left: 4px solid #007bff;">';
                 $votesSection .= '<h4 style="margin-top: 0;">' . htmlspecialchars($topic['title']) . '</h4>';
-                
+
                 if (!empty($topic['description'])) {
                     $votesSection .= '<p><em>' . htmlspecialchars($topic['description']) . '</em></p>';
                 }
-                
+
                 if ($results['total_votes'] > 0) {
                     $votesSection .= '<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">';
                     $votesSection .= '<thead><tr style="background-color: #e9ecef;"><th style="padding: 8px; border: 1px solid #ddd;">Opção</th><th style="padding: 8px; border: 1px solid #ddd;">Votos</th><th style="padding: 8px; border: 1px solid #ddd;">Permilagem</th><th style="padding: 8px; border: 1px solid #ddd;">%</th></tr></thead>';
                     $votesSection .= '<tbody>';
-                    
+
                     foreach ($results['options'] as $option => $data) {
                         $votesSection .= '<tr>';
                         $votesSection .= '<td style="padding: 8px; border: 1px solid #ddd;"><strong>' . htmlspecialchars($option) . '</strong></td>';
@@ -296,7 +296,7 @@ class PdfService
                         $votesSection .= '<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . $data['percentage_by_millage'] . '%</td>';
                         $votesSection .= '</tr>';
                     }
-                    
+
                     $votesSection .= '</tbody>';
                     $votesSection .= '<tfoot><tr style="background-color: #f8f9fa; font-weight: bold;"><td style="padding: 8px; border: 1px solid #ddd;">Total</td><td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . $results['total_votes'] . '</td><td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . $results['total_millage'] . '‰</td><td style="padding: 8px; border: 1px solid #ddd; text-align: center;">100%</td></tr></tfoot>';
                     $votesSection .= '</table>';
@@ -329,7 +329,7 @@ class PdfService
         }
 
         $minutesText = $assembly['minutes'] ?? $assembly['description'] ?? $assembly['agenda'] ?? '';
-        
+
         return "
         <!DOCTYPE html>
         <html>
@@ -338,20 +338,20 @@ class PdfService
             <title>Atas da Assembleia</title>
             <style>
                 @page { margin: 2cm; }
-                body { 
-                    font-family: 'Times New Roman', serif; 
+                body {
+                    font-family: 'Times New Roman', serif;
                     margin: 0;
                     padding: 20px;
                     line-height: 1.6;
                     color: #333;
                 }
-                .header { 
-                    text-align: center; 
+                .header {
+                    text-align: center;
                     margin-bottom: 40px;
                     border-bottom: 3px solid #333;
                     padding-bottom: 20px;
                 }
-                .header h1 { 
+                .header h1 {
                     color: #1a1a1a;
                     font-size: 24px;
                     margin: 0;
@@ -383,7 +383,7 @@ class PdfService
                     background-color: #f8f9fa;
                     font-weight: bold;
                 }
-                .content { 
+                .content {
                     line-height: 1.8;
                 }
                 .minutes-text {
@@ -393,7 +393,7 @@ class PdfService
                     border-radius: 5px;
                     white-space: pre-wrap;
                 }
-                .footer { 
+                .footer {
                     margin-top: 50px;
                     padding-top: 20px;
                     border-top: 1px solid #ddd;
@@ -415,7 +415,7 @@ class PdfService
                     <p><span class='info-label'>Hora:</span> {$time}</p>
                     <p><span class='info-label'>Local:</span> " . ($assembly['location'] ?? 'Não especificado') . "</p>
                 </div>
-                
+
                 <h3>Lista de Presenças</h3>
                 <table>
                     <thead>
@@ -437,12 +437,12 @@ class PdfService
                         </tr>
                     </tfoot>
                 </table>
-                
+
                 <h3>Ordem de Trabalhos</h3>
                 <div class='minutes-text'>{$ordemTrabalhos}</div>
-                
+
                 {$votesSection}
-                
+
                 " . (empty($agendaPoints) && !empty($minutesText) ? "<h3>Resumo e Decisões</h3><div class='minutes-text'>" . nl2br(htmlspecialchars($minutesText)) . "</div>" : "") . "
             </div>
             <div class='footer'>
@@ -511,16 +511,16 @@ class PdfService
         // Get condominium info
         $condominiumModel = new \App\Models\Condominium();
         $condominium = $condominiumModel->findById($assembly['condominium_id']);
-        
+
         // Get template ID (null means default template, which will be handled by getTemplatePath)
         $templateId = $condominium ? $condominiumModel->getDocumentTemplate($assembly['condominium_id']) : 1;
         if ($templateId === null) {
             $templateId = 1; // Default template
         }
-        
+
         // Get logo path
         $logoPath = $condominium ? $condominiumModel->getLogoPath($assembly['condominium_id']) : null;
-        
+
         // Load template
         $templatePath = $this->getTemplatePath($templateId, 'minutes');
         if (!file_exists($templatePath)) {
@@ -530,19 +530,19 @@ class PdfService
                 throw new \Exception("Template file not found: {$templatePath}");
             }
         }
-        
+
         $template = file_get_contents($templatePath);
-        
+
         $condominiumName = $condominium['name'] ?? 'Não especificado';
         $condominiumAddress = $condominium['address'] ?? 'Não especificado';
-        
+
         // Format date and time
         $date = date('d/m/Y', strtotime($assembly['scheduled_date']));
         $time = date('H:i', strtotime($assembly['scheduled_date']));
         $day = date('d', strtotime($assembly['scheduled_date']));
         $month = date('F', strtotime($assembly['scheduled_date']));
         $year = date('Y', strtotime($assembly['scheduled_date']));
-        
+
         // Portuguese month names
         $months = [
             'January' => 'Janeiro', 'February' => 'Fevereiro', 'March' => 'Março',
@@ -551,20 +551,20 @@ class PdfService
             'October' => 'Outubro', 'November' => 'Novembro', 'December' => 'Dezembro'
         ];
         $monthPt = $months[$month] ?? $month;
-        
+
         // Map type for display
         $type = ($assembly['type'] === 'extraordinary' || $assembly['type'] === 'extraordinaria') ? 'Extraordinária' : 'Ordinária';
-        
+
         // Format location
         $location = $assembly['location'] ?? 'Não especificado';
-        
+
         // Calculate quorum info
         $attendeeModel = new \App\Models\AssemblyAttendee();
         $quorum = $attendeeModel->calculateQuorum($assembly['id'], $assembly['condominium_id']);
         $quorumPercentage = number_format($quorum['percentage'], 2);
         $quorumMillage = number_format($quorum['attended_millage'], 4);
         $totalMillage = number_format($quorum['total_millage'], 4);
-        
+
         // Format attendees list
         $totalAttendeesMillage = 0;
         $attendeesList = '';
@@ -575,7 +575,7 @@ class PdfService
             $notes = !empty($attendee['notes']) ? htmlspecialchars($attendee['notes']) : '';
             $attendeesList .= "<tr><td>{$attendee['fraction_identifier']}</td><td>{$attendee['user_name']}</td><td>{$millage}‰</td><td>{$typeLabel} {$notes}</td></tr>";
         }
-        
+
         // Format votes results
         $votesSection = '';
         if (!empty($topics)) {
@@ -584,19 +584,19 @@ class PdfService
                 if (!$results) {
                     continue;
                 }
-                
+
                 $votesSection .= '<div style="margin: 20px 0; padding: 15px; background-color: #f9f9f9; border-left: 4px solid #007bff;">';
                 $votesSection .= '<h4 style="margin-top: 0;">' . htmlspecialchars($topic['title']) . '</h4>';
-                
+
                 if (!empty($topic['description'])) {
                     $votesSection .= '<p><em>' . htmlspecialchars($topic['description']) . '</em></p>';
                 }
-                
+
                 if ($results['total_votes'] > 0) {
                     $votesSection .= '<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">';
                     $votesSection .= '<thead><tr style="background-color: #e9ecef;"><th style="padding: 8px; border: 1px solid #ddd;">Opção</th><th style="padding: 8px; border: 1px solid #ddd;">Votos</th><th style="padding: 8px; border: 1px solid #ddd;">Permilagem</th><th style="padding: 8px; border: 1px solid #ddd;">%</th></tr></thead>';
                     $votesSection .= '<tbody>';
-                    
+
                     foreach ($results['options'] as $option => $data) {
                         $votesSection .= '<tr>';
                         $votesSection .= '<td style="padding: 8px; border: 1px solid #ddd;"><strong>' . htmlspecialchars($option) . '</strong></td>';
@@ -605,27 +605,27 @@ class PdfService
                         $votesSection .= '<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . $data['percentage_by_millage'] . '%</td>';
                         $votesSection .= '</tr>';
                     }
-                    
+
                     $votesSection .= '</tbody>';
                     $votesSection .= '<tfoot><tr style="background-color: #f8f9fa; font-weight: bold;"><td style="padding: 8px; border: 1px solid #ddd;">Total</td><td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . $results['total_votes'] . '</td><td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . $results['total_millage'] . '‰</td><td style="padding: 8px; border: 1px solid #ddd; text-align: center;">100%</td></tr></tfoot>';
                     $votesSection .= '</table>';
                 } else {
                     $votesSection .= '<p><em>Nenhum voto registado para este tópico.</em></p>';
                 }
-                
+
                 $votesSection .= '</div>';
             }
         }
-        
+
         // Format assembly agenda/description
         $agenda = nl2br(htmlspecialchars($assembly['description'] ?? $assembly['agenda'] ?? 'Não especificado'));
-        
+
         // Format summary
         $summary = nl2br(htmlspecialchars($assembly['minutes'] ?? ''));
-        
+
         // Generation date
         $generationDate = date('d/m/Y H:i');
-        
+
         // Replace placeholders - do ALL replacements
         $template = str_replace('{{LOGO_HTML}}', $this->getLogoHtml($logoUrl), $template);
         $template = str_replace('{{condominium_name}}', htmlspecialchars($condominiumName), $template);
@@ -643,7 +643,7 @@ class PdfService
         $template = str_replace('{{total_attendees_millage}}', number_format($totalAttendeesMillage, 4), $template);
         $template = str_replace('{{attendees_list}}', $attendeesList, $template);
         $template = str_replace('{{generation_date}}', $generationDate, $template);
-        
+
         $endTime = !empty($assembly['ended_at']) ? date('H:i', strtotime($assembly['ended_at'])) : date('H:i');
 
         if (!empty($agendaPoints)) {
@@ -735,25 +735,25 @@ class PdfService
             $agendaFormatted .= '<p>Eleição ou ratificação do administrador</p>';
             $agendaFormatted .= '<p>Outros assuntos de interesse para o condomínio</p>';
         }
-        
+
         // Format topics sections (3️⃣ to 6️⃣)
         $topicsSections = '';
         $topicNumber = 3;
         $emojiNumbers = ['3️⃣', '4️⃣', '5️⃣', '6️⃣'];
-        
+
         foreach ($topics as $index => $topic) {
             if ($topicNumber > 6) break; // Only show up to point 6
-            
+
             $results = $voteResults[$topic['id']] ?? null;
             $emoji = $emojiNumbers[$index] ?? '•';
-            
+
             $topicsSections .= '<div class="section">';
             $topicsSections .= '<div class="section-number">' . $emoji . ' Ponto ' . ($topicNumber - 2) . ' – ' . htmlspecialchars($topic['title']) . '</div>';
-            
+
             if (!empty($topic['description'])) {
                 $topicsSections .= '<p>' . nl2br(htmlspecialchars($topic['description'])) . '</p>';
             }
-            
+
             if ($results && $results['total_votes'] > 0) {
                 // Find winning option
                 $winningOption = '';
@@ -764,9 +764,9 @@ class PdfService
                         $winningOption = $option;
                     }
                 }
-                
+
                 $topicsSections .= '<p>Após discussão e votação, foi deliberado:</p>';
-                
+
                 // Show checkboxes for each option
                 foreach ($results['options'] as $option => $data) {
                     $checked = ($option === $winningOption) ? '☑' : '☐';
@@ -774,7 +774,7 @@ class PdfService
                         ' (' . $data['count'] . ' votos, ' . number_format($data['millage'], 4) . '‰, ' .
                         number_format($data['percentage_by_millage'], 2) . '%)</p>';
                 }
-                
+
                 $topicsSections .= '<p>por maioria de <span class="underline">' . number_format($winningPercentage, 2) . '%</span> do valor do prédio.</p>';
                 $topicsSections .= '<p><strong>Resultado (por permilagem):</strong> <strong>' . htmlspecialchars($winningOption) . '</strong> ganhou com ' . number_format($winningPercentage, 2) . '% da permilagem dos votos expressos.</p>';
                 $chartHtml = $this->generateVoteChartImageHtml($results);
@@ -801,17 +801,17 @@ class PdfService
                 $topicsSections .= '<p>☐ Rejeitado</p>';
                 $topicsSections .= '<p>por maioria de ______% do valor do prédio.</p>';
             }
-            
+
             $topicsSections .= '</div>';
             $topicNumber++;
         }
-        
+
         // Fill remaining points if less than 4 topics
         while ($topicNumber <= 6) {
             $emoji = $emojiNumbers[$topicNumber - 3] ?? '•';
             $pointTitle = '';
             $pointContent = '';
-            
+
             switch ($topicNumber) {
                 case 3:
                     $pointTitle = 'Aprovação das contas';
@@ -845,7 +845,7 @@ class PdfService
                     $pointContent .= '<p>com mandato até ____ / ____ / ______.</p>';
                     break;
             }
-            
+
             if (!empty($pointTitle)) {
                 $topicsSections .= '<div class="section">';
                 $topicsSections .= '<div class="section-number">' . $emoji . ' Ponto ' . ($topicNumber - 2) . ' – ' . $pointTitle . '</div>';
@@ -854,7 +854,7 @@ class PdfService
             }
             $topicNumber++;
         }
-        
+
         // Other topics and decisions
         $otherTopics = '';
         $otherDecisions = '';
@@ -867,13 +867,13 @@ class PdfService
                 }
             }
         }
-        
+
         // End time (use current time or assembly end time if available)
         $endTime = date('H:i');
         if (!empty($assembly['ended_at'])) {
             $endTime = date('H:i', strtotime($assembly['ended_at']));
         }
-        
+
         // Replace remaining placeholders
         if (!isset($agendaFormatted)) {
             $agendaText = $assembly['description'] ?? $assembly['agenda'] ?? '';
@@ -896,25 +896,25 @@ class PdfService
                 $agendaFormatted .= '<p>Outros assuntos de interesse para o condomínio</p>';
             }
         }
-        
+
         if (!isset($topicsSections)) {
             $topicsSections = '';
             $topicNumber = 3;
             $emojiNumbers = ['3️⃣', '4️⃣', '5️⃣', '6️⃣'];
-            
+
             foreach ($topics as $index => $topic) {
                 if ($topicNumber > 6) break;
-                
+
                 $results = $voteResults[$topic['id']] ?? null;
                 $emoji = $emojiNumbers[$index] ?? '•';
-                
+
                 $topicsSections .= '<div class="section">';
                 $topicsSections .= '<div class="section-number">' . $emoji . ' Ponto ' . ($topicNumber - 2) . ' – ' . htmlspecialchars($topic['title']) . '</div>';
-                
+
                 if (!empty($topic['description'])) {
                     $topicsSections .= '<p>' . nl2br(htmlspecialchars($topic['description'])) . '</p>';
                 }
-                
+
                 if ($results && $results['total_votes'] > 0) {
                     $winningOption = '';
                     $winningPercentage = 0;
@@ -924,16 +924,16 @@ class PdfService
                             $winningOption = $option;
                         }
                     }
-                    
+
                     $topicsSections .= '<p>Após discussão e votação, foi deliberado:</p>';
-                    
+
                     foreach ($results['options'] as $option => $data) {
                         $checked = ($option === $winningOption) ? '☑' : '☐';
-                        $topicsSections .= '<p>' . $checked . ' ' . htmlspecialchars($option) . 
-                            ' (' . $data['count'] . ' votos, ' . number_format($data['millage'], 4) . '‰, ' . 
+                        $topicsSections .= '<p>' . $checked . ' ' . htmlspecialchars($option) .
+                            ' (' . $data['count'] . ' votos, ' . number_format($data['millage'], 4) . '‰, ' .
                             number_format($data['percentage_by_millage'], 2) . '%)</p>';
                     }
-                    
+
                     $topicsSections .= '<p>por maioria de <span class="underline">' . number_format($winningPercentage, 2) . '%</span> do valor do prédio.</p>';
                     $topicsSections .= '<p><strong>Resultado (por permilagem):</strong> <strong>' . htmlspecialchars($winningOption) . '</strong> ganhou com ' . number_format($winningPercentage, 2) . '% da permilagem dos votos expressos.</p>';
                     $chartHtml = $this->generateVoteChartImageHtml($results);
@@ -969,7 +969,7 @@ class PdfService
                 $emoji = $emojiNumbers[$topicNumber - 3] ?? '•';
                 $pointTitle = '';
                 $pointContent = '';
-                
+
                 switch ($topicNumber) {
                     case 3:
                         $pointTitle = 'Aprovação das contas';
@@ -1003,7 +1003,7 @@ class PdfService
                         $pointContent .= '<p>com mandato até ____ / ____ / ______.</p>';
                         break;
                 }
-                
+
                 if (!empty($pointTitle)) {
                     $topicsSections .= '<div class="section">';
                     $topicsSections .= '<div class="section-number">' . $emoji . ' Ponto ' . ($topicNumber - 2) . ' – ' . $pointTitle . '</div>';
@@ -1013,7 +1013,7 @@ class PdfService
                 $topicNumber++;
             }
         }
-        
+
         if (!isset($otherTopics)) {
             $otherTopics = '';
             $otherDecisions = '';
@@ -1027,7 +1027,7 @@ class PdfService
                 }
             }
         }
-        
+
         if (!isset($endTime)) {
             $endTime = date('H:i');
             if (!empty($assembly['ended_at'])) {
@@ -1041,11 +1041,11 @@ class PdfService
             $topicsSections .= '<div class="section"><div class="section-number">7️⃣ Ponto 5 – Outros assuntos</div><p>Foram discutidos os seguintes temas:</p><p>' . ($ot ?: '<p>Não foram discutidos outros assuntos.</p>') . '</p><p>Tendo sido deliberado:</p><p>' . ($od ?: '<p>Não foram tomadas outras deliberações.</p>') . '</p></div>';
             $topicsSections .= '<div class="section"><div class="section-number">8️⃣ Encerramento</div><p>Nada mais havendo a tratar, foi a reunião encerrada pelas <span class="underline">' . htmlspecialchars($endTime) . '</span> horas, sendo lavrada a presente acta que, depois de lida e aprovada, vai ser assinada por todos os presentes.</p></div>';
         }
-        
+
         $template = str_replace('{{assembly_agenda}}', $agendaFormatted, $template);
         $template = str_replace('{{topics_sections}}', $topicsSections, $template);
         $template = str_replace('{{generation_date}}', $generationDate, $template);
-        
+
         return $template;
     }
 
@@ -1062,44 +1062,44 @@ class PdfService
                 require_once $autoloadPath;
             }
         }
-        
+
         try {
             $dompdf = new \Dompdf\Dompdf();
             $dompdf->loadHtml($htmlContent);
-            
+
             // Set paper size and orientation
             $dompdf->setPaper('A4', 'portrait');
-            
+
             // Render PDF
             $dompdf->render();
-            
+
             // Generate filename
             $filename = 'minutes_approved_' . $assemblyId . '_' . time() . '.pdf';
             $filepath = __DIR__ . '/../../storage/documents/' . $filename;
-            
+
             $dir = dirname($filepath);
             if (!is_dir($dir)) {
                 mkdir($dir, 0755, true);
             }
-            
+
             // Save PDF to file
             file_put_contents($filepath, $dompdf->output());
-            
+
             return $filename;
         } catch (\Exception $e) {
             // Fallback to HTML if PDF generation fails
             error_log("PDF generation error: " . $e->getMessage());
-            
+
             $filename = 'minutes_approved_' . $assemblyId . '_' . time() . '.html';
             $filepath = __DIR__ . '/../../storage/documents/' . $filename;
-            
+
             $dir = dirname($filepath);
             if (!is_dir($dir)) {
                 mkdir($dir, 0755, true);
             }
-            
+
             file_put_contents($filepath, $htmlContent);
-            
+
             return $filename;
         }
     }
@@ -1115,14 +1115,14 @@ class PdfService
         if ($templateId === null) {
             $templateId = 1; // Default template
         }
-        
+
         // Get logo path
         $logoPath = $condominiumModel->getLogoPath($condominium['id']);
-        
+
         // Load template
         $templatePath = $this->getTemplatePath($templateId, 'receipt');
         $template = file_get_contents($templatePath);
-        
+
         $period = '';
         if ($fee['period_month']) {
             $months = [
@@ -1148,7 +1148,7 @@ class PdfService
         $paymentDate = null;
         $paymentMethod = null;
         $paymentMethodLabel = null;
-        
+
         if ($payment) {
             $paymentDate = $payment['payment_date'] ?? null;
             $paymentMethod = $payment['payment_method'] ?? null;
@@ -1158,10 +1158,10 @@ class PdfService
                 global $db;
                 if ($db) {
                     $stmt = $db->prepare("
-                        SELECT payment_date, payment_method 
-                        FROM fee_payments 
-                        WHERE fee_id = :fee_id 
-                        ORDER BY payment_date DESC, created_at DESC 
+                        SELECT payment_date, payment_method
+                        FROM fee_payments
+                        WHERE fee_id = :fee_id
+                        ORDER BY payment_date DESC, created_at DESC
                         LIMIT 1
                     ");
                     $stmt->execute([':fee_id' => $fee['id']]);
@@ -1176,7 +1176,7 @@ class PdfService
                 error_log("Error fetching payment info for receipt: " . $e->getMessage());
             }
         }
-        
+
         // Map payment method to label
         $paymentMethodLabels = [
             'multibanco' => 'Multibanco',
@@ -1187,7 +1187,7 @@ class PdfService
             'sepa' => 'SEPA'
         ];
         $paymentMethodLabel = $paymentMethod ? ($paymentMethodLabels[$paymentMethod] ?? ucfirst($paymentMethod)) : null;
-        
+
         // Prepare payment info HTML (compact version)
         $paymentInfo = '';
         if ($paymentDate || $paymentMethodLabel) {
@@ -1200,13 +1200,13 @@ class PdfService
             }
             $paymentInfo .= '</div>';
         }
-        
+
         // Prepare NIF row
         $nifRow = '';
         if ($condominiumNif) {
             $nifRow = '<div class="info-row"><span class="info-label">NIF:</span><span class="info-value">' . $condominiumNif . '</span></div>';
         }
-        
+
         // Replace placeholders in template
         $template = str_replace('{{LOGO_HTML}}', $this->getLogoHtml($logoPath), $template);
         $template = str_replace('{{RECEIPT_NUMBER}}', '{{RECEIPT_NUMBER}}', $template); // Keep placeholder for later replacement
@@ -1220,14 +1220,14 @@ class PdfService
         $template = str_replace('{{AMOUNT}}', $amount, $template);
         $template = str_replace('{{PAYMENT_INFO}}', $paymentInfo, $template);
         $template = str_replace('{{GENERATION_DATE}}', date('d/m/Y H:i'), $template);
-        
+
         return $template;
     }
 
     /**
      * Generate receipt PDF from HTML content
      */
-    public function generateReceiptPdf(string $htmlContent, int $receiptId, string $receiptNumber, int $condominiumId): string
+    public function generateReceiptPdf(string $htmlContent, int $receiptId, string $receiptNumber, int $condominiumId, ?string $fractionIdentifier = null, ?string $year = null, ?int $userId = null): string
     {
         // Replace receipt number placeholder
         $htmlContent = str_replace('{{RECEIPT_NUMBER}}', $receiptNumber, $htmlContent);
@@ -1239,55 +1239,66 @@ class PdfService
                 require_once $autoloadPath;
             }
         }
-        
+
+        // Use provided year or current year
+        $receiptYear = $year ?? date('Y');
+        $month = date('m');
+
+        // Ensure folders exist in the folder system if fractionIdentifier and userId are provided
+        if ($fractionIdentifier !== null && $userId !== null) {
+            try {
+                $receiptFolderService = new \App\Services\ReceiptFolderService();
+                $receiptFolderService->ensureReceiptFolders($condominiumId, $receiptYear, $fractionIdentifier, $userId);
+            } catch (\Exception $e) {
+                // Log error but continue with PDF generation
+                error_log("ReceiptFolderService error: " . $e->getMessage());
+            }
+        }
+
         try {
             $dompdf = new \Dompdf\Dompdf();
             $dompdf->loadHtml($htmlContent);
-            
+
             // Set paper size and orientation
             $dompdf->setPaper('A4', 'portrait');
-            
+
             // Render PDF
             $dompdf->render();
-            
+
             // Create folder structure: condominiums/{condominium_id}/receipts/{year}/{month}/
-            $year = date('Y');
-            $month = date('m');
             $basePath = __DIR__ . '/../../storage';
-            $receiptsDir = $basePath . '/condominiums/' . $condominiumId . '/receipts/' . $year . '/' . $month;
-            
+            $receiptsDir = $basePath . '/condominiums/' . $condominiumId . '/receipts/' . $receiptYear . '/' . $month;
+
             if (!is_dir($receiptsDir)) {
                 mkdir($receiptsDir, 0755, true);
             }
-            
+
             // Generate filename
             $filename = 'receipt_' . $receiptId . '_' . time() . '.pdf';
             $filepath = $receiptsDir . '/' . $filename;
-            
+
             // Save PDF to file
             file_put_contents($filepath, $dompdf->output());
-            
+
             // Return relative path from storage root
-            return 'condominiums/' . $condominiumId . '/receipts/' . $year . '/' . $month . '/' . $filename;
+            return 'condominiums/' . $condominiumId . '/receipts/' . $receiptYear . '/' . $month . '/' . $filename;
         } catch (\Exception $e) {
             // Fallback to HTML if PDF generation fails
             error_log("PDF generation error: " . $e->getMessage());
-            
-            $year = date('Y');
-            $month = date('m');
+
             $basePath = __DIR__ . '/../../storage';
-            $receiptsDir = $basePath . '/condominiums/' . $condominiumId . '/receipts/' . $year . '/' . $month;
-            
+            $receiptsDir = $basePath . '/condominiums/' . $condominiumId . '/receipts/' . $receiptYear . '/' . $month;
+
             if (!is_dir($receiptsDir)) {
                 mkdir($receiptsDir, 0755, true);
             }
-            
+
             $filename = 'receipt_' . $receiptId . '_' . time() . '.html';
             $filepath = $receiptsDir . '/' . $filename;
-            
+
             file_put_contents($filepath, $htmlContent);
-            
-            return 'condominiums/' . $condominiumId . '/receipts/' . $year . '/' . $month . '/' . $filename;
+
+            return 'condominiums/' . $condominiumId . '/receipts/' . $receiptYear . '/' . $month . '/' . $filename;
         }
     }
 }

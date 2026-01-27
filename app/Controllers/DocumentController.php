@@ -50,7 +50,13 @@ class DocumentController extends Controller
         $dateTo = $_GET['date_to'] ?? null;
 
         $filters = [];
-        if ($folder) $filters['folder'] = $folder;
+        // Always set folder filter - if no folder selected, show only root documents (folder IS NULL)
+        if ($folder) {
+            $filters['folder'] = $folder;
+        } else {
+            // Explicitly set folder to null to show only documents without folder
+            $filters['folder'] = null;
+        }
         if ($documentType) $filters['document_type'] = $documentType;
         if ($visibility) $filters['visibility'] = $visibility;
         if ($dateFrom) $filters['date_from'] = $dateFrom;
@@ -61,19 +67,18 @@ class DocumentController extends Controller
         // Search or filter documents
         if (!empty($searchQuery)) {
             // When searching, show all results regardless of folder structure
-            $documents = $this->documentModel->search($condominiumId, $searchQuery, $filters);
+            // Remove folder filter for search to show all documents
+            $searchFilters = $filters;
+            unset($searchFilters['folder']);
+            $documents = $this->documentModel->search($condominiumId, $searchQuery, $searchFilters);
             $documentsWithoutFolder = [];
         } else {
-            // If folder is selected, show only documents in that folder
-            if ($folder) {
-                $documents = $this->documentModel->getByCondominium($condominiumId, $filters);
-                $documentsWithoutFolder = [];
-            } else {
-                // Show only documents without folder (root level)
-                $filtersNoFolder = $filters;
-                $filtersNoFolder['folder'] = null;
-                $documents = $this->documentModel->getByCondominium($condominiumId, $filtersNoFolder);
+            // Show only documents in the selected folder (or root if no folder selected)
+            $documents = $this->documentModel->getByCondominium($condominiumId, $filters);
+            if (!$folder) {
                 $documentsWithoutFolder = $documents;
+            } else {
+                $documentsWithoutFolder = [];
             }
         }
         
