@@ -414,7 +414,7 @@ class DemoSeeder
                 if (!empty($data['logo_path'])) {
                     $logoPath = $this->copyLogoToStorage($condominiumId, $data['logo_path']);
                 }
-                
+
                 // Update condominium data to ensure it's correct
                 // Note: Data cleaning should be handled by deleteDemoData() before run() is called
                 // We don't clean here to avoid double execution when restore-demo.php calls deleteDemoData() first
@@ -471,7 +471,7 @@ class DemoSeeder
                 if (!empty($data['logo_path'])) {
                     $logoPath = $this->copyLogoToStorage($condominiumId, $data['logo_path']);
                 }
-                
+
                 $updateStmt = $this->db->prepare("
                     UPDATE condominiums
                     SET logo_path = :logo_path,
@@ -533,29 +533,29 @@ class DemoSeeder
     {
         $projectRoot = __DIR__ . '/../..';
         $sourceFile = $projectRoot . '/' . $sourcePath;
-        
+
         // Check if source file exists
         if (!file_exists($sourceFile)) {
             echo "   Aviso: Arquivo de logo não encontrado: {$sourcePath}\n";
             return null;
         }
-        
+
         // Get file extension
         $extension = strtolower(pathinfo($sourceFile, PATHINFO_EXTENSION));
         if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
             echo "   Aviso: Extensão de arquivo não suportada: {$extension}\n";
             return null;
         }
-        
+
         // Create storage directory structure: storage/condominiums/{condominium_id}/logo/
         $storageBasePath = $projectRoot . '/storage';
         $storagePath = 'condominiums/' . $condominiumId . '/logo/';
         $fullStoragePath = $storageBasePath . '/' . $storagePath;
-        
+
         if (!is_dir($fullStoragePath)) {
             mkdir($fullStoragePath, 0755, true);
         }
-        
+
         // Delete old logo if exists
         $oldLogoPath = $fullStoragePath . 'logo.*';
         $oldLogos = glob($oldLogoPath);
@@ -564,16 +564,16 @@ class DemoSeeder
                 unlink($oldLogo);
             }
         }
-        
+
         // Copy file to storage
         $filename = 'logo.' . $extension;
         $destinationFile = $fullStoragePath . $filename;
-        
+
         if (!copy($sourceFile, $destinationFile)) {
             echo "   Aviso: Erro ao copiar logo para storage\n";
             return null;
         }
-        
+
         return $storagePath . $filename;
     }
 
@@ -1100,6 +1100,13 @@ class DemoSeeder
             if ($existingUser) {
                 $userId = $existingUser['id'];
                 echo "   Utilizador {$userData['name']} já existe (ID: {$userId})\n";
+                // Update password to ensure it's 'demo' for demo users
+                $userModel->update($userId, [
+                    'password' => 'demo',
+                    'name' => $userData['name'],
+                    'phone' => $userData['phone'],
+                    'status' => 'active'
+                ]);
             } else {
                 // Create user
                 $userId = $userModel->create([
@@ -1111,7 +1118,7 @@ class DemoSeeder
                     'status' => 'active'
                 ]);
             }
-            
+
             // Mark all users associated with demo condominiums as demo users
             $updateDemoStmt = $this->db->prepare("UPDATE users SET is_demo = TRUE WHERE id = :user_id");
             $updateDemoStmt->execute([':user_id' => $userId]);
@@ -1171,10 +1178,10 @@ class DemoSeeder
         echo "5. Criando contas bancárias...\n";
 
         $bankAccountModel = new BankAccount();
-        
+
         // Check if accounts already exist for this condominium
         $existingAccounts = $bankAccountModel->getByCondominium($this->demoCondominiumId);
-        
+
         if (!empty($existingAccounts)) {
             echo "   Contas já existem para este condomínio, a saltar criação.\n";
             $this->accountIds = array_column($existingAccounts, 'id');
@@ -1248,6 +1255,17 @@ class DemoSeeder
     protected function createSuppliers(int $condominiumIndex = 0): void
     {
         echo "6. Criando fornecedores...\n";
+
+        // Check if suppliers already exist for this condominium
+        $stmt = $this->db->prepare("SELECT id FROM suppliers WHERE condominium_id = :condominium_id");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $existingSuppliers = $stmt->fetchAll();
+
+        if (!empty($existingSuppliers)) {
+            echo "   Fornecedores já existem para este condomínio, a saltar criação.\n";
+            $this->supplierIds = array_column($existingSuppliers, 'id');
+            return;
+        }
 
         // Different suppliers for each condominium
         $suppliersData = [
@@ -1492,7 +1510,7 @@ class DemoSeeder
             // Water (supplier 0) - reduced max to ensure positive balance
             $waterDesc = "Fatura de água - {$month}/2025";
             $waterKey = $waterDesc . '|' . $date . '|Água|' . ($this->supplierIds[0] ?? '');
-            
+
             // Double check in database to ensure no duplicates
             $checkStmt = $this->db->prepare("
                 SELECT id FROM expenses
@@ -1510,7 +1528,7 @@ class DemoSeeder
                 ':supplier_id' => $this->supplierIds[0]
             ]);
             $existingExpense = $checkStmt->fetch();
-            
+
             if (!isset($existingDescriptions[$waterKey]) && !$existingExpense) {
                 $expenseModel->create([
                     'condominium_id' => $this->demoCondominiumId,
@@ -1533,7 +1551,7 @@ class DemoSeeder
             // Energy (supplier 1) - reduced max to ensure positive balance
             $energyDesc = "Fatura de energia - {$month}/2025";
             $energyKey = $energyDesc . '|' . $date . '|Energia|' . ($this->supplierIds[1] ?? '');
-            
+
             // Double check in database to ensure no duplicates
             $checkStmt = $this->db->prepare("
                 SELECT id FROM expenses
@@ -1551,7 +1569,7 @@ class DemoSeeder
                 ':supplier_id' => $this->supplierIds[1]
             ]);
             $existingExpense = $checkStmt->fetch();
-            
+
             if (!isset($existingDescriptions[$energyKey]) && !$existingExpense) {
                 $expenseModel->create([
                     'condominium_id' => $this->demoCondominiumId,
@@ -1574,7 +1592,7 @@ class DemoSeeder
             // Cleaning (supplier 3)
             $cleaningDesc = "Serviço de limpeza - {$month}/2025";
             $cleaningKey = $cleaningDesc . '|' . $date . '|Limpeza|' . ($this->supplierIds[3] ?? '');
-            
+
             // Double check in database to ensure no duplicates
             $checkStmt = $this->db->prepare("
                 SELECT id FROM expenses
@@ -1592,7 +1610,7 @@ class DemoSeeder
                 ':supplier_id' => $this->supplierIds[3]
             ]);
             $existingExpense = $checkStmt->fetch();
-            
+
             if (!isset($existingDescriptions[$cleaningKey]) && !$existingExpense) {
                 $expenseModel->create([
                     'condominium_id' => $this->demoCondominiumId,
@@ -1616,7 +1634,7 @@ class DemoSeeder
             if ($month % 3 == 0) {
                 $maintenanceDesc = "Manutenção trimestral - {$month}/2025";
                 $maintenanceKey = $maintenanceDesc . '|' . $date . '|Manutenção|' . ($this->supplierIds[4] ?? '');
-                
+
                 // Double check in database to ensure no duplicates
                 $checkStmt = $this->db->prepare("
                     SELECT id FROM expenses
@@ -1634,7 +1652,7 @@ class DemoSeeder
                     ':supplier_id' => $this->supplierIds[4]
                 ]);
                 $existingExpense = $checkStmt->fetch();
-                
+
                 if (!isset($existingDescriptions[$maintenanceKey]) && !$existingExpense) {
                     $expenseModel->create([
                         'condominium_id' => $this->demoCondominiumId,
@@ -1660,7 +1678,7 @@ class DemoSeeder
         $insuranceDesc = 'Seguro anual 2025';
         $insuranceDate = '2025-01-25';
         $insuranceKey = $insuranceDesc . '|' . $insuranceDate . '|Seguro|' . ($this->supplierIds[2] ?? '');
-        
+
         // Double check in database to ensure no duplicates
         $checkStmt = $this->db->prepare("
             SELECT id FROM expenses
@@ -1678,7 +1696,7 @@ class DemoSeeder
             ':supplier_id' => $this->supplierIds[2]
         ]);
         $existingExpense = $checkStmt->fetch();
-        
+
         if (!isset($existingDescriptions[$insuranceKey]) && !$existingExpense) {
             $expenseModel->create([
                 'condominium_id' => $this->demoCondominiumId,
@@ -1998,7 +2016,7 @@ class DemoSeeder
                 $skipped++;
                 continue;
             }
-            
+
             // Also check if transaction with same description, date, and type already exists (extra safety)
             // This prevents duplicates even if related_id is different or NULL
             $checkStmt = $this->db->prepare("
@@ -2018,12 +2036,12 @@ class DemoSeeder
                 ':bank_account_id' => $this->accountIds[0]
             ]);
             $duplicateTransaction = $checkStmt->fetch();
-            
+
             if ($duplicateTransaction) {
                 $skipped++;
                 continue;
             }
-            
+
             $transactionModel->create([
                 'condominium_id' => $this->demoCondominiumId,
                 'bank_account_id' => $this->accountIds[0],
@@ -2055,6 +2073,16 @@ class DemoSeeder
     protected function createAssemblies(int $condominiumIndex = 0): void
     {
         echo "11. Criando assembleias...\n";
+
+        // Check if assemblies already exist for this condominium
+        $stmt = $this->db->prepare("SELECT id FROM assemblies WHERE condominium_id = :condominium_id");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $existingAssemblies = $stmt->fetchAll();
+
+        if (!empty($existingAssemblies)) {
+            echo "   Assembleias já existem para este condomínio, a saltar criação.\n";
+            return;
+        }
 
         $assemblyModel = new Assembly();
         $attendeeModel = new AssemblyAttendee();
@@ -2194,6 +2222,17 @@ class DemoSeeder
     {
         echo "12. Criando espaços...\n";
 
+        // Check if spaces already exist for this condominium
+        $stmt = $this->db->prepare("SELECT id FROM spaces WHERE condominium_id = :condominium_id");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $existingSpaces = $stmt->fetchAll();
+
+        if (!empty($existingSpaces)) {
+            echo "   Espaços já existem para este condomínio, a saltar criação.\n";
+            $this->spaceIds = array_column($existingSpaces, 'id');
+            return;
+        }
+
         $spaceModel = new Space();
 
         // Different spaces for each condominium
@@ -2285,6 +2324,16 @@ class DemoSeeder
     {
         echo "13. Criando reservas...\n";
 
+        // Check if reservations already exist for this condominium
+        $stmt = $this->db->prepare("SELECT id FROM reservations WHERE condominium_id = :condominium_id");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $existingReservations = $stmt->fetchAll();
+
+        if (!empty($existingReservations)) {
+            echo "   Reservas já existem para este condomínio, a saltar criação.\n";
+            return;
+        }
+
         $reservationModel = new Reservation();
         $count = 0;
 
@@ -2365,6 +2414,16 @@ class DemoSeeder
 
         // Only for Condominium 1
         if ($condominiumIndex !== 0) {
+            return;
+        }
+
+        // Check if messages already exist for this condominium
+        $stmt = $this->db->prepare("SELECT id FROM messages WHERE condominium_id = :condominium_id LIMIT 1");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $existingMessage = $stmt->fetch();
+
+        if ($existingMessage) {
+            echo "   Mensagens já existem para este condomínio, a saltar criação.\n";
             return;
         }
 
@@ -2664,6 +2723,16 @@ class DemoSeeder
     {
         echo "14. Criando ocorrências...\n";
 
+        // Check if occurrences already exist for this condominium
+        $stmt = $this->db->prepare("SELECT id FROM occurrences WHERE condominium_id = :condominium_id");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $existingOccurrences = $stmt->fetchAll();
+
+        if (!empty($existingOccurrences)) {
+            echo "   Ocorrências já existem para este condomínio, a saltar criação.\n";
+            return;
+        }
+
         $occurrenceModel = new Occurrence();
         $count = 0;
 
@@ -2889,6 +2958,16 @@ class DemoSeeder
     protected function createNotifications(int $condominiumIndex = 0): void
     {
         echo "15. Criando notificações...\n";
+
+        // Check if notifications already exist for this condominium
+        $stmt = $this->db->prepare("SELECT id FROM notifications WHERE condominium_id = :condominium_id LIMIT 1");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $existingNotification = $stmt->fetch();
+
+        if ($existingNotification) {
+            echo "   Notificações já existem para este condomínio, a saltar criação.\n";
+            return;
+        }
 
         $notificationService = new NotificationService();
         $count = 0;
@@ -3728,6 +3807,16 @@ class DemoSeeder
     protected function createStandaloneVotes(int $condominiumIndex = 0): void
     {
         echo "17. Criando votações standalone...\n";
+
+        // Check if standalone votes already exist for this condominium
+        $stmt = $this->db->prepare("SELECT id FROM standalone_votes WHERE condominium_id = :condominium_id");
+        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
+        $existingVotes = $stmt->fetchAll();
+
+        if (!empty($existingVotes)) {
+            echo "   Votações standalone já existem para este condomínio, a saltar criação.\n";
+            return;
+        }
 
         if (empty($this->fractionIds)) {
             echo "   Aviso: Nenhuma fração encontrada. Pulando criação de votações.\n";
