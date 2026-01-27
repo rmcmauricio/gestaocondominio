@@ -40,8 +40,8 @@ class CondominiumController extends Controller
      */
     protected function isDemoUser(): bool
     {
-        $user = AuthMiddleware::user();
-        return $user && isset($user['is_demo']) && $user['is_demo'] == true;
+        $userId = AuthMiddleware::userId();
+        return \App\Middleware\DemoProtectionMiddleware::isDemoUser($userId);
     }
 
     public function create()
@@ -51,26 +51,31 @@ class CondominiumController extends Controller
 
         $userId = AuthMiddleware::userId();
         
-        // Block demo user from creating additional condominiums
-        if ($this->isDemoUser()) {
-            $_SESSION['error'] = 'A conta demo não pode criar condomínios adicionais.';
-            header('Location: ' . BASE_URL . 'dashboard');
-            exit;
-        }
-        
-        // Check subscription limits
+        // Check subscription limits (includes demo user limit check)
         if (!$this->subscriptionModel->canCreateCondominium($userId)) {
-            $_SESSION['error'] = 'Limite de condomínios atingido. Faça upgrade do seu plano.';
-            header('Location: ' . BASE_URL . 'subscription');
+            // Check if user is demo to show appropriate message
+            if ($this->isDemoUser()) {
+                $_SESSION['error'] = 'Limite de condomínios demo atingido (máximo 2 condomínios).';
+            } else {
+                $_SESSION['error'] = 'Limite de condomínios atingido. Faça upgrade do seu plano.';
+            }
+            header('Location: ' . BASE_URL . 'dashboard');
             exit;
         }
 
         $this->loadPageTranslations('condominiums');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/condominiums/create.html.twig',
             'page' => ['titulo' => 'Criar Condomínio'],
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -103,8 +108,13 @@ class CondominiumController extends Controller
         }
         
         if (!$this->subscriptionModel->canCreateCondominium($userId)) {
-            $_SESSION['error'] = 'Limite de condomínios atingido.';
-            header('Location: ' . BASE_URL . 'subscription');
+            // Check if user is demo to show appropriate message
+            if ($this->isDemoUser()) {
+                $_SESSION['error'] = 'Limite de condomínios demo atingido (máximo 2 condomínios).';
+            } else {
+                $_SESSION['error'] = 'Limite de condomínios atingido. Faça upgrade do seu plano.';
+            }
+            header('Location: ' . BASE_URL . 'dashboard');
             exit;
         }
 
@@ -166,8 +176,20 @@ class CondominiumController extends Controller
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId);
             exit;
         } catch (\Exception $e) {
-            $_SESSION['error'] = 'Erro ao criar condomínio: ' . $e->getMessage();
-            header('Location: ' . BASE_URL . 'condominiums/create');
+            // Log the full error for debugging
+            error_log('Error creating condominium: ' . $e->getMessage() . ' - Stack trace: ' . $e->getTraceAsString());
+            
+            // Show user-friendly error message
+            $errorMessage = 'Erro ao criar condomínio.';
+            if (APP_ENV !== 'production') {
+                $errorMessage .= ' ' . $e->getMessage();
+            }
+            
+            $_SESSION['error'] = $errorMessage;
+            
+            // Redirect to dashboard (user likely came from there)
+            // If they want to try again, they can click the create button again
+            header('Location: ' . BASE_URL . 'dashboard');
             exit;
         }
     }

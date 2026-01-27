@@ -221,6 +221,48 @@ class Subscription extends Model
      */
     public function canCreateCondominium(int $userId): bool
     {
+        // Check if user is demo user - allow up to 2 condominiums for demo
+        $demoProtectionMiddleware = new \App\Middleware\DemoProtectionMiddleware();
+        $isDemoUser = $demoProtectionMiddleware::isDemoUser($userId);
+        
+        if ($isDemoUser) {
+            // For demo users, allow up to 2 condominiums
+            // Count ALL condominiums where user is admin (owner or assigned), not just subscription-associated ones
+            global $db;
+            if (!$db) {
+                return false;
+            }
+            
+            // Count condominiums where user is owner
+            $stmt = $db->prepare("
+                SELECT COUNT(*) as count
+                FROM condominiums
+                WHERE user_id = :user_id
+                AND is_active = TRUE
+            ");
+            $stmt->execute([':user_id' => $userId]);
+            $result = $stmt->fetch();
+            $count = $result ? (int)$result['count'] : 0;
+            
+            // Count condominiums from condominium_users where user is admin
+            $stmt = $db->prepare("
+                SELECT COUNT(DISTINCT c.id) as count
+                FROM condominium_users cu
+                INNER JOIN condominiums c ON c.id = cu.condominium_id
+                WHERE cu.user_id = :user_id
+                AND cu.role = 'admin'
+                AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+                AND c.is_active = TRUE
+                AND c.user_id != :user_id
+            ");
+            $stmt->execute([':user_id' => $userId]);
+            $result = $stmt->fetch();
+            $count += $result ? (int)$result['count'] : 0;
+            
+            // Demo users can have up to 2 condominiums
+            return $count < 2;
+        }
+
         $subscription = $this->getActiveSubscription($userId);
         
         if (!$subscription) {
@@ -235,26 +277,73 @@ class Subscription extends Model
             return false;
         }
 
-        // Check if plan allows multiple condominiums
-        $allowMultipleCondos = $plan['allow_multiple_condos'] ?? false;
-        $planType = $plan['plan_type'] ?? null;
-
-        // Base plan (condominio) allows only one condominium
-        if ($planType === 'condominio' && !$allowMultipleCondos) {
-            // Check if subscription already has a condominium
-            if ($subscription['condominium_id']) {
-                return false; // Already has one condominium
+        // Check if plan is demo plan (slug = 'demo' or limit_condominios = 2 and is_active = false)
+        $planSlug = $plan['slug'] ?? '';
+        $planLimitCondominios = isset($plan['limit_condominios']) ? (int)$plan['limit_condominios'] : null;
+        $planIsActive = isset($plan['is_active']) ? (bool)$plan['is_active'] : true;
+        
+        $isDemoPlan = ($planSlug === 'demo') || 
+                      ($planLimitCondominios === 2 && $planIsActive === false);
+        
+        if ($isDemoPlan) {
+            // For demo plan, count ALL condominiums where user is admin (owner or assigned)
+            global $db;
+            if (!$db) {
+                return false;
             }
             
-            // Check if condominium is associated via subscription_condominiums
-            $subscriptionCondominiumModel = new SubscriptionCondominium();
-            $activeCount = $subscriptionCondominiumModel->countActiveBySubscription($subscription['id']);
-            return $activeCount === 0;
+            // Count condominiums where user is owner
+            $stmt = $db->prepare("
+                SELECT COUNT(*) as count
+                FROM condominiums
+                WHERE user_id = :user_id
+                AND is_active = TRUE
+            ");
+            $stmt->execute([':user_id' => $userId]);
+            $result = $stmt->fetch();
+            $count = $result ? (int)$result['count'] : 0;
+            
+            // Count condominiums from condominium_users where user is admin
+            $stmt = $db->prepare("
+                SELECT COUNT(DISTINCT c.id) as count
+                FROM condominium_users cu
+                INNER JOIN condominiums c ON c.id = cu.condominium_id
+                WHERE cu.user_id = :user_id
+                AND cu.role = 'admin'
+                AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+                AND c.is_active = TRUE
+                AND c.user_id != :user_id
+            ");
+            $stmt->execute([':user_id' => $userId]);
+            $result = $stmt->fetch();
+            $count += $result ? (int)$result['count'] : 0;
+            
+            // Demo plan allows up to 2 condominiums
+            return $count < 2;
         }
 
-        // Pro/Enterprise plans allow multiple condominiums
-        // No hard limit in new model - limited by licenses instead
-        return true;
+        // Get limit_condominios from plan
+        $limitCondominios = isset($plan['limit_condominios']) && $plan['limit_condominios'] !== null ? (int)$plan['limit_condominios'] : null;
+
+        // If limit is NULL, unlimited
+        if ($limitCondominios === null) {
+            return true;
+        }
+
+        // Count active condominiums associated with this subscription
+        $count = 0;
+        
+        // Count direct association (Base plan)
+        if ($subscription['condominium_id']) {
+            $count++;
+        }
+        
+        // Count associations via subscription_condominiums (Pro/Enterprise plans)
+        $subscriptionCondominiumModel = new SubscriptionCondominium();
+        $count += $subscriptionCondominiumModel->countActiveBySubscription($subscription['id']);
+
+        // Check if limit is reached
+        return $count < $limitCondominios;
     }
 
     /**

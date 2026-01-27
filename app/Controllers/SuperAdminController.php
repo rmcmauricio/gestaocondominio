@@ -198,8 +198,34 @@ class SuperAdminController extends Controller
         }
         unset($subscription);
 
-        // Get all plans for plan change dropdown
-        $plans = $this->planModel->getActivePlans();
+        // Get all plans for plan change dropdown (including inactive demo plan for testing)
+        $activePlans = $this->planModel->getActivePlans();
+        
+        // Also include demo plan (even if inactive) for super admin testing purposes
+        global $db;
+        $demoPlanStmt = $db->prepare("
+            SELECT * FROM plans 
+            WHERE slug = 'demo' OR (limit_condominios = 2 AND is_active = FALSE)
+            ORDER BY id ASC 
+            LIMIT 1
+        ");
+        $demoPlanStmt->execute();
+        $demoPlan = $demoPlanStmt->fetch();
+        
+        $plans = $activePlans;
+        if ($demoPlan) {
+            // Check if demo plan is not already in active plans
+            $demoPlanExists = false;
+            foreach ($activePlans as $plan) {
+                if ($plan['id'] == $demoPlan['id']) {
+                    $demoPlanExists = true;
+                    break;
+                }
+            }
+            if (!$demoPlanExists) {
+                $plans[] = $demoPlan;
+            }
+        }
 
         $this->loadPageTranslations('dashboard');
 
@@ -2078,8 +2104,10 @@ class SuperAdminController extends Controller
         $pricingMode = Security::sanitize($_POST['pricing_mode'] ?? 'flat');
         $annualDiscountPercentage = !empty($_POST['annual_discount_percentage']) ? floatval($_POST['annual_discount_percentage']) : 0;
 
-        // Campos legados (compatibilidade)
+        // Limite de condomínios (campo ativo, não legado)
         $limitCondominios = !empty($_POST['limit_condominios']) ? intval($_POST['limit_condominios']) : null;
+
+        // Campos legados (compatibilidade)
         $limitFracoes = !empty($_POST['limit_fracoes']) ? intval($_POST['limit_fracoes']) : null;
         $features = !empty($_POST['features']) ? json_decode($_POST['features'], true) : [];
         $isActive = isset($_POST['is_active']) ? (bool)$_POST['is_active'] : true;
@@ -2090,6 +2118,24 @@ class SuperAdminController extends Controller
             $_SESSION['error'] = 'Dados inválidos. Verifique os campos obrigatórios.';
             header('Location: ' . BASE_URL . 'admin/plans/create');
             exit;
+        }
+
+        // Validar que plano base deve ter limit_condominios = 1
+        if ($planType === 'condominio' && !$allowMultipleCondos) {
+            if ($limitCondominios !== 1) {
+                $_SESSION['error'] = 'O plano base (Condomínio) deve ter limite de condomínios igual a 1.';
+                header('Location: ' . BASE_URL . 'admin/plans/create');
+                exit;
+            }
+        }
+
+        // Validar que plano base deve ter limit_condominios = 1
+        if ($planType === 'condominio' && !$allowMultipleCondos) {
+            if ($limitCondominios !== 1) {
+                $_SESSION['error'] = 'O plano base (Condomínio) deve ter limite de condomínios igual a 1.';
+                header('Location: ' . BASE_URL . 'admin/plans/create');
+                exit;
+            }
         }
 
         // Check if slug already exists
@@ -2238,6 +2284,15 @@ class SuperAdminController extends Controller
             $_SESSION['error'] = 'Dados inválidos. Verifique os campos obrigatórios.';
             header('Location: ' . BASE_URL . 'admin/plans/' . $id . '/edit');
             exit;
+        }
+
+        // Validar que plano base deve ter limit_condominios = 1
+        if ($planType === 'condominio' && !$allowMultipleCondos) {
+            if ($limitCondominios !== 1) {
+                $_SESSION['error'] = 'O plano base (Condomínio) deve ter limite de condomínios igual a 1.';
+                header('Location: ' . BASE_URL . 'admin/plans/' . $id . '/edit');
+                exit;
+            }
         }
 
         // Check if slug already exists (excluding current plan)

@@ -6,7 +6,71 @@
                 {% include 'blocks/help-button.html.twig' with {'section': 'dashboard', 'title': 'Ajuda com Dashboard', 'show_text': false} %}
             </div>
             
-            {% if admin_condominiums %}
+            {% if error %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle"></i> {{ error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
+            
+            {% if success %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle"></i> {{ success }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
+            
+            {% if info %}
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <i class="bi bi-info-circle"></i> {{ info }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
+            
+            {% if not admin_condominiums and (user.role == 'admin' or user.role == 'super_admin') %}
+            <!-- Show create condominium first when no condominiums exist -->
+            <div class="card shadow-sm mb-4 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-shield-check"></i> Condomínios que Geres</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-12">
+                            <div class="text-center py-5">
+                                {% if can_create_condominium is defined and can_create_condominium == true %}
+                                <a href="{{ BASE_URL }}condominiums/create" class="text-decoration-none">
+                                    <div class="card border-dashed border-3 border-primary shadow-sm" style="border-style: dashed !important; min-height: 300px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
+                                        <div class="card-body text-center p-5">
+                                            <i class="bi bi-plus-circle display-1 text-primary mb-4"></i>
+                                            <h3 class="card-title text-primary mb-3">Criar o Seu Primeiro Condomínio</h3>
+                                            <p class="card-text text-muted lead mb-4">Comece a gerir o seu condomínio de forma simples e eficiente</p>
+                                            <button class="btn btn-primary btn-lg">
+                                                <i class="bi bi-plus-circle"></i> Criar Condomínio
+                                            </button>
+                                        </div>
+                                    </div>
+                                </a>
+                                {% else %}
+                                <div class="card border-dashed border-3 border-secondary shadow-sm" style="border-style: dashed !important; min-height: 300px; display: flex; align-items: center; justify-content: center; opacity: 0.6;">
+                                    <div class="card-body text-center p-5">
+                                        <i class="bi bi-plus-circle display-1 text-secondary mb-4"></i>
+                                        <h3 class="card-title text-secondary mb-3">Novo Condomínio</h3>
+                                        <p class="card-text text-muted mb-4">Limite de condomínios atingido</p>
+                                        <p class="card-text text-danger">
+                                            <i class="bi bi-exclamation-triangle"></i> Limite de condomínios atingido ({{ current_condominium_count|default(0) }}/{{ condominium_limit|default('∞') }})
+                                        </p>
+                                        <a href="{{ BASE_URL }}subscription" class="btn btn-primary mt-3">
+                                            <i class="bi bi-arrow-up-circle"></i> Alterar Plano
+                                        </a>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% elseif admin_condominiums %}
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0"><i class="bi bi-shield-check"></i> Condomínios que Geres</h5>
@@ -46,6 +110,7 @@
                         {% endfor %}
                         {% if user.role == 'admin' or user.role == 'super_admin' %}
                         <div class="col-md-6 col-lg-4">
+                            {% if can_create_condominium is defined and can_create_condominium == true %}
                             <a href="{{ BASE_URL }}condominiums/create" class="text-decoration-none">
                                 <div class="card h-100 shadow-sm card-hover border-dashed border-2 border-primary" style="border-style: dashed !important; min-height: 200px; display: flex; align-items: center; justify-content: center;">
                                     <div class="card-body text-center">
@@ -55,6 +120,21 @@
                                     </div>
                                 </div>
                             </a>
+                            {% else %}
+                            <div class="card h-100 shadow-sm border-dashed border-2 border-secondary" style="border-style: dashed !important; min-height: 200px; display: flex; align-items: center; justify-content: center; opacity: 0.6; cursor: not-allowed;" data-bs-toggle="tooltip" data-bs-placement="top" title="Limite de condomínios atingido. Altere o seu plano para adicionar mais condomínios.">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-plus-circle display-4 text-secondary mb-3"></i>
+                                    <h5 class="card-title text-secondary">Novo Condomínio</h5>
+                                    <p class="card-text text-muted small">Limite atingido</p>
+                                    <p class="card-text text-danger small mt-2">
+                                        <i class="bi bi-exclamation-triangle"></i> Limite de condomínios atingido ({{ current_condominium_count|default(0) }}/{{ condominium_limit|default('∞') }})
+                                    </p>
+                                    <a href="{{ BASE_URL }}subscription" class="btn btn-sm btn-primary mt-2">
+                                        <i class="bi bi-arrow-up-circle"></i> Alterar Plano
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
                         {% endif %}
                     </div>
@@ -110,6 +190,8 @@
             </div>
             {% endif %}
             
+            {% if admin_condominiums or condomino_condominiums %}
+            <!-- Statistics Section - Only show when there are condominiums -->
             <div class="row mb-4">
                 <div class="col-md-3 mb-3">
                     <div class="card text-center">
@@ -485,7 +567,10 @@
                 </div>
             </div>
             {% endif %}
+            {% endif %}
+            <!-- End of Statistics Section -->
             
+            {% if admin_condominiums or condomino_condominiums %}
             <div class="row">
                 <!-- Financial Chart -->
                 <div class="col-md-8 mb-4">
@@ -814,6 +899,8 @@
                     });
                 }
             </script>
+            {% endif %}
+            <!-- End of content that requires condominiums -->
         </div>
     </div>
 </div>

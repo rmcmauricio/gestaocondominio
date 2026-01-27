@@ -245,74 +245,118 @@ class DemoSeeder
         $subscriptionModel = new Subscription();
         $subscriptionService = new SubscriptionService();
 
+        // Try to find demo plan first (limit 2, inactive), then condominio plan
+        $planModel = new Plan();
+        
+        // First, try to find demo plan (slug = 'demo' or limit_condominios = 2 and is_active = false)
+        $demoPlanStmt = $this->db->prepare("
+            SELECT * FROM plans 
+            WHERE (slug = 'demo' OR (limit_condominios = 2 AND is_active = FALSE))
+            ORDER BY id ASC 
+            LIMIT 1
+        ");
+        $demoPlanStmt->execute();
+        $demoPlan = $demoPlanStmt->fetch();
+        
+        $targetPlan = null;
+        if ($demoPlan) {
+            $targetPlan = $demoPlan;
+            echo "   Plano demo encontrado (ID: {$targetPlan['id']}, Limite: {$targetPlan['limit_condominios']})\n";
+        } else {
+            // Try to find condominio plan (can use with override for demo)
+            $condominioPlanStmt = $this->db->prepare("
+                SELECT * FROM plans 
+                WHERE plan_type = 'condominio' 
+                ORDER BY id ASC 
+                LIMIT 1
+            ");
+            $condominioPlanStmt->execute();
+            $condominioPlan = $condominioPlanStmt->fetch();
+            
+            if ($condominioPlan) {
+                $targetPlan = $condominioPlan;
+                echo "   Plano Condomínio encontrado (ID: {$targetPlan['id']}) - override para demo permitirá 2 condomínios\n";
+            } else {
+                echo "   Aviso: Nenhum plano demo ou condominio encontrado. Pulando atualização de subscrição.\n";
+                return;
+            }
+        }
+
         // Check if demo user already has an active subscription
         $existingSubscription = $subscriptionModel->getActiveSubscription($this->demoUserId);
 
         if ($existingSubscription) {
-            // Check if subscription is active (not expired trial)
-            if ($existingSubscription['status'] === 'active') {
-                echo "   Utilizador demo já tem subscrição ativa (ID: {$existingSubscription['id']})\n";
-                return;
-            }
-
-            // If trial expired, update to active
-            if ($existingSubscription['status'] === 'trial') {
-                if ($subscriptionService->isTrialExpired($this->demoUserId)) {
-                    $now = date('Y-m-d H:i:s');
-                    $periodEnd = date('Y-m-d H:i:s', strtotime('+1 year')); // Demo subscription valid for 1 year
-
-                    $subscriptionModel->update($existingSubscription['id'], [
-                        'status' => 'active',
-                        'trial_ends_at' => null,
-                        'current_period_start' => $now,
-                        'current_period_end' => $periodEnd
-                    ]);
-                    echo "   Subscrição demo atualizada para ativa (ID: {$existingSubscription['id']})\n";
+            // Check if subscription is using the correct demo plan
+            if ($existingSubscription['plan_id'] == $targetPlan['id']) {
+                // Already using correct plan, just ensure it's active
+                if ($existingSubscription['status'] === 'active') {
+                    echo "   Utilizador demo já tem subscrição ativa com plano demo (ID: {$existingSubscription['id']}, Plano: {$targetPlan['name']})\n";
+                    return;
                 } else {
-                    // Trial still active, convert to active subscription for demo
+                    // Update to active
                     $now = date('Y-m-d H:i:s');
-                    $periodEnd = date('Y-m-d H:i:s', strtotime('+1 year')); // Demo subscription valid for 1 year
-
+                    $periodEnd = date('Y-m-d H:i:s', strtotime('+1 year'));
                     $subscriptionModel->update($existingSubscription['id'], [
                         'status' => 'active',
                         'trial_ends_at' => null,
                         'current_period_start' => $now,
                         'current_period_end' => $periodEnd
                     ]);
-                    echo "   Subscrição demo convertida de trial para ativa (ID: {$existingSubscription['id']})\n";
+                    echo "   Subscrição demo atualizada para ativa (ID: {$existingSubscription['id']}, Plano: {$targetPlan['name']})\n";
+                    return;
                 }
+            } else {
+                // Subscription exists but using wrong plan - update to demo plan
+                echo "   Subscrição existe mas está usando plano incorreto (Plano ID: {$existingSubscription['plan_id']}). Atualizando para plano demo...\n";
+                $now = date('Y-m-d H:i:s');
+                $periodEnd = date('Y-m-d H:i:s', strtotime('+1 year'));
+                $subscriptionModel->update($existingSubscription['id'], [
+                    'plan_id' => $targetPlan['id'],
+                    'status' => 'active',
+                    'trial_ends_at' => null,
+                    'current_period_start' => $now,
+                    'current_period_end' => $periodEnd,
+                    'payment_method' => 'demo'
+                ]);
+                echo "   Subscrição atualizada para plano demo (ID: {$existingSubscription['id']}, Plano: {$targetPlan['name']})\n";
                 return;
             }
         }
 
-        // Get the first available plan (usually 'basic' or 'premium')
-        $planModel = new Plan();
-        $plans = $planModel->getActivePlans();
+        // If trial expired, update to active with demo plan
+        $allSubscriptionsStmt = $this->db->prepare("
+            SELECT * FROM subscriptions 
+            WHERE user_id = :user_id 
+            AND status = 'trial'
+            ORDER BY id DESC 
+            LIMIT 1
+        ");
+        $allSubscriptionsStmt->execute([':user_id' => $this->demoUserId]);
+        $trialSubscription = $allSubscriptionsStmt->fetch();
 
-        if (empty($plans)) {
-            echo "   Aviso: Nenhum plano disponível. Pulando criação de subscrição.\n";
+        if ($trialSubscription) {
+            // Update trial subscription to active with demo plan
+            $now = date('Y-m-d H:i:s');
+            $periodEnd = date('Y-m-d H:i:s', strtotime('+1 year'));
+            $subscriptionModel->update($trialSubscription['id'], [
+                'plan_id' => $targetPlan['id'],
+                'status' => 'active',
+                'trial_ends_at' => null,
+                'current_period_start' => $now,
+                'current_period_end' => $periodEnd,
+                'payment_method' => 'demo'
+            ]);
+            echo "   Subscrição trial convertida para ativa com plano demo (ID: {$trialSubscription['id']}, Plano: {$targetPlan['name']})\n";
             return;
         }
 
-        // Use the first plan (or prefer 'premium' if available)
-        $plan = null;
-        foreach ($plans as $p) {
-            if (isset($p['slug']) && $p['slug'] === 'premium') {
-                $plan = $p;
-                break;
-            }
-        }
-        if (!$plan) {
-            $plan = $plans[0];
-        }
-
-        // Create active subscription for demo user (valid for 1 year)
+        // Create active subscription for demo user with demo plan (valid for 1 year)
         $now = date('Y-m-d H:i:s');
         $periodEnd = date('Y-m-d H:i:s', strtotime('+1 year'));
 
         $subscriptionId = $subscriptionModel->create([
             'user_id' => $this->demoUserId,
-            'plan_id' => $plan['id'],
+            'plan_id' => $targetPlan['id'],
             'status' => 'active',
             'trial_ends_at' => null,
             'current_period_start' => $now,
@@ -320,7 +364,7 @@ class DemoSeeder
             'payment_method' => 'demo'
         ]);
 
-        echo "   Subscrição ativa criada para utilizador demo (ID: {$subscriptionId}, Plano: {$plan['name']})\n";
+        echo "   Subscrição ativa criada para utilizador demo (ID: {$subscriptionId}, Plano: {$targetPlan['name']})\n";
     }
 
     protected function createDemoCondominiums(): void

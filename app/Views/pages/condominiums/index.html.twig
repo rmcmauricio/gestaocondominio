@@ -144,6 +144,7 @@
             <div class="row g-4">
                 {% if user.role == 'admin' or user.role == 'super_admin' %}
                 <div class="col-md-6 col-lg-4">
+                    {% if can_create_condominium|default(true) %}
                     <a href="{{ BASE_URL }}condominiums/create" class="text-decoration-none">
                         <div class="card h-100 shadow-sm card-hover border-dashed border-2 border-primary" style="border-style: dashed !important; min-height: 200px; display: flex; align-items: center; justify-content: center;">
                             <div class="card-body text-center">
@@ -153,6 +154,21 @@
                             </div>
                         </div>
                     </a>
+                    {% else %}
+                    <div class="card h-100 shadow-sm border-dashed border-2 border-secondary" style="border-style: dashed !important; min-height: 200px; display: flex; align-items: center; justify-content: center; opacity: 0.6; cursor: not-allowed;" data-bs-toggle="tooltip" data-bs-placement="top" title="Limite de condomínios atingido. Altere o seu plano para adicionar mais condomínios.">
+                        <div class="card-body text-center">
+                            <i class="bi bi-plus-circle display-4 text-secondary mb-3"></i>
+                            <h5 class="card-title text-secondary">Novo Condomínio</h5>
+                            <p class="card-text text-muted small">Limite atingido</p>
+                            <p class="card-text text-danger small mt-2">
+                                <i class="bi bi-exclamation-triangle"></i> Limite de condomínios atingido ({{ current_condominium_count|default(0) }}/{{ condominium_limit|default('∞') }})
+                            </p>
+                            <a href="{{ BASE_URL }}subscription" class="btn btn-sm btn-primary mt-2">
+                                <i class="bi bi-arrow-up-circle"></i> Alterar Plano
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
                 {% else %}
                 <div class="col-12">

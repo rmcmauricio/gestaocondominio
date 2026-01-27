@@ -578,7 +578,79 @@ class DashboardController extends Controller
             $condominium_users = $stmt->fetchAll() ?: [];
         }
 
+        // Check condominium limit for subscription
+        $subscriptionModel = new \App\Models\Subscription();
+        $subscription = $subscriptionModel->getActiveSubscription($userId);
+        $canCreateCondominium = true; // Default to true
+        $condominiumLimit = null;
+        $currentCondominiumCount = 0;
+        $limitReached = false;
+
+        // Check if user is demo user
+        $isDemoUser = \App\Middleware\DemoProtectionMiddleware::isDemoUser($userId);
+        
+        if ($isDemoUser) {
+            // For demo users, limit is 2 condominiums
+            // Count ALL condominiums where user is admin (not just subscription-associated ones)
+            $condominiumLimit = 2;
+            $currentCondominiumCount = count($adminCondominiums);
+            $limitReached = $currentCondominiumCount >= $condominiumLimit;
+            $canCreateCondominium = !$limitReached; // Explicitly set to false if limit reached
+        } elseif ($subscription) {
+            $planModel = new \App\Models\Plan();
+            $plan = $planModel->findById($subscription['plan_id']);
+            
+            if ($plan) {
+                // Check if plan is demo plan (slug = 'demo' or limit_condominios = 2 and is_active = false)
+                $planSlug = $plan['slug'] ?? '';
+                $planLimitCondominios = isset($plan['limit_condominios']) ? (int)$plan['limit_condominios'] : null;
+                $planIsActive = isset($plan['is_active']) ? (bool)$plan['is_active'] : true;
+                
+                $isDemoPlan = ($planSlug === 'demo') || 
+                              ($planLimitCondominios === 2 && $planIsActive === false);
+                
+                if ($isDemoPlan) {
+                    // For demo plan, count ALL condominiums where user is admin (not just subscription-associated ones)
+                    $condominiumLimit = 2;
+                    $currentCondominiumCount = count($adminCondominiums);
+                    $limitReached = $currentCondominiumCount >= $condominiumLimit;
+                    $canCreateCondominium = !$limitReached;
+                } else {
+                    $condominiumLimit = isset($plan['limit_condominios']) && $plan['limit_condominios'] !== null ? (int)$plan['limit_condominios'] : null;
+                    
+                    if ($condominiumLimit !== null) {
+                        // Count active condominiums associated with subscription
+                        $count = 0;
+                        if ($subscription['condominium_id']) {
+                            $count++;
+                        }
+                        $subscriptionCondominiumModel = new \App\Models\SubscriptionCondominium();
+                        $count += $subscriptionCondominiumModel->countActiveBySubscription($subscription['id']);
+                        
+                        $currentCondominiumCount = $count;
+                        $limitReached = $count >= $condominiumLimit;
+                        $canCreateCondominium = !$limitReached;
+                    } else {
+                        // Unlimited - count all user condominiums for display
+                        $currentCondominiumCount = count($adminCondominiums);
+                    }
+                }
+            } else {
+                // No plan - count all user condominiums for display
+                $currentCondominiumCount = count($adminCondominiums);
+            }
+        } else {
+            // No subscription - count all user condominiums for display
+            $currentCondominiumCount = count($adminCondominiums);
+        }
+
         $this->loadPageTranslations('dashboard');
+        
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        $info = $_SESSION['info'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success'], $_SESSION['info']);
         
         $this->data += [
             'viewName' => 'pages/dashboard/admin.html.twig',
@@ -593,7 +665,14 @@ class DashboardController extends Controller
             'recent_documents' => $recent_documents,
             'bank_accounts' => $bankAccounts,
             'condominium_users' => $condominium_users,
-            'user' => AuthMiddleware::user()
+            'user' => AuthMiddleware::user(),
+            'can_create_condominium' => (bool)$canCreateCondominium, // Ensure boolean type
+            'condominium_limit' => $condominiumLimit,
+            'current_condominium_count' => $currentCondominiumCount,
+            'limit_reached' => $limitReached,
+            'error' => $error,
+            'success' => $success,
+            'info' => $info
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

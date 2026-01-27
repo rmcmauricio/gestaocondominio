@@ -96,10 +96,45 @@ class Condominium extends Model
         ];
         
         if ($hasIsDemo) {
-            $params[':is_demo'] = $data['is_demo'] ?? false;
-            $params[':is_active'] = $data['is_active'] ?? true;
+            // Ensure is_demo is always a boolean/integer (0 or 1), never empty string
+            $isDemo = false;
+            if (isset($data['is_demo']) && $data['is_demo'] !== '') {
+                if (is_bool($data['is_demo'])) {
+                    $isDemo = $data['is_demo'];
+                } elseif (is_string($data['is_demo']) && trim($data['is_demo']) !== '') {
+                    $isDemo = filter_var($data['is_demo'], FILTER_VALIDATE_BOOLEAN);
+                } elseif (is_numeric($data['is_demo'])) {
+                    $isDemo = (bool)(int)$data['is_demo'];
+                }
+            }
+            // Always convert to integer (0 or 1) for MySQL
+            $params[':is_demo'] = $isDemo ? 1 : 0;
+            
+            // Ensure is_active is always a boolean/integer
+            $isActive = true;
+            if (isset($data['is_active'])) {
+                if (is_bool($data['is_active'])) {
+                    $isActive = $data['is_active'];
+                } elseif (is_string($data['is_active'])) {
+                    $isActive = filter_var($data['is_active'], FILTER_VALIDATE_BOOLEAN);
+                } elseif (is_numeric($data['is_active'])) {
+                    $isActive = (bool)(int)$data['is_active'];
+                }
+            }
+            $params[':is_active'] = $isActive ? 1 : 0;
         } else {
-            $params[':is_active'] = $data['is_active'] ?? true;
+            // Ensure is_active is always a boolean/integer
+            $isActive = true;
+            if (isset($data['is_active'])) {
+                if (is_bool($data['is_active'])) {
+                    $isActive = $data['is_active'];
+                } elseif (is_string($data['is_active'])) {
+                    $isActive = filter_var($data['is_active'], FILTER_VALIDATE_BOOLEAN);
+                } elseif (is_numeric($data['is_active'])) {
+                    $isActive = (bool)(int)$data['is_active'];
+                }
+            }
+            $params[':is_active'] = $isActive ? 1 : 0;
         }
         
         $stmt->execute($params);

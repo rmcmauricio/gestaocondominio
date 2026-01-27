@@ -86,6 +86,13 @@ class SubscriptionController extends Controller
     {
         AuthMiddleware::require();
 
+        // Block demo user from accessing subscription page
+        if ($this->isDemoUser()) {
+            $_SESSION['error'] = 'A conta demo não pode acessar a página de subscrição.';
+            header('Location: ' . BASE_URL . 'dashboard');
+            exit;
+        }
+
         $userId = AuthMiddleware::userId();
         $subscription = $this->subscriptionModel->getActiveSubscription($userId);
         $pendingSubscription = $this->subscriptionModel->getPendingSubscription($userId);
@@ -389,10 +396,12 @@ class SubscriptionController extends Controller
     public function choosePlan()
     {
         // Block demo user from accessing plan selection
-        if (AuthMiddleware::handle() && $this->isDemoUser()) {
-            $_SESSION['error'] = 'A conta demo não pode alterar a subscrição.';
-            header('Location: ' . BASE_URL . 'subscription');
-            exit;
+        if (AuthMiddleware::handle()) {
+            if ($this->isDemoUser()) {
+                $_SESSION['error'] = 'A conta demo não pode acessar a página de subscrição.';
+                header('Location: ' . BASE_URL . 'dashboard');
+                exit;
+            }
         }
         
         // Allow both guests and logged in users
@@ -453,8 +462,8 @@ class SubscriptionController extends Controller
      */
     protected function isDemoUser(): bool
     {
-        $user = AuthMiddleware::user();
-        return $user && isset($user['is_demo']) && $user['is_demo'] == true;
+        $userId = AuthMiddleware::userId();
+        return \App\Middleware\DemoProtectionMiddleware::isDemoUser($userId);
     }
 
     public function startTrial()
@@ -1737,6 +1746,13 @@ class SubscriptionController extends Controller
     {
         AuthMiddleware::require();
 
+        // Block demo user
+        if ($this->isDemoUser()) {
+            $_SESSION['error'] = 'A conta demo não pode acessar esta página.';
+            header('Location: ' . BASE_URL . 'dashboard');
+            exit;
+        }
+
         $userId = AuthMiddleware::userId();
         $subscription = $this->subscriptionModel->getActiveSubscription($userId);
 
@@ -1809,9 +1825,10 @@ class SubscriptionController extends Controller
             exit;
         }
 
+        // Block demo user
         if ($this->isDemoUser()) {
-            $_SESSION['error'] = 'A subscrição da conta demo não pode ser alterada.';
-            header('Location: ' . BASE_URL . 'subscription');
+            $_SESSION['error'] = 'A conta demo não pode acessar esta página.';
+            header('Location: ' . BASE_URL . 'dashboard');
             exit;
         }
 
@@ -1861,9 +1878,10 @@ class SubscriptionController extends Controller
             exit;
         }
 
+        // Block demo user
         if ($this->isDemoUser()) {
-            $_SESSION['error'] = 'A subscrição da conta demo não pode ser alterada.';
-            header('Location: ' . BASE_URL . 'subscription');
+            $_SESSION['error'] = 'A conta demo não pode acessar esta página.';
+            header('Location: ' . BASE_URL . 'dashboard');
             exit;
         }
 
@@ -1910,6 +1928,12 @@ class SubscriptionController extends Controller
     {
         AuthMiddleware::require();
 
+        // Block demo user
+        if ($this->isDemoUser()) {
+            header('Content-Type: application/json');
+            $this->jsonError('A conta demo não pode acessar esta página', 403, 'DEMO_USER_BLOCKED');
+        }
+
         header('Content-Type: application/json');
 
         $userId = AuthMiddleware::userId();
@@ -1942,9 +1966,10 @@ class SubscriptionController extends Controller
             exit;
         }
 
+        // Block demo user
         if ($this->isDemoUser()) {
-            $_SESSION['error'] = 'A subscrição da conta demo não pode ser alterada.';
-            header('Location: ' . BASE_URL . 'subscription');
+            $_SESSION['error'] = 'A conta demo não pode acessar esta página.';
+            header('Location: ' . BASE_URL . 'dashboard');
             exit;
         }
 

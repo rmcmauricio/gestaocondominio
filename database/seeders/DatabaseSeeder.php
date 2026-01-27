@@ -119,6 +119,25 @@ class DatabaseSeeder
                 'features' => $commonFeatures,
                 'is_active' => true,
                 'sort_order' => 3
+            ],
+            [
+                'name' => 'Demo',
+                'slug' => 'demo',
+                'description' => 'Plano especial para conta demo (não aparece nas subscrições)',
+                'price_monthly' => 0.00,
+                'price_yearly' => 0.00,
+                'plan_type' => 'condominio',
+                'license_min' => 10,
+                'license_limit' => null,
+                'allow_multiple_condos' => false,
+                'allow_overage' => false,
+                'pricing_mode' => 'flat',
+                'annual_discount_percentage' => 0,
+                'limit_condominios' => 2, // Limite de 2 condomínios para demo
+                'limit_fracoes' => null,
+                'features' => $commonFeatures,
+                'is_active' => false, // Não aparece na página de subscrições
+                'sort_order' => 99
             ]
         ];
 

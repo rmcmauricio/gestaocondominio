@@ -212,7 +212,7 @@
                                     <option value="">Selecione um plano...</option>
                                     {% for plan in plans %}
                                         <option value="{{ plan.id }}" {% if plan.id == subscription.plan_id %}selected{% endif %}>
-                                            {{ plan.name }} - €{{ plan.price_monthly|number_format(2, ',', '.') }}/mês
+                                            {{ plan.name }}{% if plan.is_active == false %} (Inativo - Teste){% endif %} - €{{ plan.price_monthly|number_format(2, ',', '.') }}/mês
                                         </option>
                                     {% endfor %}
                                 </select>
