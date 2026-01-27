@@ -287,10 +287,10 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Alert Success */
 .alert-success {
-  background-color: rgba(34, 197, 94, 0.2) !important;
+  background-color: #d1e7dd !important;
   border-color: #22c55e !important;
   border-width: 2px !important;
-  color: #22c55e !important;
+  color: #0f5132 !important;
   font-weight: 600 !important;
 }
 
@@ -416,10 +416,10 @@ p.text-success, span.text-success, div.text-success, strong.text-success {
 
 /* Alert Warning */
 .alert-warning {
-  background-color: rgba(251, 191, 36, 0.2) !important;
+  background-color: #fff3cd !important;
   border-color: #fbbf24 !important;
   border-width: 2px !important;
-  color: #fbbf24 !important;
+  color: #856404 !important;
   font-weight: 600 !important;
 }
 

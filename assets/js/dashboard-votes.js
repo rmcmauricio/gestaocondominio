@@ -102,6 +102,17 @@
         const alertDiv = document.createElement('div');
         alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
         alertDiv.setAttribute('role', 'alert');
+        // Garantir fundo opaco para melhor legibilidade
+        if (type === 'success') {
+            alertDiv.style.backgroundColor = '#d1e7dd';
+            alertDiv.style.color = '#0f5132';
+            alertDiv.style.borderColor = '#badbcc';
+        } else {
+            alertDiv.style.backgroundColor = '#f8d7da';
+            alertDiv.style.color = '#842029';
+            alertDiv.style.borderColor = '#f5c2c7';
+        }
+        alertDiv.style.opacity = '1';
         alertDiv.innerHTML = `
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>

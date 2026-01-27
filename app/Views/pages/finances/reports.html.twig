@@ -355,6 +355,17 @@
         alertDiv.style.maxWidth = '600px';
         alertDiv.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
         alertDiv.style.borderRadius = '8px';
+        // Garantir fundo opaco para melhor legibilidade
+        if (type === 'success') {
+            alertDiv.style.backgroundColor = '#d1e7dd';
+            alertDiv.style.color = '#0f5132';
+            alertDiv.style.borderColor = '#badbcc';
+        } else {
+            alertDiv.style.backgroundColor = '#f8d7da';
+            alertDiv.style.color = '#842029';
+            alertDiv.style.borderColor = '#f5c2c7';
+        }
+        alertDiv.style.opacity = '1';
         alertDiv.innerHTML = `
             <div class="d-flex align-items-center">
                 <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}-fill me-2" style="font-size: 1.2rem;"></i>

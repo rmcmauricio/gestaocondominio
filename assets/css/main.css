@@ -1143,21 +1143,21 @@ a:hover .card-hover .text-primary {
 }
 
 .alert-success {
-  background-color: rgba(16, 185, 129, 0.1);
+  background-color: #d1f2eb;
   color: var(--color-success);
-  border-color: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
 }
 
 .alert-danger {
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: #f8d7da;
   color: var(--color-danger);
-  border-color: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
 }
 
 .alert-warning {
-  background-color: rgba(245, 158, 11, 0.1);
+  background-color: #fff3cd;
   color: var(--color-warning);
-  border-color: rgba(245, 158, 11, 0.2);
+  border-color: #ffc107;
 }
 
 .alert-info {

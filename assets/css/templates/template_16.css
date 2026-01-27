@@ -244,19 +244,19 @@ table tbody tr:hover {
 }
 
 .alert-success {
-  background-color: rgba(40, 167, 69, 0.15) !important;
+  background-color: #d1e7dd !important;
   border-color: #28a745 !important;
   color: #155724 !important;
 }
 
 .alert-danger {
-  background-color: rgba(162, 44, 41, 0.2) !important;
+  background-color: #f8d7da !important;
   border-color: #a22c29 !important;
-  color: #721c24 !important;
+  color: #842029 !important;
 }
 
 .alert-warning {
-  background-color: rgba(255, 193, 7, 0.2) !important;
+  background-color: #fff3cd !important;
   border-color: #ffc107 !important;
   color: #856404 !important;
 }

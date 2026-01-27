@@ -244,21 +244,21 @@ table tbody tr:hover {
 }
 
 .alert-success {
-  background-color: rgba(142, 166, 4, 0.15) !important;
+  background-color: #e8f0d4 !important;
   border-color: #8ea604 !important;
   color: #2d5016 !important;
 }
 
 .alert-danger {
-  background-color: rgba(191, 49, 0, 0.15) !important;
+  background-color: #f8d7da !important;
   border-color: #bf3100 !important;
-  color: #7a1f00 !important;
+  color: #842029 !important;
 }
 
 .alert-warning {
-  background-color: rgba(236, 159, 5, 0.2) !important;
+  background-color: #fff3cd !important;
   border-color: #ec9f05 !important;
-  color: #78350f !important;
+  color: #856404 !important;
 }
 
 .alert-info {

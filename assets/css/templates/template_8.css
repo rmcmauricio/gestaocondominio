@@ -233,21 +233,21 @@ table tbody tr:hover {
 }
 
 .alert-success {
-  background-color: rgba(16, 185, 129, 0.2) !important;
+  background-color: #d1f2eb !important;
   border-color: var(--color-success) !important;
   color: #065f46 !important;
 }
 
 .alert-danger {
-  background-color: rgba(239, 68, 68, 0.2) !important;
+  background-color: #f8d7da !important;
   border-color: var(--color-danger) !important;
-  color: #991b1b !important;
+  color: #842029 !important;
 }
 
 .alert-warning {
-  background-color: rgba(245, 158, 11, 0.2) !important;
+  background-color: #fff3cd !important;
   border-color: var(--color-warning) !important;
-  color: #78350f !important;
+  color: #856404 !important;
 }
 
 .alert-info {
