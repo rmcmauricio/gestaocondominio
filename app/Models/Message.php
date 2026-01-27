@@ -72,7 +72,8 @@ class Message extends Model
             return 0;
         }
 
-        // Count private messages to this user that are unread
+        // Count private messages to this user that are unread (including replies)
+        // Only count messages where user is recipient, not sender
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as count
             FROM messages m
@@ -91,6 +92,7 @@ class Message extends Model
         
         // Count announcements (to_user_id IS NULL) that are unread
         // Note: This is a simple approach - in production, use a message_reads table
+        // Only count announcements not sent by the user
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as count
             FROM messages m

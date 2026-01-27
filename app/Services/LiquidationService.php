@@ -53,7 +53,7 @@ class LiquidationService
         }
 
         // Get condominium_id from first fee for audit logging
-        $condominiumId = !empty($fees) ? (int)$fees[0]['condominium_id'] : null;
+        $condominiumId = !empty($fees) && isset($fees[0]['condominium_id']) ? (int)$fees[0]['condominium_id'] : null;
 
         foreach ($fees as $fee) {
             if ($balance <= 0) {

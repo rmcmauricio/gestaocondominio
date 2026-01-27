@@ -59,6 +59,9 @@ class NotificationController extends Controller
         AuthMiddleware::require();
 
         $userId = AuthMiddleware::userId();
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+        $success = false;
+        $message = '';
         
         // Handle unified notifications (can be notification or message)
         if (strpos($id, 'msg_') === 0) {
@@ -71,7 +74,9 @@ class NotificationController extends Controller
                 $recipientId = $message['to_user_id'] ?? null;
                 if (($recipientId == $userId || $recipientId === null) && !$message['is_read']) {
                     $messageModel->markAsRead($messageId);
-                    $_SESSION['success'] = 'Mensagem marcada como lida.';
+                    $success = true;
+                    $message = 'Mensagem marcada como lida.';
+                    $_SESSION['success'] = $message;
                 }
             }
         } else {
@@ -87,11 +92,21 @@ class NotificationController extends Controller
                 
                 if ($notification) {
                     $this->notificationService->markAsRead($notificationId);
-                    $_SESSION['success'] = 'Notificação marcada como lida.';
+                    $success = true;
+                    $message = 'Notificação marcada como lida.';
+                    $_SESSION['success'] = $message;
                 } else {
-                    $_SESSION['error'] = 'Notificação não encontrada.';
+                    $message = 'Notificação não encontrada.';
+                    $_SESSION['error'] = $message;
                 }
             }
+        }
+
+        // If AJAX request, return JSON
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => $success, 'message' => $message]);
+            exit;
         }
 
         header('Location: ' . BASE_URL . 'notifications');
@@ -103,6 +118,7 @@ class NotificationController extends Controller
         AuthMiddleware::require();
 
         $userId = AuthMiddleware::userId();
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
         
         global $db;
         if ($db) {
@@ -126,6 +142,13 @@ class NotificationController extends Controller
             $stmt->execute([':user_id' => $userId]);
             
             $_SESSION['success'] = 'Todas as notificações foram marcadas como lidas.';
+        }
+
+        // If AJAX request, return JSON
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => 'Todas as notificações foram marcadas como lidas.']);
+            exit;
         }
 
         header('Location: ' . BASE_URL . 'notifications');
@@ -183,6 +206,92 @@ class NotificationController extends Controller
 
         header('Content-Type: application/json');
         echo json_encode(['count' => $unreadCount]);
+        exit;
+    }
+
+    /**
+     * Get separate counts for messages and notifications
+     * Returns JSON with unread_messages_count and unread_notifications_count
+     */
+    public function getCounts()
+    {
+        AuthMiddleware::require();
+
+        $userId = AuthMiddleware::userId();
+        $currentCondominiumId = $_SESSION['current_condominium_id'] ?? null;
+        
+        $unreadMessagesCount = 0;
+        $unreadNotificationsCount = 0;
+        $systemNotificationsCount = 0;
+        
+        global $db;
+        if ($db) {
+            try {
+                // Get notifications filtered by current condominium if set
+                $notificationService = new \App\Services\NotificationService();
+                if ($currentCondominiumId) {
+                    // Get notifications only for current condominium
+                    $notifications = $notificationService->getUserNotifications($userId, 1000);
+                    $notifications = array_filter($notifications, function($n) use ($currentCondominiumId) {
+                        return isset($n['condominium_id']) && $n['condominium_id'] == $currentCondominiumId;
+                    });
+                } else {
+                    // If no condominium selected, get all notifications
+                    $notifications = $notificationService->getUserNotifications($userId, 1000);
+                }
+                
+                $systemNotificationsCount = count(array_filter($notifications, function($n) {
+                    return !$n['is_read'];
+                }));
+            } catch (\Exception $e) {
+                // Silently fail if notifications table doesn't exist or other error
+                $systemNotificationsCount = 0;
+            }
+            
+            // Get unread messages count for current condominium only
+            try {
+                if ($currentCondominiumId) {
+                    // Count unread messages only for current condominium
+                    $messageModel = new \App\Models\Message();
+                    $unreadMessagesCount = $messageModel->getUnreadCount($currentCondominiumId, $userId);
+                } else {
+                    // If no condominium selected, count messages from all condominiums user has access to
+                    $userRole = $_SESSION['user']['role'] ?? 'condomino';
+                    if ($userRole === 'admin' || $userRole === 'super_admin') {
+                        $condominiumModel = new \App\Models\Condominium();
+                        $userCondominiums = $condominiumModel->getByUserId($userId);
+                    } else {
+                        $condominiumUserModel = new \App\Models\CondominiumUser();
+                        $userCondominiumsList = $condominiumUserModel->getUserCondominiums($userId);
+                        $condominiumModel = new \App\Models\Condominium();
+                        $userCondominiums = [];
+                        foreach ($userCondominiumsList as $uc) {
+                            $condo = $condominiumModel->findById($uc['condominium_id']);
+                            if ($condo) {
+                                $userCondominiums[] = $condo;
+                            }
+                        }
+                    }
+                    
+                    $messageModel = new \App\Models\Message();
+                    foreach ($userCondominiums as $condo) {
+                        $unreadMessagesCount += $messageModel->getUnreadCount($condo['id'], $userId);
+                    }
+                }
+            } catch (\Exception $e) {
+                // Silently fail if messages table doesn't exist or other error
+                $unreadMessagesCount = 0;
+            }
+            
+            // Unified count includes both notifications and messages
+            $unreadNotificationsCount = $systemNotificationsCount + $unreadMessagesCount;
+        }
+
+        header('Content-Type: application/json');
+        echo json_encode([
+            'unread_messages_count' => $unreadMessagesCount,
+            'unread_notifications_count' => $unreadNotificationsCount
+        ]);
         exit;
     }
 }

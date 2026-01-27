@@ -92,6 +92,7 @@ $router->post('/notifications/{id}/mark-read', 'App\Controllers\NotificationCont
 $router->post('/notifications/mark-all-read', 'App\Controllers\NotificationController@markAllAsRead');
 $router->post('/notifications/{id}/delete', 'App\Controllers\NotificationController@delete');
 $router->get('/notifications/unread-count', 'App\Controllers\NotificationController@getUnreadCount');
+$router->get('/notifications/counts', 'App\Controllers\NotificationController@getCounts');
 
 // Condominium routes - redirect to dashboard (dashboard now shows condominiums list)
 // $router->get('/condominiums', 'App\Controllers\CondominiumController@index'); // Removed - dashboard replaces this

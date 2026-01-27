@@ -85,6 +85,9 @@
         }
     </script>
     <script src="{{ BASE_URL }}assets/js/help.js?v={{ VERSION }}"></script>
+    {% if user %}
+    <script src="{{ BASE_URL }}assets/js/notifications-update.js?v={{ VERSION }}"></script>
+    {% endif %}
     {% if viewName == 'pages/dashboard/condomino.html.twig' %}
     <script src="{{ BASE_URL }}assets/js/dashboard-votes.js?v={{ VERSION }}"></script>
     <script src="{{ BASE_URL }}assets/js/dashboard-notifications.js?v={{ VERSION }}"></script>

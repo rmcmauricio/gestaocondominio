@@ -174,6 +174,58 @@
                     <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
                     <script>
                     document.addEventListener('DOMContentLoaded', function() {
+                        // Update header counters if message was just marked as read
+                        {% if was_just_marked_as_read %}
+                        // Message was just marked as read, update counters
+                        setTimeout(function() {
+                            function updateCounters() {
+                                if (typeof updateHeaderCounters === 'function') {
+                                    updateHeaderCounters();
+                                } else {
+                                    // Fallback: fetch counts directly
+                                    const baseUrl = document.getElementById('base_url')?.value || window.BASE_URL || '';
+                                    fetch(baseUrl + 'notifications/counts', {
+                                        method: 'GET',
+                                        credentials: 'same-origin'
+                                    })
+                                    .then(function(response) {
+                                        if (!response.ok) {
+                                            throw new Error('Network response was not ok');
+                                        }
+                                        return response.json();
+                                    })
+                                    .then(function(data) {
+                                        // Update messages counter
+                                        const messagesCounter = document.getElementById('header-messages-count');
+                                        if (messagesCounter) {
+                                            if (data.unread_messages_count > 0) {
+                                                messagesCounter.textContent = data.unread_messages_count;
+                                                messagesCounter.style.display = '';
+                                            } else {
+                                                messagesCounter.style.display = 'none';
+                                            }
+                                        }
+
+                                        // Update notifications counter
+                                        const notificationsCounter = document.getElementById('header-notifications-count');
+                                        if (notificationsCounter) {
+                                            if (data.unread_notifications_count > 0) {
+                                                notificationsCounter.textContent = data.unread_notifications_count;
+                                                notificationsCounter.style.display = '';
+                                            } else {
+                                                notificationsCounter.style.display = 'none';
+                                            }
+                                        }
+                                    })
+                                    .catch(function(error) {
+                                        console.log('Error updating header counters:', error);
+                                    });
+                                }
+                            }
+                            updateCounters();
+                        }, 100);
+                        {% endif %}
+                        
                         // Scroll to viewing reply if viewing a specific reply
                         {% if is_viewing_reply %}
                         const viewingReply = document.getElementById('viewing-reply');

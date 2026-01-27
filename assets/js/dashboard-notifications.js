@@ -34,10 +34,53 @@ document.addEventListener('DOMContentLoaded', function() {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
                     body: formData.toString(),
                     credentials: 'same-origin'
                 }).then(function(response) {
+                    return response.json();
+                }).then(function(data) {
+                    // Update header counters
+                    if (typeof updateHeaderCounters === 'function') {
+                        updateHeaderCounters();
+                    } else {
+                        // Fallback: fetch counts directly
+                        fetch(baseUrl + 'notifications/counts', {
+                            method: 'GET',
+                            credentials: 'same-origin'
+                        })
+                        .then(function(response) {
+                            return response.json();
+                        })
+                        .then(function(countData) {
+                            // Update messages counter
+                            const messagesCounter = document.getElementById('header-messages-count');
+                            if (messagesCounter) {
+                                if (countData.unread_messages_count > 0) {
+                                    messagesCounter.textContent = countData.unread_messages_count;
+                                    messagesCounter.style.display = '';
+                                } else {
+                                    messagesCounter.style.display = 'none';
+                                }
+                            }
+
+                            // Update notifications counter
+                            const notificationsCounter = document.getElementById('header-notifications-count');
+                            if (notificationsCounter) {
+                                if (countData.unread_notifications_count > 0) {
+                                    notificationsCounter.textContent = countData.unread_notifications_count;
+                                    notificationsCounter.style.display = '';
+                                } else {
+                                    notificationsCounter.style.display = 'none';
+                                }
+                            }
+                        })
+                        .catch(function(error) {
+                            console.log('Error updating header counters:', error);
+                        });
+                    }
+                    
                     // Update visual state immediately
                     const card = link.querySelector('.card');
                     if (card) {

@@ -64,11 +64,10 @@
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table">
+                        <table class="table table-budget-mobile">
                             <thead>
                                 <tr>
                                     <th>Descrição</th>
-                                    <th>Categoria</th>
                                     <th class="text-end">Valor</th>
                                 </tr>
                             </thead>
@@ -76,14 +75,13 @@
                                 {% for item in revenue_items %}
                                 <tr>
                                     <td>{{ item.description }}</td>
-                                    <td><span class="badge bg-success">{{ item.category|replace({'Receita: ': ''}) }}</span></td>
                                     <td class="text-end"><strong>€{{ item.amount|number_format(2, ',', '.') }}</strong></td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot>
                                 <tr>
-                                    <th colspan="2">Total</th>
+                                    <th>Total</th>
                                     <th class="text-end">€{{ total_revenue|number_format(2, ',', '.') }}</th>
                                 </tr>
                             </tfoot>
@@ -100,11 +98,10 @@
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table">
+                        <table class="table table-budget-mobile">
                             <thead>
                                 <tr>
                                     <th>Descrição</th>
-                                    <th>Categoria</th>
                                     <th class="text-end">Valor</th>
                                 </tr>
                             </thead>
@@ -112,14 +109,13 @@
                                 {% for item in expense_items %}
                                 <tr>
                                     <td>{{ item.description }}</td>
-                                    <td><span class="badge bg-danger">{{ item.category|replace({'Despesa: ': ''}) }}</span></td>
                                     <td class="text-end"><strong>€{{ item.amount|number_format(2, ',', '.') }}</strong></td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot>
                                 <tr>
-                                    <th colspan="2">Total</th>
+                                    <th>Total</th>
                                     <th class="text-end">€{{ total_expenses|number_format(2, ',', '.') }}</th>
                                 </tr>
                             </tfoot>

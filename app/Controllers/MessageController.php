@@ -42,35 +42,37 @@ class MessageController extends Controller
 
         $userId = AuthMiddleware::userId();
         
-        // Get root messages (messages without thread_id)
-        $rootMessages = $this->messageModel->getByCondominium($condominiumId, ['recipient_id' => $userId]);
-        $rootSentMessages = $this->messageModel->getByCondominium($condominiumId, ['sender_id' => $userId]);
+        // Get received messages (where user is recipient or announcements)
+        $receivedMessages = $this->messageModel->getByCondominium($condominiumId, ['recipient_id' => $userId]);
         
-        // Get all replies for received messages
-        $organizedMessages = [];
-        foreach ($rootMessages as $msg) {
+        // Get sent messages (where user is sender)
+        $sentMessages = $this->messageModel->getByCondominium($condominiumId, ['sender_id' => $userId]);
+        
+        // Organize received messages with replies
+        $organizedReceived = [];
+        foreach ($receivedMessages as $msg) {
             $msg['replies'] = $this->messageModel->getReplies($msg['id']);
-            // Filter replies to only show those relevant to this user
-            $msg['replies'] = array_filter($msg['replies'], function($reply) use ($userId) {
-                return $reply['to_user_id'] == $userId || $reply['to_user_id'] === null || $reply['from_user_id'] == $userId;
-            });
+            // Include all replies in the thread (they're part of the conversation)
             $msg['is_sent'] = false; // Mark as received
-            $organizedMessages[] = $msg;
+            $organizedReceived[] = $msg;
         }
         
-        // Get all replies for sent messages
-        foreach ($rootSentMessages as $msg) {
+        // Sort received messages by created_at DESC (most recent first)
+        usort($organizedReceived, function($a, $b) {
+            return strtotime($b['created_at']) - strtotime($a['created_at']);
+        });
+        
+        // Organize sent messages with replies
+        $organizedSent = [];
+        foreach ($sentMessages as $msg) {
             $msg['replies'] = $this->messageModel->getReplies($msg['id']);
-            // Filter replies to only show those sent by this user or received by this user
-            $msg['replies'] = array_filter($msg['replies'], function($reply) use ($userId) {
-                return $reply['from_user_id'] == $userId || $reply['to_user_id'] == $userId;
-            });
+            // Include all replies in the thread (they're part of the conversation)
             $msg['is_sent'] = true; // Mark as sent
-            $organizedMessages[] = $msg;
+            $organizedSent[] = $msg;
         }
         
-        // Sort all messages by created_at DESC (most recent first)
-        usort($organizedMessages, function($a, $b) {
+        // Sort sent messages by created_at DESC (most recent first)
+        usort($organizedSent, function($a, $b) {
             return strtotime($b['created_at']) - strtotime($a['created_at']);
         });
 
@@ -80,7 +82,8 @@ class MessageController extends Controller
             'viewName' => 'pages/messages/index.html.twig',
             'page' => ['titulo' => 'Mensagens'],
             'condominium' => $condominium,
-            'messages' => $organizedMessages,
+            'received_messages' => $organizedReceived,
+            'sent_messages' => $organizedSent,
             'current_user_id' => $userId,
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
@@ -316,23 +319,39 @@ class MessageController extends Controller
 
         $userId = AuthMiddleware::userId();
         
-        // Mark as read if user is recipient or if it's an announcement (to_user_id IS NULL)
-        $recipientId = $message['to_user_id'] ?? $message['recipient_id'] ?? null;
-        if (($recipientId == $userId || $recipientId === null) && !$message['is_read']) {
-            // For announcements, we need to track read status per user
-            // For now, we'll mark it as read in the main table (simple approach)
-            // In a production system, you'd want a message_reads table
-            $this->messageModel->markAsRead($id);
-        }
-
         // Get root message ID (if this is a reply, get the original)
         $rootMessageId = $this->messageModel->getRootMessageId($id);
         
-        // Get all replies for this thread
-        $replies = $this->messageModel->getReplies($rootMessageId);
-        
         // If this message is not the root, get the root message
         $rootMessage = ($rootMessageId == $id) ? $message : $this->messageModel->findById($rootMessageId);
+        
+        // Check if root message was unread before marking (to know if we should update counters)
+        $wasJustMarkedAsRead = false;
+        $recipientId = $rootMessage['to_user_id'] ?? $rootMessage['recipient_id'] ?? null;
+        if (($recipientId == $userId || $recipientId === null) && !$rootMessage['is_read']) {
+            // Mark as read if user is recipient or if it's an announcement (to_user_id IS NULL)
+            // For announcements, we need to track read status per user
+            // For now, we'll mark it as read in the main table (simple approach)
+            // In a production system, you'd want a message_reads table
+            $this->messageModel->markAsRead($rootMessageId);
+            $wasJustMarkedAsRead = true;
+            // Reload root message to get updated read status
+            $rootMessage = $this->messageModel->findById($rootMessageId);
+        }
+        
+        // Also mark the specific message being viewed as read if it's different from root
+        if ($id != $rootMessageId) {
+            $recipientId = $message['to_user_id'] ?? $message['recipient_id'] ?? null;
+            if (($recipientId == $userId || $recipientId === null) && !$message['is_read']) {
+                $this->messageModel->markAsRead($id);
+                if (!$wasJustMarkedAsRead) {
+                    $wasJustMarkedAsRead = true;
+                }
+            }
+        }
+        
+        // Get all replies for this thread
+        $replies = $this->messageModel->getReplies($rootMessageId);
         
         // Determine if we're viewing a specific reply or the root message
         $isViewingReply = ($rootMessageId != $id);
@@ -359,7 +378,7 @@ class MessageController extends Controller
         
         // Determine page title
         $pageTitle = $isViewingReply ? $viewingMessage['subject'] : $rootMessage['subject'];
-        
+
         $this->data += [
             'viewName' => 'pages/messages/show.html.twig',
             'page' => ['titulo' => $pageTitle],
@@ -371,6 +390,7 @@ class MessageController extends Controller
             'viewing_message_id' => $id, // ID of the message being viewed (could be root or reply)
             'is_viewing_reply' => $isViewingReply,
             'viewing_message' => $viewingMessage,
+            'was_just_marked_as_read' => $wasJustMarkedAsRead,
             'csrf_token' => Security::generateCSRFToken()
         ];
 
@@ -448,7 +468,7 @@ class MessageController extends Controller
                     \App\Middleware\RateLimitMiddleware::require('file_upload');
                 } catch (\Exception $e) {
                     $_SESSION['error'] = $e->getMessage();
-                    header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/messages/' . $viewingMessageId);
+                    header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/messages/' . $id);
                     exit;
                 }
                 

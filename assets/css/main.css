@@ -1705,13 +1705,13 @@ a:hover .card-hover .text-primary {
   }
 
   /* Ensure table columns are visible */
-  .main-content .table-responsive table {
+  .main-content .table-responsive table:not(.table-budget-mobile) {
     min-width: 800px;
   }
 
   /* Ensure actions column is visible */
-  .main-content .table-responsive table th:last-child,
-  .main-content .table-responsive table td:last-child {
+  .main-content .table-responsive table:not(.table-budget-mobile) th:last-child,
+  .main-content .table-responsive table:not(.table-budget-mobile) td:last-child {
     white-space: nowrap;
     min-width: 120px;
   }
@@ -1740,13 +1740,13 @@ a:hover .card-hover .text-primary {
   }
 
   /* Ensure tables have minimum width to show all columns */
-  .table-responsive table {
+  .table-responsive table:not(.table-budget-mobile) {
     min-width: 800px;
   }
 
   /* Ensure actions column is visible */
-  .table-responsive table th:last-child,
-  .table-responsive table td:last-child {
+  .table-responsive table:not(.table-budget-mobile) th:last-child,
+  .table-responsive table:not(.table-budget-mobile) td:last-child {
     white-space: nowrap;
     min-width: 120px;
   }
@@ -2836,14 +2836,14 @@ a:hover .card-hover .text-primary {
   }
 
   /* Ensure card-body contains tables properly */
-  .main-content .card-body:has(.table-responsive),
+  .main-content .card-body:has(.table-responsive:not(:has(.table-budget-mobile))),
   .main-content .card-body:has(.fees-map-table) {
     overflow-x: hidden; /* Prevent card-body from overflowing */
     overflow-y: hidden; /* Prevent vertical overflow */
   }
 
   /* Ensure card contains tables properly */
-  .main-content .card:has(.table-responsive),
+  .main-content .card:has(.table-responsive:not(:has(.table-budget-mobile))),
   .main-content .card:has(.fees-map-table) {
     overflow: hidden; /* Prevent card from overflowing */
     width: 100%;
@@ -2851,12 +2851,18 @@ a:hover .card-hover .text-primary {
   }
 
   /* Ensure card-body contains tables properly */
-  .main-content .card:has(.table-responsive) .card-body,
+  .main-content .card:has(.table-responsive:not(:has(.table-budget-mobile))) .card-body,
   .main-content .card:has(.fees-map-table) .card-body {
     overflow: hidden; /* Prevent card-body from overflowing */
     width: 100%;
     max-width: 100%;
     padding: 0 !important; /* Remove padding to allow table to use full width */
+  }
+
+  /* Exception: budget tables should have visible overflow */
+  .main-content .card-body:has(.table-budget-mobile),
+  .main-content .card:has(.table-budget-mobile) {
+    overflow: visible !important;
   }
 
   /* Ensure container doesn't cut off content */
@@ -2894,15 +2900,15 @@ a:hover .card-hover .text-primary {
   }
 
   /* Ensure table columns are visible, especially actions column */
-  .main-content .table-responsive table {
+  .main-content .table-responsive table:not(.table-budget-mobile) {
     min-width: 800px; /* Minimum width to show all columns including actions */
     width: 100%;
     margin-bottom: 0;
   }
 
   /* Ensure actions column is always visible */
-  .main-content .table-responsive table th:last-child,
-  .main-content .table-responsive table td:last-child {
+  .main-content .table-responsive table:not(.table-budget-mobile) th:last-child,
+  .main-content .table-responsive table:not(.table-budget-mobile) td:last-child {
     white-space: nowrap;
     min-width: 120px; /* Ensure actions column has enough space */
   }
@@ -3941,6 +3947,212 @@ a:hover .card-hover .text-primary {
     min-width: 40px;
     padding: 0.5rem 0.75rem;
   }
+
+  /* Budget tables mobile - simple layout without labels */
+  .table-budget-mobile {
+    width: 100%;
+    overflow: visible;
+    min-width: auto !important;
+    max-width: 100%;
+    table-layout: auto;
+  }
+
+  /* Ensure table-responsive doesn't cut off budget table values */
+  .table-responsive:has(.table-budget-mobile) {
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    width: 100%;
+  }
+
+  /* Ensure card-body doesn't cut off budget table values */
+  .card-body:has(.table-budget-mobile) {
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  /* Ensure card doesn't cut off budget table values */
+  .card:has(.table-budget-mobile) {
+    overflow: visible !important;
+  }
+
+  .table-budget-mobile thead {
+    display: none;
+  }
+
+  .table-budget-mobile tbody tr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+    gap: 0.75rem;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .table-budget-mobile tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .table-budget-mobile tbody td {
+    display: block;
+    padding: 0;
+    border: none;
+    box-sizing: border-box;
+  }
+
+  .table-budget-mobile tbody td:first-child {
+    text-align: left;
+    font-weight: normal;
+    flex: 1 1 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
+    padding-right: 0.5rem;
+  }
+
+  .table-budget-mobile tbody td:last-child {
+    text-align: right;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    min-width: fit-content;
+    max-width: none;
+  }
+
+  .table-budget-mobile tbody td::before {
+    display: none;
+  }
+
+  .table-budget-mobile tfoot {
+    display: table-row-group;
+    border-top: 2px solid var(--color-border);
+    margin-top: 0.5rem;
+  }
+
+  .table-budget-mobile tfoot tr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    margin-top: 0.5rem;
+    gap: 0.75rem;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .table-budget-mobile tfoot th {
+    display: block;
+    padding: 0;
+    border: none;
+    font-weight: var(--font-weight-bold);
+    box-sizing: border-box;
+  }
+
+  .table-budget-mobile tfoot th:first-child {
+    text-align: left;
+    flex: 1 1 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
+    padding-right: 0.5rem;
+  }
+
+  .table-budget-mobile tfoot th:last-child {
+    text-align: right;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    min-width: fit-content;
+    max-width: none;
+  }
+}
+
+/* Budget tables - all screen sizes - ensure values are visible */
+.table-budget-mobile {
+  width: 100%;
+  min-width: auto !important;
+  max-width: 100%;
+  table-layout: auto;
+}
+
+/* Override general table-responsive min-width rules for budget tables */
+.table-responsive:has(.table-budget-mobile),
+.table-responsive .table-budget-mobile {
+  min-width: auto !important;
+  width: 100%;
+}
+
+.table-responsive:has(.table-budget-mobile) {
+  overflow-x: visible !important;
+}
+
+/* Ensure budget table values are always visible on all screen sizes */
+.table-budget-mobile tbody td:last-child,
+.table-budget-mobile tfoot th:last-child {
+  white-space: nowrap;
+  min-width: fit-content;
+}
+
+.table-budget-mobile tbody td:first-child,
+.table-budget-mobile tfoot th:first-child {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Desktop and tablet: normal table layout */
+@media (min-width: 768px) {
+  .table-budget-mobile {
+    display: table;
+  }
+
+  .table-budget-mobile thead {
+    display: table-header-group;
+  }
+
+  .table-budget-mobile tbody {
+    display: table-row-group;
+  }
+
+  .table-budget-mobile tbody tr {
+    display: table-row;
+    padding: 0;
+    border-bottom: 1px solid var(--color-border);
+    gap: 0;
+  }
+
+  .table-budget-mobile tbody td {
+    display: table-cell;
+    padding: 0.75rem;
+    border: none;
+  }
+
+  .table-budget-mobile tbody td:first-child {
+    padding-right: 0.5rem;
+  }
+
+  .table-budget-mobile tfoot {
+    display: table-footer-group;
+    border-top: 2px solid var(--color-border);
+    margin-top: 0;
+  }
+
+  .table-budget-mobile tfoot tr {
+    display: table-row;
+    padding: 0;
+    margin-top: 0;
+    gap: 0;
+  }
+
+  .table-budget-mobile tfoot th {
+    display: table-cell;
+    padding: 0.75rem;
+    border: none;
+  }
+
+  .table-budget-mobile tfoot th:first-child {
+    padding-right: 0.5rem;
+  }
 }
 
 /* Fees page mobile optimization */
@@ -3971,7 +4183,7 @@ a:hover .card-hover .text-primary {
     -webkit-overflow-scrolling: touch;
   }
 
-  .table-responsive table {
+  .table-responsive table:not(.table-budget-mobile) {
     min-width: 600px;
   }
 
@@ -4017,7 +4229,7 @@ a:hover .card-hover .text-primary {
     -webkit-overflow-scrolling: touch;
   }
 
-  .table-responsive table {
+  .table-responsive table:not(.table-budget-mobile) {
     min-width: 700px;
   }
 
