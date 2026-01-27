@@ -2,6 +2,9 @@
     {% set page_actions %}
         {% if current_condominium_role == 'admin' or not current_condominium_role %}
         <div class="page-header-actions">
+            <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#createFolderModal">
+                <i class="bi bi-folder-plus"></i> Criar Pasta
+            </button>
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/manage-folders" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-folder"></i> Gerir Pastas
             </a>
@@ -48,10 +51,10 @@
                         <label for="folder" class="form-label">Pasta</label>
                         <select class="form-select" id="folder" name="folder">
                             <option value="">Todas</option>
-                            {% if folders %}
-                                {% for folder in folders %}
-                                <option value="{{ folder.folder }}" {% if current_folder == folder.folder %}selected{% endif %}>
-                                    {{ folder.folder }} ({{ folder.document_count }})
+                            {% if all_folders %}
+                                {% for folder in all_folders %}
+                                <option value="{{ folder.path }}" {% if current_folder == folder.path %}selected{% endif %}>
+                                    {{ folder.path }} ({{ folder.document_count|default(0) }})
                                 </option>
                                 {% endfor %}
                             {% endif %}
@@ -117,28 +120,258 @@
         </div>
     </div>
 
-    {% if folders %}
-    <div class="card shadow-sm mb-4">
-        <div class="card-header">
-            <h6 class="mb-0">Pastas Rápidas</h6>
+    <!-- Breadcrumb Navigation -->
+    {% if current_folder %}
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents">
+                    <i class="bi bi-house-door"></i> Documentos
+                </a>
+            </li>
+            {% set folderParts = current_folder|split('/') %}
+            {% for part in folderParts %}
+                {% if loop.last %}
+                <li class="breadcrumb-item active" aria-current="page">
+                    <i class="bi bi-folder-fill"></i> {{ part }}
+                </li>
+                {% else %}
+                {% set pathSoFar = folderParts|slice(0, loop.index)|join('/') %}
+                <li class="breadcrumb-item">
+                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents?folder={{ pathSoFar|url_encode }}">
+                        {{ part }}
+                    </a>
+                </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+    {% endif %}
+
+    <!-- Combined Folders and Documents View (show when not searching) -->
+    {% if not current_search %}
+    {% if folders or documents %}
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">
+                <i class="bi bi-folder"></i> 
+                {% if current_folder %}
+                    {{ current_folder }}
+                {% else %}
+                    Documentos
+                {% endif %}
+            </h6>
+            {% if documents %}
+            <span class="badge bg-primary">{{ documents|length }} documento{{ documents|length != 1 ? 's' : '' }}</span>
+            {% endif %}
         </div>
         <div class="card-body">
-            <div class="d-flex flex-wrap gap-2">
-                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents" class="btn btn-outline-secondary btn-sm">
-                    Todas
-                </a>
-                {% for folder in folders %}
-                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents?folder={{ folder.folder }}" class="btn btn-outline-primary btn-sm">
-                    {{ folder.folder }} ({{ folder.document_count }})
-                </a>
-                {% endfor %}
+            <!-- Folders Section -->
+            {% if folders %}
+            <div class="mb-4">
+                <h6 class="mb-3 text-muted">
+                    {% if current_folder %}
+                        Subpastas
+                    {% else %}
+                        Pastas
+                    {% endif %}
+                </h6>
+                <div class="row g-3">
+                    {% for folder in folders %}
+                    <div class="col-md-3 col-sm-4 col-6">
+                        <div class="card shadow-sm folder-card h-100 border" style="cursor: pointer; transition: all 0.2s;" 
+                             onclick="window.location.href='{{ BASE_URL }}condominiums/{{ condominium.id }}/documents?folder={{ folder.path|url_encode }}'"
+                             onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';"
+                             onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">
+                            <div class="card-body text-center p-3">
+                                <i class="bi bi-folder-fill text-warning" style="font-size: 3rem;"></i>
+                                <h6 class="mt-2 mb-1 text-truncate" title="{{ folder.path }}">
+                                    {{ folder.name }}
+                                </h6>
+                                <small class="text-muted">{{ folder.document_count|default(0) }} documento{{ folder.document_count|default(0) != 1 ? 's' : '' }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if current_condominium_role == 'admin' or not current_condominium_role %}
+                    <!-- Create Folder Icon -->
+                    <div class="col-md-3 col-sm-4 col-6">
+                        <div class="card shadow-sm border border-dashed h-100" style="cursor: pointer; transition: all 0.2s; border-color: #6c757d !important;" 
+                             data-bs-toggle="modal" data-bs-target="#createFolderModal"
+                             onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'; this.style.borderColor='#198754 !important';"
+                             onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)'; this.style.borderColor='#6c757d !important';">
+                            <div class="card-body text-center p-3 d-flex flex-column justify-content-center align-items-center" style="min-height: 140px;">
+                                <i class="bi bi-folder-plus text-success" style="font-size: 3rem;"></i>
+                                <h6 class="mt-2 mb-0 text-muted">Criar Pasta</h6>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
+            {% else %}
+            <!-- Show create folder icon even if no folders exist -->
+            {% if current_condominium_role == 'admin' or not current_condominium_role %}
+            <div class="mb-4">
+                <h6 class="mb-3 text-muted">Pastas</h6>
+                <div class="row g-3">
+                    <div class="col-md-3 col-sm-4 col-6">
+                        <div class="card shadow-sm border border-dashed h-100" style="cursor: pointer; transition: all 0.2s; border-color: #6c757d !important;" 
+                             data-bs-toggle="modal" data-bs-target="#createFolderModal"
+                             onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'; this.style.borderColor='#198754 !important';"
+                             onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)'; this.style.borderColor='#6c757d !important';">
+                            <div class="card-body text-center p-3 d-flex flex-column justify-content-center align-items-center" style="min-height: 140px;">
+                                <i class="bi bi-folder-plus text-success" style="font-size: 3rem;"></i>
+                                <h6 class="mt-2 mb-0 text-muted">Criar Pasta</h6>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <!-- Documents Section -->
+            {% if documents %}
+            <div>
+                {% if folders %}
+                <h6 class="mb-3 text-muted mt-4">Documentos</h6>
+                {% endif %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                {% if not current_folder %}
+                                <th>Pasta</th>
+                                {% endif %}
+                                <th>Tipo</th>
+                                <th>Tamanho</th>
+                                <th>Upload por</th>
+                                <th>Data</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for document in documents %}
+                            <tr>
+                                <td>
+                                    <strong>{{ document.title }}</strong>
+                                    {% if document.description %}
+                                        <br><small class="text-muted">{{ document.description }}</small>
+                                    {% endif %}
+                                </td>
+                                {% if not current_folder %}
+                                <td>
+                                    {% if document.folder %}
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents?folder={{ document.folder|url_encode }}" class="text-decoration-none">
+                                            <i class="bi bi-folder"></i> {{ document.folder }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                {% endif %}
+                                <td><span class="badge bg-secondary">{{ document.document_type|default('Documento') }}</span></td>
+                                <td>
+                                    {% if document.file_size %}
+                                        {{ (document.file_size / 1024)|round(2) }} KB
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>{{ document.uploaded_by_name|default('N/A') }}</td>
+                                <td>{{ document.created_at|date('d/m/Y') }}</td>
+                                <td>
+                                    <div class="d-flex gap-1">
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/view" class="btn btn-outline-info btn-sm" title="Visualizar">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/download" class="btn btn-outline-primary btn-sm" title="Download">
+                                            <i class="bi bi-download"></i>
+                                        </a>
+                                        {% if current_condominium_role == 'admin' or not current_condominium_role %}
+                                        <button type="button" class="btn btn-outline-warning btn-sm" title="Mover" data-bs-toggle="modal" data-bs-target="#moveModal{{ document.id }}">
+                                            <i class="bi bi-folder-symlink"></i>
+                                        </button>
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/edit" class="btn btn-outline-secondary btn-sm" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover este documento?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">
+                <i class="bi bi-folder"></i> 
+                {% if current_folder %}
+                    {{ current_folder }}
+                {% else %}
+                    Documentos
+                {% endif %}
+            </h6>
+        </div>
+        <div class="card-body text-center py-5">
+            <i class="bi bi-folder display-1 text-muted"></i>
+            <h4 class="mt-3">
+                {% if current_folder %}
+                    Nenhum documento nesta pasta
+                {% elseif folders|length == 0 %}
+                    Nenhuma pasta ou documento encontrado
+                {% else %}
+                    Nenhum documento na raiz
+                {% endif %}
+            </h4>
+            <p class="text-muted">
+                {% if current_search or current_document_type or current_visibility %}
+                    Nenhum documento corresponde aos filtros aplicados. Tente ajustar os filtros ou 
+                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents{% if current_folder %}?folder={{ current_folder|url_encode }}{% endif %}">limpar os filtros</a>.
+                {% elseif current_folder %}
+                    Esta pasta está vazia.
+                {% elseif folders|length == 0 %}
+                    Comece criando uma pasta ou fazendo upload do primeiro documento.
+                {% else %}
+                    Não há documentos na raiz. Abra uma pasta acima ou faça upload de um documento.
+                {% endif %}
+            </p>
+            {% if current_condominium_role == 'admin' or not current_condominium_role %}
+                {% if not (current_search or current_document_type or current_visibility) %}
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/create" class="btn btn-primary">
+                    <i class="bi bi-upload"></i> Upload Documento
+                </a>
+                {% endif %}
+            {% endif %}
         </div>
     </div>
     {% endif %}
+    {% endif %}
 
+    <!-- Search Results (show when searching) -->
+    {% if current_search %}
     {% if documents %}
     <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">
+                <i class="bi bi-search"></i> Resultados da Busca: "{{ current_search }}"
+            </h6>
+            <span class="badge bg-primary">{{ documents|length }} documento{{ documents|length != 1 ? 's' : '' }}</span>
+        </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-hover">
@@ -162,7 +395,15 @@
                                     <br><small class="text-muted">{{ document.description }}</small>
                                 {% endif %}
                             </td>
-                            <td>{{ document.folder|default('-') }}</td>
+                            <td>
+                                {% if document.folder %}
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents?folder={{ document.folder|url_encode }}" class="text-decoration-none">
+                                        <i class="bi bi-folder"></i> {{ document.folder }}
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
                             <td><span class="badge bg-secondary">{{ document.document_type|default('Documento') }}</span></td>
                             <td>
                                 {% if document.file_size %}
@@ -182,6 +423,9 @@
                                         <i class="bi bi-download"></i>
                                     </a>
                                     {% if current_condominium_role == 'admin' or not current_condominium_role %}
+                                    <button type="button" class="btn btn-outline-warning btn-sm" title="Mover" data-bs-toggle="modal" data-bs-target="#moveModal{{ document.id }}">
+                                        <i class="bi bi-folder-symlink"></i>
+                                    </button>
                                     <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/edit" class="btn btn-outline-secondary btn-sm" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </a>
@@ -202,25 +446,17 @@
         </div>
     </div>
     {% else %}
-    <div class="card shadow">
+    <div class="card shadow-sm">
         <div class="card-body text-center py-5">
-            <i class="bi bi-folder display-1 text-muted"></i>
-            <h4 class="mt-3">Nenhum documento encontrado</h4>
-            <p class="text-muted">
-                {% if current_search or current_folder or current_document_type or current_visibility %}
-                    Nenhum documento corresponde aos filtros aplicados. Tente ajustar os filtros ou 
-                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents">limpar os filtros</a>.
-                {% else %}
-                    Comece fazendo upload do primeiro documento
-                {% endif %}
-            </p>
-            {% if not (current_search or current_folder or current_document_type or current_visibility) %}
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/create" class="btn btn-primary">
-                <i class="bi bi-upload"></i> Upload Documento
+            <i class="bi bi-search display-1 text-muted"></i>
+            <h4 class="mt-3">Nenhum resultado encontrado</h4>
+            <p class="text-muted">Não foram encontrados documentos correspondentes à busca "{{ current_search }}".</p>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents" class="btn btn-primary">
+                <i class="bi bi-arrow-left"></i> Voltar aos Documentos
             </a>
-            {% endif %}
         </div>
     </div>
+    {% endif %}
     {% endif %}
 
     <div class="mt-3">
@@ -229,6 +465,143 @@
         </a>
     </div>
 </div>
+
+<!-- Create Folder Modal -->
+{% if current_condominium_role == 'admin' or not current_condominium_role %}
+<div class="modal fade" id="createFolderModal" tabindex="-1" aria-labelledby="createFolderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/folders/create">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="from_index" value="1">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createFolderModalLabel">
+                        <i class="bi bi-folder-plus"></i> Criar Nova Pasta
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="create_parent_folder" class="form-label">Criar em:</label>
+                        <select class="form-select" id="create_parent_folder" name="parent_folder">
+                            {% if current_folder %}
+                            <option value="{{ current_folder }}" selected>Pasta atual: {{ current_folder }}</option>
+                            <option value="">Raiz (Documentos)</option>
+                            {% else %}
+                            <option value="" selected>Raiz (Documentos)</option>
+                            {% endif %}
+                            {% if all_folders %}
+                                {% for folder in all_folders %}
+                                    {% if not current_folder or folder.folder != current_folder %}
+                                    <option value="{{ folder.folder }}">{{ folder.folder }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                        <small class="form-text text-muted">Selecione onde criar a nova pasta.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="create_folder_name" class="form-label">Nome da Pasta</label>
+                        <input type="text" class="form-control" id="create_folder_name" name="folder_name" required placeholder="Ex: Assembleias, Contratos, Finanças">
+                        <small class="form-text text-muted">Não use os caracteres: &lt; &gt; : " | ? * \</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-folder-plus"></i> Criar Pasta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Move Document Modals -->
+{% if current_condominium_role == 'admin' or not current_condominium_role %}
+{% for document in documents %}
+<div class="modal fade" id="moveModal{{ document.id }}" tabindex="-1" aria-labelledby="moveModalLabel{{ document.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="moveModalLabel{{ document.id }}">Mover Documento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="moveForm{{ document.id }}" onsubmit="moveDocument(event, {{ document.id }}, {{ condominium.id }}); return false;">
+                <div class="modal-body">
+                    <p><strong>{{ document.title }}</strong></p>
+                    <div class="mb-3">
+                        <label for="target_folder{{ document.id }}" class="form-label">Mover para pasta:</label>
+                        <select class="form-select" id="target_folder{{ document.id }}" name="target_folder" required>
+                            <option value="">Raiz (sem pasta)</option>
+                            {% if all_folders %}
+                                {% for folder in all_folders %}
+                                <option value="{{ folder.path }}" {% if document.folder == folder.path %}selected{% endif %}>
+                                    {{ folder.path }}
+                                </option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-folder-symlink"></i> Mover
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<script>
+function moveDocument(event, documentId, condominiumId) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    formData.append('csrf_token', '{{ csrf_token }}');
+    
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> A mover...';
+    
+    fetch('{{ BASE_URL }}condominiums/' + condominiumId + '/documents/' + documentId + '/move', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('moveModal' + documentId));
+            modal.hide();
+            
+            // Reload page after short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
+        } else {
+            alert('Erro: ' + (data.error || 'Erro ao mover documento'));
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Erro ao mover documento. Por favor, tente novamente.');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    });
+}
+</script>
 
 
 

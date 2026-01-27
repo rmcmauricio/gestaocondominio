@@ -222,11 +222,15 @@ $router->post('/condominiums/{condominium_id}/documents/{id}/update', 'App\Contr
 $router->get('/condominiums/{condominium_id}/documents/{id}/versions', 'App\Controllers\DocumentController@versions');
 $router->get('/condominiums/{condominium_id}/documents/{id}/upload-version', 'App\Controllers\DocumentController@uploadVersion');
 $router->get('/condominiums/{condominium_id}/documents/{id}/download', 'App\Controllers\DocumentController@download');
-$router->post('/condominiums/{condominium_id}/documents/{id}/delete', 'App\Controllers\DocumentController@delete');
+// Folder routes (must come before generic {id} routes to avoid conflicts)
 $router->get('/condominiums/{condominium_id}/documents/manage-folders', 'App\Controllers\DocumentController@manageFolders');
 $router->post('/condominiums/{condominium_id}/documents/folders/create', 'App\Controllers\DocumentController@createFolder');
 $router->post('/condominiums/{condominium_id}/documents/folders/rename', 'App\Controllers\DocumentController@renameFolder');
 $router->post('/condominiums/{condominium_id}/documents/folders/delete', 'App\Controllers\DocumentController@deleteFolder');
+
+// Document routes
+$router->post('/condominiums/{condominium_id}/documents/{id}/delete', 'App\Controllers\DocumentController@delete');
+$router->post('/condominiums/{condominium_id}/documents/{id}/move', 'App\Controllers\DocumentController@moveDocument');
 
 // Occurrence routes
 $router->get('/condominiums/{condominium_id}/occurrences', 'App\Controllers\OccurrenceController@index');

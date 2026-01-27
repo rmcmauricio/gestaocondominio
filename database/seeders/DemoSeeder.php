@@ -247,17 +247,17 @@ class DemoSeeder
 
         // Try to find demo plan first (limit 2, inactive), then condominio plan
         $planModel = new Plan();
-        
+
         // First, try to find demo plan (slug = 'demo' or limit_condominios = 2 and is_active = false)
         $demoPlanStmt = $this->db->prepare("
-            SELECT * FROM plans 
+            SELECT * FROM plans
             WHERE (slug = 'demo' OR (limit_condominios = 2 AND is_active = FALSE))
-            ORDER BY id ASC 
+            ORDER BY id ASC
             LIMIT 1
         ");
         $demoPlanStmt->execute();
         $demoPlan = $demoPlanStmt->fetch();
-        
+
         $targetPlan = null;
         if ($demoPlan) {
             $targetPlan = $demoPlan;
@@ -265,14 +265,14 @@ class DemoSeeder
         } else {
             // Try to find condominio plan (can use with override for demo)
             $condominioPlanStmt = $this->db->prepare("
-                SELECT * FROM plans 
-                WHERE plan_type = 'condominio' 
-                ORDER BY id ASC 
+                SELECT * FROM plans
+                WHERE plan_type = 'condominio'
+                ORDER BY id ASC
                 LIMIT 1
             ");
             $condominioPlanStmt->execute();
             $condominioPlan = $condominioPlanStmt->fetch();
-            
+
             if ($condominioPlan) {
                 $targetPlan = $condominioPlan;
                 echo "   Plano Condomínio encontrado (ID: {$targetPlan['id']}) - override para demo permitirá 2 condomínios\n";
@@ -325,10 +325,10 @@ class DemoSeeder
 
         // If trial expired, update to active with demo plan
         $allSubscriptionsStmt = $this->db->prepare("
-            SELECT * FROM subscriptions 
-            WHERE user_id = :user_id 
+            SELECT * FROM subscriptions
+            WHERE user_id = :user_id
             AND status = 'trial'
-            ORDER BY id DESC 
+            ORDER BY id DESC
             LIMIT 1
         ");
         $allSubscriptionsStmt->execute([':user_id' => $this->demoUserId]);
@@ -399,7 +399,7 @@ class DemoSeeder
                 'nif' => '500000001',
                 'total_fractions' => 8,
                 'logo_path' => 'assets/images/77106082_modern-apartment-building_400x600.jpg',
-                'document_template' => 3 // Dark mode template (Elegante)
+                'document_template' => 11
             ]
         ];
 

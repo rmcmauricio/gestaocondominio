@@ -26,8 +26,12 @@ class Document extends Model
         $params = [':condominium_id' => $condominiumId];
 
         if (isset($filters['folder'])) {
-            $sql .= " AND d.folder = :folder";
-            $params[':folder'] = $filters['folder'];
+            if ($filters['folder'] === null) {
+                $sql .= " AND d.folder IS NULL";
+            } else {
+                $sql .= " AND d.folder = :folder";
+                $params[':folder'] = $filters['folder'];
+            }
         }
 
         if (isset($filters['document_type'])) {
@@ -105,8 +109,57 @@ class Document extends Model
 
     /**
      * Get folders for condominium
+     * @param int $condominiumId
+     * @param string|null $parentFolder If null, returns root folders only. If 'all', returns all folders.
      */
-    public function getFolders(int $condominiumId): array
+    public function getFolders(int $condominiumId, ?string $parentFolder = null): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $sql = "
+            SELECT DISTINCT folder, 
+                   SUM(CASE WHEN (document_type != 'folder_placeholder' OR document_type IS NULL) 
+                             AND title != '.folder_placeholder' 
+                        THEN 1 ELSE 0 END) as document_count
+            FROM documents
+            WHERE condominium_id = :condominium_id 
+            AND folder IS NOT NULL
+        ";
+
+        $params = [':condominium_id' => $condominiumId];
+
+        if ($parentFolder === null) {
+            // Get root folders (no subfolder)
+            $sql .= " AND folder NOT LIKE '%/%'";
+        } elseif ($parentFolder === 'all') {
+            // Get all folders (for dropdowns)
+            // No additional condition
+        } else {
+            // Get direct subfolders of parent folder (only immediate children, not grandchildren)
+            // Example: if parent is "Pasta1", get "Pasta1/Sub1" but not "Pasta1/Sub1/Sub2"
+            $parentPattern = $parentFolder . '/%';
+            $parentPatternDeep = $parentFolder . '/%/%';
+            $sql .= " AND folder LIKE :parent_pattern 
+                      AND folder != :parent_folder
+                      AND folder NOT LIKE :parent_pattern_deep";
+            $params[':parent_pattern'] = $parentPattern;
+            $params[':parent_folder'] = $parentFolder;
+            $params[':parent_pattern_deep'] = $parentPatternDeep;
+        }
+
+        $sql .= " GROUP BY folder ORDER BY folder ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll() ?: [];
+    }
+
+    /**
+     * Get all folders organized hierarchically
+     */
+    public function getFoldersHierarchical(int $condominiumId): array
     {
         if (!$this->db) {
             return [];
@@ -121,7 +174,59 @@ class Document extends Model
         ");
 
         $stmt->execute([':condominium_id' => $condominiumId]);
-        return $stmt->fetchAll() ?: [];
+        $allFolders = $stmt->fetchAll() ?: [];
+
+        // Organize hierarchically
+        $hierarchical = [];
+        foreach ($allFolders as $folder) {
+            $parts = explode('/', $folder['folder']);
+            $current = &$hierarchical;
+            
+            foreach ($parts as $index => $part) {
+                $path = implode('/', array_slice($parts, 0, $index + 1));
+                
+                if (!isset($current[$path])) {
+                    $current[$path] = [
+                        'folder' => $path,
+                        'name' => $part,
+                        'level' => $index,
+                        'document_count' => 0,
+                        'children' => []
+                    ];
+                }
+                
+                // If this is the final part, set document count
+                if ($index === count($parts) - 1) {
+                    $current[$path]['document_count'] = $folder['document_count'];
+                }
+                
+                $current = &$current[$path]['children'];
+            }
+        }
+
+        return $hierarchical;
+    }
+
+    /**
+     * Get parent folder path
+     */
+    public function getParentFolder(string $folderPath): ?string
+    {
+        $parts = explode('/', $folderPath);
+        if (count($parts) <= 1) {
+            return null;
+        }
+        array_pop($parts);
+        return implode('/', $parts);
+    }
+
+    /**
+     * Get folder name (last part of path)
+     */
+    public function getFolderName(string $folderPath): string
+    {
+        $parts = explode('/', $folderPath);
+        return end($parts);
     }
 
     /**
@@ -376,8 +481,12 @@ class Document extends Model
         ];
 
         if (isset($filters['folder'])) {
-            $sql .= " AND d.folder = :folder";
-            $params[':folder'] = $filters['folder'];
+            if ($filters['folder'] === null) {
+                $sql .= " AND d.folder IS NULL";
+            } else {
+                $sql .= " AND d.folder = :folder";
+                $params[':folder'] = $filters['folder'];
+            }
         }
 
         if (isset($filters['document_type'])) {

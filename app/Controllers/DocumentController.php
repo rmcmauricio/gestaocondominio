@@ -7,12 +7,14 @@ use App\Core\Security;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Models\Document;
+use App\Models\Folder;
 use App\Models\Condominium;
 use App\Services\FileStorageService;
 
 class DocumentController extends Controller
 {
     protected $documentModel;
+    protected $folderModel;
     protected $condominiumModel;
     protected $fileStorageService;
 
@@ -20,6 +22,7 @@ class DocumentController extends Controller
     {
         parent::__construct();
         $this->documentModel = new Document();
+        $this->folderModel = new Folder();
         $this->condominiumModel = new Condominium();
         $this->fileStorageService = new FileStorageService();
     }
@@ -57,12 +60,41 @@ class DocumentController extends Controller
 
         // Search or filter documents
         if (!empty($searchQuery)) {
+            // When searching, show all results regardless of folder structure
             $documents = $this->documentModel->search($condominiumId, $searchQuery, $filters);
+            $documentsWithoutFolder = [];
         } else {
-            $documents = $this->documentModel->getByCondominium($condominiumId, $filters);
+            // If folder is selected, show only documents in that folder
+            if ($folder) {
+                $documents = $this->documentModel->getByCondominium($condominiumId, $filters);
+                $documentsWithoutFolder = [];
+            } else {
+                // Show only documents without folder (root level)
+                $filtersNoFolder = $filters;
+                $filtersNoFolder['folder'] = null;
+                $documents = $this->documentModel->getByCondominium($condominiumId, $filtersNoFolder);
+                $documentsWithoutFolder = $documents;
+            }
         }
+        
 
-        $folders = $this->documentModel->getFolders($condominiumId);
+        // Get folders - if folder is selected, get subfolders; otherwise get root folders
+        $currentFolderId = null;
+        if ($folder) {
+            // Find folder by path
+            $currentFolder = $this->folderModel->findByPath($condominiumId, $folder);
+            if ($currentFolder) {
+                $currentFolderId = $currentFolder['id'];
+                $folders = $this->folderModel->getByCondominium($condominiumId, $currentFolderId);
+            } else {
+                $folders = [];
+            }
+        } else {
+            // Get root folders only (no subfolders)
+            $folders = $this->folderModel->getByCondominium($condominiumId, null);
+        }
+        // Get all folders for dropdowns
+        $allFolders = $this->folderModel->getAllByCondominium($condominiumId);
 
         // Get unique document types for filter
         $documentTypes = $this->documentModel->getDocumentTypes($condominiumId);
@@ -74,7 +106,9 @@ class DocumentController extends Controller
             'page' => ['titulo' => 'Documentos'],
             'condominium' => $condominium,
             'documents' => $documents,
+            'documents_without_folder' => $documentsWithoutFolder ?? [],
             'folders' => $folders,
+            'all_folders' => $allFolders,
             'document_types' => $documentTypes,
             'current_folder' => $folder,
             'current_document_type' => $documentType,
@@ -484,7 +518,23 @@ class DocumentController extends Controller
             exit;
         }
 
-        $folders = $this->documentModel->getFolders($condominiumId);
+        // Get current folder from query string
+        $currentFolderPath = $_GET['folder'] ?? null;
+        $currentFolderId = null;
+        
+        // Get folders - if folder is selected, get subfolders; otherwise get root folders
+        if ($currentFolderPath) {
+            $currentFolder = $this->folderModel->findByPath($condominiumId, $currentFolderPath);
+            if ($currentFolder) {
+                $currentFolderId = $currentFolder['id'];
+                $folders = $this->folderModel->getByCondominium($condominiumId, $currentFolderId);
+            } else {
+                $folders = [];
+            }
+        } else {
+            $folders = $this->folderModel->getByCondominium($condominiumId, null);
+        }
+        $allFolders = $this->folderModel->getAllByCondominium($condominiumId);
 
         $this->loadPageTranslations('documents');
         
@@ -493,6 +543,8 @@ class DocumentController extends Controller
             'page' => ['titulo' => 'Gerir Pastas'],
             'condominium' => $condominium,
             'folders' => $folders,
+            'all_folders' => $allFolders,
+            'current_folder' => $currentFolderPath,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
@@ -523,6 +575,7 @@ class DocumentController extends Controller
         }
 
         $folderName = trim(Security::sanitize($_POST['folder_name'] ?? ''));
+        $parentFolder = trim(Security::sanitize($_POST['parent_folder'] ?? ''));
         
         if (empty($folderName)) {
             $_SESSION['error'] = 'Nome da pasta é obrigatório.';
@@ -530,18 +583,73 @@ class DocumentController extends Controller
             exit;
         }
 
-        // Check if folder already exists
-        $folders = $this->documentModel->getFolders($condominiumId);
-        foreach ($folders as $folder) {
-            if (strtolower($folder['folder']) === strtolower($folderName)) {
-                $_SESSION['error'] = 'Uma pasta com este nome já existe.';
-                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders');
+        // Validate folder name (no special characters except /)
+        if (preg_match('/[<>:"|?*\\\\]/', $folderName)) {
+            $_SESSION['error'] = 'Nome da pasta contém caracteres inválidos.';
+            $redirectUrl = !empty($_POST['from_index']) ? BASE_URL . 'condominiums/' . $condominiumId . '/documents' : BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders';
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+
+        // Get parent folder ID if specified
+        $parentFolderId = null;
+        $fullFolderPath = $folderName;
+        
+        if (!empty($parentFolder)) {
+            // Find parent folder by path
+            $parentFolderObj = $this->folderModel->findByPath($condominiumId, $parentFolder);
+            if ($parentFolderObj) {
+                $parentFolderId = $parentFolderObj['id'];
+                $fullFolderPath = $parentFolder . '/' . $folderName;
+            } else {
+                // Parent folder doesn't exist, create it first
+                $_SESSION['error'] = 'Pasta pai não encontrada.';
+                $redirectUrl = !empty($_POST['from_index']) ? BASE_URL . 'condominiums/' . $condominiumId . '/documents' : BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders';
+                header('Location: ' . $redirectUrl);
                 exit;
             }
         }
 
-        $_SESSION['success'] = 'Pasta criada com sucesso! Agora pode fazer upload de documentos para esta pasta.';
-        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders');
+        // Check if folder already exists
+        $existingFolder = $this->folderModel->findByPath($condominiumId, $fullFolderPath);
+        if ($existingFolder) {
+            $_SESSION['error'] = 'Uma pasta com este nome já existe nesta localização.';
+            $redirectUrl = !empty($_POST['from_index']) ? BASE_URL . 'condominiums/' . $condominiumId . '/documents' : BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders';
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+
+        // Create folder in folders table
+        $userId = AuthMiddleware::userId();
+        try {
+            $folderId = $this->folderModel->create([
+                'condominium_id' => $condominiumId,
+                'name' => $folderName,
+                'parent_folder_id' => $parentFolderId,
+                'path' => $fullFolderPath,
+                'created_by' => $userId
+            ]);
+            
+            $_SESSION['success'] = 'Pasta criada com sucesso! Agora pode fazer upload de documentos para esta pasta.';
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao criar pasta: ' . $e->getMessage();
+        }
+        
+        // Redirect based on where the request came from
+        if (!empty($_POST['from_index'])) {
+            // If created from index page, redirect back to index (optionally with folder)
+            $redirectUrl = BASE_URL . 'condominiums/' . $condominiumId . '/documents';
+            if (!empty($parentFolder)) {
+                $redirectUrl .= '?folder=' . urlencode($parentFolder);
+            }
+            header('Location: ' . $redirectUrl);
+        } else {
+            $redirectUrl = BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders';
+            if (!empty($parentFolder)) {
+                $redirectUrl .= '?folder=' . urlencode($parentFolder);
+            }
+            header('Location: ' . $redirectUrl);
+        }
         exit;
     }
 
@@ -562,39 +670,68 @@ class DocumentController extends Controller
             exit;
         }
 
-        $oldFolderName = trim(Security::sanitize($_POST['old_folder_name'] ?? ''));
+        $oldFolderPath = trim(Security::sanitize($_POST['old_folder_name'] ?? ''));
         $newFolderName = trim(Security::sanitize($_POST['new_folder_name'] ?? ''));
         
-        if (empty($oldFolderName) || empty($newFolderName)) {
+        if (empty($oldFolderPath) || empty($newFolderName)) {
             $_SESSION['error'] = 'Nome da pasta é obrigatório.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders');
             exit;
         }
 
-        if ($oldFolderName === $newFolderName) {
+        // Find folder by path
+        $folder = $this->folderModel->findByPath($condominiumId, $oldFolderPath);
+        if (!$folder) {
+            $_SESSION['error'] = 'Pasta não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders');
+            exit;
+        }
+
+        // Get parent folder path
+        $oldParts = explode('/', $oldFolderPath);
+        $parentPath = count($oldParts) > 1 ? implode('/', array_slice($oldParts, 0, -1)) : '';
+        
+        // Build new full path
+        $newFullPath = $newFolderName;
+        if (!empty($parentPath)) {
+            $newFullPath = $parentPath . '/' . $newFolderName;
+        }
+
+        if ($oldFolderPath === $newFullPath) {
             $_SESSION['error'] = 'O novo nome deve ser diferente do nome atual.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders');
             exit;
         }
 
-        // Check if new folder name already exists
-        $folders = $this->documentModel->getFolders($condominiumId);
-        foreach ($folders as $folder) {
-            if (strtolower($folder['folder']) === strtolower($newFolderName)) {
-                $_SESSION['error'] = 'Uma pasta com este nome já existe.';
-                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders');
-                exit;
-            }
+        // Validate folder name (no special characters except /)
+        if (preg_match('/[<>:"|?*\\\\]/', $newFolderName)) {
+            $_SESSION['error'] = 'Nome da pasta contém caracteres inválidos.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders');
+            exit;
         }
 
-        // Rename folder by updating all documents
-        if ($this->documentModel->renameFolder($condominiumId, $oldFolderName, $newFolderName)) {
+        // Check if new folder name already exists in the same parent folder
+        $existingFolder = $this->folderModel->findByPath($condominiumId, $newFullPath);
+        if ($existingFolder) {
+            $_SESSION['error'] = 'Uma pasta com este nome já existe nesta localização.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders');
+            exit;
+        }
+
+        // Rename folder using Folder model
+        if ($this->folderModel->rename($folder['id'], $newFolderName, $newFullPath)) {
             $_SESSION['success'] = 'Pasta renomeada com sucesso!';
+            
+            // Redirect back to same folder if we were inside one
+            $redirectUrl = BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders';
+            if (!empty($parentPath)) {
+                $redirectUrl .= '?folder=' . urlencode($parentPath);
+            }
+            header('Location: ' . $redirectUrl);
         } else {
             $_SESSION['error'] = 'Erro ao renomear pasta.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders');
         }
-
-        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders');
         exit;
     }
 
@@ -616,22 +753,38 @@ class DocumentController extends Controller
             exit;
         }
 
-        $folderName = trim(Security::sanitize($_POST['folder_name'] ?? ''));
+        $folderPath = trim(Security::sanitize($_POST['folder_name'] ?? ''));
         
-        if (empty($folderName)) {
+        if (empty($folderPath)) {
             $_SESSION['error'] = 'Nome da pasta é obrigatório.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders');
             exit;
         }
 
-        // Move documents to root (set folder to NULL)
-        if ($this->documentModel->deleteFolder($condominiumId, $folderName)) {
+        // Find folder by path
+        $folder = $this->folderModel->findByPath($condominiumId, $folderPath);
+        if (!$folder) {
+            $_SESSION['error'] = 'Pasta não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders');
+            exit;
+        }
+
+        // Get parent folder path for redirect
+        $parts = explode('/', $folderPath);
+        $parentPath = count($parts) > 1 ? implode('/', array_slice($parts, 0, -1)) : null;
+
+        // Delete folder using Folder model (moves documents to root)
+        if ($this->folderModel->delete($folder['id'])) {
             $_SESSION['success'] = 'Pasta eliminada com sucesso! Os documentos foram movidos para a pasta raiz.';
         } else {
             $_SESSION['error'] = 'Erro ao eliminar pasta.';
         }
 
-        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders');
+        $redirectUrl = BASE_URL . 'condominiums/' . $condominiumId . '/documents/manage-folders';
+        if ($parentPath) {
+            $redirectUrl .= '?folder=' . urlencode($parentPath);
+        }
+        header('Location: ' . $redirectUrl);
         exit;
     }
 
@@ -661,6 +814,37 @@ class DocumentController extends Controller
 
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents');
         exit;
+    }
+
+    public function moveDocument(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->jsonError('Método não permitido', 405);
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $this->jsonError('Token de segurança inválido', 403);
+        }
+
+        $document = $this->documentModel->findById($id);
+        if (!$document || $document['condominium_id'] != $condominiumId) {
+            $this->jsonError('Documento não encontrado', 404);
+        }
+
+        $targetFolder = trim($_POST['target_folder'] ?? '');
+        // Empty string means move to root (null)
+        $targetFolder = $targetFolder === '' ? null : $targetFolder;
+
+        if ($this->documentModel->moveToFolder($id, $targetFolder)) {
+            $this->jsonSuccess(['message' => 'Documento movido com sucesso']);
+        } else {
+            $this->jsonError('Erro ao mover documento', 500);
+        }
     }
 }
 
