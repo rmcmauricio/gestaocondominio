@@ -1,12 +1,10 @@
 <div class="container py-4">
     {% set page_actions %}
-        {% if current_condominium_role == 'admin' or not current_condominium_role %}
         <div class="page-header-actions">
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences/create" class="btn btn-primary btn-sm">
                 <i class="bi bi-plus-circle"></i> Nova Ocorrência
             </a>
         </div>
-        {% endif %}
     {% endset %}
     {% include 'blocks/page-header.html.twig' with {
         'title': 'Ocorrências',
@@ -233,11 +231,9 @@
                 {% endif %}
             </p>
             {% if not (current_search or current_status or current_priority or current_category) %}
-            {% if current_condominium_role == 'admin' or not current_condominium_role %}
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences/create" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> Reportar Ocorrência
             </a>
-            {% endif %}
             {% endif %}
         </div>
     </div>
