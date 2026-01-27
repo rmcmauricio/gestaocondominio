@@ -250,15 +250,37 @@ class ReservationController extends Controller
             exit;
         }
 
+        // Get space to check if it's blocked and calculate price
+        $space = $this->spaceModel->findById($spaceId);
+        
+        if (!$space || $space['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Espaço não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/reservations/create');
+            exit;
+        }
+
+        // Check if space is blocked
+        if ($this->spaceModel->isBlocked($spaceId)) {
+            $blockReason = !empty($space['block_reason']) ? ': ' . $space['block_reason'] : '';
+            $blockedUntil = !empty($space['blocked_until']) ? ' até ' . date('d/m/Y H:i', strtotime($space['blocked_until'])) : '';
+            $_SESSION['error'] = 'Este espaço está bloqueado' . $blockedUntil . $blockReason . '.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/reservations/create');
+            exit;
+        }
+
+        // Check if space is active
+        if (!$space['is_active']) {
+            $_SESSION['error'] = 'Este espaço está inativo e não pode ser reservado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/reservations/create');
+            exit;
+        }
+
         // Check availability - verify no overlapping reservations
         if (!$this->reservationModel->isSpaceAvailable($spaceId, $startDate, $endDate)) {
             $_SESSION['error'] = 'Espaço não disponível no período selecionado. Já existe uma reserva aprovada ou pendente que conflita com este horário.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/reservations/create');
             exit;
         }
-
-        // Get space to calculate price
-        $space = $this->spaceModel->findById($spaceId);
         $price = 0;
         $deposit = $space['deposit_required'] ?? 0;
 

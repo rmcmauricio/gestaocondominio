@@ -228,14 +228,25 @@
                                             return;
                                         }
                                         
-                                        var json = JSON.parse(xhr.responseText);
-                                        
-                                        if (!json || typeof json.location != 'string') {
-                                            reject('Invalid JSON: ' + xhr.responseText);
-                                            return;
+                                        try {
+                                            var json = JSON.parse(xhr.responseText);
+                                            
+                                            // Check for success response with data.location (our standard format)
+                                            if (json && json.success && json.data && typeof json.data.location === 'string') {
+                                                resolve(json.data.location);
+                                                return;
+                                            }
+                                            
+                                            // Fallback: check for direct location property (for compatibility)
+                                            if (json && typeof json.location === 'string') {
+                                                resolve(json.location);
+                                                return;
+                                            }
+                                            
+                                            reject('Invalid JSON response: ' + xhr.responseText);
+                                        } catch (e) {
+                                            reject('Failed to parse JSON: ' + e.message + ' - Response: ' + xhr.responseText.substring(0, 200));
                                         }
-                                        
-                                        resolve(json.location);
                                     };
                                     
                                     xhr.onerror = function () {

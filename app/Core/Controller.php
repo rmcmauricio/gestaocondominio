@@ -499,8 +499,16 @@ class Controller
      */
     protected function jsonError($error, int $code = 400, ?string $errorCode = null): void
     {
-        http_response_code($code);
-        header('Content-Type: application/json');
+        // Clear any previous output to prevent corruption of JSON response
+        if (ob_get_level() > 0) {
+            ob_clean();
+        }
+        
+        // Clear any output that might have been sent
+        if (!headers_sent()) {
+            http_response_code($code);
+            header('Content-Type: application/json; charset=utf-8');
+        }
         
         $isProduction = defined('APP_ENV') && APP_ENV === 'production';
         
@@ -543,7 +551,7 @@ class Controller
             error_log(sprintf('JSON Error [%s]: %s', $errorCode ?? 'UNKNOWN', $message));
         }
         
-        echo json_encode($response);
+        echo json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -556,8 +564,16 @@ class Controller
      */
     protected function jsonSuccess(array $data = [], ?string $message = null, int $code = 200): void
     {
-        http_response_code($code);
-        header('Content-Type: application/json');
+        // Clear any previous output to prevent corruption of JSON response
+        if (ob_get_level() > 0) {
+            ob_clean();
+        }
+        
+        // Clear any output that might have been sent
+        if (!headers_sent()) {
+            http_response_code($code);
+            header('Content-Type: application/json; charset=utf-8');
+        }
         
         $response = [
             'success' => true,
@@ -568,7 +584,7 @@ class Controller
             $response['message'] = $message;
         }
         
-        echo json_encode($response);
+        echo json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         exit;
     }
 }

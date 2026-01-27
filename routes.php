@@ -257,6 +257,9 @@ $router->post('/condominiums/{condominium_id}/spaces', 'App\Controllers\SpaceCon
 $router->get('/condominiums/{condominium_id}/spaces/{id}/edit', 'App\Controllers\SpaceController@edit');
 $router->post('/condominiums/{condominium_id}/spaces/{id}', 'App\Controllers\SpaceController@update');
 $router->post('/condominiums/{condominium_id}/spaces/{id}/delete', 'App\Controllers\SpaceController@delete');
+$router->get('/condominiums/{condominium_id}/spaces/{id}/block', 'App\Controllers\SpaceController@block');
+$router->post('/condominiums/{condominium_id}/spaces/{id}/block', 'App\Controllers\SpaceController@processBlock');
+$router->post('/condominiums/{condominium_id}/spaces/{id}/unblock', 'App\Controllers\SpaceController@unblock');
 
 // Reservation routes
 $router->get('/condominiums/{condominium_id}/reservations', 'App\Controllers\ReservationController@index');

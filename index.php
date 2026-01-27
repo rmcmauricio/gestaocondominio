@@ -1,4 +1,9 @@
 <?php
+// Enable output buffering to prevent warnings/errors from corrupting JSON responses
+if (!ob_get_level()) {
+    ob_start();
+}
+
 /**
  * Get base path for redirects (works before config.php is loaded)
  * @return string Base path (e.g., '/predio' or '')

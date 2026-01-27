@@ -14,10 +14,10 @@ class DashboardController extends Controller
         AuthMiddleware::require();
 
         $user = AuthMiddleware::user();
-        
+
         // Check if user is in demo mode and has selected a profile
         $demoProfile = $_SESSION['demo_profile'] ?? null;
-        
+
         // If demo profile is set, use that role instead of user's actual role
         if ($demoProfile === 'condomino') {
             $role = 'condomino';
@@ -28,7 +28,7 @@ class DashboardController extends Controller
         }
 
         $this->loadPageTranslations('dashboard');
-        
+
         if ($role === 'super_admin') {
             $this->admin();
             return;
@@ -48,25 +48,25 @@ class DashboardController extends Controller
         RoleMiddleware::requireSuperAdmin();
 
         global $db;
-        
+
         // Get general statistics
         $stats = [];
-        
+
         // Total users (excluding super_admin)
         $stmt = $db->query("SELECT COUNT(*) as count FROM users WHERE role != 'super_admin'");
         $result = $stmt->fetch();
         $stats['total_users'] = (int)($result['count'] ?? 0);
-        
+
         // Total active subscriptions
         $stmt = $db->query("SELECT COUNT(*) as count FROM subscriptions WHERE status = 'active'");
         $result = $stmt->fetch();
         $stats['active_subscriptions'] = (int)($result['count'] ?? 0);
-        
+
         // Total condominiums
         $stmt = $db->query("SELECT COUNT(*) as count FROM condominiums");
         $result = $stmt->fetch();
         $stats['total_condominiums'] = (int)($result['count'] ?? 0);
-        
+
         // Total payments (completed)
         $stmt = $db->query("SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM payments WHERE status = 'completed'");
         $result = $stmt->fetch();
@@ -74,7 +74,7 @@ class DashboardController extends Controller
         $stats['total_revenue'] = (float)($result['total'] ?? 0);
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/dashboard/super-admin.html.twig',
             'page' => ['titulo' => 'Painel Super Admin'],
@@ -91,38 +91,38 @@ class DashboardController extends Controller
         RoleMiddleware::requireAdmin();
 
         $userId = AuthMiddleware::userId();
-        
+
         // Get user's condominiums separated by role
         $condominiumUserModel = new \App\Models\CondominiumUser();
         $condominiumsByRole = $condominiumUserModel->getUserCondominiumsWithRoles($userId);
-        
+
         $adminCondominiums = $condominiumsByRole['admin'] ?? [];
         $condominoCondominiums = $condominiumsByRole['condomino'] ?? [];
-        
+
         // Add logo URLs to condominiums
         $fileStorageService = new \App\Services\FileStorageService();
         $condominiumModel = new \App\Models\Condominium();
-        
+
         foreach ($adminCondominiums as &$condo) {
             $logoPath = $condominiumModel->getLogoPath($condo['id']);
             $condo['logo_url'] = $logoPath ? $fileStorageService->getFileUrl($logoPath) : null;
         }
         unset($condo);
-        
+
         foreach ($condominoCondominiums as &$condo) {
             $logoPath = $condominiumModel->getLogoPath($condo['id']);
             $condo['logo_url'] = $logoPath ? $fileStorageService->getFileUrl($logoPath) : null;
         }
         unset($condo);
-        
+
         // Combine all condominiums for statistics
         $allCondominiums = array_merge($adminCondominiums, $condominoCondominiums);
-        
+
         global $db;
-        
+
         // Initialize variables
         $bankAccounts = [];
-        
+
         // Initialize stats
         $stats = [
             'total_condominiums' => count($allCondominiums),
@@ -155,30 +155,30 @@ class DashboardController extends Controller
             $condominiumIds = array_column($allCondominiums, 'id');
             $placeholders = implode(',', array_fill(0, count($condominiumIds), '?'));
             $currentYear = date('Y');
-            
+
             // Count total fractions
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM fractions WHERE condominium_id IN ($placeholders) AND is_active = TRUE");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['total_fractions'] = (int)($result['count'] ?? 0);
-            
+
             // Count total residents
             $stmt = $db->prepare("
-                SELECT COUNT(DISTINCT user_id) as count 
-                FROM condominium_users 
-                WHERE condominium_id IN ($placeholders) 
+                SELECT COUNT(DISTINCT user_id) as count
+                FROM condominium_users
+                WHERE condominium_id IN ($placeholders)
                 AND (ended_at IS NULL OR ended_at > CURDATE())
             ");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['total_residents'] = (int)($result['count'] ?? 0);
-            
+
             // Count overdue fees
             $stmt = $db->prepare("
                 SELECT COUNT(*) as count,
                        COALESCE(SUM(f.amount - COALESCE((
-                           SELECT SUM(fp.amount) 
-                           FROM fee_payments fp 
+                           SELECT SUM(fp.amount)
+                           FROM fee_payments fp
                            WHERE fp.fee_id = f.id
                        ), 0)), 0) as total_amount
                 FROM fees f
@@ -191,18 +191,18 @@ class DashboardController extends Controller
             $result = $stmt->fetch();
             $stats['overdue_fees'] = (int)($result['count'] ?? 0);
             $stats['overdue_fees_amount'] = (float)($result['total_amount'] ?? 0);
-            
+
             // Count open occurrences
             $stmt = $db->prepare("
-                SELECT COUNT(*) as count 
-                FROM occurrences 
+                SELECT COUNT(*) as count
+                FROM occurrences
                 WHERE condominium_id IN ($placeholders)
                 AND status IN ('open', 'in_analysis', 'assigned')
             ");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['open_occurrences'] = (int)($result['count'] ?? 0);
-            
+
             // Calculate total revenue for current year
             $stmt = $db->prepare("
                 SELECT COALESCE(SUM(amount), 0) as total
@@ -213,7 +213,7 @@ class DashboardController extends Controller
             $stmt->execute(array_merge($condominiumIds, [$currentYear]));
             $result = $stmt->fetch();
             $stats['total_revenue'] = (float)($result['total'] ?? 0);
-            
+
             // Calculate total expenses for current year
             $stmt = $db->prepare("
                 SELECT COALESCE(SUM(amount), 0) as total
@@ -224,7 +224,7 @@ class DashboardController extends Controller
             $stmt->execute(array_merge($condominiumIds, [$currentYear]));
             $result = $stmt->fetch();
             $stats['total_expenses'] = (float)($result['total'] ?? 0);
-            
+
             // Get bank accounts and balances
             $bankAccountModel = new BankAccount();
             $bankAccounts = [];
@@ -233,7 +233,7 @@ class DashboardController extends Controller
                 foreach ($accounts as $account) {
                     // Update balance
                     $bankAccountModel->updateBalance($account['id']);
-                    
+
                     // Get refreshed account data
                     $refreshedAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
                     foreach ($refreshedAccounts as $refreshedAccount) {
@@ -252,18 +252,18 @@ class DashboardController extends Controller
                     }
                 }
             }
-            
+
             $stats['total_bank_accounts'] = count($bankAccounts);
             $stats['total_bank_balance'] = array_sum(array_column($bankAccounts, 'current_balance'));
-            
+
             // Get main account balance (first account or 0)
             $stats['current_account_balance'] = !empty($bankAccounts) ? (float)$bankAccounts[0]['current_balance'] : 0;
-            
+
             // Count pending fees amount
             $stmt = $db->prepare("
                 SELECT COALESCE(SUM(f.amount - COALESCE((
-                    SELECT SUM(fp.amount) 
-                    FROM fee_payments fp 
+                    SELECT SUM(fp.amount)
+                    FROM fee_payments fp
                     WHERE fp.fee_id = f.id
                 ), 0)), 0) as total
                 FROM fees f
@@ -274,7 +274,7 @@ class DashboardController extends Controller
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['pending_fees_amount'] = (float)($result['total'] ?? 0);
-            
+
             // Count paid fees amount
             $stmt = $db->prepare("
                 SELECT COALESCE(SUM(fp.amount), 0) as total
@@ -285,107 +285,107 @@ class DashboardController extends Controller
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['paid_fees_amount'] = (float)($result['total'] ?? 0);
-            
+
             // Count total reservations
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM reservations WHERE condominium_id IN ($placeholders)");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['total_reservations'] = (int)($result['count'] ?? 0);
-            
+
             // Count active reservations (current and future)
             $stmt = $db->prepare("
-                SELECT COUNT(*) as count 
-                FROM reservations 
+                SELECT COUNT(*) as count
+                FROM reservations
                 WHERE condominium_id IN ($placeholders)
                 AND end_date >= CURDATE()
             ");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['active_reservations'] = (int)($result['count'] ?? 0);
-            
+
             // Count pending reservations
             $stmt = $db->prepare("
-                SELECT COUNT(*) as count 
-                FROM reservations 
+                SELECT COUNT(*) as count
+                FROM reservations
                 WHERE condominium_id IN ($placeholders)
                 AND status = 'pending'
             ");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['pending_reservations'] = (int)($result['count'] ?? 0);
-            
+
             // Count total spaces
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM spaces WHERE condominium_id IN ($placeholders)");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['total_spaces'] = (int)($result['count'] ?? 0);
-            
+
             // Count total suppliers
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM suppliers WHERE condominium_id IN ($placeholders)");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['total_suppliers'] = (int)($result['count'] ?? 0);
-            
+
             // Count total assemblies
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM assemblies WHERE condominium_id IN ($placeholders)");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['total_assemblies'] = (int)($result['count'] ?? 0);
-            
+
             // Count total standalone votes
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM standalone_votes WHERE condominium_id IN ($placeholders)");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['total_votes'] = (int)($result['count'] ?? 0);
-            
+
             // Count total messages
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM messages WHERE condominium_id IN ($placeholders)");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['total_messages'] = (int)($result['count'] ?? 0);
-            
+
             // Count total notifications
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM notifications WHERE condominium_id IN ($placeholders)");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['total_notifications'] = (int)($result['count'] ?? 0);
-            
+
             // Count total documents
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM documents WHERE condominium_id IN ($placeholders)");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['total_documents'] = (int)($result['count'] ?? 0);
-            
+
             // Count total budgets
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM budgets WHERE condominium_id IN ($placeholders)");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $stats['total_budgets'] = (int)($result['count'] ?? 0);
         }
-        
+
         // Get financial data for chart (last 6 months)
         $financial_data = [
             'monthly_revenue' => [],
             'monthly_expenses' => [],
             'overdue_fractions' => []
         ];
-        
+
         if ($db && !empty($allCondominiums)) {
             $condominiumIds = array_column($allCondominiums, 'id');
             $placeholders = implode(',', array_fill(0, count($condominiumIds), '?'));
-            
+
             // Get monthly revenue for last 6 months
             $monthNames = [
                 1 => 'Janeiro', 2 => 'Fevereiro', 3 => 'Março', 4 => 'Abril',
                 5 => 'Maio', 6 => 'Junho', 7 => 'Julho', 8 => 'Agosto',
                 9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro'
             ];
-            
+
             for ($i = 5; $i >= 0; $i--) {
                 $date = date('Y-m', strtotime("-$i months"));
                 $year = date('Y', strtotime("-$i months"));
                 $month = date('n', strtotime("-$i months"));
-                
+
                 $stmt = $db->prepare("
                     SELECT COALESCE(SUM(amount), 0) as total
                     FROM revenues
@@ -399,7 +399,7 @@ class DashboardController extends Controller
                     'month' => $monthNames[$month] . ' ' . $year,
                     'amount' => (float)($result['total'] ?? 0)
                 ];
-                
+
                 $stmt = $db->prepare("
                     SELECT COALESCE(SUM(amount), 0) as total
                     FROM expenses
@@ -414,15 +414,15 @@ class DashboardController extends Controller
                     'amount' => (float)($result['total'] ?? 0)
                 ];
             }
-            
+
             // Get top 5 overdue fractions
             $stmt = $db->prepare("
-                SELECT 
+                SELECT
                     c.name as condominium_name,
                     f.identifier as fraction_identifier,
                     COALESCE(SUM(fee.amount - COALESCE((
-                        SELECT SUM(fp.amount) 
-                        FROM fee_payments fp 
+                        SELECT SUM(fp.amount)
+                        FROM fee_payments fp
                         WHERE fp.fee_id = fee.id
                     ), 0)), 0) as total_debt
                 FROM fees fee
@@ -440,22 +440,22 @@ class DashboardController extends Controller
             $stmt->execute($condominiumIds);
             $financial_data['overdue_fractions'] = $stmt->fetchAll() ?: [];
         }
-        
+
         // Get document statistics
         $document_stats = [
             'total_documents' => 0,
             'documents_by_type' => []
         ];
-        
+
         if ($db && !empty($allCondominiums)) {
             $condominiumIds = array_column($allCondominiums, 'id');
             $placeholders = implode(',', array_fill(0, count($condominiumIds), '?'));
-            
+
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM documents WHERE condominium_id IN ($placeholders)");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $document_stats['total_documents'] = (int)($result['count'] ?? 0);
-            
+
             $stmt = $db->prepare("
                 SELECT document_type, COUNT(*) as count
                 FROM documents
@@ -466,13 +466,13 @@ class DashboardController extends Controller
             $stmt->execute($condominiumIds);
             $document_stats['documents_by_type'] = $stmt->fetchAll() ?: [];
         }
-        
+
         // Get recent documents (last 5)
         $recent_documents = [];
         if ($db && !empty($allCondominiums)) {
             $condominiumIds = array_column($allCondominiums, 'id');
             $placeholders = implode(',', array_fill(0, count($condominiumIds), '?'));
-            
+
             $stmt = $db->prepare("
                 SELECT d.*, u.name as uploaded_by_name
                 FROM documents d
@@ -484,7 +484,7 @@ class DashboardController extends Controller
             $stmt->execute($condominiumIds);
             $recent_documents = $stmt->fetchAll() ?: [];
         }
-        
+
         // Get occurrence statistics
         $occurrence_stats = [
             'total' => 0,
@@ -493,16 +493,16 @@ class DashboardController extends Controller
             'average_resolution_time' => 0,
             'recent' => []
         ];
-        
+
         if ($db && !empty($allCondominiums)) {
             $condominiumIds = array_column($allCondominiums, 'id');
             $placeholders = implode(',', array_fill(0, count($condominiumIds), '?'));
-            
+
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM occurrences WHERE condominium_id IN ($placeholders)");
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $occurrence_stats['total'] = (int)($result['count'] ?? 0);
-            
+
             $stmt = $db->prepare("
                 SELECT status, COUNT(*) as count
                 FROM occurrences
@@ -512,7 +512,7 @@ class DashboardController extends Controller
             ");
             $stmt->execute($condominiumIds);
             $occurrence_stats['by_status'] = $stmt->fetchAll() ?: [];
-            
+
             $stmt = $db->prepare("
                 SELECT priority, COUNT(*) as count
                 FROM occurrences
@@ -522,7 +522,7 @@ class DashboardController extends Controller
             ");
             $stmt->execute($condominiumIds);
             $occurrence_stats['by_priority'] = $stmt->fetchAll() ?: [];
-            
+
             // Calculate average resolution time (for completed occurrences)
             $stmt = $db->prepare("
                 SELECT AVG(DATEDIFF(completed_at, created_at)) as avg_days
@@ -534,7 +534,7 @@ class DashboardController extends Controller
             $stmt->execute($condominiumIds);
             $result = $stmt->fetch();
             $occurrence_stats['average_resolution_time'] = $result['avg_days'] ? round((float)$result['avg_days'], 1) : 0;
-            
+
             // Get recent occurrences (last 5)
             $stmt = $db->prepare("
                 SELECT o.*
@@ -546,15 +546,15 @@ class DashboardController extends Controller
             $stmt->execute($condominiumIds);
             $occurrence_stats['recent'] = $stmt->fetchAll() ?: [];
         }
-        
+
         // Get condominium users for admin view
         $condominium_users = [];
         if ($db && !empty($allCondominiums)) {
             $condominiumIds = array_column($allCondominiums, 'id');
             $placeholders = implode(',', array_fill(0, count($condominiumIds), '?'));
-            
+
             $stmt = $db->prepare("
-                SELECT 
+                SELECT
                     cu.id,
                     cu.fraction_id,
                     cu.role,
@@ -588,7 +588,7 @@ class DashboardController extends Controller
 
         // Check if user is demo user
         $isDemoUser = \App\Middleware\DemoProtectionMiddleware::isDemoUser($userId);
-        
+
         if ($isDemoUser) {
             // For demo users, limit is 2 condominiums
             // Count ALL condominiums where user is admin (not just subscription-associated ones)
@@ -599,16 +599,16 @@ class DashboardController extends Controller
         } elseif ($subscription) {
             $planModel = new \App\Models\Plan();
             $plan = $planModel->findById($subscription['plan_id']);
-            
+
             if ($plan) {
                 // Check if plan is demo plan (slug = 'demo' or limit_condominios = 2 and is_active = false)
                 $planSlug = $plan['slug'] ?? '';
                 $planLimitCondominios = isset($plan['limit_condominios']) ? (int)$plan['limit_condominios'] : null;
                 $planIsActive = isset($plan['is_active']) ? (bool)$plan['is_active'] : true;
-                
-                $isDemoPlan = ($planSlug === 'demo') || 
+
+                $isDemoPlan = ($planSlug === 'demo') ||
                               ($planLimitCondominios === 2 && $planIsActive === false);
-                
+
                 if ($isDemoPlan) {
                     // For demo plan, count ALL condominiums where user is admin (not just subscription-associated ones)
                     $condominiumLimit = 2;
@@ -617,7 +617,7 @@ class DashboardController extends Controller
                     $canCreateCondominium = !$limitReached;
                 } else {
                     $condominiumLimit = isset($plan['limit_condominios']) && $plan['limit_condominios'] !== null ? (int)$plan['limit_condominios'] : null;
-                    
+
                     if ($condominiumLimit !== null) {
                         // Count active condominiums associated with subscription
                         $count = 0;
@@ -626,7 +626,7 @@ class DashboardController extends Controller
                         }
                         $subscriptionCondominiumModel = new \App\Models\SubscriptionCondominium();
                         $count += $subscriptionCondominiumModel->countActiveBySubscription($subscription['id']);
-                        
+
                         $currentCondominiumCount = $count;
                         $limitReached = $count >= $condominiumLimit;
                         $canCreateCondominium = !$limitReached;
@@ -645,13 +645,13 @@ class DashboardController extends Controller
         }
 
         $this->loadPageTranslations('dashboard');
-        
+
         // Get and clear session messages
         $error = $_SESSION['error'] ?? null;
         $success = $_SESSION['success'] ?? null;
         $info = $_SESSION['info'] ?? null;
         unset($_SESSION['error'], $_SESSION['success'], $_SESSION['info']);
-        
+
         $this->data += [
             'viewName' => 'pages/dashboard/admin.html.twig',
             'page' => ['titulo' => 'Dashboard'],
@@ -684,16 +684,16 @@ class DashboardController extends Controller
         AuthMiddleware::require();
 
         $userId = AuthMiddleware::userId();
-        
+
         // Get user's condominiums and fractions
         $condominiumUserModel = new \App\Models\CondominiumUser();
         $userCondominiums = $condominiumUserModel->getUserCondominiums($userId);
-        
+
         // Get pending fees
         $feeModel = new \App\Models\Fee();
         $pendingFees = [];
         $totalPending = 0;
-        
+
         foreach ($userCondominiums as $uc) {
             if ($uc['fraction_id']) {
                 $fees = $feeModel->getPendingByFraction($uc['fraction_id']);
@@ -747,15 +747,15 @@ class DashboardController extends Controller
             if ($db && !empty($condominiumIds)) {
                 $placeholders = implode(',', array_fill(0, count($condominiumIds), '?'));
                 $stmt = $db->prepare("
-                    SELECT r.*, 
-                           s.name as space_name, 
+                    SELECT r.*,
+                           s.name as space_name,
                            f.identifier as fraction_identifier,
                            c.name as condominium_name
                     FROM reservations r
                     INNER JOIN spaces s ON s.id = r.space_id
                     INNER JOIN fractions f ON f.id = r.fraction_id
                     INNER JOIN condominiums c ON c.id = r.condominium_id
-                    WHERE r.user_id = ? 
+                    WHERE r.user_id = ?
                     AND r.condominium_id IN ($placeholders)
                     ORDER BY r.start_date DESC
                     LIMIT 5
@@ -775,13 +775,13 @@ class DashboardController extends Controller
             if ($db && !empty($condominiumIds)) {
                 $placeholders = implode(',', array_fill(0, count($condominiumIds), '?'));
                 $stmt = $db->prepare("
-                    SELECT o.*, 
+                    SELECT o.*,
                            f.identifier as fraction_identifier,
                            c.name as condominium_name
                     FROM occurrences o
                     LEFT JOIN fractions f ON f.id = o.fraction_id
                     INNER JOIN condominiums c ON c.id = o.condominium_id
-                    WHERE o.reported_by = ? 
+                    WHERE o.reported_by = ?
                     AND o.condominium_id IN ($placeholders)
                     ORDER BY o.created_at DESC
                     LIMIT 5
@@ -813,7 +813,7 @@ class DashboardController extends Controller
                     $vote['condominium_name'] = $condominiumNames[$condominiumId] ?? '';
                     $openVotes[] = $vote;
                 }
-                
+
                 // Get recent results (last 3 per condominium)
                 $results = $standaloneVoteModel->getRecentResults($condominiumId, 3);
                 foreach ($results as $result) {
@@ -823,17 +823,17 @@ class DashboardController extends Controller
                     $recentVoteResults[] = $result;
                 }
             }
-            
+
             // Sort by voting_started_at DESC
             usort($openVotes, function($a, $b) {
                 return strtotime($b['voting_started_at'] ?? '') - strtotime($a['voting_started_at'] ?? '');
             });
-            
+
             // Sort recent results by voting_ended_at DESC
             usort($recentVoteResults, function($a, $b) {
                 return strtotime($b['voting_ended_at'] ?? '') - strtotime($a['voting_ended_at'] ?? '');
             });
-            
+
             // Limit to last 3 overall
             $recentVoteResults = array_slice($recentVoteResults, 0, 3);
         }
@@ -845,7 +845,7 @@ class DashboardController extends Controller
             foreach ($openVotes as $vote) {
                 $allowedOptionIds = $vote['allowed_options'] ?? [];
                 $allOptions = $voteOptionModel->getByCondominium($vote['condominium_id']);
-                
+
                 // Filter to only allowed options
                 $options = [];
                 if (!empty($allowedOptionIds)) {
@@ -858,7 +858,7 @@ class DashboardController extends Controller
                     // Backward compatibility: if no allowed options specified, use all
                     $options = $allOptions;
                 }
-                
+
                 $voteOptionsByVote[$vote['id']] = $options;
             }
         }
@@ -892,7 +892,7 @@ class DashboardController extends Controller
         $unreadNotifications = array_slice($unreadNotifications, 0, 3);
 
         $this->loadPageTranslations('dashboard');
-        
+
         $this->data += [
             'viewName' => 'pages/dashboard/condomino.html.twig',
             'page' => ['titulo' => 'Painel Condómino'],

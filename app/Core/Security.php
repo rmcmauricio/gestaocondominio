@@ -61,54 +61,108 @@ class Security
 
     /**
      * Sanitize HTML content - allows safe HTML tags but removes scripts and dangerous attributes
-     * @param string $html HTML content to sanitize
+     * @param string|null $html HTML content to sanitize
      * @return string Sanitized HTML
      */
-    public static function sanitizeHtml(string $html): string
+    public static function sanitizeHtml(?string $html): string
     {
         if (empty($html)) {
             return '';
         }
 
+        // First, remove dangerous tags and their content
+        $html = preg_replace('/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/i', '', $html ?? '') ?? '';
+        $html = preg_replace('/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/i', '', $html ?? '') ?? '';
+        $html = preg_replace('/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/i', '', $html ?? '') ?? '';
+        $html = preg_replace('/<(object|embed)\b[^<]*(?:(?!<\/\1>)<[^<]*)*<\/\1>/i', '', $html ?? '') ?? '';
+        
+        // Temporarily replace img and a tags with placeholders to preserve them during strip_tags
+        $placeholders = [];
+        $placeholderIndex = 0;
+        
+        // Process and preserve img and a tags with safe attributes (including self-closing tags and tags without attributes)
+        $html = preg_replace_callback('/<(a|img)(?:\s+([^>]*?))?(?:\s*\/)?>/i', function($matches) use (&$placeholders, &$placeholderIndex) {
+            $tag = $matches[1];
+            $attrs = $matches[2] ?? '';
+            
+            // Parse attributes
+            $allowedAttrs = [];
+            $allowedImgAttrs = ['src', 'alt', 'title', 'width', 'height', 'class', 'style'];
+            $allowedLinkAttrs = ['href', 'title', 'target', 'rel', 'class'];
+            
+            // Extract individual attributes (handle both quoted and unquoted values)
+            // Match: attr="value", attr='value', or attr=value
+            preg_match_all('/(\w+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))/', $attrs, $attrMatches, PREG_SET_ORDER);
+            
+            foreach ($attrMatches as $attrMatch) {
+                $attrName = strtolower($attrMatch[1]);
+                // Get value from whichever group matched (quoted double, quoted single, or unquoted)
+                $attrValue = !empty($attrMatch[2]) ? $attrMatch[2] : (!empty($attrMatch[3]) ? $attrMatch[3] : ($attrMatch[4] ?? ''));
+                
+                // Skip dangerous attributes
+                if (preg_match('/^on\w+/i', $attrName) || 
+                    stripos($attrValue, 'javascript:') !== false ||
+                    (stripos($attrValue, 'data:') !== false && stripos($attrValue, 'data:image/') === false)) {
+                    continue;
+                }
+                
+                // For img tags, only allow specific safe attributes
+                if ($tag === 'img' && in_array($attrName, $allowedImgAttrs)) {
+                    // Validate src attribute - allow http/https, data:image/, or paths containing storage/
+                    if ($attrName === 'src') {
+                        // Allow absolute URLs (http/https), data URIs, or any path containing storage/ (safe relative paths)
+                        // This covers: http://..., https://..., /storage/..., storage/..., /predio/storage/..., data:image/...
+                        // Also allow any URL that contains 'storage/' as it's from our own storage system
+                        $attrValueTrimmed = trim($attrValue);
+                        if (!empty($attrValueTrimmed)) {
+                            $isHttp = preg_match('/^https?:\/\//i', $attrValueTrimmed);
+                            $isDataImage = stripos($attrValueTrimmed, 'data:image/') === 0;
+                            $hasStorage = strpos($attrValueTrimmed, 'storage/') !== false || strpos($attrValueTrimmed, '/storage/') !== false;
+                            $isSafe = stripos($attrValueTrimmed, 'javascript:') === false && 
+                                     (stripos($attrValueTrimmed, 'data:') === false || $isDataImage);
+                            
+                            if (($isHttp || $isDataImage || $hasStorage) && $isSafe) {
+                                $allowedAttrs[] = $attrName . '="' . htmlspecialchars($attrValueTrimmed, ENT_QUOTES, 'UTF-8') . '"';
+                            }
+                        }
+                    } else {
+                        $allowedAttrs[] = $attrName . '="' . htmlspecialchars($attrValue, ENT_QUOTES, 'UTF-8') . '"';
+                    }
+                }
+                
+                // For link tags, only allow specific safe attributes
+                if ($tag === 'a' && in_array($attrName, $allowedLinkAttrs)) {
+                    // Validate href attribute - only allow http/https
+                    if ($attrName === 'href') {
+                        if (preg_match('/^https?:\/\//i', $attrValue)) {
+                            $allowedAttrs[] = $attrName . '="' . htmlspecialchars($attrValue, ENT_QUOTES, 'UTF-8') . '"';
+                        }
+                    } else {
+                        $allowedAttrs[] = $attrName . '="' . htmlspecialchars($attrValue, ENT_QUOTES, 'UTF-8') . '"';
+                    }
+                }
+            }
+            
+            // Store the sanitized tag in a placeholder
+            $placeholder = '___TAG_PLACEHOLDER_' . $placeholderIndex . '___';
+            $placeholders[$placeholder] = '<' . $tag . (!empty($allowedAttrs) ? ' ' . implode(' ', $allowedAttrs) : '') . '>';
+            $placeholderIndex++;
+            
+            return $placeholder;
+        }, $html) ?? $html;
+        
         // List of allowed HTML tags for rich text content
         $allowedTags = '<p><br><br/><strong><b><em><i><u><ul><ol><li><h1><h2><h3><h4><h5><h6><a><img><blockquote><code><pre><div><span>';
         
-        // First, strip all tags except allowed ones
+        // Now strip all tags except allowed ones (placeholders will be preserved)
         $html = strip_tags($html, $allowedTags);
         
-        // Remove dangerous attributes (onclick, onerror, etc.) using regex
-        // Remove javascript: and data: URLs from href and src attributes
-        $html = preg_replace_callback('/<(a|img)\s+([^>]*)>/i', function($matches) {
-            $tag = $matches[1];
-            $attrs = $matches[2];
-            
-            // Remove dangerous attributes
-            $attrs = preg_replace('/\s*(on\w+|javascript:|data:)\s*=\s*["\'][^"\']*["\']/i', '', $attrs);
-            $attrs = preg_replace('/\s*(on\w+|javascript:|data:)\s*=\s*[^\s>]+/i', '', $attrs);
-            
-            // Clean up href/src attributes - only allow http/https
-            if ($tag === 'a') {
-                $attrs = preg_replace('/href\s*=\s*["\'](?!https?:\/\/)[^"\']*["\']/i', '', $attrs);
-            } elseif ($tag === 'img') {
-                $attrs = preg_replace('/src\s*=\s*["\'](?!https?:\/\/|data:image\/)[^"\']*["\']/i', '', $attrs);
-            }
-            
-            return '<' . $tag . ' ' . trim($attrs) . '>';
-        }, $html);
+        // Restore the preserved img and a tags
+        foreach ($placeholders as $placeholder => $tag) {
+            $html = str_replace($placeholder, $tag, $html);
+        }
         
-        // Remove any remaining script tags and their content
-        $html = preg_replace('/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi', '', $html);
-        
-        // Remove style tags that could contain malicious CSS
-        $html = preg_replace('/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi', '', $html);
-        
-        // Remove iframe tags
-        $html = preg_replace('/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi', '', $html);
-        
-        // Remove object and embed tags
-        $html = preg_replace('/<(object|embed)\b[^<]*(?:(?!<\/\1>)<[^<]*)*<\/\1>/gi', '', $html);
-        
-        return trim($html);
+        return trim($html ?? '');
     }
 
     /**

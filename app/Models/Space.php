@@ -17,9 +17,14 @@ class Space extends Model
             return [];
         }
 
+        // Auto-unblock spaces that have expired
+        $this->checkAndUnblockExpiredSpaces($condominiumId);
+
         $stmt = $this->db->prepare("
             SELECT * FROM spaces 
-            WHERE condominium_id = :condominium_id AND is_active = TRUE
+            WHERE condominium_id = :condominium_id 
+            AND is_active = TRUE 
+            AND is_blocked = FALSE
             ORDER BY name ASC
         ");
 
@@ -75,10 +80,13 @@ class Space extends Model
             return [];
         }
 
+        // Auto-unblock spaces that have expired
+        $this->checkAndUnblockExpiredSpaces($condominiumId);
+
         $stmt = $this->db->prepare("
             SELECT * FROM spaces 
             WHERE condominium_id = :condominium_id
-            ORDER BY is_active DESC, name ASC
+            ORDER BY is_active DESC, is_blocked DESC, name ASC
         ");
 
         $stmt->execute([':condominium_id' => $condominiumId]);
@@ -112,16 +120,20 @@ class Space extends Model
         $params = [':id' => $id];
 
         $allowedFields = ['name', 'description', 'type', 'capacity', 'price_per_hour', 'price_per_day', 
-                         'deposit_required', 'requires_approval', 'rules', 'available_hours', 'is_active'];
+                         'deposit_required', 'requires_approval', 'rules', 'available_hours', 'is_active',
+                         'is_blocked', 'blocked_until', 'block_reason'];
         
         foreach ($allowedFields as $field) {
             if (isset($data[$field])) {
                 if ($field === 'available_hours') {
                     $fields[] = "$field = :$field";
                     $params[":$field"] = !empty($data[$field]) ? json_encode($data[$field]) : null;
-                } elseif ($field === 'requires_approval' || $field === 'is_active') {
+                } elseif ($field === 'requires_approval' || $field === 'is_active' || $field === 'is_blocked') {
                     $fields[] = "$field = :$field";
                     $params[":$field"] = (int)$data[$field];
+                } elseif ($field === 'blocked_until') {
+                    $fields[] = "$field = :$field";
+                    $params[":$field"] = !empty($data[$field]) ? $data[$field] : null;
                 } else {
                     $fields[] = "$field = :$field";
                     $params[":$field"] = $data[$field];
@@ -166,6 +178,136 @@ class Space extends Model
             $stmt = $this->db->prepare("DELETE FROM spaces WHERE id = :id");
             return $stmt->execute([':id' => $id]);
         }
+    }
+
+    /**
+     * Check if space is blocked
+     */
+    public function isBlocked(int $id): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        // Auto-unblock if expired
+        $this->checkAndUnblockExpiredSpace($id);
+
+        $stmt = $this->db->prepare("
+            SELECT is_blocked, blocked_until 
+            FROM spaces 
+            WHERE id = :id
+        ");
+        $stmt->execute([':id' => $id]);
+        $space = $stmt->fetch();
+
+        if (!$space || !$space['is_blocked']) {
+            return false;
+        }
+
+        // If blocked_until is set and has passed, space is not blocked
+        if ($space['blocked_until']) {
+            $blockedUntil = new \DateTime($space['blocked_until']);
+            $now = new \DateTime();
+            if ($blockedUntil <= $now) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Block space
+     */
+    public function block(int $id, ?string $blockedUntil = null, ?string $reason = null): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE spaces 
+            SET is_blocked = TRUE, 
+                blocked_until = :blocked_until, 
+                block_reason = :block_reason,
+                updated_at = NOW() 
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([
+            ':id' => $id,
+            ':blocked_until' => $blockedUntil,
+            ':block_reason' => $reason
+        ]);
+    }
+
+    /**
+     * Unblock space
+     */
+    public function unblock(int $id): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE spaces 
+            SET is_blocked = FALSE, 
+                blocked_until = NULL, 
+                block_reason = NULL,
+                updated_at = NOW() 
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([':id' => $id]);
+    }
+
+    /**
+     * Check and unblock expired spaces for a condominium
+     */
+    public function checkAndUnblockExpiredSpaces(int $condominiumId): void
+    {
+        if (!$this->db) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE spaces 
+            SET is_blocked = FALSE, 
+                blocked_until = NULL, 
+                block_reason = NULL,
+                updated_at = NOW() 
+            WHERE condominium_id = :condominium_id 
+            AND is_blocked = TRUE 
+            AND blocked_until IS NOT NULL 
+            AND blocked_until <= NOW()
+        ");
+
+        $stmt->execute([':condominium_id' => $condominiumId]);
+    }
+
+    /**
+     * Check and unblock a specific expired space
+     */
+    public function checkAndUnblockExpiredSpace(int $id): void
+    {
+        if (!$this->db) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE spaces 
+            SET is_blocked = FALSE, 
+                blocked_until = NULL, 
+                block_reason = NULL,
+                updated_at = NOW() 
+            WHERE id = :id 
+            AND is_blocked = TRUE 
+            AND blocked_until IS NOT NULL 
+            AND blocked_until <= NOW()
+        ");
+
+        $stmt->execute([':id' => $id]);
     }
 }
 

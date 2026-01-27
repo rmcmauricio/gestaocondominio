@@ -302,5 +302,142 @@ class SpaceController extends Controller
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
         exit;
     }
+
+    public function block(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
+            exit;
+        }
+
+        $space = $this->spaceModel->findById($id);
+        if (!$space || $space['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Espaço não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
+            exit;
+        }
+
+        $this->loadPageTranslations('spaces');
+        
+        $this->data += [
+            'viewName' => 'pages/spaces/block.html.twig',
+            'page' => ['titulo' => 'Bloquear Espaço'],
+            'condominium' => $condominium,
+            'space' => $space,
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $_SESSION['error'] ?? null,
+            'success' => $_SESSION['success'] ?? null
+        ];
+        
+        unset($_SESSION['error']);
+        unset($_SESSION['success']);
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    public function processBlock(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
+            exit;
+        }
+
+        $space = $this->spaceModel->findById($id);
+        if (!$space || $space['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Espaço não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
+            exit;
+        }
+
+        $blockType = $_POST['block_type'] ?? 'indefinite';
+        $blockedUntil = null;
+        $reason = Security::sanitize($_POST['block_reason'] ?? '');
+
+        if ($blockType === 'temporary') {
+            $blockedUntilDate = $_POST['blocked_until_date'] ?? '';
+            $blockedUntilTime = $_POST['blocked_until_time'] ?? '23:59';
+            
+            if (empty($blockedUntilDate)) {
+                $_SESSION['error'] = 'Por favor, selecione uma data de fim do bloqueio.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces/' . $id . '/block');
+                exit;
+            }
+
+            $blockedUntil = $blockedUntilDate . ' ' . $blockedUntilTime . ':00';
+            
+            // Validate that blocked_until is in the future
+            $blockedUntilDateTime = new \DateTime($blockedUntil);
+            $now = new \DateTime();
+            
+            if ($blockedUntilDateTime <= $now) {
+                $_SESSION['error'] = 'A data de fim do bloqueio deve ser no futuro.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces/' . $id . '/block');
+                exit;
+            }
+        }
+
+        try {
+            $this->spaceModel->block($id, $blockedUntil, $reason);
+            $_SESSION['success'] = 'Espaço bloqueado com sucesso!';
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao bloquear espaço: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
+        exit;
+    }
+
+    public function unblock(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
+            exit;
+        }
+
+        $space = $this->spaceModel->findById($id);
+        if (!$space || $space['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Espaço não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
+            exit;
+        }
+
+        try {
+            $this->spaceModel->unblock($id);
+            $_SESSION['success'] = 'Espaço desbloqueado com sucesso!';
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao desbloquear espaço: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
+        exit;
+    }
 }
 
