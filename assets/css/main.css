@@ -2132,6 +2132,52 @@ a:hover .card-hover .text-primary {
     overflow-x: hidden;
     width: 100%;
   }
+
+  /* Ensure input-group stays inline on mobile - € symbol with value */
+  .input-group {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    width: 100% !important;
+  }
+
+  .input-group-text {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0.375rem 0.75rem !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    width: auto !important;
+    min-width: auto !important;
+    border-radius: var(--bs-border-radius) 0 0 var(--bs-border-radius) !important;
+    /* Match form-control styling to ensure same height */
+    font-size: 1rem !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+    color: #212529 !important;
+    background-color: #fff !important;
+    border: 1px solid #ced4da !important;
+  }
+
+  .input-group .form-control {
+    display: block !important;
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    border-radius: 0 var(--bs-border-radius) var(--bs-border-radius) 0 !important;
+    /* Ensure consistent styling */
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
+    padding: 0.375rem 0.75rem !important;
+  }
+
+  /* Ensure both elements stretch to same height */
+  .input-group > .input-group-text,
+  .input-group > .form-control {
+    align-self: stretch !important;
+  }
 }
 
 /* Desktop: Allow horizontal scroll for tables */

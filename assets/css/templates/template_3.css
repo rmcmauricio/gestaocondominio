@@ -45,6 +45,26 @@
   border-color: hsl(0 0% 22%) !important;
 }
 
+/* Fix bg-light headers in dark mode - ensure dark background with light text */
+.card-header.bg-light {
+  background-color: var(--color-bg-dark) !important;
+  color: var(--color-text) !important;
+  border-color: var(--color-border) !important;
+}
+
+.card-header.bg-light h1,
+.card-header.bg-light h2,
+.card-header.bg-light h3,
+.card-header.bg-light h4,
+.card-header.bg-light h5,
+.card-header.bg-light h6,
+.card-header.bg-light p,
+.card-header.bg-light span,
+.card-header.bg-light i,
+.card-header.bg-light .badge {
+  color: var(--color-text) !important;
+}
+
 /* Button Overrides */
 .btn-primary {
   background-color: #a0a0a0 !important;
