@@ -532,6 +532,97 @@ code {
   padding: var(--space-xs);
 }
 
+/* API Documentation dropdown - ensure it appears above cards when shown */
+.dropdown-menu[aria-labelledby="apiCategoryDropdown"] {
+  z-index: 9999 !important;
+  position: absolute !important;
+  max-height: 70vh !important;
+  overflow-y: auto !important;
+  top: 100% !important;
+  left: 0 !important;
+  right: 0 !important;
+  margin-top: 0.125rem !important;
+  background-color: var(--color-bg) !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* When dropdown is shown, ensure it's visible */
+.dropdown.show .dropdown-menu[aria-labelledby="apiCategoryDropdown"] {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 9999 !important;
+}
+
+/* Ensure the card containing the dropdown allows overflow */
+.card:has(#apiCategoryDropdown),
+.card:has(.dropdown:has(#apiCategoryDropdown)) {
+  overflow: visible !important;
+  position: relative;
+  z-index: 9998 !important;
+}
+
+.card:has(#apiCategoryDropdown) .card-body,
+.card:has(.dropdown:has(#apiCategoryDropdown)) .card-body {
+  overflow: visible !important;
+  position: relative;
+  z-index: 9998 !important;
+}
+
+/* Ensure dropdown container allows overflow */
+.dropdown:has(#apiCategoryDropdown) {
+  position: relative;
+  z-index: 9998 !important;
+}
+
+/* Ensure container allows overflow for dropdown */
+.container:has(#apiCategoryDropdown),
+.py-4:has(#apiCategoryDropdown) {
+  overflow: visible !important;
+  position: relative;
+}
+
+/* Ensure row doesn't cut off dropdown */
+.row:has(.endpoint-card) {
+  overflow: visible !important;
+  position: relative;
+}
+
+/* Ensure main content area allows dropdown overflow */
+main:has(#apiCategoryDropdown) {
+  overflow: visible !important;
+  position: relative;
+}
+
+/* Ensure all cards after the dropdown card have lower z-index */
+.container:has(#apiCategoryDropdown) .card:not(:has(#apiCategoryDropdown)) {
+  z-index: 1 !important;
+  position: relative;
+}
+
+/* Ensure endpoint cards don't overlap the dropdown */
+.endpoint-card {
+  position: relative;
+  z-index: 1 !important;
+}
+
+/* Ensure authentication card doesn't overlap the dropdown */
+#authentication {
+  position: relative;
+  z-index: 1 !important;
+}
+
+/* Ensure all cards on API documentation page have low z-index */
+.container:has(#apiCategoryDropdown) .card {
+  position: relative;
+  z-index: 1 !important;
+}
+
+/* Exception: card containing dropdown should have higher z-index */
+.container:has(#apiCategoryDropdown) .card:has(#apiCategoryDropdown) {
+  z-index: 9998 !important;
+}
+
 /* Ensure demo profile menu works with Bootstrap - don't override Bootstrap's display */
 .demo-profile-selector .dropdown-menu {
   /* Let Bootstrap handle display via .show class */
@@ -1315,6 +1406,26 @@ a:hover .card-hover .text-primary {
 .sidebar-nav .nav-link i {
   width: 20px;
   text-align: center;
+}
+
+/* Sidebar submenu styles */
+.sidebar-nav .nav-item .collapse {
+  margin-left: 1rem;
+  margin-top: 0.25rem;
+}
+
+.sidebar-nav .nav-item .nav-link[data-bs-toggle="collapse"] {
+  position: relative;
+}
+
+.sidebar-nav .nav-item .nav-link[data-bs-toggle="collapse"] .api-chevron {
+  transition: transform 0.2s ease;
+  margin-left: auto;
+}
+
+.sidebar-nav .nav-item .nav-link[data-bs-toggle="collapse"][aria-expanded="true"] .api-chevron,
+.sidebar-nav .nav-item .nav-link[aria-expanded="true"] .api-chevron {
+  transform: rotate(180deg);
 }
 
 /* Sidebar language selector */

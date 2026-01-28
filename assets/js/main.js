@@ -437,6 +437,22 @@
     }
   });
 
+  // Handle sidebar submenu collapse/expand
+  document.addEventListener('DOMContentLoaded', function() {
+    const apiSubmenu = document.getElementById('api-submenu');
+    const apiSubmenuToggle = document.querySelector('[data-bs-target="#api-submenu"]');
+    
+    if (apiSubmenu && apiSubmenuToggle) {
+      apiSubmenu.addEventListener('show.bs.collapse', function() {
+        apiSubmenuToggle.setAttribute('aria-expanded', 'true');
+      });
+      
+      apiSubmenu.addEventListener('hide.bs.collapse', function() {
+        apiSubmenuToggle.setAttribute('aria-expanded', 'false');
+      });
+    }
+  });
+
   // Start initialization
   init();
 

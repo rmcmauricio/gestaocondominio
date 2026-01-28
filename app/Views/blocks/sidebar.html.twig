@@ -242,9 +242,22 @@
             
             {% if user.role == 'super_admin' %}
             <li class="nav-item">
-                <a class="nav-link" href="{{ BASE_URL }}api-keys">
-                    <i class="bi bi-key"></i> API Keys
+                <a class="nav-link" href="#" data-bs-toggle="collapse" data-bs-target="#api-submenu" aria-expanded="false" aria-controls="api-submenu" onclick="event.preventDefault();">
+                    <i class="bi bi-code-slash"></i> API
+                    <i class="bi bi-chevron-down ms-auto api-chevron" style="font-size: 0.75rem; transition: transform 0.2s;"></i>
                 </a>
+                <ul class="nav flex-column collapse" id="api-submenu" data-bs-parent=".sidebar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link ps-4" href="{{ BASE_URL }}api-keys">
+                            <i class="bi bi-key"></i> Keys
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link ps-4" href="{{ BASE_URL }}api/documentation">
+                            <i class="bi bi-book"></i> Documentação
+                        </a>
+                    </li>
+                </ul>
             </li>
             {% endif %}
             {% endif %}

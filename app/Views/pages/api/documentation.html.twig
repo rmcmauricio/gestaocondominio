@@ -1,12 +1,10 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Documentação da API REST</h2>
-        <a href="{{ BASE_URL }}api-keys" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Voltar
-        </a>
     </div>
 
-    <div class="card shadow-sm mb-4">
+    <!-- Seção de Autenticação -->
+    <div class="card shadow-sm mb-4" id="authentication">
         <div class="card-header bg-primary text-white">
             <h5 class="mb-0">Autenticação</h5>
         </div>
@@ -17,91 +15,90 @@
         </div>
     </div>
 
+    <!-- Menu de Navegação -->
     <div class="card shadow-sm mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">Endpoints</h5>
-        </div>
         <div class="card-body">
-            <h6>Condomínios</h6>
-            <table class="table table-bordered">
-                <thead>
-                    <tr>
-                        <th>Método</th>
-                        <th>Endpoint</th>
-                        <th>Descrição</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><span class="badge bg-success">GET</span></td>
-                        <td><code>/api/condominiums</code></td>
-                        <td>Lista todos os condomínios do utilizador</td>
-                    </tr>
-                    <tr>
-                        <td><span class="badge bg-success">GET</span></td>
-                        <td><code>/api/condominiums/{id}</code></td>
-                        <td>Detalhes de um condomínio específico</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <h6 class="mt-4">Quotas</h6>
-            <table class="table table-bordered">
-                <thead>
-                    <tr>
-                        <th>Método</th>
-                        <th>Endpoint</th>
-                        <th>Descrição</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><span class="badge bg-success">GET</span></td>
-                        <td><code>/api/condominiums/{id}/fees</code></td>
-                        <td>Lista quotas de um condomínio</td>
-                    </tr>
-                    <tr>
-                        <td><span class="badge bg-success">GET</span></td>
-                        <td><code>/api/fractions/{id}/fees</code></td>
-                        <td>Lista quotas de uma fração</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <h6 class="mt-4">Parâmetros de Query</h6>
-            <ul>
-                <li><code>year</code> - Filtrar por ano (ex: ?year=2024)</li>
-                <li><code>month</code> - Filtrar por mês (ex: ?month=12)</li>
-                <li><code>status</code> - Filtrar por status (pending, paid, overdue)</li>
-            </ul>
+            <div class="dropdown mb-3">
+                <button class="btn btn-outline-primary dropdown-toggle w-100" type="button" id="apiCategoryDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <span id="selectedCategory">Selecione uma categoria</span>
+                </button>
+                <ul class="dropdown-menu w-100" aria-labelledby="apiCategoryDropdown">
+                    <li><a class="dropdown-item category-link" href="#" data-category="authentication">Autenticação</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="condominiums">Condomínios</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="fractions">Frações</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="fees">Quotas</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="payments">Pagamentos</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="expenses">Despesas</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="revenues">Receitas</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="budgets">Orçamentos</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="bank-accounts">Contas Bancárias</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="transactions">Transações</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="documents">Documentos</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="occurrences">Ocorrências</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="assemblies">Assembleias</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="reservations">Reservas</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="spaces">Espaços</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="suppliers">Fornecedores</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="contracts">Contratos</a></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="messages">Mensagens</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item category-link" href="#" data-category="general-info">Informações Gerais</a></li>
+                </ul>
+            </div>
+            <div id="endpointLinks" class="d-none">
+                <div class="list-group list-group-horizontal flex-wrap" id="endpointLinksContainer"></div>
+            </div>
         </div>
     </div>
 
-    <div class="card shadow-sm mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">Exemplos</h5>
-        </div>
-        <div class="card-body">
-            <h6>cURL</h6>
-            <pre class="bg-light p-3 rounded"><code># Listar condomínios
-curl -H "X-API-Key: pk_sua_chave_aqui" \
-  {{ BASE_URL }}api/condominiums
+    <!-- Container para Tabs dos Endpoints -->
+    <div id="endpointsTabsContainer" class="d-none mb-4">
+        <ul class="nav nav-tabs" id="endpointsTabs" role="tablist"></ul>
+        <div class="tab-content" id="endpointsTabContent"></div>
+    </div>
 
-# Listar quotas de um condomínio
-curl -H "X-API-Key: pk_sua_chave_aqui" \
-  "{{ BASE_URL }}api/condominiums/1/fees?year=2024&status=pending"</code></pre>
-
-            <h6 class="mt-4">JavaScript (Fetch)</h6>
-            <pre class="bg-light p-3 rounded"><code>fetch('{{ BASE_URL }}api/condominiums', {
+    <div class="row">
+        <!-- Conteúdo Principal -->
+        <div class="col-12">
+            <!-- Endpoint: Listar Condomínios -->
+            <div class="card mb-4 d-none endpoint-card" data-category="condominiums" id="endpoint-condominiums-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todos os condomínios do utilizador autenticado.</p>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-condominiums-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-condominiums-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-condominiums-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-condominiums-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/condominiums</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-condominiums-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/condominiums', {
   headers: {
     'X-API-Key': 'pk_sua_chave_aqui'
   }
 })
 .then(response => response.json())
 .then(data => console.log(data));</code></pre>
-
-            <h6 class="mt-4">PHP</h6>
-            <pre class="bg-light p-3 rounded"><code>$ch = curl_init('{{ BASE_URL }}api/condominiums');
+                        </div>
+                        <div class="tab-pane fade" id="php-condominiums-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/condominiums');
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'X-API-Key: pk_sua_chave_aqui'
 ]);
@@ -109,44 +106,3370 @@ curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 $response = curl_exec($ch);
 curl_close($ch);
 $data = json_decode($response, true);</code></pre>
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="card-header">
-            <h5 class="mb-0">Respostas</h5>
-        </div>
-        <div class="card-body">
-            <h6>Sucesso</h6>
-            <pre class="bg-light p-3 rounded"><code>{
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
   "success": true,
   "message": "Success",
   "data": {
-    "condominiums": [...],
-    "total": 2
+    "condominiums": [
+      {
+        "id": 1,
+        "name": "Edifício Exemplo",
+        "address": "Rua Exemplo, 123",
+        "is_active": true,
+        "created_at": "2024-01-15 10:00:00"
+      }
+    ],
+    "total": 1
   }
 }</code></pre>
+                </div>
+            </div>
 
-            <h6 class="mt-4">Erro</h6>
-            <pre class="bg-light p-3 rounded"><code>{
-  "success": false,
-  "error": "Invalid API key",
-  "code": 401
+            <!-- Endpoint: Detalhes Condomínio -->
+            <div class="card mb-4 d-none endpoint-card" data-category="condominiums" id="endpoint-condominiums-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de um condomínio específico. O utilizador deve ter acesso ao condomínio.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>id</code></td>
+                                <td>integer</td>
+                                <td>ID do condomínio</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-condominiums-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-condominiums-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-condominiums-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-condominiums-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/condominiums/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-condominiums-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/condominiums/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-condominiums-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/condominiums/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "condominium": {
+      "id": 1,
+      "name": "Edifício Exemplo",
+      "address": "Rua Exemplo, 123",
+      "is_active": true,
+      "created_at": "2024-01-15 10:00:00"
+    }
+  }
 }</code></pre>
+                </div>
+            </div>
 
-            <h6 class="mt-4">Códigos de Status HTTP</h6>
-            <ul>
-                <li><code>200</code> - Sucesso</li>
-                <li><code>401</code> - Não autenticado (API key inválida ou ausente)</li>
-                <li><code>403</code> - Acesso negado (sem plano Enterprise ou sem permissão)</li>
-                <li><code>404</code> - Recurso não encontrado</li>
-                <li><code>500</code> - Erro interno do servidor</li>
-            </ul>
+            <!-- Endpoint: Listar Frações -->
+            <div class="card mb-4 d-none endpoint-card" data-category="fractions" id="endpoint-fractions-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/fractions</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todas as frações de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>condominium_id</code></td>
+                                <td>integer</td>
+                                <td>ID do condomínio</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-fractions-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-fractions-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-fractions-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-fractions-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/condominiums/1/fractions</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-fractions-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/condominiums/1/fractions', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-fractions-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/condominiums/1/fractions');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "fractions": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "number": "A1",
+        "floor": 1,
+        "area": 85.5,
+        "owner_name": "João Silva"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Fração -->
+            <div class="card mb-4 d-none endpoint-card" data-category="fractions" id="endpoint-fractions-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/fractions/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de uma fração específica.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>id</code></td>
+                                <td>integer</td>
+                                <td>ID da fração</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-fractions-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-fractions-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-fractions-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-fractions-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/fractions/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-fractions-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/fractions/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-fractions-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/fractions/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "fraction": {
+      "id": 1,
+      "condominium_id": 1,
+      "number": "A1",
+      "floor": 1,
+      "area": 85.5,
+      "owner_name": "João Silva"
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Quotas (Condomínio) -->
+            <div class="card mb-4 d-none endpoint-card" data-category="fees" id="endpoint-fees-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/fees</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todas as quotas de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>condominium_id</code></td>
+                                <td>integer</td>
+                                <td>ID do condomínio</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Parâmetros de Query</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                                <th>Valores Possíveis</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>year</code></td>
+                                <td>integer</td>
+                                <td>Filtrar por ano</td>
+                                <td>Ex: 2024</td>
+                            </tr>
+                            <tr>
+                                <td><code>month</code></td>
+                                <td>integer</td>
+                                <td>Filtrar por mês</td>
+                                <td>1-12</td>
+                            </tr>
+                            <tr>
+                                <td><code>status</code></td>
+                                <td>string</td>
+                                <td>Filtrar por status</td>
+                                <td><code>pending</code>, <code>paid</code>, <code>overdue</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-fees-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-fees-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-fees-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-fees-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  "{{ BASE_URL }}api/condominiums/1/fees?year=2024&month=12&status=pending"</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-fees-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>const params = new URLSearchParams({
+  year: 2024,
+  month: 12,
+  status: 'pending'
+});
+
+fetch(`{{ BASE_URL }}api/condominiums/1/fees?${params}`, {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-fees-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$url = '{{ BASE_URL }}api/condominiums/1/fees?' . http_build_query([
+    'year' => 2024,
+    'month' => 12,
+    'status' => 'pending'
+]);
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "fees": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "fraction_id": 1,
+        "amount": 150.00,
+        "due_date": "2024-12-31",
+        "status": "pending"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Quotas (Fração) -->
+            <div class="card mb-4 d-none endpoint-card" data-category="fees" id="endpoint-fees-fraction">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/fractions/{fraction_id}/fees</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todas as quotas de uma fração específica.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>fraction_id</code></td>
+                                <td>integer</td>
+                                <td>ID da fração</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Parâmetros de Query</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                                <th>Valores Possíveis</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>year</code></td>
+                                <td>integer</td>
+                                <td>Filtrar por ano</td>
+                                <td>Ex: 2024</td>
+                            </tr>
+                            <tr>
+                                <td><code>status</code></td>
+                                <td>string</td>
+                                <td>Filtrar por status</td>
+                                <td><code>pending</code>, <code>paid</code>, <code>overdue</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-fees-fraction">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-fees-fraction">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-fees-fraction">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-fees-fraction">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  "{{ BASE_URL }}api/fractions/1/fees?year=2024&status=pending"</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-fees-fraction">
+                            <pre class="bg-light p-3 rounded mt-2"><code>const params = new URLSearchParams({
+  year: 2024,
+  status: 'pending'
+});
+
+fetch(`{{ BASE_URL }}api/fractions/1/fees?${params}`, {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-fees-fraction">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$url = '{{ BASE_URL }}api/fractions/1/fees?' . http_build_query([
+    'year' => 2024,
+    'status' => 'pending'
+]);
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "fees": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "fraction_id": 1,
+        "amount": 150.00,
+        "due_date": "2024-12-31",
+        "status": "pending"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Pagamentos de Quotas -->
+            <div class="card mb-4 d-none endpoint-card" data-category="payments" id="endpoint-fee-payments-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/fees/{fee_id}/payments</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todos os pagamentos de uma quota específica.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>fee_id</code></td>
+                                <td>integer</td>
+                                <td>ID da quota</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-fee-payments-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-fee-payments-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-fee-payments-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-fee-payments-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/fees/1/payments</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-fee-payments-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/fees/1/payments', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-fee-payments-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/fees/1/payments');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "payments": [
+      {
+        "id": 1,
+        "fee_id": 1,
+        "amount": 150.00,
+        "payment_date": "2024-12-15",
+        "payment_method": "transfer"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Pagamento -->
+            <div class="card mb-4 d-none endpoint-card" data-category="payments" id="endpoint-fee-payments-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/fee-payments/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de um pagamento de quota específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>id</code></td>
+                                <td>integer</td>
+                                <td>ID do pagamento</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-fee-payments-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-fee-payments-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-fee-payments-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-fee-payments-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/fee-payments/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-fee-payments-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/fee-payments/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-fee-payments-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/fee-payments/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "fee_payment": {
+      "id": 1,
+      "fee_id": 1,
+      "amount": 150.00,
+      "payment_date": "2024-12-15",
+      "payment_method": "transfer"
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Despesas -->
+            <div class="card mb-4 d-none endpoint-card" data-category="expenses" id="endpoint-expenses-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/expenses</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todas as despesas de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>condominium_id</code></td>
+                                <td>integer</td>
+                                <td>ID do condomínio</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Parâmetros de Query</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                                <th>Valores Possíveis</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>year</code></td>
+                                <td>integer</td>
+                                <td>Filtrar por ano</td>
+                                <td>Ex: 2024</td>
+                            </tr>
+                            <tr>
+                                <td><code>month</code></td>
+                                <td>integer</td>
+                                <td>Filtrar por mês</td>
+                                <td>1-12</td>
+                            </tr>
+                            <tr>
+                                <td><code>category</code></td>
+                                <td>string</td>
+                                <td>Filtrar por categoria</td>
+                                <td>Nome da categoria</td>
+                            </tr>
+                            <tr>
+                                <td><code>type</code></td>
+                                <td>string</td>
+                                <td>Filtrar por tipo</td>
+                                <td><code>ordinaria</code>, <code>extraordinaria</code>, <code>fundo_reserva</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-expenses-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-expenses-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-expenses-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-expenses-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  "{{ BASE_URL }}api/condominiums/1/expenses?year=2024&month=12&type=ordinaria"</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-expenses-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>const params = new URLSearchParams({
+  year: 2024,
+  month: 12,
+  type: 'ordinaria'
+});
+
+fetch(`{{ BASE_URL }}api/condominiums/1/expenses?${params}`, {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-expenses-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$url = '{{ BASE_URL }}api/condominiums/1/expenses?' . http_build_query([
+    'year' => 2024,
+    'month' => 12,
+    'type' => 'ordinaria'
+]);
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "expenses": [
+      {
+        "id": 123,
+        "condominium_id": 1,
+        "category": "Manutenção",
+        "description": "Reparação do elevador",
+        "amount": 500.00,
+        "type": "ordinaria",
+        "expense_date": "2024-12-15",
+        "is_paid": false,
+        "supplier_name": "Empresa XYZ"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Despesa -->
+            <div class="card mb-4 d-none endpoint-card" data-category="expenses" id="endpoint-expenses-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/expenses/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de uma despesa específica.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>id</code></td>
+                                <td>integer</td>
+                                <td>ID da despesa</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-expenses-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-expenses-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-expenses-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-expenses-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/expenses/123</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-expenses-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/expenses/123', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-expenses-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/expenses/123');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "expense": {
+      "id": 123,
+      "condominium_id": 1,
+      "category": "Manutenção",
+      "description": "Reparação do elevador",
+      "amount": 500.00,
+      "type": "ordinaria",
+      "expense_date": "2024-12-15",
+      "is_paid": false,
+      "supplier_name": "Empresa XYZ"
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Receitas -->
+            <div class="card mb-4 d-none endpoint-card" data-category="revenues" id="endpoint-revenues-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/revenues</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todas as receitas de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>condominium_id</code></td>
+                                <td>integer</td>
+                                <td>ID do condomínio</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Parâmetros de Query</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>year</code></td>
+                                <td>integer</td>
+                                <td>Filtrar por ano</td>
+                            </tr>
+                            <tr>
+                                <td><code>month</code></td>
+                                <td>integer</td>
+                                <td>Filtrar por mês</td>
+                            </tr>
+                            <tr>
+                                <td><code>fraction_id</code></td>
+                                <td>integer</td>
+                                <td>Filtrar por fração específica</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-revenues-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-revenues-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-revenues-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-revenues-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  "{{ BASE_URL }}api/condominiums/1/revenues?year=2024&month=12"</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-revenues-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>const params = new URLSearchParams({
+  year: 2024,
+  month: 12
+});
+
+fetch(`{{ BASE_URL }}api/condominiums/1/revenues?${params}`, {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-revenues-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$url = '{{ BASE_URL }}api/condominiums/1/revenues?' . http_build_query([
+    'year' => 2024,
+    'month' => 12
+]);
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "revenues": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "fraction_id": 1,
+        "amount": 150.00,
+        "revenue_date": "2024-12-15",
+        "description": "Quota de dezembro"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Receita -->
+            <div class="card mb-4 d-none endpoint-card" data-category="revenues" id="endpoint-revenues-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/revenues/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de uma receita específica.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>id</code></td>
+                                <td>integer</td>
+                                <td>ID da receita</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-revenues-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-revenues-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-revenues-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-revenues-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/revenues/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-revenues-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/revenues/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-revenues-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/revenues/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "revenue": {
+      "id": 1,
+      "condominium_id": 1,
+      "fraction_id": 1,
+      "amount": 150.00,
+      "revenue_date": "2024-12-15",
+      "description": "Quota de dezembro"
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Orçamentos -->
+            <div class="card mb-4 d-none endpoint-card" data-category="budgets" id="endpoint-budgets-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/budgets</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todos os orçamentos de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>condominium_id</code></td>
+                                <td>integer</td>
+                                <td>ID do condomínio</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-budgets-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-budgets-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-budgets-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-budgets-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/condominiums/1/budgets</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-budgets-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/condominiums/1/budgets', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-budgets-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/condominiums/1/budgets');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "budgets": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "year": 2024,
+        "status": "approved"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Orçamento -->
+            <div class="card mb-4 d-none endpoint-card" data-category="budgets" id="endpoint-budgets-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/budgets/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de um orçamento específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>id</code></td>
+                                <td>integer</td>
+                                <td>ID do orçamento</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-budgets-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-budgets-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-budgets-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-budgets-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/budgets/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-budgets-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/budgets/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-budgets-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/budgets/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "budget": {
+      "id": 1,
+      "condominium_id": 1,
+      "year": 2024,
+      "status": "approved"
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Itens do Orçamento -->
+            <div class="card mb-4 d-none endpoint-card" data-category="budgets" id="endpoint-budgets-items">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/budgets/{id}/items</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todos os itens de um orçamento específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>id</code></td>
+                                <td>integer</td>
+                                <td>ID do orçamento</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-budgets-items">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-budgets-items">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-budgets-items">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-budgets-items">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/budgets/1/items</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-budgets-items">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/budgets/1/items', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-budgets-items">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/budgets/1/items');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "budget_id": 1,
+        "category": "Manutenção",
+        "description": "Manutenção preventiva",
+        "amount": 1000.00
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Contas Bancárias -->
+            <div class="card mb-4 d-none endpoint-card" data-category="bank-accounts" id="endpoint-bank-accounts-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/bank-accounts</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todas as contas bancárias de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>condominium_id</code></td>
+                                <td>integer</td>
+                                <td>ID do condomínio</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Parâmetros de Query</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                                <th>Valores Possíveis</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>account_type</code></td>
+                                <td>string</td>
+                                <td>Filtrar por tipo</td>
+                                <td><code>bank</code>, <code>cash</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>is_active</code></td>
+                                <td>boolean</td>
+                                <td>Filtrar por estado ativo</td>
+                                <td><code>true</code>, <code>false</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-bank-accounts-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-bank-accounts-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-bank-accounts-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-bank-accounts-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  "{{ BASE_URL }}api/condominiums/1/bank-accounts?account_type=bank&is_active=true"</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-bank-accounts-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>const params = new URLSearchParams({
+  account_type: 'bank',
+  is_active: 'true'
+});
+
+fetch(`{{ BASE_URL }}api/condominiums/1/bank-accounts?${params}`, {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-bank-accounts-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$url = '{{ BASE_URL }}api/condominiums/1/bank-accounts?' . http_build_query([
+    'account_type' => 'bank',
+    'is_active' => 'true'
+]);
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "bank_accounts": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "name": "Conta Principal",
+        "account_type": "bank",
+        "is_active": true
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Conta Bancária -->
+            <div class="card mb-4 d-none endpoint-card" data-category="bank-accounts" id="endpoint-bank-accounts-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/bank-accounts/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de uma conta bancária específica.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>id</code></td>
+                                <td>integer</td>
+                                <td>ID da conta bancária</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-bank-accounts-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-bank-accounts-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-bank-accounts-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-bank-accounts-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/bank-accounts/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-bank-accounts-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/bank-accounts/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-bank-accounts-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/bank-accounts/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "bank_account": {
+      "id": 1,
+      "condominium_id": 1,
+      "name": "Conta Principal",
+      "account_type": "bank",
+      "is_active": true
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Transações Financeiras -->
+            <div class="card mb-4 d-none endpoint-card" data-category="transactions" id="endpoint-transactions-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/financial-transactions</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todas as transações financeiras de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>condominium_id</code></td>
+                                <td>integer</td>
+                                <td>ID do condomínio</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Parâmetros de Query</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                                <th>Valores Possíveis</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>bank_account_id</code></td>
+                                <td>integer</td>
+                                <td>Filtrar por conta bancária</td>
+                                <td>ID da conta</td>
+                            </tr>
+                            <tr>
+                                <td><code>transaction_type</code></td>
+                                <td>string</td>
+                                <td>Filtrar por tipo</td>
+                                <td><code>income</code>, <code>expense</code>, <code>transfer</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>from_date</code></td>
+                                <td>string</td>
+                                <td>Filtrar a partir de data</td>
+                                <td>YYYY-MM-DD</td>
+                            </tr>
+                            <tr>
+                                <td><code>to_date</code></td>
+                                <td>string</td>
+                                <td>Filtrar até data</td>
+                                <td>YYYY-MM-DD</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-transactions-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-transactions-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-transactions-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-transactions-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  "{{ BASE_URL }}api/condominiums/1/financial-transactions?from_date=2024-01-01&to_date=2024-12-31"</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-transactions-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>const params = new URLSearchParams({
+  from_date: '2024-01-01',
+  to_date: '2024-12-31',
+  transaction_type: 'income'
+});
+
+fetch(`{{ BASE_URL }}api/condominiums/1/financial-transactions?${params}`, {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-transactions-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$url = '{{ BASE_URL }}api/condominiums/1/financial-transactions?' . http_build_query([
+    'from_date' => '2024-01-01',
+    'to_date' => '2024-12-31',
+    'transaction_type' => 'income'
+]);
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "financial_transactions": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "bank_account_id": 1,
+        "amount": 500.00,
+        "transaction_type": "income",
+        "transaction_date": "2024-12-15"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Transação Financeira -->
+            <div class="card mb-4 d-none endpoint-card" data-category="transactions" id="endpoint-transactions-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/financial-transactions/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de uma transação financeira específica.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>id</code></td>
+                                <td>integer</td>
+                                <td>ID da transação financeira</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-transactions-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-transactions-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-transactions-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-transactions-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/financial-transactions/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-transactions-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/financial-transactions/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-transactions-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/financial-transactions/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "financial_transaction": {
+      "id": 1,
+      "condominium_id": 1,
+      "bank_account_id": 1,
+      "amount": 500.00,
+      "transaction_type": "income",
+      "transaction_date": "2024-12-15"
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Documentos -->
+            <div class="card mb-4 d-none endpoint-card" data-category="documents" id="endpoint-documents-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/documents</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todos os documentos de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>condominium_id</code></td>
+                                <td>integer</td>
+                                <td>ID do condomínio</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Parâmetros de Query</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>folder</code></td>
+                                <td>integer/null</td>
+                                <td>Filtrar por pasta (ID ou <code>null</code> para documentos sem pasta)</td>
+                            </tr>
+                            <tr>
+                                <td><code>document_type</code></td>
+                                <td>string</td>
+                                <td>Filtrar por tipo de documento</td>
+                            </tr>
+                            <tr>
+                                <td><code>visibility</code></td>
+                                <td>string</td>
+                                <td>Filtrar por visibilidade</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-documents-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-documents-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-documents-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-documents-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  "{{ BASE_URL }}api/condominiums/1/documents?visibility=public"</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-documents-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>const params = new URLSearchParams({
+  visibility: 'public'
+});
+
+fetch(`{{ BASE_URL }}api/condominiums/1/documents?${params}`, {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-documents-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$url = '{{ BASE_URL }}api/condominiums/1/documents?' . http_build_query([
+    'visibility' => 'public'
+]);
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "documents": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "name": "Regulamento Interno.pdf",
+        "document_type": "regulation",
+        "visibility": "public"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Documento -->
+            <div class="card mb-4 d-none endpoint-card" data-category="documents" id="endpoint-documents-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/documents/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de um documento específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de URL</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>id</code></td>
+                                <td>integer</td>
+                                <td>ID do documento</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-documents-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-documents-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-documents-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-documents-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/documents/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-documents-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/documents/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-documents-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/documents/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "document": {
+      "id": 1,
+      "condominium_id": 1,
+      "name": "Regulamento Interno.pdf",
+      "document_type": "regulation",
+      "visibility": "public"
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Ocorrências -->
+            <div class="card mb-4 d-none endpoint-card" data-category="occurrences" id="endpoint-occurrences-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/occurrences</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todas as ocorrências de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de Query</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                                <th>Valores Possíveis</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>status</code></td>
+                                <td>string</td>
+                                <td>Filtrar por status</td>
+                                <td><code>pending</code>, <code>in_progress</code>, <code>resolved</code>, <code>cancelled</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>priority</code></td>
+                                <td>string</td>
+                                <td>Filtrar por prioridade</td>
+                                <td><code>low</code>, <code>medium</code>, <code>high</code>, <code>urgent</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>category</code></td>
+                                <td>string</td>
+                                <td>Filtrar por categoria</td>
+                                <td>Nome da categoria</td>
+                            </tr>
+                            <tr>
+                                <td><code>fraction_id</code></td>
+                                <td>integer</td>
+                                <td>Filtrar por fração</td>
+                                <td>ID da fração</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-occurrences-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-occurrences-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-occurrences-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-occurrences-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  "{{ BASE_URL }}api/condominiums/1/occurrences?status=pending&priority=high"</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-occurrences-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>const params = new URLSearchParams({
+  status: 'pending',
+  priority: 'high'
+});
+
+fetch(`{{ BASE_URL }}api/condominiums/1/occurrences?${params}`, {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-occurrences-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$url = '{{ BASE_URL }}api/condominiums/1/occurrences?' . http_build_query([
+    'status' => 'pending',
+    'priority' => 'high'
+]);
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "occurrences": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "title": "Elevador com problemas",
+        "status": "pending",
+        "priority": "high"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Ocorrência -->
+            <div class="card mb-4 d-none endpoint-card" data-category="occurrences" id="endpoint-occurrences-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/occurrences/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de uma ocorrência específica.</p>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-occurrences-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-occurrences-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-occurrences-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-occurrences-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/occurrences/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-occurrences-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/occurrences/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-occurrences-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/occurrences/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "occurrence": {
+      "id": 1,
+      "condominium_id": 1,
+      "title": "Elevador com problemas",
+      "status": "pending",
+      "priority": "high"
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Assembleias -->
+            <div class="card mb-4 d-none endpoint-card" data-category="assemblies" id="endpoint-assemblies-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/assemblies</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todas as assembleias de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de Query</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                                <th>Valores Possíveis</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>status</code></td>
+                                <td>string</td>
+                                <td>Filtrar por status</td>
+                                <td><code>scheduled</code>, <code>in_progress</code>, <code>closed</code>, <code>cancelled</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-assemblies-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-assemblies-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-assemblies-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-assemblies-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  "{{ BASE_URL }}api/condominiums/1/assemblies?status=scheduled"</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-assemblies-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/condominiums/1/assemblies?status=scheduled', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-assemblies-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/condominiums/1/assemblies?status=scheduled');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "assemblies": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "title": "Assembleia Geral",
+        "status": "scheduled",
+        "date": "2024-12-20"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Assembleia -->
+            <div class="card mb-4 d-none endpoint-card" data-category="assemblies" id="endpoint-assemblies-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/assemblies/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de uma assembleia específica.</p>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-assemblies-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-assemblies-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-assemblies-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-assemblies-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/assemblies/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-assemblies-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/assemblies/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-assemblies-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/assemblies/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "assembly": {
+      "id": 1,
+      "condominium_id": 1,
+      "title": "Assembleia Geral",
+      "status": "scheduled",
+      "date": "2024-12-20"
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Reservas -->
+            <div class="card mb-4 d-none endpoint-card" data-category="reservations" id="endpoint-reservations-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/reservations</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todas as reservas de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de Query</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                                <th>Valores Possíveis</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>status</code></td>
+                                <td>string</td>
+                                <td>Filtrar por status</td>
+                                <td><code>pending</code>, <code>approved</code>, <code>rejected</code>, <code>cancelled</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>space_id</code></td>
+                                <td>integer</td>
+                                <td>Filtrar por espaço</td>
+                                <td>ID do espaço</td>
+                            </tr>
+                            <tr>
+                                <td><code>start_date</code></td>
+                                <td>string</td>
+                                <td>Filtrar a partir de data</td>
+                                <td>YYYY-MM-DD</td>
+                            </tr>
+                            <tr>
+                                <td><code>end_date</code></td>
+                                <td>string</td>
+                                <td>Filtrar até data</td>
+                                <td>YYYY-MM-DD</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-reservations-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-reservations-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-reservations-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-reservations-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  "{{ BASE_URL }}api/condominiums/1/reservations?status=approved&start_date=2024-12-01"</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-reservations-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>const params = new URLSearchParams({
+  status: 'approved',
+  start_date: '2024-12-01'
+});
+
+fetch(`{{ BASE_URL }}api/condominiums/1/reservations?${params}`, {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-reservations-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$url = '{{ BASE_URL }}api/condominiums/1/reservations?' . http_build_query([
+    'status' => 'approved',
+    'start_date' => '2024-12-01'
+]);
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "reservations": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "space_id": 1,
+        "status": "approved",
+        "start_date": "2024-12-15",
+        "end_date": "2024-12-16"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Reserva -->
+            <div class="card mb-4 d-none endpoint-card" data-category="reservations" id="endpoint-reservations-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/reservations/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de uma reserva específica.</p>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-reservations-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-reservations-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-reservations-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-reservations-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/reservations/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-reservations-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/reservations/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-reservations-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/reservations/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "reservation": {
+      "id": 1,
+      "condominium_id": 1,
+      "space_id": 1,
+      "status": "approved",
+      "start_date": "2024-12-15",
+      "end_date": "2024-12-16"
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Espaços -->
+            <div class="card mb-4 d-none endpoint-card" data-category="spaces" id="endpoint-spaces-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/spaces</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todos os espaços de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-spaces-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-spaces-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-spaces-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-spaces-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/condominiums/1/spaces</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-spaces-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/condominiums/1/spaces', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-spaces-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/condominiums/1/spaces');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "spaces": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "name": "Salão de Festas",
+        "is_active": true
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Espaço -->
+            <div class="card mb-4 d-none endpoint-card" data-category="spaces" id="endpoint-spaces-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/spaces/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de um espaço específico.</p>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-spaces-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-spaces-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-spaces-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-spaces-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/spaces/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-spaces-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/spaces/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-spaces-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/spaces/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "space": {
+      "id": 1,
+      "condominium_id": 1,
+      "name": "Salão de Festas",
+      "is_active": true
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Fornecedores -->
+            <div class="card mb-4 d-none endpoint-card" data-category="suppliers" id="endpoint-suppliers-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/suppliers</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todos os fornecedores de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-suppliers-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-suppliers-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-suppliers-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-suppliers-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/condominiums/1/suppliers</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-suppliers-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/condominiums/1/suppliers', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-suppliers-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/condominiums/1/suppliers');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "suppliers": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "name": "Empresa XYZ",
+        "contact_email": "contato@xyz.com"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Fornecedor -->
+            <div class="card mb-4 d-none endpoint-card" data-category="suppliers" id="endpoint-suppliers-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/suppliers/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de um fornecedor específico.</p>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-suppliers-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-suppliers-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-suppliers-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-suppliers-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/suppliers/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-suppliers-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/suppliers/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-suppliers-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/suppliers/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "supplier": {
+      "id": 1,
+      "condominium_id": 1,
+      "name": "Empresa XYZ",
+      "contact_email": "contato@xyz.com"
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Contratos -->
+            <div class="card mb-4 d-none endpoint-card" data-category="contracts" id="endpoint-contracts-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/contracts</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todos os contratos de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-contracts-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-contracts-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-contracts-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-contracts-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/condominiums/1/contracts</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-contracts-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/condominiums/1/contracts', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-contracts-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/condominiums/1/contracts');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "contracts": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "supplier_id": 1,
+        "title": "Contrato de Limpeza",
+        "start_date": "2024-01-01",
+        "end_date": "2024-12-31"
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Contrato -->
+            <div class="card mb-4 d-none endpoint-card" data-category="contracts" id="endpoint-contracts-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/contracts/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de um contrato específico.</p>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-contracts-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-contracts-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-contracts-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-contracts-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/contracts/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-contracts-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/contracts/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-contracts-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/contracts/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "contract": {
+      "id": 1,
+      "condominium_id": 1,
+      "supplier_id": 1,
+      "title": "Contrato de Limpeza",
+      "start_date": "2024-01-01",
+      "end_date": "2024-12-31"
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Listar Mensagens -->
+            <div class="card mb-4 d-none endpoint-card" data-category="messages" id="endpoint-messages-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/condominiums/{condominium_id}/messages</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Lista todas as mensagens de um condomínio específico.</p>
+                    
+                    <h6 class="mt-4">Parâmetros de Query</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>recipient_id</code></td>
+                                <td>integer</td>
+                                <td>Filtrar por destinatário</td>
+                            </tr>
+                            <tr>
+                                <td><code>sender_id</code></td>
+                                <td>integer</td>
+                                <td>Filtrar por remetente</td>
+                            </tr>
+                            <tr>
+                                <td><code>is_read</code></td>
+                                <td>boolean</td>
+                                <td>Filtrar por estado de leitura</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-messages-list">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-messages-list">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-messages-list">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-messages-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  "{{ BASE_URL }}api/condominiums/1/messages?is_read=false"</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-messages-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>const params = new URLSearchParams({
+  is_read: 'false'
+});
+
+fetch(`{{ BASE_URL }}api/condominiums/1/messages?${params}`, {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-messages-list">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$url = '{{ BASE_URL }}api/condominiums/1/messages?' . http_build_query([
+    'is_read' => 'false'
+]);
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "messages": [
+      {
+        "id": 1,
+        "condominium_id": 1,
+        "sender_id": 1,
+        "recipient_id": 2,
+        "subject": "Aviso Importante",
+        "is_read": false
+      }
+    ],
+    "total": 1
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Endpoint: Detalhes Mensagem -->
+            <div class="card mb-4 d-none endpoint-card" data-category="messages" id="endpoint-messages-show">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">GET /api/messages/{id}</h5>
+                    <span class="badge bg-success">GET</span>
+                </div>
+                <div class="card-body">
+                    <h6>Descrição</h6>
+                    <p>Retorna os detalhes de uma mensagem específica.</p>
+                    
+                    <h6 class="mt-4">Exemplo de Requisição</h6>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#curl-messages-show">cURL</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#javascript-messages-show">JavaScript</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#php-messages-show">PHP</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="curl-messages-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>curl -H "X-API-Key: pk_sua_chave_aqui" \
+  {{ BASE_URL }}api/messages/1</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="javascript-messages-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>fetch('{{ BASE_URL }}api/messages/1', {
+  headers: {
+    'X-API-Key': 'pk_sua_chave_aqui'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));</code></pre>
+                        </div>
+                        <div class="tab-pane fade" id="php-messages-show">
+                            <pre class="bg-light p-3 rounded mt-2"><code>$ch = curl_init('{{ BASE_URL }}api/messages/1');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'X-API-Key: pk_sua_chave_aqui'
+]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Exemplo de Resposta</h6>
+                    <pre class="bg-light p-3 rounded"><code>{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "message": {
+      "id": 1,
+      "condominium_id": 1,
+      "sender_id": 1,
+      "recipient_id": 2,
+      "subject": "Aviso Importante",
+      "is_read": false
+    }
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Seção de Informações Gerais -->
+            <div class="card mb-4 d-none endpoint-card" data-category="general-info" id="general-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Informações Gerais</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Códigos de Status HTTP</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>200</code></td>
+                                <td>Sucesso</td>
+                            </tr>
+                            <tr>
+                                <td><code>400</code></td>
+                                <td>Requisição inválida (ex: API key na query string)</td>
+                            </tr>
+                            <tr>
+                                <td><code>401</code></td>
+                                <td>Não autenticado (API key inválida ou ausente)</td>
+                            </tr>
+                            <tr>
+                                <td><code>403</code></td>
+                                <td>Acesso negado (sem plano Enterprise ou sem permissão ao recurso)</td>
+                            </tr>
+                            <tr>
+                                <td><code>404</code></td>
+                                <td>Recurso não encontrado</td>
+                            </tr>
+                            <tr>
+                                <td><code>500</code></td>
+                                <td>Erro interno do servidor</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h6 class="mt-4">Boas Práticas e Notas</h6>
+                    <h6>Segurança</h6>
+                    <ul>
+                        <li>Nunca exponha a sua API key em código cliente (JavaScript público)</li>
+                        <li>A API key deve ser enviada apenas no header <code>X-API-Key</code>, nunca na query string</li>
+                        <li>Mantenha a sua API key segura e revogue-a imediatamente se suspeitar de comprometimento</li>
+                        <li>Use HTTPS em produção para proteger a transmissão da API key</li>
+                    </ul>
+
+                    <h6 class="mt-4">Rate Limiting</h6>
+                    <p>A API implementa rate limiting para prevenir abuso. Se exceder o limite, receberá um erro 429 (Too Many Requests).</p>
+
+                    <h6 class="mt-4">Filtros e Paginação</h6>
+                    <ul>
+                        <li>Use os parâmetros de query para filtrar resultados e reduzir o tamanho das respostas</li>
+                        <li>Combine múltiplos filtros para obter resultados mais específicos</li>
+                        <li>As datas devem estar no formato <code>YYYY-MM-DD</code></li>
+                    </ul>
+
+                    <h6 class="mt-4">Acesso aos Recursos</h6>
+                    <ul>
+                        <li>Todos os endpoints verificam se o utilizador tem acesso ao condomínio do recurso solicitado</li>
+                        <li>Apenas recursos de condomínios aos quais o utilizador pertence são retornados</li>
+                        <li>Se tentar aceder a um recurso de outro condomínio, receberá erro 403 (Access denied)</li>
+                    </ul>
+
+                    <h6 class="mt-4">Formato de Resposta</h6>
+                    <p>Todas as respostas seguem o formato padrão:</p>
+                    <ul>
+                        <li><code>success</code> - Boolean indicando sucesso ou falha</li>
+                        <li><code>message</code> - Mensagem descritiva (apenas em sucesso)</li>
+                        <li><code>data</code> - Dados do recurso ou lista de recursos</li>
+                        <li><code>error</code> - Mensagem de erro (apenas em falha)</li>
+                        <li><code>code</code> - Código HTTP (apenas em falha)</li>
+                    </ul>
+
+                    <h6 class="mt-4">IDs de Recursos</h6>
+                    <p>Os IDs nos endpoints são sempre numéricos. Substitua <code>{id}</code>, <code>{condominium_id}</code>, etc. pelos valores reais.</p>
+                    <p><strong>Exemplo:</strong> <code>/api/condominiums/1/fractions</code> onde <code>1</code> é o ID do condomínio.</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Mapeamento de categorias para endpoints e seus nomes
+    const categoryEndpoints = {
+        'authentication': { endpoints: [], name: 'Autenticação' },
+        'condominiums': { endpoints: ['endpoint-condominiums-list', 'endpoint-condominiums-show'], name: 'Condomínios', links: ['Listar', 'Detalhes'] },
+        'fractions': { endpoints: ['endpoint-fractions-list', 'endpoint-fractions-show'], name: 'Frações', links: ['Listar', 'Detalhes'] },
+        'fees': { endpoints: ['endpoint-fees-list', 'endpoint-fees-fraction'], name: 'Quotas', links: ['Listar (Condomínio)', 'Listar (Fração)'] },
+        'payments': { endpoints: ['endpoint-fee-payments-list', 'endpoint-fee-payments-show'], name: 'Pagamentos', links: ['Listar', 'Detalhes'] },
+        'expenses': { endpoints: ['endpoint-expenses-list', 'endpoint-expenses-show'], name: 'Despesas', links: ['Listar', 'Detalhes'] },
+        'revenues': { endpoints: ['endpoint-revenues-list', 'endpoint-revenues-show'], name: 'Receitas', links: ['Listar', 'Detalhes'] },
+        'budgets': { endpoints: ['endpoint-budgets-list', 'endpoint-budgets-show', 'endpoint-budgets-items'], name: 'Orçamentos', links: ['Listar', 'Detalhes', 'Itens'] },
+        'bank-accounts': { endpoints: ['endpoint-bank-accounts-list', 'endpoint-bank-accounts-show'], name: 'Contas Bancárias', links: ['Listar', 'Detalhes'] },
+        'transactions': { endpoints: ['endpoint-transactions-list', 'endpoint-transactions-show'], name: 'Transações', links: ['Listar', 'Detalhes'] },
+        'documents': { endpoints: ['endpoint-documents-list', 'endpoint-documents-show'], name: 'Documentos', links: ['Listar', 'Detalhes'] },
+        'occurrences': { endpoints: ['endpoint-occurrences-list', 'endpoint-occurrences-show'], name: 'Ocorrências', links: ['Listar', 'Detalhes'] },
+        'assemblies': { endpoints: ['endpoint-assemblies-list', 'endpoint-assemblies-show'], name: 'Assembleias', links: ['Listar', 'Detalhes'] },
+        'reservations': { endpoints: ['endpoint-reservations-list', 'endpoint-reservations-show'], name: 'Reservas', links: ['Listar', 'Detalhes'] },
+        'spaces': { endpoints: ['endpoint-spaces-list', 'endpoint-spaces-show'], name: 'Espaços', links: ['Listar', 'Detalhes'] },
+        'suppliers': { endpoints: ['endpoint-suppliers-list', 'endpoint-suppliers-show'], name: 'Fornecedores', links: ['Listar', 'Detalhes'] },
+        'contracts': { endpoints: ['endpoint-contracts-list', 'endpoint-contracts-show'], name: 'Contratos', links: ['Listar', 'Detalhes'] },
+        'messages': { endpoints: ['endpoint-messages-list', 'endpoint-messages-show'], name: 'Mensagens', links: ['Listar', 'Detalhes'] },
+        'general-info': { endpoints: ['general-info'], name: 'Informações Gerais', links: [] }
+    };
 
+    // Função para ocultar todos os cards (exceto autenticação)
+    function hideAllCards() {
+        // Limpar tabs anteriores
+        const tabsList = document.getElementById('endpointsTabs');
+        const tabsContent = document.getElementById('endpointsTabContent');
+        if (tabsList) tabsList.innerHTML = '';
+        if (tabsContent) tabsContent.innerHTML = '';
+        
+        // Ocultar todos os cards de endpoint
+        document.querySelectorAll('.endpoint-card').forEach(card => {
+            card.classList.add('d-none');
+        });
+        
+        // Ocultar card de autenticação também quando selecionar outra categoria
+        const authCard = document.getElementById('authentication');
+        if (authCard) {
+            authCard.classList.add('d-none');
+        }
+    }
 
+    // Função para mostrar cards de uma categoria
+    function showCategoryCards(category) {
+        hideAllCards();
+        
+        // Ocultar tabs container
+        const tabsContainer = document.getElementById('endpointsTabsContainer');
+        if (tabsContainer) {
+            tabsContainer.classList.add('d-none');
+        }
+        
+        if (category === 'authentication') {
+            const authCard = document.getElementById('authentication');
+            if (authCard) {
+                authCard.classList.remove('d-none');
+                setTimeout(() => {
+                    authCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
+            document.getElementById('endpointLinks').classList.add('d-none');
+            return;
+        }
+        
+        const categoryData = categoryEndpoints[category];
+        if (categoryData && categoryData.endpoints) {
+            // Ocultar links dos endpoints (não precisamos mais deles)
+            document.getElementById('endpointLinks').classList.add('d-none');
+            
+            // Se houver apenas um endpoint, mostrar diretamente sem tabs
+            if (categoryData.endpoints.length === 1) {
+                const endpointId = categoryData.endpoints[0];
+                const card = document.getElementById(endpointId);
+                if (card) {
+                    card.classList.remove('d-none');
+                    setTimeout(() => {
+                        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 100);
+                }
+                return;
+            }
+            
+            // Criar tabs para múltiplos endpoints
+            const tabsList = document.getElementById('endpointsTabs');
+            const tabsContent = document.getElementById('endpointsTabContent');
+            
+            if (tabsList && tabsContent && categoryData.endpoints.length > 1) {
+                // Limpar tabs anteriores
+                tabsList.innerHTML = '';
+                tabsContent.innerHTML = '';
+                
+                // Criar tabs e tab panes
+                categoryData.endpoints.forEach((endpointId, index) => {
+                    const card = document.getElementById(endpointId);
+                    if (card) {
+                        // Criar tab button
+                        const tabButton = document.createElement('li');
+                        tabButton.className = 'nav-item';
+                        tabButton.setAttribute('role', 'presentation');
+                        
+                        const tabLink = document.createElement('button');
+                        tabLink.className = index === 0 ? 'nav-link active' : 'nav-link';
+                        tabLink.id = `tab-${endpointId}`;
+                        tabLink.setAttribute('data-bs-toggle', 'tab');
+                        tabLink.setAttribute('data-bs-target', `#pane-${endpointId}`);
+                        tabLink.setAttribute('type', 'button');
+                        tabLink.setAttribute('role', 'tab');
+                        tabLink.setAttribute('aria-controls', `pane-${endpointId}`);
+                        tabLink.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
+                        
+                        // Usar o título original (links) como prioridade
+                        const tabTitle = categoryData.links[index] || (() => {
+                            // Fallback: obter título do card se não houver link definido
+                            const cardHeader = card.querySelector('.card-header h5');
+                            return cardHeader ? cardHeader.textContent.trim() : `Endpoint ${index + 1}`;
+                        })();
+                        tabLink.textContent = tabTitle;
+                        
+                        tabButton.appendChild(tabLink);
+                        tabsList.appendChild(tabButton);
+                        
+                        // Criar tab pane
+                        const tabPane = document.createElement('div');
+                        tabPane.className = index === 0 ? 'tab-pane fade show active' : 'tab-pane fade';
+                        tabPane.id = `pane-${endpointId}`;
+                        tabPane.setAttribute('role', 'tabpanel');
+                        tabPane.setAttribute('aria-labelledby', `tab-${endpointId}`);
+                        
+                        // Clonar o card completo para o tab pane
+                        const cardClone = card.cloneNode(true);
+                        cardClone.classList.remove('d-none');
+                        cardClone.classList.add('mb-0');
+                        cardClone.id = `${endpointId}-tab-clone`; // ID diferente para evitar conflitos
+                        tabPane.appendChild(cardClone);
+                        
+                        // Manter o card original oculto
+                        card.classList.add('d-none');
+                        
+                        tabsContent.appendChild(tabPane);
+                    }
+                });
+                
+                // Mostrar container de tabs
+                tabsContainer.classList.remove('d-none');
+                
+                // Scroll para as tabs
+                setTimeout(() => {
+                    tabsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
+        }
+    }
 
+    // Função para mostrar um endpoint específico
+    function showEndpoint(endpointId) {
+        hideAllCards();
+        const card = document.getElementById(endpointId);
+        if (card) {
+            card.classList.remove('d-none');
+            card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
 
+    // Event listener para cliques no dropdown de categorias
+    document.querySelectorAll('.category-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const category = this.getAttribute('data-category');
+            const categoryData = categoryEndpoints[category];
+            if (categoryData) {
+                document.getElementById('selectedCategory').textContent = categoryData.name;
+                showCategoryCards(category);
+            }
+        });
+    });
+
+    // Mostrar autenticação por padrão
+    const authCard = document.getElementById('authentication');
+    if (authCard) {
+        authCard.classList.remove('d-none');
+    }
+});
+</script>
