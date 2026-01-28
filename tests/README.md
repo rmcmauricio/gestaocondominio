@@ -245,6 +245,37 @@ Certifique-se de que `session_start()` é chamado no `setUp()` quando necessári
 - Verifique as credenciais no `phpunit.xml`
 - Use `markTestSkipped()` se a base de dados não estiver disponível
 
+### Erro "PDOException: could not find driver" ou "PDO SQLite driver is not available"
+
+Alguns testes (especialmente `SubscriptionAcceptanceCriteriaTest`) requerem a extensão PDO SQLite para criar bases de dados em memória.
+
+**Para habilitar SQLite:**
+
+1. **Verificar se está instalado:**
+   ```bash
+   php -m | grep -i sqlite
+   ```
+
+2. **No Linux/Unix:**
+   - Instalar: `sudo apt-get install php-sqlite3` (Debian/Ubuntu) ou `sudo yum install php-pdo_sqlite` (CentOS/RHEL)
+   - Habilitar no `php.ini`: descomente `extension=pdo_sqlite` e `extension=sqlite3`
+
+3. **No Windows (XAMPP):**
+   - Abra `php.ini` (geralmente em `C:\xampp\php\php.ini`)
+   - Descomente as linhas:
+     ```ini
+     extension=pdo_sqlite
+     extension=sqlite3
+     ```
+   - Reinicie o servidor Apache
+
+4. **Verificar se está habilitado:**
+   ```bash
+   php -r "echo in_array('sqlite', PDO::getAvailableDrivers()) ? 'SQLite OK' : 'SQLite NOT AVAILABLE';"
+   ```
+
+Se SQLite não estiver disponível, os testes serão automaticamente ignorados (skipped) com uma mensagem clara.
+
 ### Testes não encontram classes
 
 Execute `composer dump-autoload` para regenerar o autoloader.

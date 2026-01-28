@@ -29,6 +29,17 @@ class SubscriptionAcceptanceCriteriaTest extends TestCase
     {
         parent::setUp();
         
+        // Check if SQLite is available before proceeding
+        $availableDrivers = PDO::getAvailableDrivers();
+        if (!in_array('sqlite', $availableDrivers)) {
+            $this->markTestSkipped(
+                'PDO SQLite driver is not available. ' .
+                'Please install/enable the pdo_sqlite PHP extension. ' .
+                'Available PDO drivers: ' . implode(', ', $availableDrivers)
+            );
+            return;
+        }
+        
         // Create in-memory database
         $this->db = DatabaseMockHelper::createInMemoryDatabase();
         DatabaseMockHelper::setupSubscriptionTables($this->db);

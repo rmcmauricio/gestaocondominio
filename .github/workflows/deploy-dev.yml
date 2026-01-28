@@ -52,10 +52,55 @@ jobs:
         run: |
           set -e
           ssh -p "${SSH_PORT}" -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" << 'EOF'
-            set -euo pipefail
+            set -e
             APP_DIR="/home/jamscroll/web/dev.omeupredio.com/public_html"
 
             cd "$APP_DIR"
+
+            # Verificar e instalar SQLite se necessário
+            SQLITE_AVAILABLE=$(php -r "echo in_array('sqlite', PDO::getAvailableDrivers()) ? 'OK' : 'MISSING';" 2>/dev/null || echo "MISSING")
+            if [ "$SQLITE_AVAILABLE" != "OK" ]; then
+              echo "SQLite não encontrado. Tentando instalar..."
+              # Tentar instalar via apt (Debian/Ubuntu)
+              if command -v apt-get &> /dev/null && sudo -n true 2>/dev/null; then
+                sudo apt-get update -qq || true
+                sudo apt-get install -y php-sqlite3 php-pdo-sqlite 2>/dev/null || true
+              # Tentar instalar via yum (CentOS/RHEL)
+              elif command -v yum &> /dev/null && sudo -n true 2>/dev/null; then
+                sudo yum install -y php-pdo_sqlite 2>/dev/null || true
+              fi
+
+              # Tentar habilitar extensões no php.ini se necessário
+              PHP_INI=$(php --ini 2>/dev/null | grep "Loaded Configuration File" | awk '{print $4}' || echo "")
+              if [ -n "$PHP_INI" ] && [ -f "$PHP_INI" ] && sudo -n true 2>/dev/null; then
+                # Verificar se as extensões estão comentadas e descomentar
+                sudo sed -i 's/^;extension=pdo_sqlite/extension=pdo_sqlite/' "$PHP_INI" 2>/dev/null || true
+                sudo sed -i 's/^;extension=sqlite3/extension=sqlite3/' "$PHP_INI" 2>/dev/null || true
+                # Se não existirem, adicionar
+                if ! grep -q "^extension=pdo_sqlite" "$PHP_INI" 2>/dev/null; then
+                  echo "extension=pdo_sqlite" | sudo tee -a "$PHP_INI" > /dev/null 2>&1 || true
+                fi
+                if ! grep -q "^extension=sqlite3" "$PHP_INI" 2>/dev/null; then
+                  echo "extension=sqlite3" | sudo tee -a "$PHP_INI" > /dev/null 2>&1 || true
+                fi
+              fi
+
+              # Tentar reiniciar PHP-FPM se disponível
+              if command -v systemctl &> /dev/null && sudo -n true 2>/dev/null; then
+                sudo systemctl restart php*-fpm 2>/dev/null || true
+              fi
+
+              # Verificar novamente
+              SQLITE_AVAILABLE=$(php -r "echo in_array('sqlite', PDO::getAvailableDrivers()) ? 'OK' : 'MISSING';" 2>/dev/null || echo "MISSING")
+              if [ "$SQLITE_AVAILABLE" != "OK" ]; then
+                echo "AVISO: SQLite ainda não está disponível. Alguns testes serão ignorados (skipped)."
+                echo "Drivers PDO disponíveis: $(php -r 'echo implode(\", \", PDO::getAvailableDrivers());' 2>/dev/null || echo 'N/A')"
+              else
+                echo "SQLite instalado e habilitado com sucesso!"
+              fi
+            else
+              echo "SQLite já está disponível."
+            fi
 
             composer install --no-interaction --prefer-dist --optimize-autoloader
 

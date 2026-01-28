@@ -20,9 +20,20 @@ class DatabaseMockHelper
      * but don't want to depend on MySQL being available.
      * 
      * @return PDO
+     * @throws \RuntimeException If SQLite PDO driver is not available
      */
     public static function createInMemoryDatabase(): PDO
     {
+        // Check if SQLite driver is available
+        $availableDrivers = PDO::getAvailableDrivers();
+        if (!in_array('sqlite', $availableDrivers)) {
+            throw new \RuntimeException(
+                'PDO SQLite driver is not available. ' .
+                'Please install/enable the pdo_sqlite PHP extension. ' .
+                'Available PDO drivers: ' . implode(', ', $availableDrivers)
+            );
+        }
+
         $pdo = new PDO('sqlite::memory:', null, null, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
