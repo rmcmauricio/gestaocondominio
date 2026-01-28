@@ -369,6 +369,67 @@ $router->get('/api/condominiums/{id}', 'App\Controllers\Api\CondominiumApiContro
 $router->get('/api/condominiums/{condominium_id}/fees', 'App\Controllers\Api\FeeApiController@index');
 $router->get('/api/fractions/{fraction_id}/fees', 'App\Controllers\Api\FeeApiController@byFraction');
 
+// Fractions
+$router->get('/api/condominiums/{condominium_id}/fractions', 'App\Controllers\Api\FractionApiController@index');
+$router->get('/api/fractions/{id}', 'App\Controllers\Api\FractionApiController@show');
+
+// Expenses
+$router->get('/api/condominiums/{condominium_id}/expenses', 'App\Controllers\Api\ExpenseApiController@index');
+$router->get('/api/expenses/{id}', 'App\Controllers\Api\ExpenseApiController@show');
+
+// Revenues
+$router->get('/api/condominiums/{condominium_id}/revenues', 'App\Controllers\Api\RevenueApiController@index');
+$router->get('/api/revenues/{id}', 'App\Controllers\Api\RevenueApiController@show');
+
+// Budgets
+$router->get('/api/condominiums/{condominium_id}/budgets', 'App\Controllers\Api\BudgetApiController@index');
+$router->get('/api/budgets/{id}', 'App\Controllers\Api\BudgetApiController@show');
+$router->get('/api/budgets/{id}/items', 'App\Controllers\Api\BudgetApiController@items');
+
+// Documents
+$router->get('/api/condominiums/{condominium_id}/documents', 'App\Controllers\Api\DocumentApiController@index');
+$router->get('/api/documents/{id}', 'App\Controllers\Api\DocumentApiController@show');
+
+// Occurrences
+$router->get('/api/condominiums/{condominium_id}/occurrences', 'App\Controllers\Api\OccurrenceApiController@index');
+$router->get('/api/occurrences/{id}', 'App\Controllers\Api\OccurrenceApiController@show');
+
+// Assemblies
+$router->get('/api/condominiums/{condominium_id}/assemblies', 'App\Controllers\Api\AssemblyApiController@index');
+$router->get('/api/assemblies/{id}', 'App\Controllers\Api\AssemblyApiController@show');
+
+// Reservations
+$router->get('/api/condominiums/{condominium_id}/reservations', 'App\Controllers\Api\ReservationApiController@index');
+$router->get('/api/reservations/{id}', 'App\Controllers\Api\ReservationApiController@show');
+
+// Suppliers
+$router->get('/api/condominiums/{condominium_id}/suppliers', 'App\Controllers\Api\SupplierApiController@index');
+$router->get('/api/suppliers/{id}', 'App\Controllers\Api\SupplierApiController@show');
+
+// Contracts
+$router->get('/api/condominiums/{condominium_id}/contracts', 'App\Controllers\Api\ContractApiController@index');
+$router->get('/api/contracts/{id}', 'App\Controllers\Api\ContractApiController@show');
+
+// Bank Accounts
+$router->get('/api/condominiums/{condominium_id}/bank-accounts', 'App\Controllers\Api\BankAccountApiController@index');
+$router->get('/api/bank-accounts/{id}', 'App\Controllers\Api\BankAccountApiController@show');
+
+// Financial Transactions
+$router->get('/api/condominiums/{condominium_id}/financial-transactions', 'App\Controllers\Api\FinancialTransactionApiController@index');
+$router->get('/api/financial-transactions/{id}', 'App\Controllers\Api\FinancialTransactionApiController@show');
+
+// Messages
+$router->get('/api/condominiums/{condominium_id}/messages', 'App\Controllers\Api\MessageApiController@index');
+$router->get('/api/messages/{id}', 'App\Controllers\Api\MessageApiController@show');
+
+// Spaces
+$router->get('/api/condominiums/{condominium_id}/spaces', 'App\Controllers\Api\SpaceApiController@index');
+$router->get('/api/spaces/{id}', 'App\Controllers\Api\SpaceApiController@show');
+
+// Fee Payments
+$router->get('/api/fees/{fee_id}/payments', 'App\Controllers\Api\FeePaymentApiController@index');
+$router->get('/api/fee-payments/{id}', 'App\Controllers\Api\FeePaymentApiController@show');
+
 // Help routes
 $router->get('/help', 'App\Controllers\HelpController@index');
 $router->get('/help/{section}', 'App\Controllers\HelpController@show');

@@ -105,6 +105,20 @@ class Expense extends Model
     }
 
     /**
+     * Find expense by ID
+     */
+    public function findById(int $id): ?array
+    {
+        if (!$this->db) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("SELECT * FROM expenses WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
      * Get total expenses by period
      */
     public function getTotalByPeriod(int $condominiumId, string $startDate, string $endDate): float

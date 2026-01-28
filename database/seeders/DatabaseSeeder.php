@@ -51,7 +51,7 @@ class DatabaseSeeder
     protected function seedPlans(): void
     {
         // Features comuns para todos os planos
-        $commonFeatures = json_encode([
+        $commonFeatures = [
             'financas_completas' => true,
             'documentos' => true,
             'ocorrencias' => true,
@@ -59,6 +59,11 @@ class DatabaseSeeder
             'reservas_espacos' => true,
             'gestao_contratos' => true,
             'gestao_fornecedores' => true
+        ];
+        
+        // Features específicas do Enterprise (inclui api_access)
+        $enterpriseFeatures = array_merge($commonFeatures, [
+            'api_access' => true
         ]);
 
         // Novos planos baseados em licenças
@@ -78,7 +83,7 @@ class DatabaseSeeder
                 'annual_discount_percentage' => 0,
                 'limit_condominios' => 1, // Mantido para compatibilidade
                 'limit_fracoes' => null, // Não usado no novo modelo
-                'features' => $commonFeatures,
+                'features' => json_encode($commonFeatures),
                 'is_active' => true,
                 'sort_order' => 1
             ],
@@ -97,7 +102,7 @@ class DatabaseSeeder
                 'annual_discount_percentage' => 0,
                 'limit_condominios' => null, // Ilimitado
                 'limit_fracoes' => null,
-                'features' => $commonFeatures,
+                'features' => json_encode($commonFeatures),
                 'is_active' => true,
                 'sort_order' => 2
             ],
@@ -116,7 +121,7 @@ class DatabaseSeeder
                 'annual_discount_percentage' => 0,
                 'limit_condominios' => null, // Ilimitado
                 'limit_fracoes' => null,
-                'features' => $commonFeatures,
+                'features' => json_encode($enterpriseFeatures),
                 'is_active' => true,
                 'sort_order' => 3
             ],
@@ -135,7 +140,7 @@ class DatabaseSeeder
                 'annual_discount_percentage' => 0,
                 'limit_condominios' => 2, // Limite de 2 condomínios para demo
                 'limit_fracoes' => null,
-                'features' => $commonFeatures,
+                'features' => json_encode($commonFeatures),
                 'is_active' => false, // Não aparece na página de subscrições
                 'sort_order' => 99
             ]

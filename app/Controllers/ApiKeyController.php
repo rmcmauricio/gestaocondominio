@@ -31,9 +31,8 @@ class ApiKeyController extends Controller
 
         $userId = AuthMiddleware::userId();
         $subscription = $this->subscriptionModel->getActiveSubscription($userId);
-        $plan = $subscription ? $this->planModel->findById($subscription['plan_id']) : null;
-
-        $hasBusinessPlan = $plan && $plan['slug'] === 'business';
+        
+        $hasApiAccess = $subscription && $this->subscriptionModel->hasFeature($userId, 'api_access');
         $apiKeyInfo = $this->userModel->getApiKeyInfo($userId);
 
         $this->loadPageTranslations('api');
@@ -41,7 +40,7 @@ class ApiKeyController extends Controller
         $this->data += [
             'viewName' => 'pages/api/index.html.twig',
             'page' => ['titulo' => 'API Keys'],
-            'has_business_plan' => $hasBusinessPlan,
+            'has_business_plan' => $hasApiAccess,
             'api_key_info' => $apiKeyInfo,
             'api_key_generated' => $_SESSION['api_key_generated'] ?? null,
             'csrf_token' => Security::generateCSRFToken(),
@@ -84,11 +83,10 @@ class ApiKeyController extends Controller
 
         $userId = AuthMiddleware::userId();
         $subscription = $this->subscriptionModel->getActiveSubscription($userId);
-        $plan = $subscription ? $this->planModel->findById($subscription['plan_id']) : null;
 
-        if (!$plan || $plan['slug'] !== 'business') {
+        if (!$subscription || !$this->subscriptionModel->hasFeature($userId, 'api_access')) {
             RateLimitMiddleware::recordAttempt('api_key_generate');
-            $_SESSION['error'] = 'Acesso à API requer plano BUSINESS.';
+            $_SESSION['error'] = 'Acesso à API requer um plano com acesso à API (Enterprise).';
             header('Location: ' . BASE_URL . 'api-keys');
             exit;
         }

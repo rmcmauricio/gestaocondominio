@@ -13,7 +13,7 @@
         <div class="card-body">
             <p>A API utiliza autenticação por API Key. Inclua a sua chave no cabeçalho HTTP <code>X-API-Key</code> em todas as requisições.</p>
             <pre class="bg-light p-3 rounded"><code>X-API-Key: pk_sua_chave_aqui</code></pre>
-            <p class="text-muted"><small>Nota: A API está disponível apenas para utilizadores com plano BUSINESS.</small></p>
+            <p class="text-muted"><small>Nota: A API está disponível apenas para utilizadores com plano Enterprise.</small></p>
         </div>
     </div>
 
@@ -138,7 +138,7 @@ $data = json_decode($response, true);</code></pre>
             <ul>
                 <li><code>200</code> - Sucesso</li>
                 <li><code>401</code> - Não autenticado (API key inválida ou ausente)</li>
-                <li><code>403</code> - Acesso negado (sem plano BUSINESS ou sem permissão)</li>
+                <li><code>403</code> - Acesso negado (sem plano Enterprise ou sem permissão)</li>
                 <li><code>404</code> - Recurso não encontrado</li>
                 <li><code>500</code> - Erro interno do servidor</li>
             </ul>

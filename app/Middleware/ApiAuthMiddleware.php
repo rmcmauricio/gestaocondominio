@@ -49,7 +49,7 @@ class ApiAuthMiddleware
             return null;
         }
 
-        // Check if user has BUSINESS plan
+        // Check if user has API access feature
         $subscriptionModel = new \App\Models\Subscription();
         $subscription = $subscriptionModel->getActiveSubscription($user['id']);
 
@@ -58,11 +58,8 @@ class ApiAuthMiddleware
             return null;
         }
 
-        $planModel = new \App\Models\Plan();
-        $plan = $planModel->findById($subscription['plan_id']);
-
-        if (!$plan || $plan['slug'] !== 'business') {
-            self::sendError('API access requires BUSINESS plan', 403);
+        if (!$subscriptionModel->hasFeature($user['id'], 'api_access')) {
+            self::sendError('API access requires a plan with API access feature', 403);
             return null;
         }
 

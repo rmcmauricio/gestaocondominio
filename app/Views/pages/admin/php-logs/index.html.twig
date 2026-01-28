@@ -170,7 +170,7 @@
                                         {% set highlighted = log.message|trim|replace({(filters.search): '<mark>' ~ searchEscaped ~ '</mark>'}) %}
                                         {{ highlighted|sanitize_html|raw }}
                                     {% else %}
-                                        {{ log.message|trim|nl2br|escape }}
+                                        {{ log.message|trim|escape }}
                                     {% endif %}
                                 </div>
                             </td>
