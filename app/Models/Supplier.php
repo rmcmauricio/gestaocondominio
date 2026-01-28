@@ -119,16 +119,34 @@ class Supplier extends Model
 
     /**
      * Delete supplier (soft delete)
+     * Checks for associated contracts before deletion
      */
     public function delete(int $id): bool
     {
+        if (!$this->db) {
+            return false;
+        }
+
         // Get old data for audit before deletion
         $oldData = $this->findById($id);
-        
+        if (!$oldData) {
+            return false;
+        }
+
+        // Check if supplier has associated contracts
+        $contractStmt = $this->db->prepare("SELECT COUNT(*) as count FROM contracts WHERE supplier_id = :id");
+        $contractStmt->execute([':id' => $id]);
+        $contractCount = $contractStmt->fetch()['count'] ?? 0;
+
+        if ($contractCount > 0) {
+            throw new \Exception("Não é possível remover o fornecedor pois existem {$contractCount} contrato(s) associado(s). Remova os contratos primeiro.");
+        }
+
+        // Perform soft delete
         $result = $this->update($id, ['is_active' => false]);
         
         // Log audit (soft delete is treated as update, but log as delete for clarity)
-        if ($result && $oldData) {
+        if ($result) {
             $this->auditDelete($id, $oldData);
         }
         

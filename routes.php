@@ -245,15 +245,20 @@ $router->get('/condominiums/{condominium_id}/occurrences/{id}/attachments/{attac
 $router->post('/condominiums/{condominium_id}/occurrences/upload-image', 'App\Controllers\OccurrenceController@uploadInlineImage');
 
 // Supplier routes
+// Contract routes must come BEFORE generic supplier routes to avoid route conflicts
+$router->get('/condominiums/{condominium_id}/suppliers/contracts', 'App\Controllers\SupplierController@contracts');
+$router->get('/condominiums/{condominium_id}/suppliers/contracts/create', 'App\Controllers\SupplierController@createContract');
+$router->post('/condominiums/{condominium_id}/suppliers/contracts', 'App\Controllers\SupplierController@storeContract');
+$router->get('/condominiums/{condominium_id}/suppliers/contracts/{id}/edit', 'App\Controllers\SupplierController@editContract');
+$router->post('/condominiums/{condominium_id}/suppliers/contracts/{id}', 'App\Controllers\SupplierController@updateContract');
+$router->post('/condominiums/{condominium_id}/suppliers/contracts/{id}/delete', 'App\Controllers\SupplierController@deleteContract');
+// Generic supplier routes
 $router->get('/condominiums/{condominium_id}/suppliers', 'App\Controllers\SupplierController@index');
 $router->get('/condominiums/{condominium_id}/suppliers/create', 'App\Controllers\SupplierController@create');
 $router->post('/condominiums/{condominium_id}/suppliers', 'App\Controllers\SupplierController@store');
 $router->get('/condominiums/{condominium_id}/suppliers/{id}/edit', 'App\Controllers\SupplierController@edit');
 $router->post('/condominiums/{condominium_id}/suppliers/{id}', 'App\Controllers\SupplierController@update');
 $router->post('/condominiums/{condominium_id}/suppliers/{id}/delete', 'App\Controllers\SupplierController@delete');
-$router->get('/condominiums/{condominium_id}/suppliers/contracts', 'App\Controllers\SupplierController@contracts');
-$router->get('/condominiums/{condominium_id}/suppliers/contracts/create', 'App\Controllers\SupplierController@createContract');
-$router->post('/condominiums/{condominium_id}/suppliers/contracts', 'App\Controllers\SupplierController@storeContract');
 
 // Space routes
 $router->get('/condominiums/{condominium_id}/spaces', 'App\Controllers\SpaceController@index');

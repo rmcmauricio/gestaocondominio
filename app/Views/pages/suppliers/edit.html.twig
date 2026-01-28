@@ -23,7 +23,6 @@
 
                     <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/{{ supplier.id }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <input type="hidden" name="_method" value="PUT">
 
                         <div class="mb-3">
                             <label for="name" class="form-label">Nome <span class="text-danger">*</span></label>

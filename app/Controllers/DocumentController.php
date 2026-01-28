@@ -85,21 +85,109 @@ class DocumentController extends Controller
 
         // Get folders - if folder is selected, get subfolders; otherwise get root folders
         $currentFolderId = null;
+        $folderModelFolders = [];
         if ($folder) {
             // Find folder by path
             $currentFolder = $this->folderModel->findByPath($condominiumId, $folder);
             if ($currentFolder) {
                 $currentFolderId = $currentFolder['id'];
-                $folders = $this->folderModel->getByCondominium($condominiumId, $currentFolderId);
+                $folderModelFolders = $this->folderModel->getByCondominium($condominiumId, $currentFolderId);
             } else {
-                $folders = [];
+                $folderModelFolders = [];
             }
         } else {
             // Get root folders only (no subfolders)
-            $folders = $this->folderModel->getByCondominium($condominiumId, null);
+            $folderModelFolders = $this->folderModel->getByCondominium($condominiumId, null);
         }
-        // Get all folders for dropdowns
-        $allFolders = $this->folderModel->getAllByCondominium($condominiumId);
+        
+        // Get document folders (folders that exist only as values in documents table)
+        // If folder is selected, get direct subfolders; otherwise get root folders only
+        $documentFolders = $this->documentModel->getFolders($condominiumId, $folder ? $folder : null);
+        
+        // Format document folders for display
+        $filteredDocumentFolders = [];
+        foreach ($documentFolders as $docFolder) {
+            $docFolderPath = $docFolder['folder'] ?? '';
+            if ($docFolderPath) {
+                if ($folder) {
+                    // Extract subfolder name (everything after parent folder path)
+                    $relativePath = substr($docFolderPath, strlen($folder) + 1);
+                    // Extract only the immediate subfolder name (first part before next /)
+                    $subfolderName = explode('/', $relativePath)[0];
+                    $filteredDocumentFolders[] = [
+                        'path' => $docFolderPath,
+                        'name' => $subfolderName,
+                        'document_count' => $docFolder['document_count'] ?? 0
+                    ];
+                } else {
+                    // Root folders - use full path as name
+                    $filteredDocumentFolders[] = [
+                        'path' => $docFolderPath,
+                        'name' => $docFolderPath,
+                        'document_count' => $docFolder['document_count'] ?? 0
+                    ];
+                }
+            }
+        }
+        
+        // Merge Folder model folders with document folders for display
+        $foldersMap = [];
+        foreach ($folderModelFolders as $folderItem) {
+            $path = $folderItem['path'] ?? $folderItem['name'] ?? '';
+            if ($path) {
+                $foldersMap[$path] = [
+                    'path' => $path,
+                    'name' => $folderItem['name'] ?? $path,
+                    'document_count' => $folderItem['document_count'] ?? 0
+                ];
+            }
+        }
+        foreach ($filteredDocumentFolders as $docFolder) {
+            $path = $docFolder['path'] ?? '';
+            if ($path && !isset($foldersMap[$path])) {
+                $foldersMap[$path] = $docFolder;
+            }
+        }
+        $folders = array_values($foldersMap);
+        // Sort by name
+        usort($folders, function($a, $b) {
+            return strcmp($a['name'], $b['name']);
+        });
+        
+        // Get all folders for dropdowns - combine Folder model folders with document folders
+        $allFolderModelFolders = $this->folderModel->getAllByCondominium($condominiumId);
+        $allDocumentFolders = $this->documentModel->getFolders($condominiumId, 'all');
+        
+        // Merge folders from both sources
+        $allFoldersMap = [];
+        foreach ($allFolderModelFolders as $folderItem) {
+            $path = $folderItem['path'] ?? $folderItem['name'] ?? '';
+            if ($path) {
+                $allFoldersMap[$path] = [
+                    'path' => $path,
+                    'document_count' => $folderItem['document_count'] ?? 0
+                ];
+            }
+        }
+        foreach ($allDocumentFolders as $docFolder) {
+            $path = $docFolder['folder'] ?? '';
+            if ($path) {
+                if (!isset($allFoldersMap[$path])) {
+                    $allFoldersMap[$path] = [
+                        'path' => $path,
+                        'document_count' => $docFolder['document_count'] ?? 0
+                    ];
+                } else {
+                    // Add document count if not already included
+                    $allFoldersMap[$path]['document_count'] += ($docFolder['document_count'] ?? 0);
+                }
+            }
+        }
+        $allFolders = array_values($allFoldersMap);
+        // Sort by path
+        usort($allFolders, function($a, $b) {
+            return strcmp($a['path'], $b['path']);
+        });
 
         // Get unique document types for filter
         $documentTypes = $this->documentModel->getDocumentTypes($condominiumId);
@@ -115,7 +203,7 @@ class DocumentController extends Controller
             'folders' => $folders,
             'all_folders' => $allFolders,
             'document_types' => $documentTypes,
-            'current_folder' => $folder,
+            'current_folder' => is_string($folder) ? $folder : null,
             'current_document_type' => $documentType,
             'current_visibility' => $visibility,
             'current_search' => $searchQuery,

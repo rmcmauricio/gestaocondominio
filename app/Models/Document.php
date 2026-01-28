@@ -30,7 +30,8 @@ class Document extends Model
                 // Show only documents without folder (root level)
                 $sql .= " AND d.folder IS NULL";
             } else {
-                // Show only documents in the exact folder specified (not subfolders)
+                // Show only documents in the exact folder (not in subfolders)
+                // Documents in subfolders will be shown when navigating into those subfolders
                 $sql .= " AND d.folder = :folder";
                 $params[':folder'] = $filters['folder'];
             }
@@ -123,42 +124,79 @@ class Document extends Model
             return [];
         }
 
-        $sql = "
-            SELECT DISTINCT folder, 
-                   SUM(CASE WHEN (document_type != 'folder_placeholder' OR document_type IS NULL) 
-                             AND title != '.folder_placeholder' 
-                        THEN 1 ELSE 0 END) as document_count
-            FROM documents
-            WHERE condominium_id = :condominium_id 
-            AND folder IS NOT NULL
-        ";
-
-        $params = [':condominium_id' => $condominiumId];
-
         if ($parentFolder === null) {
-            // Get root folders (no subfolder)
-            $sql .= " AND folder NOT LIKE '%/%'";
+            // Get root folders - extract first part of folder path
+            // This includes folders that have subfolders even if no direct documents
+            $sql = "
+                SELECT 
+                    CASE 
+                        WHEN folder LIKE '%/%' THEN SUBSTRING_INDEX(folder, '/', 1)
+                        ELSE folder
+                    END as folder,
+                    COUNT(DISTINCT CASE 
+                        WHEN (document_type != 'folder_placeholder' OR document_type IS NULL) 
+                             AND (title != '.folder_placeholder' OR title IS NULL)
+                        THEN id ELSE NULL END) as document_count
+                FROM documents
+                WHERE condominium_id = :condominium_id 
+                AND folder IS NOT NULL
+                AND folder != ''
+                GROUP BY CASE 
+                    WHEN folder LIKE '%/%' THEN SUBSTRING_INDEX(folder, '/', 1)
+                    ELSE folder
+                END
+                ORDER BY folder ASC
+            ";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([':condominium_id' => $condominiumId]);
+            $results = $stmt->fetchAll() ?: [];
+            return $results;
         } elseif ($parentFolder === 'all') {
             // Get all folders (for dropdowns)
-            // No additional condition
+            $sql = "
+                SELECT DISTINCT folder, 
+                       SUM(CASE WHEN (document_type != 'folder_placeholder' OR document_type IS NULL) 
+                                 AND title != '.folder_placeholder' 
+                            THEN 1 ELSE 0 END) as document_count
+                FROM documents
+                WHERE condominium_id = :condominium_id 
+                AND folder IS NOT NULL
+                GROUP BY folder
+                ORDER BY folder ASC
+            ";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([':condominium_id' => $condominiumId]);
+            return $stmt->fetchAll() ?: [];
         } else {
             // Get direct subfolders of parent folder (only immediate children, not grandchildren)
-            // Example: if parent is "Pasta1", get "Pasta1/Sub1" but not "Pasta1/Sub1/Sub2"
+            // Example: if parent is "Contratos", get "Contratos/2026" but not "Contratos/2026/01"
+            // We extract the immediate subfolder by taking parent + '/' + first segment after parent
             $parentPattern = $parentFolder . '/%';
-            $parentPatternDeep = $parentFolder . '/%/%';
-            $sql .= " AND folder LIKE :parent_pattern 
-                      AND folder != :parent_folder
-                      AND folder NOT LIKE :parent_pattern_deep";
-            $params[':parent_pattern'] = $parentPattern;
-            $params[':parent_folder'] = $parentFolder;
-            $params[':parent_pattern_deep'] = $parentPatternDeep;
+            $parentLength = strlen($parentFolder);
+            $sql = "
+                SELECT DISTINCT 
+                    CONCAT(:parent_folder, '/', SUBSTRING_INDEX(SUBSTRING(folder, :parent_length_plus_2), '/', 1)) as folder,
+                    SUM(CASE WHEN (document_type != 'folder_placeholder' OR document_type IS NULL) 
+                              AND (title != '.folder_placeholder' OR title IS NULL)
+                         THEN 1 ELSE 0 END) as document_count
+                FROM documents
+                WHERE condominium_id = :condominium_id 
+                AND folder IS NOT NULL
+                AND folder LIKE :parent_pattern 
+                AND folder != :parent_folder
+                GROUP BY CONCAT(:parent_folder, '/', SUBSTRING_INDEX(SUBSTRING(folder, :parent_length_plus_2), '/', 1))
+                ORDER BY folder ASC
+            ";
+            $params = [
+                ':condominium_id' => $condominiumId,
+                ':parent_pattern' => $parentPattern,
+                ':parent_folder' => $parentFolder,
+                ':parent_length_plus_2' => $parentLength + 2
+            ];
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetchAll() ?: [];
         }
-
-        $sql .= " GROUP BY folder ORDER BY folder ASC";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
-        return $stmt->fetchAll() ?: [];
     }
 
     /**

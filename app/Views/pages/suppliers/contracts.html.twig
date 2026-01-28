@@ -54,7 +54,11 @@
                             <th>Valor</th>
                             <th>Início</th>
                             <th>Fim</th>
+                            <th>Documento</th>
                             <th>Status</th>
+                            {% if is_admin %}
+                            <th>Ações</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -62,7 +66,18 @@
                         <tr>
                             <td><strong>{{ contract.supplier_name }}</strong></td>
                             <td>{{ contract.description }}</td>
-                            <td>€{{ contract.amount|number_format(2, ',', '.') }}</td>
+                            <td>
+                                {% if contract.amount %}
+                                    €{{ contract.amount|number_format(2, ',', '.') }}
+                                    {% if contract.amount_type %}
+                                        <br><small class="text-muted">
+                                            {% if contract.amount_type == 'annual' %}Anual{% else %}Mensal{% endif %}
+                                        </small>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">Não especificado</span>
+                                {% endif %}
+                            </td>
                             <td>{{ contract.start_date|date('d/m/Y') }}</td>
                             <td>
                                 {% if contract.end_date %}
@@ -75,10 +90,42 @@
                                 {% endif %}
                             </td>
                             <td>
+                                {% if contract.document_id %}
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ contract.document_id }}/download" 
+                                       target="_blank" 
+                                       class="btn btn-sm btn-outline-primary" 
+                                       title="{{ contract.document_title }}">
+                                        <i class="bi bi-file-earmark"></i> Ver Documento
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
                                 <span class="badge {% if contract.is_active %}bg-success{% else %}bg-secondary{% endif %}">
                                     {% if contract.is_active %}Ativo{% else %}Inativo{% endif %}
                                 </span>
                             </td>
+                            {% if is_admin %}
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/contracts/{{ contract.id }}/edit" 
+                                       class="btn btn-outline-primary" 
+                                       title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form method="POST" 
+                                          action="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/contracts/{{ contract.id }}/delete" 
+                                          class="d-inline"
+                                          onsubmit="return confirm('Tem certeza que deseja remover este contrato? Esta ação não pode ser desfeita.');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-outline-danger" title="Remover">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                            {% endif %}
                         </tr>
                         {% endfor %}
                     </tbody>
