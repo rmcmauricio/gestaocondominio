@@ -58,6 +58,7 @@ class SubscriptionService
         $promotionAppliedAt = null;
         $promotionEndsAt = null;
         $finalOriginalPrice = $originalPrice ?? $plan['price_monthly'];
+        $finalPrice = $finalOriginalPrice; // Default to original price
         
         if ($promotionId) {
             $promotionModel = new Promotion();
@@ -69,6 +70,15 @@ class SubscriptionService
                 
                 if ($durationMonths) {
                     $promotionEndsAt = date('Y-m-d H:i:s', strtotime("+{$durationMonths} months", strtotime($now)));
+                }
+                
+                // Calculate discounted price
+                if ($promotion['discount_type'] === 'percentage') {
+                    $discount = ($finalOriginalPrice * $promotion['discount_value']) / 100;
+                    $finalPrice = max(0, $finalOriginalPrice - $discount);
+                } else {
+                    // Fixed discount
+                    $finalPrice = max(0, $finalOriginalPrice - $promotion['discount_value']);
                 }
             } else {
                 $promotionId = null; // Invalid promotion, don't apply
@@ -84,7 +94,8 @@ class SubscriptionService
             'status' => 'trial',
             'trial_ends_at' => $trialEndsAt,
             'current_period_start' => $now,
-            'current_period_end' => $periodEnd
+            'current_period_end' => $periodEnd,
+            'price_monthly' => $finalPrice // Always save price (discounted or original)
         ];
 
         // Only set extra_condominiums for legacy plans (Business plan without plan_type)
@@ -171,10 +182,22 @@ class SubscriptionService
                     $promotionEndsAt = date('Y-m-d H:i:s', strtotime("+{$durationMonths} months", strtotime($now)));
                 }
                 
+                // Calculate discounted price
+                $originalPrice = $newPlan['price_monthly'];
+                $finalPrice = $originalPrice;
+                if ($promotion['discount_type'] === 'percentage') {
+                    $discount = ($originalPrice * $promotion['discount_value']) / 100;
+                    $finalPrice = max(0, $originalPrice - $discount);
+                } else {
+                    // Fixed discount
+                    $finalPrice = max(0, $originalPrice - $promotion['discount_value']);
+                }
+                
                 $updateData['promotion_id'] = $promotionId;
                 $updateData['promotion_applied_at'] = $promotionAppliedAt;
                 $updateData['promotion_ends_at'] = $promotionEndsAt;
-                $updateData['original_price_monthly'] = $newPlan['price_monthly'];
+                $updateData['original_price_monthly'] = $originalPrice;
+                $updateData['price_monthly'] = $finalPrice; // Save discounted price
             }
         } else {
             // Clear promotion fields if no promotion is being applied
@@ -182,6 +205,7 @@ class SubscriptionService
             $updateData['promotion_applied_at'] = null;
             $updateData['promotion_ends_at'] = null;
             $updateData['original_price_monthly'] = null;
+            $updateData['price_monthly'] = $newPlan['price_monthly']; // Use plan price when no promotion
         }
 
         $success = $this->subscriptionModel->update($subscription['id'], $updateData);
@@ -402,6 +426,7 @@ class SubscriptionService
                 $subscriptionData['promotion_ends_at'] = null;
                 $subscriptionData['original_price_monthly'] = null;
             }
+            $subscriptionData['price_monthly'] = $finalPrice; // Always save price (discounted or original)
 
             $this->subscriptionModel->update($pendingSubscription['id'], $subscriptionData);
             $subscriptionId = $pendingSubscription['id'];
@@ -431,6 +456,7 @@ class SubscriptionService
                 $subscriptionData['promotion_ends_at'] = $promotionEndsAt;
                 $subscriptionData['original_price_monthly'] = $originalPrice;
             }
+            $subscriptionData['price_monthly'] = $finalPrice; // Always save price (discounted or original)
 
             $subscriptionId = $this->subscriptionModel->create($subscriptionData);
         }
@@ -704,12 +730,25 @@ class SubscriptionService
             'current_period_end' => $periodEnd
         ];
 
+        $originalPriceValue = $originalPrice ?? $plan['price_monthly'];
+        $finalPrice = $originalPriceValue; // Default to original price
+        
         if ($finalPromotionId) {
+            // Calculate discounted price
+            if ($promotion['discount_type'] === 'percentage') {
+                $discount = ($originalPriceValue * $promotion['discount_value']) / 100;
+                $finalPrice = max(0, $originalPriceValue - $discount);
+            } else {
+                // Fixed discount
+                $finalPrice = max(0, $originalPriceValue - $promotion['discount_value']);
+            }
+            
             $subscriptionData['promotion_id'] = $finalPromotionId;
             $subscriptionData['promotion_applied_at'] = $promotionAppliedAt;
             $subscriptionData['promotion_ends_at'] = $promotionEndsAt;
-            $subscriptionData['original_price_monthly'] = $originalPrice ?? $plan['price_monthly'];
+            $subscriptionData['original_price_monthly'] = $originalPriceValue;
         }
+        $subscriptionData['price_monthly'] = $finalPrice; // Always save price (discounted or original)
 
         $subscriptionId = $this->subscriptionModel->create($subscriptionData);
 

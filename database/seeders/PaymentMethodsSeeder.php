@@ -13,8 +13,17 @@ class PaymentMethodsSeeder
     {
         $methods = [
             [
-                'method_key' => 'multibanco',
+                'method_key' => 'contact_email',
                 'enabled' => 1,
+                'config_data' => json_encode([
+                    'name' => 'Contactar para Subscrição',
+                    'icon' => 'bi bi-envelope',
+                    'description' => 'Caso deseje subscrever um plano, contacte contacto@omeupredio.com para mais informações'
+                ])
+            ],
+            [
+                'method_key' => 'multibanco',
+                'enabled' => 0,
                 'config_data' => json_encode([
                     'name' => 'Multibanco',
                     'icon' => 'bi bi-bank',
@@ -23,7 +32,7 @@ class PaymentMethodsSeeder
             ],
             [
                 'method_key' => 'mbway',
-                'enabled' => 1,
+                'enabled' => 0,
                 'config_data' => json_encode([
                     'name' => 'MBWay',
                     'icon' => 'bi bi-phone',
@@ -32,7 +41,7 @@ class PaymentMethodsSeeder
             ],
             [
                 'method_key' => 'direct_debit',
-                'enabled' => 1,
+                'enabled' => 0,
                 'config_data' => json_encode([
                     'name' => 'Débito Direto IfthenPay',
                     'icon' => 'bi bi-arrow-repeat',

@@ -1,0 +1,79 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white text-center">
+                    <h4 class="mb-0"><i class="bi bi-envelope"></i> Contactar para Subscrição</h4>
+                </div>
+                <div class="card-body p-4">
+                    {% if subscription %}
+                    <div class="text-center mb-4">
+                        <h5>{{ plan.name }}</h5>
+                        {% if amount %}
+                        <h2 class="text-primary">€{{ amount|number_format(2, ',', '.') }}</h2>
+                        <p class="text-muted mb-0">{% if is_expired and backpayment_months > 0 %}Pagamento total ({{ backpayment_months }} mês(es) em atraso){% else %}Pagamento mensal{% endif %}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading"><i class="bi bi-info-circle"></i> Informação Importante</h6>
+                        <p class="mb-0">
+                            Caso deseje subscrever um plano, contacte <strong>contacto@omeupredio.com</strong> para mais informações.
+                        </p>
+                    </div>
+
+                    <div class="bg-light p-4 rounded mb-4">
+                        <h6 class="mb-3"><i class="bi bi-envelope-at"></i> Contacte-nos</h6>
+                        <p class="mb-2">
+                            <strong>Email:</strong> 
+                            <a href="mailto:contacto@omeupredio.com" class="text-decoration-none">
+                                contacto@omeupredio.com
+                            </a>
+                        </p>
+                        <p class="mb-0 text-muted small">
+                            Envie-nos um email com as suas informações e responderemos o mais breve possível para ajudá-lo com a subscrição do plano.
+                        </p>
+                    </div>
+
+                    {% if subscription %}
+                    <div class="alert alert-light border">
+                        <h6 class="mb-2"><i class="bi bi-card-checklist"></i> Informações da Subscrição</h6>
+                        <ul class="mb-0 small">
+                            <li><strong>Plano:</strong> {{ plan.name }}</li>
+                            {% if amount %}
+                            <li><strong>Valor:</strong> €{{ amount|number_format(2, ',', '.') }}</li>
+                            {% endif %}
+                            {% if subscription.status %}
+                            <li><strong>Estado:</strong> 
+                                {% if subscription.status == 'trial' %}
+                                    <span class="badge bg-info">Trial</span>
+                                {% elseif subscription.status == 'active' %}
+                                    <span class="badge bg-success">Ativa</span>
+                                {% elseif subscription.status == 'expired' %}
+                                    <span class="badge bg-danger">Expirada</span>
+                                {% elseif subscription.status == 'canceled' %}
+                                    <span class="badge bg-secondary">Cancelada</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ subscription.status }}</span>
+                                {% endif %}
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-grid gap-2">
+                        <a href="mailto:contacto@omeupredio.com?subject=Subscrição de Plano&body=Olá,%0D%0A%0D%0AGostaria de subscrever o plano {{ plan.name }}.%0D%0A%0D%0AObrigado!" 
+                           class="btn btn-primary">
+                            <i class="bi bi-envelope"></i> Enviar Email
+                        </a>
+                        <a href="{{ BASE_URL }}subscription" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Voltar à Subscrição
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

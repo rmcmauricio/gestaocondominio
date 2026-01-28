@@ -137,6 +137,7 @@ $router->get('/payments/{subscription_id}/multibanco', 'App\Controllers\PaymentC
 $router->get('/payments/{subscription_id}/mbway', 'App\Controllers\PaymentController@showMBWay');
 $router->get('/payments/{subscription_id}/sepa', 'App\Controllers\PaymentController@showSEPA');
 $router->get('/payments/{subscription_id}/direct-debit', 'App\Controllers\PaymentController@directDebit');
+$router->get('/payments/{subscription_id}/contact-email', 'App\Controllers\PaymentController@showContactEmail');
 
 // Admin payment methods management routes (super admin only)
 $router->get('/admin/payment-methods', 'App\Controllers\PaymentMethodsController@index');

@@ -19,7 +19,9 @@ class Subscription extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT s.*, p.name as plan_name, p.slug as plan_slug, p.price_monthly, p.limit_condominios, p.limit_fracoes, p.features
+            SELECT s.*, p.name as plan_name, p.slug as plan_slug, 
+                   COALESCE(s.price_monthly, p.price_monthly) as price_monthly, 
+                   p.limit_condominios, p.limit_fracoes, p.features
             FROM subscriptions s
             INNER JOIN plans p ON s.plan_id = p.id
             WHERE s.user_id = :user_id 
@@ -44,7 +46,9 @@ class Subscription extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT s.*, p.name as plan_name, p.slug as plan_slug, p.price_monthly, p.limit_condominios, p.limit_fracoes, p.features
+            SELECT s.*, p.name as plan_name, p.slug as plan_slug, 
+                   COALESCE(s.price_monthly, p.price_monthly) as price_monthly, 
+                   p.limit_condominios, p.limit_fracoes, p.features
             FROM subscriptions s
             INNER JOIN plans p ON s.plan_id = p.id
             WHERE s.user_id = :user_id 
@@ -69,7 +73,9 @@ class Subscription extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT s.*, p.name as plan_name, p.slug as plan_slug, p.price_monthly, p.limit_condominios, p.limit_fracoes, p.features
+            SELECT s.*, p.name as plan_name, p.slug as plan_slug, 
+                   COALESCE(s.price_monthly, p.price_monthly) as price_monthly, 
+                   p.limit_condominios, p.limit_fracoes, p.features
             FROM subscriptions s
             INNER JOIN plans p ON s.plan_id = p.id
             WHERE s.user_id = :user_id 
@@ -106,6 +112,10 @@ class Subscription extends Model
         $checkLicenseStmt = $this->db->query("SHOW COLUMNS FROM subscriptions LIKE 'condominium_id'");
         $hasLicenseFields = $checkLicenseStmt->rowCount() > 0;
 
+        // Check if price_monthly column exists
+        $checkPriceStmt = $this->db->query("SHOW COLUMNS FROM subscriptions LIKE 'price_monthly'");
+        $hasPriceField = $checkPriceStmt->rowCount() > 0;
+        
         // Build fields and values dynamically based on what exists
         $fields = ['user_id', 'plan_id', 'extra_condominiums', 'status', 'trial_ends_at', 
                    'current_period_start', 'current_period_end', 'payment_method'];
@@ -121,6 +131,13 @@ class Subscription extends Model
             ':current_period_end' => $data['current_period_end'],
             ':payment_method' => $data['payment_method'] ?? null
         ];
+        
+        // Add price_monthly if column exists and value is provided
+        if ($hasPriceField && isset($data['price_monthly'])) {
+            $fields[] = 'price_monthly';
+            $placeholders[] = ':price_monthly';
+            $values[':price_monthly'] = $data['price_monthly'];
+        }
 
         if ($hasPromoFields) {
             $fields[] = 'promotion_id';

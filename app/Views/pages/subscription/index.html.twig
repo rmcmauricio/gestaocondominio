@@ -19,6 +19,172 @@
             </div>
             {% endif %}
 
+            {% if pending_subscription %}
+            <!-- Pending Subscription Card -->
+            <div class="card shadow-sm mb-4 border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0"><i class="bi bi-clock-history"></i> {% if subscription %}Alteração de Plano Pendente{% else %}Subscrição Pendente{% endif %}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-3">
+                        <h6 class="alert-heading"><i class="bi bi-info-circle"></i> {% if subscription %}Alteração de Plano Aguardando Pagamento{% else %}Subscrição Aguardando Pagamento{% endif %}</h6>
+                        <p class="mb-0 small">
+                            {% if subscription %}
+                            Você solicitou uma alteração de plano. A sua subscrição atual permanece ativa até expirar ou até o pagamento do novo plano ser confirmado. 
+                            Efetue o pagamento abaixo para ativar o novo plano.
+                            {% else %}
+                            Você solicitou uma nova subscrição. Efetue o pagamento abaixo para ativar o plano.
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center mb-3">
+                                <h3 class="mb-0 me-3">{{ pending_subscription.plan_name }}</h3>
+                                <span class="badge bg-warning fs-6">Pendente</span>
+                            </div>
+                            
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-calendar-event text-muted me-2"></i>
+                                        <div>
+                                            <small class="text-muted d-block">Período após ativação</small>
+                                            <strong>{{ pending_subscription.current_period_end|date('d/m/Y') }}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-currency-euro text-muted me-2"></i>
+                                        <div>
+                                            <small class="text-muted d-block">Preço</small>
+                                            {% if pending_subscription.promotion_id %}
+                                                {% set original_price = pending_subscription.original_price_monthly|default(pending_subscription.price_monthly) %}
+                                                {% if original_price != pending_subscription.price_monthly %}
+                                                    <div>
+                                                        <span class="text-muted text-decoration-line-through small">€{{ original_price|number_format(2, ',', '.') }}</span>
+                                                        <strong class="text-danger">€{{ pending_subscription.price_monthly|number_format(2, ',', '.') }}/mês</strong>
+                                                    </div>
+                                                {% else %}
+                                                    <strong>€{{ pending_subscription.price_monthly|number_format(2, ',', '.') }}/mês</strong>
+                                                {% endif %}
+                                            {% else %}
+                                                <strong>€{{ pending_subscription.price_monthly|number_format(2, ',', '.') }}/mês</strong>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {% if pending_subscription.promotion_id %}
+                            <div class="alert alert-success mb-3">
+                                <i class="bi bi-tag-fill"></i> <strong>Promoção Aplicada!</strong>
+                                {% set promo = plan_promotions[pending_subscription.plan_id] ?? null %}
+                                {% if promo %}
+                                    <div class="mt-2">
+                                        <strong>{{ promo.name }}</strong>
+                                        {% if promo.discount_type == 'percentage' %}
+                                            <span class="badge bg-danger">{{ promo.discount_value }}% OFF</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">€{{ promo.discount_value }} OFF</span>
+                                        {% endif %}
+                                        {% if promo.duration_months %}
+                                            <br><small class="text-muted">Válida por {{ promo.duration_months }} {% if promo.duration_months == 1 %}mês{% else %}meses{% endif %}</small>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            
+                            {% if pending_subscription.plan_slug == 'business' and extra_condominiums_pricing %}
+                            <div class="border-top pt-3 mb-3">
+                                <h6 class="mb-3">Condomínios Extras</h6>
+                                <form method="POST" action="{{ BASE_URL }}subscription/update-pending-extras" id="updatePendingExtrasForm">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <div class="mb-3">
+                                        <label for="pending_extra_condominiums" class="form-label small">Número de condomínios extras:</label>
+                                        <input type="number" 
+                                               class="form-control form-control-sm" 
+                                               id="pending_extra_condominiums" 
+                                               name="extra_condominiums"
+                                               value="{{ pending_subscription.extra_condominiums|default(0) }}" 
+                                               min="0"
+                                               data-base-price="{{ pending_subscription.price_monthly }}">
+                                        <small class="text-muted d-block mt-1">
+                                            <span id="pending_extra_price_info">Preço por condomínio extra: €0,00</span>
+                                        </small>
+                                    </div>
+                                    <div class="alert alert-info small mb-2" id="pending_extra_total" style="display: none;">
+                                        <strong>Total extras:</strong> <span id="pending_extra_total_amount">€0,00</span>/mês
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong class="d-block mb-1">Total Mensal:</strong>
+                                        <span class="h5 text-primary" id="pending_total_price_display">€{{ (pending_total_price ?: pending_subscription.price_monthly)|number_format(2, ',', '.') }}</span>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm w-100 mb-2">
+                                        <i class="bi bi-check-circle"></i> Atualizar Extras
+                                    </button>
+                                </form>
+                            </div>
+                            {% elseif pending_subscription.plan_slug == 'business' and pending_subscription.extra_condominiums > 0 %}
+                            <div class="border-top pt-3 mb-3">
+                                <i class="bi bi-building"></i> Condomínios extras: {{ pending_subscription.extra_condominiums }}
+                            </div>
+                            {% endif %}
+                            
+                            {% set pending_plan = plans|filter(p => p.id == pending_subscription.plan_id)|first %}
+                            {% if pending_plan and pending_plan.plan_type %}
+                            <div class="border-top pt-3 mb-3">
+                                <h6 class="mb-3"><i class="bi bi-key"></i> Frações Extras</h6>
+                                <form method="POST" action="{{ BASE_URL }}subscription/update-pending-licenses" id="updatePendingLicensesForm">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <div class="mb-3">
+                                        <label for="pending_extra_licenses" class="form-label small">Número de frações extras:</label>
+                                        <input type="number" 
+                                               class="form-control form-control-sm" 
+                                               id="pending_extra_licenses" 
+                                               name="extra_licenses"
+                                               value="{{ pending_subscription.extra_licenses|default(0) }}" 
+                                               min="0"
+                                               data-plan-id="{{ pending_subscription.plan_id }}"
+                                               data-license-min="{{ pending_plan.license_min|default(0) }}">
+                                        <small class="text-muted d-block mt-1">
+                                            {% if pending_subscription.extra_licenses|default(0) > 0 %}
+                                                + <strong>{{ pending_subscription.extra_licenses }}</strong> extras = 
+                                                <strong>{{ pending_plan.license_min|default(0) + pending_subscription.extra_licenses }}</strong> total
+                                            {% else %}
+                                                {{ pending_plan.license_min|default(0) }} incluídas no plano
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong class="d-block mb-1">Total Mensal:</strong>
+                                        <span class="h5 text-primary" id="pending_licenses_total_display">€{{ (pending_total_price ?: pending_subscription.price_monthly)|number_format(2, ',', '.') }}</span>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm w-100 mb-2">
+                                        <i class="bi bi-check-circle"></i> Atualizar Frações
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="{{ BASE_URL }}payments/{{ pending_subscription.id }}/create" class="btn btn-primary w-100 mb-2">
+                                <i class="bi bi-credit-card"></i> Efetuar Pagamento
+                            </a>
+                            <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-plan-change" onsubmit="return confirm('Tem certeza que deseja cancelar esta alteração pendente?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-outline-danger w-100">
+                                    <i class="bi bi-x-circle"></i> Cancelar Alteração
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             {% if subscription %}
             <!-- Current Subscription Card -->
             <div class="card shadow-sm mb-4">
@@ -426,179 +592,6 @@
                             <a href="{{ BASE_URL }}payments" class="btn btn-outline-secondary w-100 mt-2">
                                 <i class="bi bi-list"></i> Ver Pagamentos
                             </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-
-            {% if pending_subscription %}
-            <!-- Pending Subscription Card -->
-            <div class="card shadow-sm mb-4 border-warning">
-                <div class="card-header bg-warning text-dark">
-                    <h4 class="mb-0"><i class="bi bi-clock-history"></i> {% if subscription %}Alteração de Plano Pendente{% else %}Subscrição Pendente{% endif %}</h4>
-                </div>
-                <div class="card-body">
-                    <div class="alert alert-info mb-3">
-                        <h6 class="alert-heading"><i class="bi bi-info-circle"></i> {% if subscription %}Alteração de Plano Aguardando Pagamento{% else %}Subscrição Aguardando Pagamento{% endif %}</h6>
-                        <p class="mb-0 small">
-                            {% if subscription %}
-                            Você solicitou uma alteração de plano. A sua subscrição atual permanece ativa até expirar ou até o pagamento do novo plano ser confirmado. 
-                            Efetue o pagamento abaixo para ativar o novo plano.
-                            {% else %}
-                            Você solicitou uma nova subscrição. Efetue o pagamento abaixo para ativar o plano.
-                            {% endif %}
-                        </p>
-                    </div>
-                    <div class="row align-items-center">
-                        <div class="col-md-8">
-                            <div class="d-flex align-items-center mb-3">
-                                <h3 class="mb-0 me-3">{{ pending_subscription.plan_name }}</h3>
-                                <span class="badge bg-warning fs-6">Pendente</span>
-                            </div>
-                            
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-6">
-                                    <div class="d-flex align-items-center">
-                                        <i class="bi bi-calendar-event text-muted me-2"></i>
-                                        <div>
-                                            <small class="text-muted d-block">Período após ativação</small>
-                                            <strong>{{ pending_subscription.current_period_end|date('d/m/Y') }}</strong>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="d-flex align-items-center">
-                                        <i class="bi bi-currency-euro text-muted me-2"></i>
-                                        <div>
-                                            <small class="text-muted d-block">Preço</small>
-                                            {% if pending_total_price %}
-                                                <strong>€{{ pending_total_price|number_format(2, ',', '.') }}/mês</strong>
-                                                {% if pending_subscription.promotion_id %}
-                                                    {% set original_price = pending_subscription.original_price_monthly|default(pending_subscription.price_monthly) %}
-                                                    {% if original_price != pending_subscription.price_monthly %}
-                                                        <br><small class="text-muted">
-                                                            <span class="text-decoration-line-through">€{{ original_price|number_format(2, ',', '.') }}</span>
-                                                            {% if pending_extra_condominiums_price > 0 %}
-                                                                + Extras: €{{ pending_extra_condominiums_price|number_format(2, ',', '.') }}
-                                                            {% endif %}
-                                                        </small>
-                                                    {% endif %}
-                                                {% endif %}
-                                            {% else %}
-                                                <strong>€{{ pending_subscription.price_monthly|number_format(2, ',', '.') }}/mês</strong>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {% if pending_subscription.promotion_id %}
-                            <div class="alert alert-success mb-3">
-                                <small>
-                                    <i class="bi bi-gift"></i> <strong>Promoção Aplicada:</strong>
-                                    {% set promo = plan_promotions[pending_subscription.plan_id] ?? null %}
-                                    {% if promo %}
-                                        {{ promo.name }}
-                                        {% if promo.discount_type == 'percentage' %}
-                                            - {{ promo.discount_value }}% OFF
-                                        {% else %}
-                                            - €{{ promo.discount_value }} OFF
-                                        {% endif %}
-                                        {% if promo.duration_months %}
-                                            (válida por {{ promo.duration_months }} {% if promo.duration_months == 1 %}mês{% else %}meses{% endif %})
-                                        {% endif %}
-                                        <br><small class="text-muted">Desconto aplicado apenas ao pacote base, não aos condomínios extras.</small>
-                                    {% endif %}
-                                </small>
-                            </div>
-                            {% endif %}
-
-                            {% if pending_subscription.plan_slug == 'business' and extra_condominiums_pricing %}
-                            <div class="border-top pt-3 mt-3 mb-3">
-                                <h6 class="mb-3">Condomínios Extras</h6>
-                                <form method="POST" action="{{ BASE_URL }}subscription/update-pending-extras" id="updatePendingExtrasForm">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <div class="mb-3">
-                                        <label for="pending_extra_condominiums" class="form-label small">Número de condomínios extras:</label>
-                                        <input type="number" 
-                                               class="form-control form-control-sm" 
-                                               id="pending_extra_condominiums" 
-                                               name="extra_condominiums"
-                                               value="{{ pending_subscription.extra_condominiums|default(0) }}" 
-                                               min="0"
-                                               data-base-price="{{ pending_subscription.price_monthly }}">
-                                        <small class="text-muted d-block mt-1">
-                                            <span id="pending_extra_price_info">Preço por condomínio extra: €0,00</span>
-                                        </small>
-                                    </div>
-                                    <div class="alert alert-info small mb-2" id="pending_extra_total" style="display: none;">
-                                        <strong>Total extras:</strong> <span id="pending_extra_total_amount">€0,00</span>/mês
-                                    </div>
-                                    <div class="mb-2">
-                                        <strong class="d-block mb-1">Total Mensal:</strong>
-                                        <span class="h5 text-primary" id="pending_total_price_display">€{{ (pending_total_price ?: pending_subscription.price_monthly)|number_format(2, ',', '.') }}</span>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary btn-sm w-100">
-                                        <i class="bi bi-check-circle"></i> Atualizar Extras
-                                    </button>
-                                </form>
-                            </div>
-                            {% elseif pending_subscription.plan_slug == 'business' and pending_subscription.extra_condominiums > 0 %}
-                            <div class="text-muted small mb-3">
-                                <i class="bi bi-building"></i> Condomínios extras: {{ pending_subscription.extra_condominiums }}
-                            </div>
-                            {% endif %}
-                            
-                            {% set pending_plan = plans|filter(p => p.id == pending_subscription.plan_id)|first %}
-                            {% if pending_plan and pending_plan.plan_type %}
-                            <!-- License-based plan: Add extra licenses -->
-                            <div class="border-top pt-3 mt-3 mb-3">
-                                <h6 class="mb-3"><i class="bi bi-key"></i> Frações Extras</h6>
-                                <form method="POST" action="{{ BASE_URL }}subscription/update-pending-licenses" id="updatePendingLicensesForm">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <div class="mb-3">
-                                        <label for="pending_extra_licenses" class="form-label small">Número de frações extras:</label>
-                                        <input type="number" 
-                                               class="form-control form-control-sm" 
-                                               id="pending_extra_licenses" 
-                                               name="extra_licenses"
-                                               value="{{ pending_subscription.extra_licenses|default(0) }}" 
-                                               min="0"
-                                               data-plan-id="{{ pending_subscription.plan_id }}"
-                                               data-license-min="{{ pending_plan.license_min|default(0) }}">
-                                        <small class="text-muted d-block mt-1">
-                                            Frações incluídas: <strong>{{ pending_plan.license_min|default(0) }}</strong>
-                                            {% if pending_subscription.extra_licenses|default(0) > 0 %}
-                                                + <strong>{{ pending_subscription.extra_licenses }}</strong> extras = 
-                                                <strong>{{ pending_plan.license_min|default(0) + pending_subscription.extra_licenses }}</strong> total
-                                            {% endif %}
-                                        </small>
-                                    </div>
-                                    <div class="alert alert-info small mb-2" id="pending_licenses_price_info" style="display: none;">
-                                        <strong>Preço das frações extras:</strong> <span id="pending_licenses_price_amount">€0,00</span>/mês
-                                    </div>
-                                    <div class="mb-2">
-                                        <strong class="d-block mb-1">Total Mensal:</strong>
-                                        <span class="h5 text-primary" id="pending_licenses_total_display">€{{ (pending_total_price ?: pending_subscription.price_monthly)|number_format(2, ',', '.') }}</span>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary btn-sm w-100">
-                                        <i class="bi bi-check-circle"></i> Atualizar Frações Extras
-                                    </button>
-                                </form>
-                            </div>
-                            {% endif %}
-                        </div>
-                        <div class="col-md-4 text-end">
-                            <a href="{{ BASE_URL }}payments/{{ pending_subscription.id }}/create" class="btn btn-primary w-100 mb-2">
-                                <i class="bi bi-credit-card"></i> Efetuar Pagamento
-                            </a>
-                            <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-plan-change" class="d-inline-block w-100" onsubmit="return confirm('Tem a certeza que deseja cancelar {% if subscription %}esta alteração de plano pendente{% else %}esta subscrição pendente{% endif %}?');">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <button type="submit" class="btn btn-outline-danger w-100">
-                                    <i class="bi bi-x-circle"></i> {% if subscription %}Cancelar Alteração{% else %}Cancelar Subscrição{% endif %}
-                                </button>
-                            </form>
                         </div>
                     </div>
                 </div>

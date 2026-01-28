@@ -438,6 +438,10 @@ class SubscriptionController extends Controller
             }
         }
 
+        // Check if launch warning should be shown
+        $showLaunchWarning = isset($_ENV['SHOW_LAUNCH_WARNING']) && 
+                            ($_ENV['SHOW_LAUNCH_WARNING'] === 'true' || $_ENV['SHOW_LAUNCH_WARNING'] === true);
+
         $this->loadPageTranslations('subscription');
         
         $this->data += [
@@ -451,6 +455,7 @@ class SubscriptionController extends Controller
             'extra_condominiums_pricing' => $extraCondominiumsPricing,
             'plan_promotions' => $planPromotions,
             'plan_pricing_tiers' => $planPricingTiers,
+            'show_launch_warning' => $showLaunchWarning,
             'csrf_token' => Security::generateCSRFToken()
         ];
 

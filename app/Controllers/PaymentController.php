@@ -471,6 +471,10 @@ class PaymentController extends Controller
         }
         
         $paymentMethods = $this->paymentService->getAvailablePaymentMethods();
+        
+        // Check if launch warning should be shown
+        $showLaunchWarning = isset($_ENV['SHOW_LAUNCH_WARNING']) && 
+                            ($_ENV['SHOW_LAUNCH_WARNING'] === 'true' || $_ENV['SHOW_LAUNCH_WARNING'] === true);
 
         $this->loadPageTranslations('payments');
         
@@ -497,6 +501,7 @@ class PaymentController extends Controller
             'is_extra_update' => isset($metadata['is_extra_update']) && $metadata['is_extra_update'],
             'is_plan_change' => $isPlanChange,
             'payment_methods' => $paymentMethods,
+            'show_launch_warning' => $showLaunchWarning,
             'csrf_token' => Security::generateCSRFToken(),
             'user' => AuthMiddleware::user()
         ];
@@ -647,6 +652,11 @@ class PaymentController extends Controller
                     header('Location: ' . BASE_URL . 'payments/' . $subscriptionId . '/direct-debit');
                     exit;
 
+                case 'contact_email':
+                    // Redirect to contact email page
+                    header('Location: ' . BASE_URL . 'payments/' . $subscriptionId . '/contact-email');
+                    exit;
+
                 default:
                     $_SESSION['error'] = 'Método de pagamento inválido.';
                     header('Location: ' . BASE_URL . 'payments/' . $subscriptionId . '/create');
@@ -784,6 +794,68 @@ class PaymentController extends Controller
         ];
 
         unset($_SESSION['payment_data']);
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Show Contact Email page
+     */
+    public function showContactEmail(int $subscriptionId)
+    {
+        AuthMiddleware::require();
+
+        $userId = AuthMiddleware::userId();
+        $subscription = $this->subscriptionModel->findById($subscriptionId);
+        
+        if (!$subscription || $subscription['user_id'] != $userId) {
+            $_SESSION['error'] = 'Subscrição não encontrada.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        $plan = $this->planModel->findById($subscription['plan_id']);
+        if (!$plan) {
+            $_SESSION['error'] = 'Plano não encontrado.';
+            header('Location: ' . BASE_URL . 'subscription');
+            exit;
+        }
+
+        // Get pending invoice if exists
+        $invoiceModel = new \App\Models\Invoice();
+        $pendingInvoice = $invoiceModel->getPendingBySubscriptionId($subscriptionId);
+        
+        // Calculate amount
+        $amount = $plan['price_monthly'];
+        $isExpired = $subscription['status'] === 'expired';
+        $backpaymentMonths = 0;
+        
+        if ($isExpired) {
+            $subscriptionService = new \App\Services\SubscriptionService();
+            $backpaymentMonths = $subscriptionService->calculateBackpaymentMonths($subscriptionId);
+            if ($backpaymentMonths > 0) {
+                $amount = $plan['price_monthly'] * ($backpaymentMonths + 1);
+            }
+        }
+        
+        // Use invoice amount if available
+        if ($pendingInvoice) {
+            $amount = $pendingInvoice['amount'];
+        }
+
+        $this->loadPageTranslations('payments');
+        
+        $this->data += [
+            'viewName' => 'pages/payments/contact-email.html.twig',
+            'page' => ['titulo' => 'Contactar para Subscrição'],
+            'subscription' => $subscription,
+            'plan' => $plan,
+            'amount' => $amount,
+            'is_expired' => $isExpired,
+            'backpayment_months' => $backpaymentMonths,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
     }
 
