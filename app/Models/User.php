@@ -144,7 +144,12 @@ class User extends Model
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return (int)$this->db->lastInsertId();
+        $userId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($userId, $data);
+        
+        return $userId;
     }
 
     /**
@@ -173,6 +178,9 @@ class User extends Model
             return false;
         }
 
+        // Get old data for audit
+        $oldData = $this->findById($id);
+        
         // Detect SQLite for compatibility
         $isSQLite = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'sqlite';
         $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
@@ -180,7 +188,14 @@ class User extends Model
         $sql = "UPDATE users SET " . implode(', ', $fields) . ", updated_at = {$timestampFunc} WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
-        return $stmt->execute($params);
+        $result = $stmt->execute($params);
+        
+        // Log audit
+        if ($result) {
+            $this->auditUpdate($id, $data, $oldData);
+        }
+        
+        return $result;
     }
 
     /**

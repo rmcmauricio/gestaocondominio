@@ -164,13 +164,13 @@
                                 <span class="badge bg-{{ levelClass }}">{{ log.level }}</span>
                             </td>
                             <td>
-                                <div class="log-message" style="font-family: monospace; font-size: 0.9em;">
+                                <div class="log-message" style="font-family: monospace; font-size: 0.9em; white-space: pre-wrap; word-wrap: break-word;">
                                     {% if filters.search %}
                                         {% set searchEscaped = filters.search|escape %}
                                         {% set highlighted = log.message|trim|replace({(filters.search): '<mark>' ~ searchEscaped ~ '</mark>'}) %}
                                         {{ highlighted|sanitize_html|raw }}
                                     {% else %}
-                                        {{ log.message|trim|escape }}
+                                        {{ log.message|trim|nl2br|escape }}
                                     {% endif %}
                                 </div>
                             </td>

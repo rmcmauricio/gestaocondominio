@@ -1,12 +1,12 @@
 <?php
 /**
  * Archive Old Data CLI
- * 
+ *
  * Moves old notifications and audit logs to archive tables instead of deleting them.
  * Also cleans up expired tokens and invitations.
- * 
+ *
  * Usage: php cli/archive-old-data.php [--days-notifications=X] [--years-audit=X] [--dry-run]
- * 
+ *
  * Options:
  *   --days-notifications=X    Days old for notifications (default: 90)
  *   --years-audit=X           Years old for audit logs (default: 1)
@@ -48,13 +48,13 @@ echo "========================================\n\n";
 
 try {
     global $db;
-    
+
     if (!$db) {
         throw new \Exception("Database connection not available");
     }
-    
+
     $archiveService = new ArchiveService();
-    
+
     // Archive notifications
     echo "Archiving notifications...\n";
     $notificationStats = $archiveService->archiveNotifications($daysNotifications, $dryRun);
@@ -69,15 +69,34 @@ try {
         }
     }
     echo "\n";
-    
+
     // Archive audit logs
     echo "Archiving audit logs...\n";
     $auditStats = $archiveService->archiveAuditLogs($yearsAudit, $dryRun);
+
+    // Show known audit tables
     echo "  audit_logs: {$auditStats['audit_logs']}\n";
     echo "  audit_payments: {$auditStats['audit_payments']}\n";
     echo "  audit_subscriptions: {$auditStats['audit_subscriptions']}\n";
     echo "  audit_financial: {$auditStats['audit_financial']}\n";
     echo "  audit_documents: {$auditStats['audit_documents']}\n";
+
+    // Show separated audit tables dynamically
+    $separatedTables = [];
+    foreach ($auditStats as $key => $value) {
+        if (!in_array($key, ['audit_logs', 'audit_payments', 'audit_subscriptions', 'audit_financial', 'audit_documents', 'skipped', 'errors']) &&
+            strpos($key, 'audit_') === 0 && is_numeric($value)) {
+            $separatedTables[$key] = $value;
+        }
+    }
+
+    if (!empty($separatedTables)) {
+        echo "  Separated audit tables:\n";
+        foreach ($separatedTables as $table => $count) {
+            echo "    {$table}: {$count}\n";
+        }
+    }
+
     if ($auditStats['skipped'] > 0) {
         echo "  Skipped: {$auditStats['skipped']}\n";
     }
@@ -88,17 +107,17 @@ try {
         }
     }
     echo "\n";
-    
+
     // Clean up expired tokens and invitations (these can be deleted)
     if (!$dryRun) {
         echo "Cleaning up expired tokens and invitations...\n";
-        
+
         // Delete expired password reset tokens
         $stmt = $db->prepare("DELETE FROM password_resets WHERE expires_at < NOW()");
         $stmt->execute();
         $deletedTokens = $stmt->rowCount();
         echo "  Deleted expired password reset tokens: {$deletedTokens}\n";
-        
+
         // Delete expired invitations
         $stmt = $db->prepare("DELETE FROM invitations WHERE expires_at < NOW()");
         $stmt->execute();
@@ -110,17 +129,17 @@ try {
         $stmt = $db->prepare("SELECT COUNT(*) as count FROM password_resets WHERE expires_at < NOW()");
         $stmt->execute();
         $expiredTokens = $stmt->fetch()['count'];
-        
+
         $stmt = $db->prepare("SELECT COUNT(*) as count FROM invitations WHERE expires_at < NOW()");
         $stmt->execute();
         $expiredInvitations = $stmt->fetch()['count'];
-        
+
         echo "Would delete:\n";
         echo "  Expired password reset tokens: {$expiredTokens}\n";
         echo "  Expired invitations: {$expiredInvitations}\n";
         echo "\n";
     }
-    
+
     // Get archive statistics
     echo "Archive Statistics:\n";
     $stats = $archiveService->getArchiveStatistics();
@@ -137,28 +156,39 @@ try {
         echo "  Oldest audit archive: {$stats['oldest_audit_archive']}\n";
     }
     echo "\n";
-    
+
     // Summary
     echo "========================================\n";
     echo "Summary\n";
     echo "========================================\n";
     echo "Notifications archived: {$notificationStats['archived']}\n";
-    $totalAudit = $auditStats['audit_logs'] + $auditStats['audit_payments'] + 
-                  $auditStats['audit_subscriptions'] + $auditStats['audit_financial'] + 
+
+    // Calculate total audit logs (known + separated tables)
+    $totalAudit = $auditStats['audit_logs'] + $auditStats['audit_payments'] +
+                  $auditStats['audit_subscriptions'] + $auditStats['audit_financial'] +
                   $auditStats['audit_documents'];
+
+    // Add separated tables
+    foreach ($auditStats as $key => $value) {
+        if (!in_array($key, ['audit_logs', 'audit_payments', 'audit_subscriptions', 'audit_financial', 'audit_documents', 'skipped', 'errors']) &&
+            strpos($key, 'audit_') === 0 && is_numeric($value)) {
+            $totalAudit += $value;
+        }
+    }
+
     echo "Audit logs archived: {$totalAudit}\n";
     echo "Completed at: " . date('Y-m-d H:i:s') . "\n";
     echo "========================================\n";
-    
+
     if ($dryRun) {
         echo "\nThis was a DRY RUN. No data was actually archived.\n";
         echo "Run without --dry-run to perform the actual archiving.\n";
     } else {
         echo "\nArchive process completed successfully!\n";
     }
-    
+
     exit(0);
-    
+
 } catch (\Exception $e) {
     echo "\nFatal Error: " . $e->getMessage() . "\n";
     echo "Stack trace:\n" . $e->getTraceAsString() . "\n";

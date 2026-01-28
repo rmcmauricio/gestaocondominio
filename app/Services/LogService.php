@@ -66,6 +66,93 @@ class LogService
     }
 
     /**
+     * Group log lines into entries (everything between timestamps is one entry)
+     */
+    protected function groupLogLines(array $rawLines): array
+    {
+        $entries = [];
+        $currentEntry = null;
+        
+        foreach ($rawLines as $lineData) {
+            $line = $lineData['line'];
+            
+            // Check if this line starts with a timestamp [DD-MMM-YYYY HH:MM:SS UTC]
+            if (preg_match('/^\[(\d{2}-[A-Za-z]{3}-\d{4}) (\d{2}:\d{2}:\d{2}) UTC\]\s*(.+)$/s', $line, $matches)) {
+                // Save previous entry if exists
+                if ($currentEntry !== null) {
+                    $entries[] = $currentEntry;
+                }
+                
+                // Start new entry
+                $dateStr = $matches[1];
+                $timeStr = $matches[2];
+                $message = preg_replace('/^[\s\x{00A0}\x{2000}-\x{200B}]+/u', '', $matches[3]);
+                
+                $currentEntry = [
+                    'raw' => $line,
+                    'timestamp' => strtotime($dateStr . ' ' . $timeStr),
+                    'date' => $dateStr,
+                    'time' => $timeStr,
+                    'level' => 'INFO',
+                    'message' => $this->trimMessageLines($message),
+                    'line_number' => $lineData['line_number']
+                ];
+            } else {
+                // This line belongs to the current entry (stack trace, continuation, etc.)
+                if ($currentEntry !== null) {
+                    // Append to current entry's message
+                    $trimmedLine = $this->trimMessageLines(trim($line));
+                    if (!empty($trimmedLine)) {
+                        $currentEntry['message'] .= "\n" . $trimmedLine;
+                        $currentEntry['raw'] .= "\n" . $line;
+                    }
+                } else {
+                    // Orphaned line (no timestamp), create a minimal entry
+                    $currentEntry = [
+                        'raw' => $line,
+                        'timestamp' => null,
+                        'date' => null,
+                        'time' => null,
+                        'level' => 'INFO',
+                        'message' => $this->trimMessageLines(trim($line)),
+                        'line_number' => $lineData['line_number']
+                    ];
+                }
+            }
+        }
+        
+        // Don't forget the last entry
+        if ($currentEntry !== null) {
+            $entries[] = $currentEntry;
+        }
+        
+        // Detect error levels for all entries
+        foreach ($entries as &$entry) {
+            $messageUpper = strtoupper($entry['message']);
+            // Check for PHP errors first (PHP Fatal, PHP Warning, etc.)
+            if (preg_match('/PHP\s+(FATAL|FATAL\s+ERROR)/', $messageUpper)) {
+                $entry['level'] = 'ERROR';
+            } elseif (preg_match('/PHP\s+WARNING/', $messageUpper)) {
+                $entry['level'] = 'WARNING';
+            } elseif (preg_match('/PHP\s+NOTICE/', $messageUpper)) {
+                $entry['level'] = 'NOTICE';
+            } elseif (preg_match('/\b(ERROR|FATAL|CRITICAL)\b/', $messageUpper)) {
+                $entry['level'] = 'ERROR';
+            } elseif (preg_match('/\b(WARNING|WARN)\b/', $messageUpper)) {
+                $entry['level'] = 'WARNING';
+            } elseif (preg_match('/\b(NOTICE)\b/', $messageUpper)) {
+                $entry['level'] = 'NOTICE';
+            } elseif (preg_match('/\b(DEBUG)\b/', $messageUpper)) {
+                $entry['level'] = 'DEBUG';
+            } elseif (preg_match('/\b(INFO)\b/', $messageUpper)) {
+                $entry['level'] = 'INFO';
+            }
+        }
+        
+        return $entries;
+    }
+
+    /**
      * Parse a log line into structured data
      */
     public function parseLogLine(string $line): array
@@ -175,7 +262,7 @@ class LogService
         }
         
         // Read backwards: start from end and work backwards
-        // We need to collect matching lines, then apply offset and limit
+        // We need to collect matching log entries (grouped by timestamp), then apply offset and limit
         $allMatchingLines = [];
         $currentLineNum = $totalLines - 1;
         
@@ -184,25 +271,35 @@ class LogService
         
         $file->seek(max(0, $totalLines - $maxReadLines));
         
+        // Read all lines first, then group them
+        $rawLines = [];
         while (!$file->eof() && $file->key() < $totalLines) {
             $line = $file->current();
             $lineNum = $file->key();
             $file->next();
             
-            if ($line === false || trim($line) === '') {
-                continue;
-            }
-            
-            // Apply filters
-            if ($this->matchesFilters($line, $filters)) {
-                $parsed = $this->parseLogLine($line);
-                $parsed['line_number'] = $lineNum + 1; // 1-indexed
-                $allMatchingLines[] = $parsed;
+            if ($line !== false && trim($line) !== '') {
+                $rawLines[] = [
+                    'line' => $line,
+                    'line_number' => $lineNum + 1
+                ];
             }
         }
         
-        // Reverse to get newest first, then apply offset and limit
-        $allMatchingLines = array_reverse($allMatchingLines);
+        // Group lines by log entry (everything between timestamps)
+        $groupedEntries = $this->groupLogLines($rawLines);
+        
+        // Reverse to get newest first
+        $groupedEntries = array_reverse($groupedEntries);
+        
+        // Apply filters and collect matching entries
+        foreach ($groupedEntries as $entry) {
+            if ($this->matchesFilters($entry['message'], $filters)) {
+                $allMatchingLines[] = $entry;
+            }
+        }
+        
+        // Apply offset and limit
         $lines = array_slice($allMatchingLines, $offset, $limit);
         
         return $lines;
@@ -214,7 +311,7 @@ class LogService
     protected function readFromEndWithTail(int $offset, int $limit, array $filters): array
     {
         $escapedFile = escapeshellarg($this->logFile);
-        $numLines = ($offset + $limit) * 2; // Read more to account for filtering
+        $numLines = ($offset + $limit) * 3; // Read more to account for filtering and multi-line entries
         
         // Use tail to get last N lines
         $command = "tail -n {$numLines} {$escapedFile}";
@@ -225,21 +322,32 @@ class LogService
         }
         
         $allLines = explode("\n", trim($output));
-        $allMatchingLines = [];
+        $rawLines = [];
         
-        foreach ($allLines as $line) {
-            if (trim($line) === '') {
-                continue;
-            }
-            
-            if ($this->matchesFilters($line, $filters)) {
-                $parsed = $this->parseLogLine($line);
-                $allMatchingLines[] = $parsed;
+        foreach ($allLines as $index => $line) {
+            if (trim($line) !== '') {
+                $rawLines[] = [
+                    'line' => $line,
+                    'line_number' => null // Line numbers not available with tail
+                ];
             }
         }
         
-        // Reverse to get newest first, then apply offset and limit
-        $allMatchingLines = array_reverse($allMatchingLines);
+        // Group lines by log entry
+        $groupedEntries = $this->groupLogLines($rawLines);
+        
+        // Reverse to get newest first
+        $groupedEntries = array_reverse($groupedEntries);
+        
+        // Apply filters
+        $allMatchingLines = [];
+        foreach ($groupedEntries as $entry) {
+            if ($this->matchesFilters($entry['message'], $filters)) {
+                $allMatchingLines[] = $entry;
+            }
+        }
+        
+        // Apply offset and limit
         $lines = array_slice($allMatchingLines, $offset, $limit);
         
         return $lines;
@@ -253,23 +361,32 @@ class LogService
         $lines = [];
         $file->rewind();
         
+        // Read all lines first, then group them
+        $rawLines = [];
+        while (!$file->eof()) {
+            $line = $file->current();
+            $lineNum = $file->key();
+            $file->next();
+            
+            if ($line !== false && trim($line) !== '') {
+                $rawLines[] = [
+                    'line' => $line,
+                    'line_number' => $lineNum + 1
+                ];
+            }
+        }
+        
+        // Group lines by log entry
+        $groupedEntries = $this->groupLogLines($rawLines);
+        
+        // Apply filters and pagination
         $matched = 0;
         $skipped = 0;
         
-        while (!$file->eof()) {
-            $line = $file->current();
-            $file->next();
-            
-            if ($line === false || trim($line) === '') {
-                continue;
-            }
-            
-            // Apply filters
-            if ($this->matchesFilters($line, $filters)) {
+        foreach ($groupedEntries as $entry) {
+            if ($this->matchesFilters($entry['message'], $filters)) {
                 if ($skipped >= $offset) {
-                    $parsed = $this->parseLogLine($line);
-                    $parsed['line_number'] = $file->key();
-                    $lines[] = $parsed;
+                    $lines[] = $entry;
                     $matched++;
                     
                     if ($matched >= $limit) {
@@ -286,52 +403,53 @@ class LogService
 
     /**
      * Search using grep (much faster for large files)
+     * Note: For proper grouping, we need to read the file and group entries, then filter
      */
     protected function searchWithGrep(string $search, int $offset, int $limit, array $filters): array
     {
-        $escapedSearch = escapeshellarg($search);
-        $escapedFile = escapeshellarg($this->logFile);
+        // For proper multi-line grouping, read file and group entries first
+        // Then filter by search term
+        $file = new \SplFileObject($this->logFile, 'r');
+        $rawLines = [];
         
-        // Use grep to find matching lines with line numbers
-        $command = "grep -n {$escapedSearch} {$escapedFile}";
-        $output = shell_exec($command);
-        
-        if (empty($output)) {
-            return [];
+        while (!$file->eof()) {
+            $line = $file->current();
+            $lineNum = $file->key();
+            $file->next();
+            
+            if ($line !== false && trim($line) !== '') {
+                $rawLines[] = [
+                    'line' => $line,
+                    'line_number' => $lineNum + 1
+                ];
+            }
         }
         
-        $matchingLines = explode("\n", trim($output));
-        $lines = [];
+        // Group lines by log entry
+        $groupedEntries = $this->groupLogLines($rawLines);
         
-        // Apply additional filters and pagination
-        $matched = 0;
-        $skipped = 0;
-        
-        foreach ($matchingLines as $lineInfo) {
-            if (preg_match('/^(\d+):(.+)$/', $lineInfo, $matches)) {
-                $lineNumber = (int)$matches[1];
-                $line = $matches[2];
-                
+        // Filter by search term (search in full message)
+        $matchingEntries = [];
+        foreach ($groupedEntries as $entry) {
+            if (stripos($entry['message'], $search) !== false) {
                 // Apply other filters
                 $tempFilters = $filters;
-                $tempFilters['search'] = ''; // Already filtered by grep
+                $tempFilters['search'] = ''; // Already filtered by search term
                 
-                if ($this->matchesFilters($line, $tempFilters)) {
-                    if ($skipped >= $offset) {
-                        $parsed = $this->parseLogLine($line);
-                        $parsed['line_number'] = $lineNumber;
-                        $lines[] = $parsed;
-                        $matched++;
-                        
-                        if ($matched >= $limit) {
-                            break;
-                        }
-                    } else {
-                        $skipped++;
-                    }
+                if ($this->matchesFilters($entry['message'], $tempFilters)) {
+                    $matchingEntries[] = $entry;
                 }
             }
         }
+        
+        // Reverse to get newest first (if direction is desc)
+        $direction = $filters['direction'] ?? 'desc';
+        if ($direction === 'desc') {
+            $matchingEntries = array_reverse($matchingEntries);
+        }
+        
+        // Apply pagination
+        $lines = array_slice($matchingEntries, $offset, $limit);
         
         return $lines;
     }
@@ -377,7 +495,7 @@ class LogService
     }
 
     /**
-     * Count total lines matching filters
+     * Count total log entries matching filters (grouped entries, not individual lines)
      */
     public function countLogLines(array $filters = []): int
     {
@@ -385,46 +503,39 @@ class LogService
             return 0;
         }
 
-        // If searching with grep, count grep results (much faster)
-        if (!empty($filters['search']) && function_exists('shell_exec') && !empty(shell_exec('which grep'))) {
-            $escapedSearch = escapeshellarg($filters['search']);
-            $escapedFile = escapeshellarg($this->logFile);
-            $command = "grep -c {$escapedSearch} {$escapedFile} 2>/dev/null";
-            $count = shell_exec($command);
-            $count = (int)trim($count);
-            
-            // If we have other filters, we need to filter the grep results
-            if ($count > 0 && (!empty($filters['date_from']) || !empty($filters['date_to']) || !empty($filters['level']))) {
-                // Re-count with all filters applied
-                return $this->countWithAllFilters($filters);
-            }
-            
-            return $count;
-        }
-
-        // For very large files without search, limit counting to avoid timeout
+        // For very large files, estimate based on sampling
         $fileSize = filesize($this->logFile);
-        if ($fileSize > 10 * 1024 * 1024 && empty($filters['search'])) { // > 10MB
-            // Estimate based on sampling
+        if ($fileSize > 10 * 1024 * 1024) { // > 10MB
             return $this->estimateFilteredCount($filters);
         }
 
-        // Otherwise, count line by line (with reasonable limit)
+        // Read file and group entries, then count matching entries
         $file = new \SplFileObject($this->logFile, 'r');
-        $count = 0;
+        $rawLines = [];
         $maxLinesToCheck = 50000; // Limit to avoid timeout
         $linesChecked = 0;
         
         while (!$file->eof() && $linesChecked < $maxLinesToCheck) {
             $line = $file->current();
+            $lineNum = $file->key();
             $file->next();
             $linesChecked++;
             
-            if ($line === false || trim($line) === '') {
-                continue;
+            if ($line !== false && trim($line) !== '') {
+                $rawLines[] = [
+                    'line' => $line,
+                    'line_number' => $lineNum + 1
+                ];
             }
-            
-            if ($this->matchesFilters($line, $filters)) {
+        }
+        
+        // Group lines by log entry
+        $groupedEntries = $this->groupLogLines($rawLines);
+        
+        // Count matching entries
+        $count = 0;
+        foreach ($groupedEntries as $entry) {
+            if ($this->matchesFilters($entry['message'], $filters)) {
                 $count++;
             }
         }
@@ -432,8 +543,10 @@ class LogService
         // If we hit the limit, estimate total
         if ($linesChecked >= $maxLinesToCheck && $file->eof() === false) {
             $totalLines = $this->estimateLineCount();
-            $ratio = $count / $linesChecked;
-            return (int)($totalLines * $ratio);
+            $ratio = count($groupedEntries) / $linesChecked;
+            $estimatedTotalEntries = (int)($totalLines * $ratio);
+            $matchRatio = $count / max(1, count($groupedEntries));
+            return (int)($estimatedTotalEntries * $matchRatio);
         }
         
         return $count;

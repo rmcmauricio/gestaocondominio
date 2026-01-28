@@ -58,7 +58,12 @@ class Supplier extends Model
             ':notes' => $data['notes'] ?? null
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $supplierId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($supplierId, $data);
+        
+        return $supplierId;
     }
 
     /**
@@ -96,10 +101,20 @@ class Supplier extends Model
             return false;
         }
 
+        // Get old data for audit
+        $oldData = $this->findById($id);
+
         $sql = "UPDATE suppliers SET " . implode(', ', $fields) . ", updated_at = NOW() WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
-        return $stmt->execute($params);
+        $result = $stmt->execute($params);
+        
+        // Log audit
+        if ($result) {
+            $this->auditUpdate($id, $data, $oldData);
+        }
+        
+        return $result;
     }
 
     /**
@@ -107,7 +122,17 @@ class Supplier extends Model
      */
     public function delete(int $id): bool
     {
-        return $this->update($id, ['is_active' => false]);
+        // Get old data for audit before deletion
+        $oldData = $this->findById($id);
+        
+        $result = $this->update($id, ['is_active' => false]);
+        
+        // Log audit (soft delete is treated as update, but log as delete for clarity)
+        if ($result && $oldData) {
+            $this->auditDelete($id, $oldData);
+        }
+        
+        return $result;
     }
 }
 

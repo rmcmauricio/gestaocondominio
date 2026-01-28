@@ -18,7 +18,7 @@ class Condominium extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT * FROM condominiums 
+            SELECT * FROM condominiums
             WHERE user_id = :user_id AND is_active = TRUE
             ORDER BY created_at DESC
         ");
@@ -53,7 +53,7 @@ class Condominium extends Model
         // Check if is_demo column exists
         $stmt = $this->db->query("SHOW COLUMNS FROM condominiums LIKE 'is_demo'");
         $hasIsDemo = $stmt->rowCount() > 0;
-        
+
         if ($hasIsDemo) {
             $stmt = $this->db->prepare("
                 INSERT INTO condominiums (
@@ -94,7 +94,7 @@ class Condominium extends Model
             ':rules' => $data['rules'] ?? null,
             ':settings' => json_encode($data['settings'] ?? [])
         ];
-        
+
         if ($hasIsDemo) {
             // Ensure is_demo is always a boolean/integer (0 or 1), never empty string
             $isDemo = false;
@@ -109,7 +109,7 @@ class Condominium extends Model
             }
             // Always convert to integer (0 or 1) for MySQL
             $params[':is_demo'] = $isDemo ? 1 : 0;
-            
+
             // Ensure is_active is always a boolean/integer
             $isActive = true;
             if (isset($data['is_active'])) {
@@ -136,16 +136,19 @@ class Condominium extends Model
             }
             $params[':is_active'] = $isActive ? 1 : 0;
         }
-        
+
         $stmt->execute($params);
 
         $condominiumId = (int)$this->db->lastInsertId();
-        
+
         // If is_demo was provided but column doesn't exist, update via SQL
         if (!$hasIsDemo && isset($data['is_demo']) && $data['is_demo']) {
             $this->db->exec("UPDATE condominiums SET is_demo = TRUE WHERE id = {$condominiumId}");
         }
-        
+
+        // Log audit
+        $this->auditCreate($condominiumId, $data);
+
         return $condominiumId;
     }
 
@@ -180,6 +183,9 @@ class Condominium extends Model
             return false;
         }
 
+        // Get old data for audit
+        $oldData = $this->findById($id);
+
         // Detect SQLite for compatibility
         $isSQLite = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'sqlite';
         $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
@@ -187,7 +193,14 @@ class Condominium extends Model
         $sql = "UPDATE condominiums SET " . implode(', ', $fields) . ", updated_at = {$timestampFunc} WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
-        return $stmt->execute($params);
+        $result = $stmt->execute($params);
+
+        // Log audit
+        if ($result) {
+            $this->auditUpdate($id, $data, $oldData);
+        }
+
+        return $result;
     }
 
     /**
@@ -195,7 +208,48 @@ class Condominium extends Model
      */
     public function delete(int $id): bool
     {
-        return $this->update($id, ['is_active' => false]);
+        // Get condominium data to check if it's demo
+        $condominium = $this->findById($id);
+        if (!$condominium) {
+            return false;
+        }
+        
+        // If it's a demo condominium, disable auditing temporarily
+        $wasAuditingDisabled = false;
+        if (!empty($condominium['is_demo'])) {
+            \App\Core\AuditManager::disable();
+            $wasAuditingDisabled = true;
+        }
+        
+        try {
+            // Temporarily disable auditing for the update call to avoid double logging
+            // We'll log as delete instead
+            $wasDisabledForUpdate = false;
+            if (!$wasAuditingDisabled) {
+                \App\Core\AuditManager::disable();
+                $wasDisabledForUpdate = true;
+            }
+            
+            try {
+                $result = $this->update($id, ['is_active' => false]);
+            } finally {
+                if ($wasDisabledForUpdate) {
+                    \App\Core\AuditManager::enable();
+                }
+            }
+            
+            // If soft delete succeeded and it's not demo, log as delete
+            if ($result && empty($condominium['is_demo'])) {
+                $this->auditDelete($id, $condominium);
+            }
+            
+            return $result;
+        } finally {
+            // Re-enable auditing if we disabled it
+            if ($wasAuditingDisabled) {
+                \App\Core\AuditManager::enable();
+            }
+        }
     }
 
     /**
@@ -208,7 +262,7 @@ class Condominium extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT c.*, 
+            SELECT c.*,
                    COUNT(f.id) as fractions_count,
                    COUNT(CASE WHEN f.is_active = TRUE THEN 1 END) as active_fractions_count
             FROM condominiums c
@@ -235,7 +289,7 @@ class Condominium extends Model
         $stmt = $this->db->prepare("SELECT document_template FROM condominiums WHERE id = :id LIMIT 1");
         $stmt->execute([':id' => $id]);
         $result = $stmt->fetch();
-        
+
         if ($result && isset($result['document_template']) && $result['document_template'] !== null) {
             $templateId = (int)$result['document_template'];
             // Validate template ID is between 1-17
@@ -243,7 +297,7 @@ class Condominium extends Model
                 return $templateId;
             }
         }
-        
+
         return null; // Default template (null means use system default, no custom CSS)
     }
 
@@ -261,11 +315,11 @@ class Condominium extends Model
         $stmt = $this->db->prepare("SELECT logo_path FROM condominiums WHERE id = :id LIMIT 1");
         $stmt->execute([':id' => $id]);
         $result = $stmt->fetch();
-        
+
         if ($result && isset($result['logo_path']) && !empty($result['logo_path'])) {
             return $result['logo_path'];
         }
-        
+
         return null;
     }
 
@@ -296,7 +350,7 @@ class Condominium extends Model
         $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
 
         $stmt = $this->db->prepare("
-            UPDATE condominiums 
+            UPDATE condominiums
             SET subscription_status = 'locked',
                 locked_at = {$timestampFunc},
                 locked_reason = :reason,
@@ -324,7 +378,7 @@ class Condominium extends Model
         $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
 
         $stmt = $this->db->prepare("
-            UPDATE condominiums 
+            UPDATE condominiums
             SET subscription_status = 'active',
                 locked_at = NULL,
                 locked_reason = NULL,

@@ -80,7 +80,12 @@ class FeePayment extends Model
             ':created_by' => $data['created_by'] ?? null
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $paymentId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($paymentId, $data);
+        
+        return $paymentId;
     }
 
     /**
@@ -122,9 +127,20 @@ class FeePayment extends Model
             return false;
         }
 
+        // Get old data for audit
+        $oldData = $this->findById($id);
+
         $sql = "UPDATE fee_payments SET " . implode(', ', $fields) . ", updated_at = NOW() WHERE id = :id";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute($params);
+        
+        $result = $stmt->execute($params);
+        
+        // Log audit
+        if ($result) {
+            $this->auditUpdate($id, $data, $oldData);
+        }
+        
+        return $result;
     }
 
     /**
@@ -136,8 +152,18 @@ class FeePayment extends Model
             return false;
         }
 
+        // Get old data for audit before deletion
+        $oldData = $this->findById($id);
+
         $stmt = $this->db->prepare("DELETE FROM fee_payments WHERE id = :id");
-        return $stmt->execute([':id' => $id]);
+        $result = $stmt->execute([':id' => $id]);
+        
+        // Log audit
+        if ($result && $oldData) {
+            $this->auditDelete($id, $oldData);
+        }
+        
+        return $result;
     }
 }
 

@@ -341,7 +341,12 @@ class Document extends Model
             ]);
         }
 
-        return (int)$this->db->lastInsertId();
+        $documentId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($documentId, $data);
+        
+        return $documentId;
     }
 
     /**
@@ -430,9 +435,20 @@ class Document extends Model
             return false;
         }
 
+        // Get old data for audit
+        $oldData = $this->findById($id);
+
         $sql = "UPDATE documents SET " . implode(', ', $fields) . " WHERE id = :id";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute($params);
+        
+        $result = $stmt->execute($params);
+        
+        // Log audit
+        if ($result) {
+            $this->auditUpdate($id, $data, $oldData);
+        }
+        
+        return $result;
     }
 
     /**
@@ -524,17 +540,47 @@ class Document extends Model
             return false;
         }
 
+        // Count affected documents
+        $countStmt = $this->db->prepare("
+            SELECT COUNT(*) as count 
+            FROM documents 
+            WHERE condominium_id = :condominium_id AND folder = :old_folder
+        ");
+        $countStmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':old_folder' => $oldFolderName
+        ]);
+        $countResult = $countStmt->fetch();
+        $affectedCount = (int)($countResult['count'] ?? 0);
+
         $stmt = $this->db->prepare("
             UPDATE documents
             SET folder = :new_folder
             WHERE condominium_id = :condominium_id AND folder = :old_folder
         ");
 
-        return $stmt->execute([
+        $result = $stmt->execute([
             ':condominium_id' => $condominiumId,
             ':old_folder' => $oldFolderName,
             ':new_folder' => $newFolderName
         ]);
+        
+        // Log audit for folder rename operation
+        if ($result) {
+            $this->auditCustom(
+                'folder_rename',
+                "Pasta renomeada de '{$oldFolderName}' para '{$newFolderName}' ({$affectedCount} documentos afetados)",
+                [
+                    'condominium_id' => $condominiumId,
+                    'old_folder' => $oldFolderName,
+                    'new_folder' => $newFolderName,
+                    'affected_documents_count' => $affectedCount
+                ],
+                'documents'
+            );
+        }
+        
+        return $result;
     }
 
     /**
@@ -567,16 +613,43 @@ class Document extends Model
             return false;
         }
 
+        // Get old data for audit
+        $document = $this->findById($documentId);
+        if (!$document) {
+            return false;
+        }
+        
+        $oldFolder = $document['folder'] ?? null;
+        $newFolder = $folderName ?: null;
+
         $stmt = $this->db->prepare("
             UPDATE documents
             SET folder = :folder
             WHERE id = :id
         ");
 
-        return $stmt->execute([
+        $result = $stmt->execute([
             ':id' => $documentId,
-            ':folder' => $folderName ?: null
+            ':folder' => $newFolder
         ]);
+        
+        // Log audit for document move operation
+        if ($result) {
+            $this->auditCustom(
+                'document_move',
+                "Documento #{$documentId} movido de '{$oldFolder}' para '{$newFolder}'",
+                [
+                    'document_id' => $documentId,
+                    'old_folder' => $oldFolder,
+                    'new_folder' => $newFolder,
+                    'document_title' => $document['title'] ?? null
+                ],
+                'documents',
+                $documentId
+            );
+        }
+        
+        return $result;
     }
 
     /**
@@ -593,6 +666,9 @@ class Document extends Model
             return false;
         }
 
+        // Get old data for audit before deletion
+        $oldData = $document;
+
         // Delete file from storage
         $filePath = __DIR__ . '/../../storage/documents/' . $document['file_path'];
         if (file_exists($filePath)) {
@@ -601,7 +677,14 @@ class Document extends Model
 
         // Delete from database
         $stmt = $this->db->prepare("DELETE FROM documents WHERE id = :id");
-        return $stmt->execute([':id' => $id]);
+        $result = $stmt->execute([':id' => $id]);
+        
+        // Log audit
+        if ($result && $oldData) {
+            $this->auditDelete($id, $oldData);
+        }
+        
+        return $result;
     }
 }
 

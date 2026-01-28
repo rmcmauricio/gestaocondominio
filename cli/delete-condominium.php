@@ -19,6 +19,7 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../database.php';
 
 use App\Core\DatabaseMigration;
+use App\Core\AuditManager;
 
 // Set timezone
 date_default_timezone_set('Europe/Lisbon');
@@ -102,8 +103,9 @@ try {
     foreach ($condominiumsToDelete as $condominium) {
         $id = $condominium['id'];
         $name = $condominium['name'];
+        $isDemo = !empty($condominium['is_demo']);
         
-        if ($condominium['is_demo']) {
+        if ($isDemo) {
             $hasDemoCondominium = true;
         }
         
@@ -114,14 +116,54 @@ try {
             continue;
         }
 
-        // Delete condominium data
-        deleteCondominiumData($db, $id, $condominium['is_demo']);
-        
-        // Finally, delete the condominium itself
-        $stmt = $db->prepare("DELETE FROM condominiums WHERE id = :id");
-        $stmt->execute([':id' => $id]);
-        
-        echo "  Condomínio removido com sucesso.\n";
+        // Disable auditing only for demo condominiums
+        if ($isDemo) {
+            AuditManager::disable();
+        }
+
+        try {
+            // Get condominium data before deletion for audit (if not demo)
+            $condominiumData = null;
+            if (!$isDemo) {
+                $stmt = $db->prepare("SELECT * FROM condominiums WHERE id = :id LIMIT 1");
+                $stmt->execute([':id' => $id]);
+                $condominiumData = $stmt->fetch();
+            }
+
+            // Delete condominium data
+            deleteCondominiumData($db, $id, $isDemo);
+            
+            // Finally, delete the condominium itself
+            $stmt = $db->prepare("DELETE FROM condominiums WHERE id = :id");
+            $stmt->execute([':id' => $id]);
+            
+            // Log audit for non-demo condominiums
+            if (!$isDemo && $condominiumData) {
+                // Filter sensitive fields
+                $filteredData = $condominiumData;
+                unset($filteredData['password']); // Remove any sensitive data
+                
+                // Log audit manually using AuditManager
+                AuditManager::logAudit([
+                    'user_id' => null, // CLI script, no user context
+                    'action' => 'delete',
+                    'model' => 'condominiums',
+                    'model_id' => $id,
+                    'old_data' => $filteredData,
+                    'new_data' => null,
+                    'table_name' => 'condominiums',
+                    'operation' => 'delete',
+                    'description' => "Condomínio #{$id} ({$condominiumData['name']}) excluído"
+                ]);
+            }
+            
+            echo "  Condomínio removido com sucesso.\n";
+        } finally {
+            // Re-enable auditing if we disabled it
+            if ($isDemo) {
+                AuditManager::enable();
+            }
+        }
     }
 
     // If we deleted demo condominiums, also delete the demo snapshot

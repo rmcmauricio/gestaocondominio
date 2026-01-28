@@ -19,6 +19,7 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../database.php';
 
 use App\Core\DatabaseMigration;
+use App\Core\AuditManager;
 
 // Set timezone
 date_default_timezone_set('Europe/Lisbon');
@@ -35,6 +36,10 @@ try {
     if (!$db) {
         throw new \Exception("Database connection not available");
     }
+
+    // Disable auditing during demo installation to avoid filling the database with logs
+    AuditManager::disable();
+    echo "Auditoria desabilitada durante a instalação demo.\n\n";
 
     // Ensure migrations are run first
     echo "Verificando migrations...\n";
@@ -131,6 +136,9 @@ try {
     echo "   Snapshot guardado em: {$snapshotFile}\n";
     echo "\n";
 
+    // Re-enable auditing
+    AuditManager::enable();
+    
     echo "========================================\n";
     echo "Instalação concluída com sucesso!\n";
     echo "========================================\n";
@@ -140,10 +148,15 @@ try {
     echo "\n";
 
 } catch (\PDOException $e) {
+    // Re-enable auditing even on error
+    AuditManager::enable();
     echo "Erro de banco de dados: " . $e->getMessage() . "\n";
     echo "Stack trace: " . $e->getTraceAsString() . "\n";
     exit(1);
 } catch (\Exception $e) {
+    // Re-enable auditing even on error
+    AuditManager::enable();
+    
     echo "Erro: " . $e->getMessage() . "\n";
     echo "Stack trace: " . $e->getTraceAsString() . "\n";
     exit(1);

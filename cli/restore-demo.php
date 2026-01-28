@@ -25,6 +25,7 @@ require_once __DIR__ . '/../database.php';
 
 use App\Models\User;
 use App\Core\DatabaseMigration;
+use App\Core\AuditManager;
 
 // Set timezone
 date_default_timezone_set('Europe/Lisbon');
@@ -45,6 +46,10 @@ try {
     if (!$db) {
         throw new \Exception("Database connection not available");
     }
+
+    // Disable auditing during demo restore to avoid filling the database with logs
+    AuditManager::disable();
+    echo "Auditoria desabilitada durante a restauração demo.\n\n";
 
     // Ensure migrations are run first
     if (!$dryRun) {
@@ -445,15 +450,23 @@ try {
         echo "   [DRY RUN] Verificação de utilizadores seria executada\n";
     }
 
+    // Re-enable auditing
+    AuditManager::enable();
+    
     echo "\n========================================\n";
     echo "Restauração concluída!\n";
     echo "========================================\n";
 
 } catch (\PDOException $e) {
+    // Re-enable auditing even on error
+    AuditManager::enable();
     echo "Erro de banco de dados: " . $e->getMessage() . "\n";
     echo "Stack trace: " . $e->getTraceAsString() . "\n";
     exit(1);
 } catch (\Exception $e) {
+    // Re-enable auditing even on error
+    AuditManager::enable();
+    
     echo "Erro: " . $e->getMessage() . "\n";
     echo "Stack trace: " . $e->getTraceAsString() . "\n";
     exit(1);

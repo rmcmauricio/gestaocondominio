@@ -73,7 +73,12 @@ class Fraction extends Model
             ':notes' => $data['notes'] ?? null
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $fractionId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($fractionId, $data);
+        
+        return $fractionId;
     }
 
     /**
@@ -102,10 +107,20 @@ class Fraction extends Model
             return false;
         }
 
+        // Get old data for audit
+        $oldData = $this->findById($id);
+
         $sql = "UPDATE fractions SET " . implode(', ', $fields) . ", updated_at = NOW() WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
-        return $stmt->execute($params);
+        $result = $stmt->execute($params);
+        
+        // Log audit
+        if ($result) {
+            $this->auditUpdate($id, $data, $oldData);
+        }
+        
+        return $result;
     }
 
     /**
@@ -156,8 +171,18 @@ class Fraction extends Model
             return false;
         }
 
+        // Get old data for audit before deletion
+        $oldData = $this->findById($id);
+
         // Convert boolean to integer for MySQL
-        return $this->update($id, ['is_active' => 0]);
+        $result = $this->update($id, ['is_active' => 0]);
+        
+        // Log audit (soft delete is treated as update, but log as delete for clarity)
+        if ($result && $oldData) {
+            $this->auditDelete($id, $oldData);
+        }
+        
+        return $result;
     }
 
     /**

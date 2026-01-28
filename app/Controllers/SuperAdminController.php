@@ -1632,8 +1632,55 @@ class SuperAdminController extends Controller
         // Build UNION query for all audit tables with normalized columns
         $unionQueries = [];
 
-        // General audit logs
+        // Get all separated audit tables dynamically
+        $separatedAuditTables = [];
+        try {
+            $stmt = $db->query("SHOW TABLES LIKE 'audit_%'");
+            $tables = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+            
+            // Exclude specialized tables that are handled separately
+            $excludedTables = ['audit_payments', 'audit_financial', 'audit_subscriptions', 'audit_documents'];
+            
+            foreach ($tables as $table) {
+                if (!in_array($table, $excludedTables)) {
+                    $separatedAuditTables[] = $table;
+                }
+            }
+        } catch (\Exception $e) {
+            // If query fails, continue without separated tables
+            error_log("Error fetching separated audit tables: " . $e->getMessage());
+        }
+
+        // General audit logs (for custom logs that don't fit in separated tables)
         if ($auditTypeFilter === 'all' || $auditTypeFilter === 'general') {
+            // Check if audit_logs has old_data and new_data columns
+            try {
+                $checkStmt = $db->query("SHOW COLUMNS FROM audit_logs LIKE 'old_data'");
+                $hasOldData = $checkStmt->rowCount() > 0;
+                $checkStmt = $db->query("SHOW COLUMNS FROM audit_logs LIKE 'new_data'");
+                $hasNewData = $checkStmt->rowCount() > 0;
+            } catch (\Exception $e) {
+                $hasOldData = false;
+                $hasNewData = false;
+            }
+            
+            $oldDataColumn = $hasOldData ? 'old_data' : 'NULL as old_data';
+            $newDataColumn = $hasNewData ? 'new_data' : 'NULL as new_data';
+            
+            // Check if table_name and operation columns exist
+            try {
+                $checkStmt = $db->query("SHOW COLUMNS FROM audit_logs LIKE 'table_name'");
+                $hasTableName = $checkStmt->rowCount() > 0;
+                $checkStmt = $db->query("SHOW COLUMNS FROM audit_logs LIKE 'operation'");
+                $hasOperation = $checkStmt->rowCount() > 0;
+            } catch (\Exception $e) {
+                $hasTableName = false;
+                $hasOperation = false;
+            }
+            
+            $tableNameColumn = $hasTableName ? 'table_name' : 'NULL as table_name';
+            $operationColumn = $hasOperation ? 'operation' : 'NULL as operation';
+            
             $unionQueries[] = "
                 SELECT
                     id,
@@ -1650,10 +1697,102 @@ class SuperAdminController extends Controller
                     NULL as payment_method,
                     NULL as status,
                     NULL as subscription_id,
-                    NULL as payment_id
+                    NULL as payment_id,
+                    {$oldDataColumn},
+                    {$newDataColumn},
+                    {$tableNameColumn},
+                    {$operationColumn}
                 FROM audit_logs
                 {$whereClause}
             ";
+            
+            // Add all separated audit tables
+            foreach ($separatedAuditTables as $auditTable) {
+                // Check which columns exist in this table
+                try {
+                    $columnsStmt = $db->query("SHOW COLUMNS FROM `{$auditTable}`");
+                    $columns = $columnsStmt->fetchAll(\PDO::FETCH_COLUMN);
+                    $hasModelColumn = in_array('model', $columns);
+                    $hasModelIdColumn = in_array('model_id', $columns);
+                    $hasTableNameColumn = in_array('table_name', $columns);
+                } catch (\Exception $e) {
+                    // Skip this table if we can't check columns
+                    continue;
+                }
+                
+                // Build where clause for separated tables
+                // For separated tables, if filtering by model, we need to filter by table_name instead
+                $separatedWhereConditions = [];
+                
+                if (!empty($modelFilter)) {
+                    // For separated tables, filter by table_name matching the model
+                    $tableName = str_replace('audit_', '', $auditTable);
+                    if ($tableName === $modelFilter) {
+                        // Only include this table if it matches the model filter
+                        if ($hasTableNameColumn) {
+                            $separatedWhereConditions[] = "table_name = :model";
+                        }
+                    } else {
+                        // Skip this table if it doesn't match the model filter
+                        continue;
+                    }
+                }
+                
+                if ($userIdFilter !== null) {
+                    $separatedWhereConditions[] = "user_id = :user_id";
+                }
+                
+                if (!empty($dateFrom)) {
+                    $separatedWhereConditions[] = "created_at >= :date_from_start";
+                }
+                
+                if (!empty($dateTo)) {
+                    $separatedWhereConditions[] = "created_at <= :date_to_end";
+                }
+                
+                if (!empty($search)) {
+                    $separatedWhereConditions[] = "description LIKE :search";
+                }
+                
+                $separatedWhereClause = !empty($separatedWhereConditions) ? 'WHERE ' . implode(' AND ', $separatedWhereConditions) : '';
+                
+                // Use appropriate columns based on what exists in the table
+                $modelColumn = $hasModelColumn ? 'model' : 'NULL as model';
+                $modelIdColumn = $hasModelIdColumn ? 'model_id' : 'NULL as model_id';
+                $hasOldDataColumn = in_array('old_data', $columns);
+                $hasNewDataColumn = in_array('new_data', $columns);
+                $hasOperationColumn = in_array('operation', $columns);
+                
+                $oldDataColumn = $hasOldDataColumn ? 'old_data' : 'NULL as old_data';
+                $newDataColumn = $hasNewDataColumn ? 'new_data' : 'NULL as new_data';
+                $tableNameColumn = $hasTableNameColumn ? 'table_name' : 'NULL as table_name';
+                $operationColumn = $hasOperationColumn ? 'operation' : 'NULL as operation';
+                
+                $unionQueries[] = "
+                    SELECT
+                        id,
+                        user_id,
+                        action,
+                        {$modelColumn},
+                        {$modelIdColumn},
+                        description,
+                        ip_address,
+                        user_agent,
+                        created_at,
+                        'general' as audit_type,
+                        NULL as amount,
+                        NULL as payment_method,
+                        NULL as status,
+                        NULL as subscription_id,
+                        NULL as payment_id,
+                        {$oldDataColumn},
+                        {$newDataColumn},
+                        {$tableNameColumn},
+                        {$operationColumn}
+                    FROM {$auditTable}
+                    {$separatedWhereClause}
+                ";
+            }
         }
 
         // Payment audits
@@ -1674,7 +1813,11 @@ class SuperAdminController extends Controller
                     payment_method,
                     status,
                     subscription_id,
-                    payment_id
+                    payment_id,
+                    NULL as old_data,
+                    NULL as new_data,
+                    NULL as table_name,
+                    NULL as operation
                 FROM audit_payments
                 {$whereClause}
             ";
@@ -1698,7 +1841,11 @@ class SuperAdminController extends Controller
                     NULL as payment_method,
                     new_status as status,
                     NULL as subscription_id,
-                    NULL as payment_id
+                    NULL as payment_id,
+                    NULL as old_data,
+                    NULL as new_data,
+                    NULL as table_name,
+                    NULL as operation
                 FROM audit_financial
                 {$whereClause}
             ";
@@ -1722,7 +1869,11 @@ class SuperAdminController extends Controller
                     NULL as payment_method,
                     new_status as status,
                     subscription_id,
-                    NULL as payment_id
+                    NULL as payment_id,
+                    NULL as old_data,
+                    NULL as new_data,
+                    NULL as table_name,
+                    NULL as operation
                 FROM audit_subscriptions
                 {$whereClause}
             ";
@@ -1746,14 +1897,18 @@ class SuperAdminController extends Controller
                     NULL as payment_method,
                     NULL as status,
                     NULL as subscription_id,
-                    NULL as payment_id
+                    NULL as payment_id,
+                    NULL as old_data,
+                    NULL as new_data,
+                    NULL as table_name,
+                    NULL as operation
                 FROM audit_documents
                 {$whereClause}
             ";
         }
 
         if (empty($unionQueries)) {
-            $unionQueries[] = "SELECT NULL as id, NULL as user_id, NULL as action, NULL as model, NULL as model_id, NULL as description, NULL as ip_address, NULL as user_agent, NULL as created_at, NULL as audit_type, NULL as amount, NULL as payment_method, NULL as status, NULL as subscription_id, NULL as payment_id WHERE 1=0";
+            $unionQueries[] = "SELECT NULL as id, NULL as user_id, NULL as action, NULL as model, NULL as model_id, NULL as description, NULL as ip_address, NULL as user_agent, NULL as created_at, NULL as audit_type, NULL as amount, NULL as payment_method, NULL as status, NULL as subscription_id, NULL as payment_id, NULL as old_data, NULL as new_data, NULL as table_name, NULL as operation WHERE 1=0";
         }
 
         // Count total records

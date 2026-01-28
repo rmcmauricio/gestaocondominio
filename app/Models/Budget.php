@@ -76,7 +76,12 @@ class Budget extends Model
             ':notes' => $data['notes'] ?? null
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $budgetId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($budgetId, $data);
+        
+        return $budgetId;
     }
 
     /**
@@ -100,10 +105,20 @@ class Budget extends Model
             return false;
         }
 
+        // Get old data for audit
+        $oldData = $this->findById($id);
+
         $sql = "UPDATE budgets SET " . implode(', ', $fields) . ", updated_at = NOW() WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
-        return $stmt->execute($params);
+        $result = $stmt->execute($params);
+        
+        // Log audit
+        if ($result) {
+            $this->auditUpdate($id, $data, $oldData);
+        }
+        
+        return $result;
     }
 
     /**

@@ -145,7 +145,7 @@ class ArchiveService
             'errors' => []
         ];
 
-        // Archive audit_logs
+        // Archive known specialized audit tables
         $stats['audit_logs'] = $this->archiveTable(
             'audit_logs',
             'audit_logs_archive',
@@ -153,7 +153,6 @@ class ArchiveService
             $dryRun
         );
 
-        // Archive audit_payments
         $stats['audit_payments'] = $this->archiveTable(
             'audit_payments',
             'audit_payments_archive',
@@ -161,7 +160,6 @@ class ArchiveService
             $dryRun
         );
 
-        // Archive audit_subscriptions
         $stats['audit_subscriptions'] = $this->archiveTable(
             'audit_subscriptions',
             'audit_subscriptions_archive',
@@ -169,7 +167,6 @@ class ArchiveService
             $dryRun
         );
 
-        // Archive audit_financial
         $stats['audit_financial'] = $this->archiveTable(
             'audit_financial',
             'audit_financial_archive',
@@ -177,7 +174,6 @@ class ArchiveService
             $dryRun
         );
 
-        // Archive audit_documents
         $stats['audit_documents'] = $this->archiveTable(
             'audit_documents',
             'audit_documents_archive',
@@ -185,7 +181,131 @@ class ArchiveService
             $dryRun
         );
 
+        // Dynamically archive all other audit_* tables (separated audit tables)
+        try {
+            $stmt = $this->db->query("SHOW TABLES LIKE 'audit_%'");
+            $tables = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+            
+            // Exclude specialized tables that are already handled above
+            $excludedTables = [
+                'audit_logs',
+                'audit_payments',
+                'audit_subscriptions',
+                'audit_financial',
+                'audit_documents'
+            ];
+            
+            foreach ($tables as $table) {
+                if (!in_array($table, $excludedTables)) {
+                    // Check if archive table exists, create if not
+                    $archiveTable = $table . '_archive';
+                    $this->ensureArchiveTableExists($table, $archiveTable);
+                    
+                    // Archive the table
+                    try {
+                        $archived = $this->archiveTable($table, $archiveTable, $cutoffDate, $dryRun);
+                        // Store stats with table name as key
+                        $stats[$table] = $archived;
+                    } catch (\Exception $e) {
+                        $stats['errors'][] = "Error archiving {$table}: " . $e->getMessage();
+                        $stats['skipped']++;
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            $stats['errors'][] = "Error detecting separated audit tables: " . $e->getMessage();
+        }
+
         return $stats;
+    }
+
+    /**
+     * Ensure archive table exists, create it if it doesn't
+     * 
+     * @param string $sourceTable Source table name
+     * @param string $archiveTable Archive table name
+     */
+    protected function ensureArchiveTableExists(string $sourceTable, string $archiveTable): void
+    {
+        // Check if archive table exists
+        $stmt = $this->db->query("SHOW TABLES LIKE '{$archiveTable}'");
+        if ($stmt->rowCount() > 0) {
+            return; // Archive table already exists
+        }
+
+        // Get source table structure
+        $columnsStmt = $this->db->query("SHOW COLUMNS FROM `{$sourceTable}`");
+        $columns = $columnsStmt->fetchAll();
+        
+        if (empty($columns)) {
+            throw new \Exception("Source table {$sourceTable} does not exist or has no columns");
+        }
+
+        // Build CREATE TABLE statement
+        $columnDefinitions = [];
+        foreach ($columns as $column) {
+            $field = $column['Field'];
+            $type = $column['Type'];
+            $null = $column['Null'] === 'YES' ? 'NULL' : 'NOT NULL';
+            $default = $column['Default'] !== null ? "DEFAULT '{$column['Default']}'" : '';
+            $extra = $column['Extra'] ?? '';
+            
+            // Remove AUTO_INCREMENT from id column for archive table
+            if ($field === 'id' && strpos($extra, 'auto_increment') !== false) {
+                $extra = str_replace('auto_increment', '', $extra);
+                $extra = trim($extra);
+            }
+            
+            $columnDefinitions[] = "`{$field}` {$type} {$null} {$default} {$extra}";
+        }
+        
+        // Add archived_at column
+        $columnDefinitions[] = "`archived_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP";
+        
+        $createSql = "CREATE TABLE IF NOT EXISTS `{$archiveTable}` (\n" .
+                     implode(",\n", $columnDefinitions) . "\n" .
+                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+        
+        $this->db->exec($createSql);
+        
+        // Create indexes (copy from source table)
+        try {
+            $indexesStmt = $this->db->query("SHOW INDEXES FROM `{$sourceTable}`");
+            $indexes = $indexesStmt->fetchAll();
+            
+            $indexGroups = [];
+            foreach ($indexes as $index) {
+                $keyName = $index['Key_name'];
+                if ($keyName === 'PRIMARY') {
+                    continue; // Skip primary key, already defined
+                }
+                
+                if (!isset($indexGroups[$keyName])) {
+                    $indexGroups[$keyName] = [
+                        'unique' => $index['Non_unique'] == 0,
+                        'columns' => []
+                    ];
+                }
+                
+                $indexGroups[$keyName]['columns'][] = $index['Column_name'];
+            }
+            
+            foreach ($indexGroups as $keyName => $indexInfo) {
+                $columns = implode(', ', $indexGroups[$keyName]['columns']);
+                $unique = $indexInfo['unique'] ? 'UNIQUE ' : '';
+                $this->db->exec("CREATE {$unique}INDEX `{$keyName}` ON `{$archiveTable}` ({$columns})");
+            }
+        } catch (\Exception $e) {
+            // If index creation fails, continue (not critical)
+            error_log("Warning: Could not copy indexes for {$archiveTable}: " . $e->getMessage());
+        }
+        
+        // Add archived_at index
+        try {
+            $this->db->exec("CREATE INDEX idx_archived_at ON `{$archiveTable}` (archived_at)");
+        } catch (\Exception $e) {
+            // Index might already exist, ignore
+        }
     }
 
     /**
@@ -199,8 +319,8 @@ class ArchiveService
      */
     protected function archiveTable(string $sourceTable, string $archiveTable, string $cutoffDate, bool $dryRun = false): int
     {
-        // Whitelist of allowed table names to prevent SQL injection
-        $allowedTables = [
+        // Whitelist of known allowed table names to prevent SQL injection
+        $knownTables = [
             'audit_logs' => 'audit_logs_archive',
             'audit_payments' => 'audit_payments_archive',
             'audit_subscriptions' => 'audit_subscriptions_archive',
@@ -208,9 +328,22 @@ class ArchiveService
             'audit_documents' => 'audit_documents_archive',
         ];
         
-        // Validate table names against whitelist
-        if (!isset($allowedTables[$sourceTable]) || $allowedTables[$sourceTable] !== $archiveTable) {
-            throw new \InvalidArgumentException("Invalid table name: {$sourceTable} or {$archiveTable}");
+        // For known tables, validate against whitelist
+        if (isset($knownTables[$sourceTable])) {
+            if ($knownTables[$sourceTable] !== $archiveTable) {
+                throw new \InvalidArgumentException("Invalid archive table name for {$sourceTable}: expected {$knownTables[$sourceTable]}, got {$archiveTable}");
+            }
+        } else {
+            // For dynamic tables (separated audit tables), validate format
+            // Archive table should be source table + '_archive'
+            if ($archiveTable !== $sourceTable . '_archive') {
+                throw new \InvalidArgumentException("Archive table name must be source table name + '_archive'");
+            }
+            
+            // Verify source table exists and starts with 'audit_'
+            if (strpos($sourceTable, 'audit_') !== 0) {
+                throw new \InvalidArgumentException("Source table must start with 'audit_'");
+            }
         }
         
         // Sanitize table names - only allow alphanumeric and underscore
@@ -308,42 +441,75 @@ class ArchiveService
 
         $stats = [];
 
-        // Whitelist of archive tables for safe queries
-        $archiveTables = [
-            'notifications_archive',
-            'audit_logs_archive',
-            'audit_payments_archive',
-            'audit_subscriptions_archive',
-            'audit_financial_archive',
-            'audit_documents_archive'
+        // Count archived notifications
+        try {
+            $stmt = $this->db->query("SELECT COUNT(*) as count FROM `notifications_archive`");
+            $stats['notifications'] = (int)$stmt->fetch()['count'];
+        } catch (\Exception $e) {
+            $stats['notifications'] = 0;
+        }
+
+        // Count archived audit logs (known tables)
+        $knownAuditArchives = [
+            'audit_logs',
+            'audit_payments',
+            'audit_subscriptions',
+            'audit_financial',
+            'audit_documents'
         ];
         
-        // Count archived notifications
-        $stmt = $this->db->query("SELECT COUNT(*) as count FROM `notifications_archive`");
-        $stats['notifications'] = (int)$stmt->fetch()['count'];
+        foreach ($knownAuditArchives as $table) {
+            try {
+                $archiveTable = $table . '_archive';
+                $stmt = $this->db->query("SELECT COUNT(*) as count FROM `{$archiveTable}`");
+                $stats[$table] = (int)$stmt->fetch()['count'];
+            } catch (\Exception $e) {
+                $stats[$table] = 0;
+            }
+        }
 
-        // Count archived audit logs
-        $stmt = $this->db->query("SELECT COUNT(*) as count FROM `audit_logs_archive`");
-        $stats['audit_logs'] = (int)$stmt->fetch()['count'];
-
-        $stmt = $this->db->query("SELECT COUNT(*) as count FROM `audit_payments_archive`");
-        $stats['audit_payments'] = (int)$stmt->fetch()['count'];
-
-        $stmt = $this->db->query("SELECT COUNT(*) as count FROM `audit_subscriptions_archive`");
-        $stats['audit_subscriptions'] = (int)$stmt->fetch()['count'];
-
-        $stmt = $this->db->query("SELECT COUNT(*) as count FROM `audit_financial_archive`");
-        $stats['audit_financial'] = (int)$stmt->fetch()['count'];
-
-        $stmt = $this->db->query("SELECT COUNT(*) as count FROM `audit_documents_archive`");
-        $stats['audit_documents'] = (int)$stmt->fetch()['count'];
+        // Dynamically count all other audit archive tables
+        try {
+            $stmt = $this->db->query("SHOW TABLES LIKE 'audit_%_archive'");
+            $archiveTables = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+            
+            foreach ($archiveTables as $archiveTable) {
+                // Skip known tables already counted
+                $sourceTable = str_replace('_archive', '', $archiveTable);
+                if (in_array($sourceTable, $knownAuditArchives)) {
+                    continue;
+                }
+                
+                try {
+                    $stmt = $this->db->query("SELECT COUNT(*) as count FROM `{$archiveTable}`");
+                    $count = (int)$stmt->fetch()['count'];
+                    if ($count > 0) {
+                        $stats[$sourceTable] = $count;
+                    }
+                } catch (\Exception $e) {
+                    // Skip if error
+                }
+            }
+        } catch (\Exception $e) {
+            // If query fails, continue without dynamic tables
+        }
 
         // Get oldest archived date
-        $stmt = $this->db->query("SELECT MIN(archived_at) as oldest FROM `notifications_archive`");
-        $stats['oldest_notification_archive'] = $stmt->fetch()['oldest'];
+        try {
+            $stmt = $this->db->query("SELECT MIN(archived_at) as oldest FROM `notifications_archive`");
+            $oldest = $stmt->fetch()['oldest'];
+            $stats['oldest_notification_archive'] = $oldest ?: null;
+        } catch (\Exception $e) {
+            $stats['oldest_notification_archive'] = null;
+        }
 
-        $stmt = $this->db->query("SELECT MIN(archived_at) as oldest FROM `audit_logs_archive`");
-        $stats['oldest_audit_archive'] = $stmt->fetch()['oldest'];
+        try {
+            $stmt = $this->db->query("SELECT MIN(archived_at) as oldest FROM `audit_logs_archive`");
+            $oldest = $stmt->fetch()['oldest'];
+            $stats['oldest_audit_archive'] = $oldest ?: null;
+        } catch (\Exception $e) {
+            $stats['oldest_audit_archive'] = null;
+        }
 
         return $stats;
     }

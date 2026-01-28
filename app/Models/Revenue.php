@@ -108,7 +108,12 @@ class Revenue extends Model
             ':created_by' => $data['created_by']
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $revenueId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($revenueId, $data);
+        
+        return $revenueId;
     }
 
     /**
@@ -162,7 +167,17 @@ class Revenue extends Model
             return false;
         }
 
+        // Get old data for audit before deletion
+        $oldData = $this->findById($id);
+
         $stmt = $this->db->prepare("DELETE FROM revenues WHERE id = :id");
-        return $stmt->execute([':id' => $id]);
+        $result = $stmt->execute([':id' => $id]);
+        
+        // Log audit
+        if ($result && $oldData) {
+            $this->auditDelete($id, $oldData);
+        }
+        
+        return $result;
     }
 }

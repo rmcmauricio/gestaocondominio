@@ -93,7 +93,12 @@ class Assembly extends Model
         $stmt = $this->db->prepare($sql);
         $stmt->execute($values);
 
-        return (int)$this->db->lastInsertId();
+        $assemblyId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($assemblyId, $data);
+        
+        return $assemblyId;
     }
 
     /**
@@ -131,10 +136,20 @@ class Assembly extends Model
             return false;
         }
 
+        // Get old data for audit
+        $oldData = $this->findById($id);
+
         $sql = "UPDATE assemblies SET " . implode(', ', $fields) . ", updated_at = NOW() WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
-        return $stmt->execute($params);
+        $result = $stmt->execute($params);
+        
+        // Log audit
+        if ($result) {
+            $this->auditUpdate($id, $data, $oldData);
+        }
+        
+        return $result;
     }
 
     /**

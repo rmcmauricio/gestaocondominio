@@ -234,6 +234,9 @@ class FinancialTransaction extends Model
 
         $transactionId = (int)$this->db->lastInsertId();
 
+        // Log audit
+        $this->auditCreate($transactionId, $data);
+
         // Update account balance
         $bankAccountModel = new BankAccount();
         $bankAccountModel->updateBalance($data['bank_account_id']);
@@ -282,6 +285,9 @@ class FinancialTransaction extends Model
         $result = $stmt->execute($params);
 
         if ($result) {
+            // Log audit
+            $this->auditUpdate($id, $data, $oldTransaction);
+            
             // Update balances for both old and new accounts
             $bankAccountModel = new BankAccount();
             $bankAccountModel->updateBalance($oldTransaction['bank_account_id']);
@@ -315,6 +321,9 @@ class FinancialTransaction extends Model
         $result = $stmt->execute([':id' => $id]);
 
         if ($result) {
+            // Log audit
+            $this->auditDelete($id, $transaction);
+            
             // Update account balance
             $bankAccountModel = new BankAccount();
             $bankAccountModel->updateBalance($transaction['bank_account_id']);

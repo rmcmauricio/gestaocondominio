@@ -138,7 +138,12 @@ class Reservation extends Model
             ':notes' => $data['notes'] ?? null
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $reservationId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($reservationId, $data);
+        
+        return $reservationId;
     }
 
     /**

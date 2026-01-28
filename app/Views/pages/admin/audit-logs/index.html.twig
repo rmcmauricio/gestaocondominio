@@ -577,6 +577,32 @@
                         <p class="mb-0" id="modal-user-agent" style="word-break: break-all;">-</p>
                     </div>
                 </div>
+                
+                <hr>
+                
+                <!-- Old Data / New Data Section -->
+                <div class="row mb-3" id="modal-old-data-row" style="display: none;">
+                    <div class="col-12">
+                        <strong>Dados Antes da Alteração:</strong>
+                        <pre id="modal-old-data" class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto; font-size: 0.875rem; white-space: pre-wrap; word-wrap: break-word;">-</pre>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-new-data-row" style="display: none;">
+                    <div class="col-12">
+                        <strong>Dados Após a Alteração:</strong>
+                        <pre id="modal-new-data" class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto; font-size: 0.875rem; white-space: pre-wrap; word-wrap: break-word;">-</pre>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-operation-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>Operação:</strong>
+                        <p class="mb-0">
+                            <span id="modal-operation" class="badge bg-info">-</span>
+                        </p>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
@@ -959,6 +985,48 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // User Agent
         document.getElementById('modal-user-agent').textContent = log.user_agent || '-';
+        
+        // Old Data / New Data
+        if (log.old_data) {
+            try {
+                const oldDataParsed = typeof log.old_data === 'string' ? JSON.parse(log.old_data) : log.old_data;
+                document.getElementById('modal-old-data').textContent = JSON.stringify(oldDataParsed, null, 2);
+                document.getElementById('modal-old-data-row').style.display = 'block';
+            } catch (e) {
+                document.getElementById('modal-old-data').textContent = log.old_data;
+                document.getElementById('modal-old-data-row').style.display = 'block';
+            }
+        } else {
+            document.getElementById('modal-old-data-row').style.display = 'none';
+        }
+        
+        if (log.new_data) {
+            try {
+                const newDataParsed = typeof log.new_data === 'string' ? JSON.parse(log.new_data) : log.new_data;
+                document.getElementById('modal-new-data').textContent = JSON.stringify(newDataParsed, null, 2);
+                document.getElementById('modal-new-data-row').style.display = 'block';
+            } catch (e) {
+                document.getElementById('modal-new-data').textContent = log.new_data;
+                document.getElementById('modal-new-data-row').style.display = 'block';
+            }
+        } else {
+            document.getElementById('modal-new-data-row').style.display = 'none';
+        }
+        
+        // Operation
+        if (log.operation) {
+            const operationMap = {
+                'insert': { text: 'Inserção', class: 'bg-success' },
+                'update': { text: 'Atualização', class: 'bg-warning text-dark' },
+                'delete': { text: 'Exclusão', class: 'bg-danger' }
+            };
+            const operationInfo = operationMap[log.operation.toLowerCase()] || { text: log.operation, class: 'bg-info' };
+            document.getElementById('modal-operation').textContent = operationInfo.text;
+            document.getElementById('modal-operation').className = 'badge ' + operationInfo.class;
+            document.getElementById('modal-operation-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-operation-row').style.display = 'none';
+        }
         
         // Document-specific fields
         if (log.document_type) {

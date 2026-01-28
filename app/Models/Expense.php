@@ -96,7 +96,12 @@ class Expense extends Model
             ':created_by' => $data['created_by']
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $expenseId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($expenseId, $data);
+        
+        return $expenseId;
     }
 
     /**

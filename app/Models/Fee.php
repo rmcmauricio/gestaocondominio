@@ -111,7 +111,12 @@ class Fee extends Model
             ':is_historical' => isset($data['is_historical']) ? (int)$data['is_historical'] : 0
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $feeId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($feeId, $data);
+        
+        return $feeId;
     }
 
     /**

@@ -53,7 +53,12 @@ class BudgetItem extends Model
             ':sort_order' => $data['sort_order'] ?? 0
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $itemId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($itemId, $data);
+        
+        return $itemId;
     }
 
     /**
@@ -92,8 +97,18 @@ class BudgetItem extends Model
             return false;
         }
 
+        // Get old data for audit before deletion
+        $oldData = $this->getOldData('budget_items', $id);
+
         $stmt = $this->db->prepare("DELETE FROM budget_items WHERE id = :id");
-        return $stmt->execute([':id' => $id]);
+        $result = $stmt->execute([':id' => $id]);
+        
+        // Log audit
+        if ($result && $oldData) {
+            $this->auditDelete($id, $oldData);
+        }
+        
+        return $result;
     }
 
     /**

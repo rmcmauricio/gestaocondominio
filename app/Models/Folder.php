@@ -121,7 +121,12 @@ class Folder extends Model
             ':created_by' => $data['created_by']
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $folderId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($folderId, $data);
+        
+        return $folderId;
     }
 
     /**
@@ -180,9 +185,19 @@ class Folder extends Model
             ':folder_path' => $folder['path']
         ]);
 
+        // Get old data for audit before deletion
+        $oldData = $folder;
+
         // Delete the folder
         $stmt = $this->db->prepare("DELETE FROM folders WHERE id = :id");
-        return $stmt->execute([':id' => $id]);
+        $result = $stmt->execute([':id' => $id]);
+        
+        // Log audit
+        if ($result && $oldData) {
+            $this->auditDelete($id, $oldData);
+        }
+        
+        return $result;
     }
 
     /**
@@ -233,7 +248,36 @@ class Folder extends Model
             // Update all subfolders paths
             $this->updateSubfolderPaths($condominiumId, $oldPath, $newPath);
 
+            // Count affected documents
+            $countStmt = $this->db->prepare("
+                SELECT COUNT(*) as count 
+                FROM documents 
+                WHERE condominium_id = :condominium_id AND folder = :old_path
+            ");
+            $countStmt->execute([
+                ':condominium_id' => $condominiumId,
+                ':old_path' => $oldPath
+            ]);
+            $countResult = $countStmt->fetch();
+            $affectedCount = (int)($countResult['count'] ?? 0);
+
             $this->db->commit();
+            
+            // Log audit for folder rename operation
+            $this->auditCustom(
+                'folder_rename',
+                "Pasta renomeada de '{$oldPath}' para '{$newPath}' ({$affectedCount} documentos afetados)",
+                [
+                    'folder_id' => $id,
+                    'condominium_id' => $condominiumId,
+                    'old_path' => $oldPath,
+                    'new_path' => $newPath,
+                    'affected_documents_count' => $affectedCount
+                ],
+                'folders',
+                $id
+            );
+            
             return true;
         } catch (\Exception $e) {
             $this->db->rollBack();
