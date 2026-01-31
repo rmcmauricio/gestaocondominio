@@ -8,6 +8,7 @@ use App\Models\Promotion;
 use App\Models\SubscriptionCondominium;
 use App\Models\Condominium;
 use App\Models\Fraction;
+use App\Models\User;
 use App\Services\AuditService;
 use App\Services\InvoiceService;
 use App\Services\LicenseService;
@@ -41,9 +42,10 @@ class SubscriptionService
      * @param int $extraCondominiums DEPRECATED: Kept for backward compatibility with old Business plan. Not used in new license-based model.
      * @param int|null $promotionId Optional promotion ID
      * @param float|null $originalPrice Optional original price for promotion
+     * @param int|null $condominiumId Optional condominium ID (for license-based plans)
      * @return int Subscription ID
      */
-    public function startTrial(int $userId, int $planId, int $trialDays = 14, int $extraCondominiums = 0, ?int $promotionId = null, ?float $originalPrice = null): int
+    public function startTrial(int $userId, int $planId, int $trialDays = 14, int $extraCondominiums = 0, ?int $promotionId = null, ?float $originalPrice = null, ?int $condominiumId = null): int
     {
         $plan = $this->planModel->findById($planId);
         if (!$plan) {
@@ -88,6 +90,12 @@ class SubscriptionService
         // For new license-based plans, extraCondominiums is not used
         // Only kept for backward compatibility with old Business plan
         $planType = $plan['plan_type'] ?? null;
+        
+        // If plan is license-based and condominiumId is provided, use createSubscription instead
+        if ($planType && $condominiumId !== null) {
+            return $this->createSubscription($userId, $planId, $condominiumId, $promotionId);
+        }
+        
         $subscriptionData = [
             'user_id' => $userId,
             'plan_id' => $planId,
@@ -101,6 +109,15 @@ class SubscriptionService
         // Only set extra_condominiums for legacy plans (Business plan without plan_type)
         if (!$planType && $plan['slug'] === 'business') {
             $subscriptionData['extra_condominiums'] = $extraCondominiums;
+        }
+
+        // For license-based plans without condominium, set minimum licenses
+        if ($planType) {
+            $licenseMin = (int)($plan['license_min'] ?? 0);
+            $subscriptionData['used_licenses'] = $licenseMin;
+            $subscriptionData['license_limit'] = $plan['license_limit'] ?? $licenseMin;
+            $subscriptionData['extra_licenses'] = 0;
+            $subscriptionData['allow_overage'] = $plan['allow_overage'] ?? false;
         }
 
         // Add promotion fields if promotion is being applied
@@ -659,7 +676,14 @@ class SubscriptionService
         $allowMultipleCondos = $plan['allow_multiple_condos'] ?? false;
 
         // Validate condominium requirement
-        if ($planType === 'condominio' && !$condominiumId) {
+        // For condominos, allow creating subscription without condominium
+        // The condominium will be associated later when user creates a new condominium
+        $userModel = new User();
+        $user = $userModel->findById($userId);
+        $userRole = $user['role'] ?? null;
+
+        // For "condominio" plans, only require condominiumId if user is not condomino
+        if ($planType === 'condominio' && !$condominiumId && $userRole !== 'condomino') {
             throw new \Exception("Plano Condomínio requer um condomínio associado");
         }
 
@@ -683,7 +707,10 @@ class SubscriptionService
         }
 
         $licenseMin = (int)($plan['license_min'] ?? 0);
-        if ($usedLicenses < $licenseMin) {
+        // If no condominium provided (condomino subscribing), use minimum licenses
+        if (!$condominiumId) {
+            $usedLicenses = $licenseMin; // Use minimum for new subscriptions without condominium
+        } elseif ($usedLicenses < $licenseMin) {
             $usedLicenses = $licenseMin; // Apply minimum
         }
 
@@ -880,6 +907,194 @@ class SubscriptionService
                 'user_id' => $userId ?? $subscription['user_id'],
                 'action' => 'condominium_detached',
                 'description' => "Condomínio ID {$condominiumId} desassociado da subscrição. Motivo: " . ($reason ?? 'Não especificado')
+            ]);
+
+            $db->commit();
+            return true;
+        } catch (\Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Transfer licenses from one subscription to another when admin changes
+     * 
+     * @param int $condominiumId Condomínio que está a ser transferido
+     * @param int $fromSubscriptionId Subscrição atual (do admin antigo)
+     * @param int $toSubscriptionId Subscrição nova (do admin novo)
+     * @param int $transferredByUserId ID do utilizador que está a fazer a transferência
+     * @param bool $isProfessionalTransfer Se true, transfere licenças; se false, apenas transfere role
+     * @return bool
+     */
+    public function transferCondominiumLicenses(
+        int $condominiumId, 
+        int $fromSubscriptionId, 
+        int $toSubscriptionId, 
+        int $transferredByUserId,
+        bool $isProfessionalTransfer = false
+    ): bool {
+        global $db;
+        
+        try {
+            $db->beginTransaction();
+
+            // Validate subscriptions exist
+            $fromSubscription = $this->subscriptionModel->findById($fromSubscriptionId);
+            $toSubscription = $this->subscriptionModel->findById($toSubscriptionId);
+            
+            if (!$fromSubscription || !$toSubscription) {
+                throw new \Exception("Uma ou ambas as subscrições não foram encontradas");
+            }
+
+            // Validate condominium exists
+            $condominiumModel = new Condominium();
+            $condominium = $condominiumModel->findById($condominiumId);
+            if (!$condominium) {
+                throw new \Exception("Condomínio não encontrado");
+            }
+
+            // If not professional transfer, just return true (no license transfer needed)
+            if (!$isProfessionalTransfer) {
+                $db->commit();
+                return true;
+            }
+
+            // Validate from subscription has this condominium associated
+            $fromPlan = $this->planModel->findById($fromSubscription['plan_id']);
+            $fromPlanType = $fromPlan['plan_type'] ?? null;
+            $fromAllowMultipleCondos = $fromPlan['allow_multiple_condos'] ?? false;
+
+            $isAssociated = false;
+            if ($fromPlanType === 'condominio' && !$fromAllowMultipleCondos) {
+                // Base plan: check condominium_id
+                $isAssociated = ($fromSubscription['condominium_id'] == $condominiumId);
+            } else {
+                // Professional/Enterprise: check subscription_condominiums
+                $subscriptionCondominiumModel = new SubscriptionCondominium();
+                $association = $subscriptionCondominiumModel->getBySubscriptionAndCondominium(
+                    $fromSubscriptionId, 
+                    $condominiumId, 
+                    'active'
+                );
+                $isAssociated = ($association !== null);
+            }
+
+            if (!$isAssociated) {
+                throw new \Exception("O condomínio não está associado à subscrição de origem");
+            }
+
+            // Calculate active fractions for this condominium
+            $fractionModel = new Fraction();
+            $activeFractions = $fractionModel->getActiveCountByCondominium($condominiumId);
+
+            // Validate destination subscription has capacity
+            $toPlan = $this->planModel->findById($toSubscription['plan_id']);
+            $toPlanType = $toPlan['plan_type'] ?? null;
+            
+            if ($toPlanType) {
+                // License-based plan: check capacity
+                $currentUsedLicenses = $this->subscriptionModel->calculateUsedLicenses($toSubscriptionId);
+                $licenseLimit = $toSubscription['license_limit'] ?? null;
+                $allowOverage = $toSubscription['allow_overage'] ?? false;
+                
+                if ($licenseLimit && !$allowOverage) {
+                    $newUsedLicenses = $currentUsedLicenses + $activeFractions;
+                    if ($newUsedLicenses > $licenseLimit) {
+                        throw new \Exception("A subscrição de destino não tem capacidade suficiente. Necessário: {$newUsedLicenses}, Limite: {$licenseLimit}");
+                    }
+                }
+            }
+
+            // Remove licenses from fromSubscription
+            $fromUsedLicenses = $this->subscriptionModel->calculateUsedLicenses($fromSubscriptionId);
+            $newFromUsedLicenses = max(0, $fromUsedLicenses - $activeFractions);
+            
+            // Update fromSubscription used_licenses
+            $this->subscriptionModel->update($fromSubscriptionId, [
+                'used_licenses' => $newFromUsedLicenses
+            ]);
+
+            // Detach condominium from fromSubscription
+            if ($fromPlanType === 'condominio' && !$fromAllowMultipleCondos) {
+                // Base plan: clear condominium_id
+                global $db;
+                $db->prepare("UPDATE condominiums SET subscription_id = NULL WHERE id = :id")
+                   ->execute([':id' => $condominiumId]);
+                
+                $this->subscriptionModel->update($fromSubscriptionId, [
+                    'condominium_id' => null
+                ]);
+            } else {
+                // Professional/Enterprise: detach via SubscriptionCondominium
+                $subscriptionCondominiumModel = new SubscriptionCondominium();
+                $subscriptionCondominiumModel->detach(
+                    $fromSubscriptionId, 
+                    $condominiumId, 
+                    $transferredByUserId, 
+                    "Transferência de administração para admin profissional"
+                );
+            }
+
+            // Attach condominium to toSubscription
+            $toAllowMultipleCondos = $toPlan['allow_multiple_condos'] ?? false;
+            
+            if ($toPlanType === 'condominio' && !$toAllowMultipleCondos) {
+                // Base plan: associate directly
+                // Check if toSubscription already has a condominium
+                if ($toSubscription['condominium_id']) {
+                    throw new \Exception("A subscrição de destino já tem um condomínio associado (plano Base permite apenas um)");
+                }
+                
+                global $db;
+                $db->prepare("UPDATE condominiums SET subscription_id = :subscription_id WHERE id = :id")
+                   ->execute([':subscription_id' => $toSubscriptionId, ':id' => $condominiumId]);
+                
+                $this->subscriptionModel->update($toSubscriptionId, [
+                    'condominium_id' => $condominiumId
+                ]);
+            } else {
+                // Professional/Enterprise: attach via SubscriptionCondominium
+                $subscriptionCondominiumModel = new SubscriptionCondominium();
+                $subscriptionCondominiumModel->attach($toSubscriptionId, $condominiumId, $transferredByUserId);
+            }
+
+            // Recalculate licenses for both subscriptions
+            $this->recalculateUsedLicenses($fromSubscriptionId);
+            $this->recalculateUsedLicenses($toSubscriptionId);
+
+            // Cancel fromSubscription if it has no more condominiums (only for Base plans)
+            if ($fromPlanType === 'condominio' && !$fromAllowMultipleCondos) {
+                // Base plan: if no condominium_id, cancel subscription
+                $updatedFromSubscription = $this->subscriptionModel->findById($fromSubscriptionId);
+                if (!$updatedFromSubscription['condominium_id']) {
+                    $this->subscriptionModel->cancel($fromSubscriptionId);
+                }
+            } else {
+                // Professional/Enterprise: check if has any active condominiums
+                $subscriptionCondominiumModel = new SubscriptionCondominium();
+                $activeCount = $subscriptionCondominiumModel->countActiveBySubscription($fromSubscriptionId);
+                if ($activeCount === 0) {
+                    // No more condominiums, but don't cancel Professional/Enterprise automatically
+                    // They might want to add more later
+                }
+            }
+
+            // Log transfer
+            $this->auditService->logSubscription([
+                'subscription_id' => $toSubscriptionId,
+                'user_id' => $toSubscription['user_id'],
+                'action' => 'license_transfer',
+                'description' => "Transferência de licenças do condomínio ID {$condominiumId} da subscrição {$fromSubscriptionId} para {$toSubscriptionId}. Frações ativas: {$activeFractions}. Transferido por: {$transferredByUserId}"
+            ]);
+
+            $this->auditService->logSubscription([
+                'subscription_id' => $fromSubscriptionId,
+                'user_id' => $fromSubscription['user_id'],
+                'action' => 'license_transfer_out',
+                'description' => "Licenças transferidas para subscrição {$toSubscriptionId}. Condomínio ID: {$condominiumId}. Frações: {$activeFractions}"
             ]);
 
             $db->commit();

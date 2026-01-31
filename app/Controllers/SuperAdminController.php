@@ -933,6 +933,9 @@ class SuperAdminController extends Controller
 
         $this->loadPageTranslations('dashboard');
 
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+
         // Check if it's a modal request (via AJAX or modal parameter)
         $isModal = isset($_GET['modal']) || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest');
 
@@ -955,7 +958,10 @@ class SuperAdminController extends Controller
                 'condominium' => $condominium,
                 'stats' => $stats,
                 'csrf_token' => Security::generateCSRFToken(),
-                'user' => AuthMiddleware::user()
+                'user' => AuthMiddleware::user(),
+                'error' => $messages['error'],
+                'success' => $messages['success'],
+                'info' => $messages['info']
             ];
 
             echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -2071,6 +2077,9 @@ class SuperAdminController extends Controller
 
         $this->loadPageTranslations('dashboard');
 
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+
         $this->data += [
             'viewName' => 'pages/admin/audit-logs/index.html.twig',
             'page' => ['titulo' => 'Logs de Auditoria'],
@@ -2089,6 +2098,9 @@ class SuperAdminController extends Controller
                 'sort_by' => $sortBy,
                 'sort_order' => $sortOrder
             ],
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info'],
             'pagination' => [
                 'current_page' => $page,
                 'total_pages' => $totalPages,
@@ -2646,6 +2658,9 @@ class SuperAdminController extends Controller
 
         $plans = $this->planModel->getAll();
 
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+
         $this->loadPageTranslations('dashboard');
 
         $this->data += [
@@ -2654,7 +2669,10 @@ class SuperAdminController extends Controller
             'promotion' => null,
             'plans' => $plans,
             'csrf_token' => Security::generateCSRFToken(),
-            'user' => AuthMiddleware::user()
+            'user' => AuthMiddleware::user(),
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info']
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -2955,6 +2973,9 @@ class SuperAdminController extends Controller
 
         $plans = $this->planModel->getAll();
 
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+
         $this->loadPageTranslations('dashboard');
 
         $this->data += [
@@ -2963,7 +2984,10 @@ class SuperAdminController extends Controller
             'promotion' => $promotion,
             'plans' => $plans,
             'csrf_token' => Security::generateCSRFToken(),
-            'user' => AuthMiddleware::user()
+            'user' => AuthMiddleware::user(),
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info']
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -3205,6 +3229,9 @@ class SuperAdminController extends Controller
 
         $pricingTiers = $this->extraCondominiumsPricingModel->getByPlanId($planId);
 
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+
         $this->loadPageTranslations('dashboard');
 
         $this->data += [
@@ -3213,7 +3240,10 @@ class SuperAdminController extends Controller
             'plan' => $plan,
             'pricing_tiers' => $pricingTiers,
             'csrf_token' => Security::generateCSRFToken(),
-            'user' => AuthMiddleware::user()
+            'user' => AuthMiddleware::user(),
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info']
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -3343,6 +3373,9 @@ class SuperAdminController extends Controller
             exit;
         }
 
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+
         $this->loadPageTranslations('dashboard');
 
         $this->data += [
@@ -3351,7 +3384,10 @@ class SuperAdminController extends Controller
             'plan' => $plan,
             'pricing_tier' => $pricingTier,
             'csrf_token' => Security::generateCSRFToken(),
-            'user' => AuthMiddleware::user()
+            'user' => AuthMiddleware::user(),
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info']
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

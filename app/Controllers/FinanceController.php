@@ -99,6 +99,11 @@ class FinanceController extends Controller
         $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
         $isAdmin = ($userRole === 'admin');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/finances/index.html.twig',
             'page' => ['titulo' => 'Finanças'],
@@ -144,6 +149,11 @@ class FinanceController extends Controller
         
         $this->loadPageTranslations('finances');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/finances/create-budget.html.twig',
             'page' => ['titulo' => 'Criar Orçamento'],
@@ -152,7 +162,9 @@ class FinanceController extends Controller
             'selected_year' => $selectedYear,
             'existing_budget' => $existingBudget,
             'csrf_token' => Security::generateCSRFToken(),
-            'user' => AuthMiddleware::user()
+            'user' => AuthMiddleware::user(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -288,13 +300,20 @@ class FinanceController extends Controller
 
         $this->loadPageTranslations('finances');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/finances/create-expense.html.twig',
             'page' => ['titulo' => 'Registar Despesa'],
             'condominium' => $condominium,
             'fractions' => $fractions,
             'suppliers' => $suppliers,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -1550,13 +1569,20 @@ class FinanceController extends Controller
 
         $this->loadPageTranslations('finances');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/finances/liquidate-quotas.html.twig',
             'page' => ['titulo' => 'Liquidar Quotas'],
             'condominium' => $condominium,
             'fractions' => $fractions,
             'bank_accounts' => $bankAccounts,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -2232,12 +2258,19 @@ class FinanceController extends Controller
 
         $this->loadPageTranslations('finances');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/finances/create-revenue.html.twig',
             'page' => ['titulo' => 'Registar Receita'],
             'condominium' => $condominium,
             'fractions' => $fractions,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -2318,13 +2351,20 @@ class FinanceController extends Controller
 
         $this->loadPageTranslations('finances');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/finances/edit-revenue.html.twig',
             'page' => ['titulo' => 'Editar Receita'],
             'condominium' => $condominium,
             'revenue' => $revenue,
             'fractions' => $fractions,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -2536,6 +2576,11 @@ class FinanceController extends Controller
 
         $this->loadPageTranslations('finances');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/finances/edit-fee.html.twig',
             'page' => ['titulo' => 'Editar Quota Extra'],
@@ -2543,7 +2588,9 @@ class FinanceController extends Controller
             'fee' => $fee,
             'fraction' => $fraction,
             'csrf_token' => Security::generateCSRFToken(),
-            'user' => AuthMiddleware::user()
+            'user' => AuthMiddleware::user(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

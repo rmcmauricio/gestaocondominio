@@ -42,13 +42,20 @@ class NotificationController extends Controller
             }
         }
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/notifications/index.html.twig',
             'page' => ['titulo' => $translations['title'] ?? 'Notificações'],
             'notifications' => $notifications,
             'unread_count' => $unreadCount,
             'translations' => $translations,
-            'user' => AuthMiddleware::user()
+            'user' => AuthMiddleware::user(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

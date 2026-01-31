@@ -110,7 +110,14 @@ $router->get('/condominiums/switch/{id}', 'App\Controllers\CondominiumController
 $router->post('/condominiums/{id}/set-default', 'App\Controllers\CondominiumController@setDefault');
 $router->get('/condominiums/{id}/assign-admin', 'App\Controllers\CondominiumController@assignAdmin');
 $router->post('/condominiums/{id}/assign-admin', 'App\Controllers\CondominiumController@processAssignAdmin');
+$router->post('/condominiums/{id}/assign-admin-by-email', 'App\Controllers\CondominiumController@processAssignAdminByEmail');
+$router->post('/condominiums/{id}/remove-admin', 'App\Controllers\CondominiumController@processRemoveAdmin');
 $router->post('/condominiums/{condominium_id}/switch-view-mode', 'App\Controllers\CondominiumController@switchViewMode');
+
+// Admin transfer routes
+$router->get('/admin-transfers/pending', 'App\Controllers\AdminTransferController@pending');
+$router->post('/admin-transfers/accept', 'App\Controllers\AdminTransferController@accept');
+$router->post('/admin-transfers/reject', 'App\Controllers\AdminTransferController@reject');
 
 // Fraction routes
 $router->get('/condominiums/{condominium_id}/fractions', 'App\Controllers\FractionController@index');

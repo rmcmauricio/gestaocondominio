@@ -530,16 +530,33 @@ class User extends Model
             return false;
         }
 
-        // Check if user is admin and owns the condominium
+        // Check if user is admin - can be owner OR assigned admin
         if ($user['role'] === 'admin' || $user['role'] === 'super_admin') {
             global $db;
+            // Check if user owns the condominium
             $stmt = $db->prepare("SELECT id FROM condominiums WHERE id = :condominium_id AND user_id = :user_id");
             $stmt->execute([
                 ':condominium_id' => $condominiumId,
                 ':user_id' => $userId
             ]);
-            if (!$stmt->fetch()) {
-                return false;
+            $isOwner = $stmt->fetch();
+            
+            // If not owner, check if user is assigned as admin
+            if (!$isOwner) {
+                $stmt = $db->prepare("
+                    SELECT id FROM condominium_users 
+                    WHERE user_id = :user_id 
+                    AND condominium_id = :condominium_id
+                    AND role = 'admin'
+                    AND (ended_at IS NULL OR ended_at > CURDATE())
+                ");
+                $stmt->execute([
+                    ':user_id' => $userId,
+                    ':condominium_id' => $condominiumId
+                ]);
+                if (!$stmt->fetch()) {
+                    return false;
+                }
             }
         } else {
             // Check if user is associated with this condominium

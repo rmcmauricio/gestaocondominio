@@ -233,6 +233,11 @@ class StandaloneVoteController extends Controller
 
         $this->loadPageTranslations('votes');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/votes/show.html.twig',
             'page' => ['titulo' => $vote['title']],
@@ -243,7 +248,9 @@ class StandaloneVoteController extends Controller
             'user_fraction' => $userFraction,
             'user_vote' => $userVote,
             'is_admin' => RoleMiddleware::isAdminInCondominium($userId, $condominiumId),
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -278,12 +285,19 @@ class StandaloneVoteController extends Controller
 
         $this->loadPageTranslations('votes');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/votes/edit.html.twig',
             'page' => ['titulo' => 'Editar Votação'],
             'condominium' => $condominium,
             'vote' => $vote,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

@@ -170,9 +170,24 @@ class Controller
                 }
                 
                 // Get all user condominiums for dropdown
-                if ($userRole === 'admin' || $userRole === 'super_admin') {
-                    $condominiumModel = new \App\Models\Condominium();
-                    $userCondominiums = $condominiumModel->getByUserId($userId);
+                if ($userRole === 'super_admin') {
+                    // For superadmin, get all condominiums where user is admin or condomino
+                    $condominiumUserModel = new \App\Models\CondominiumUser();
+                    $condominiumsByRole = $condominiumUserModel->getUserCondominiumsWithRoles($userId);
+                    // Combine admin and condomino condominiums
+                    $userCondominiums = array_merge(
+                        $condominiumsByRole['admin'] ?? [],
+                        $condominiumsByRole['condomino'] ?? []
+                    );
+                } elseif ($userRole === 'admin') {
+                    // For admin, get all condominiums where user is admin (owner or assigned)
+                    $condominiumUserModel = new \App\Models\CondominiumUser();
+                    $condominiumsByRole = $condominiumUserModel->getUserCondominiumsWithRoles($userId);
+                    // Combine admin and condomino condominiums for dropdown
+                    $userCondominiums = array_merge(
+                        $condominiumsByRole['admin'] ?? [],
+                        $condominiumsByRole['condomino'] ?? []
+                    );
                 } else {
                     $condominiumUserModel = new \App\Models\CondominiumUser();
                     $userCondominiumsList = $condominiumUserModel->getUserCondominiums($userId);
@@ -189,6 +204,7 @@ class Controller
                 // If still not set, get first available condominium
                 if (!$currentCondominiumId && !empty($userCondominiums)) {
                     $currentCondominiumId = $userCondominiums[0]['id'];
+                    $_SESSION['current_condominium_id'] = $currentCondominiumId;
                     
                     // If user has only one condominium, set it as default automatically
                     if (count($userCondominiums) === 1) {

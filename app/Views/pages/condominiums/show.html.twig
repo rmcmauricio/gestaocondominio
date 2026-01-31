@@ -5,6 +5,9 @@
             {% include 'blocks/quick-actions.html.twig' %}
             {% set can_edit = (current_condominium_role == 'admin' or user.role == 'super_admin') and (demo_profile != 'condomino') %}
             {% if can_edit %}
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assign-admin" class="btn btn-outline-warning">
+                <i class="bi bi-shield-check"></i> Designar Administradores
+            </a>
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/customize" class="btn btn-outline-info">
                 <i class="bi bi-palette"></i> Personalizar
             </a>

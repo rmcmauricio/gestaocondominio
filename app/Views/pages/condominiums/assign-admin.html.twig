@@ -40,8 +40,23 @@
                                 <strong>{{ admin.name }}</strong>
                                 <br>
                                 <small class="text-muted">{{ admin.email }}</small>
+                                {% if admin.user_id == owner_id %}
+                                <br>
+                                <small class="text-muted"><i class="bi bi-house"></i> Proprietário</small>
+                                {% endif %}
                             </div>
-                            <span class="badge bg-primary">Admin</span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-primary">Admin</span>
+                                {% if admin.user_id != owner_id and admin.user_id != current_user_id %}
+                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/remove-admin" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover o cargo de administrador de {{ admin.name }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="user_id" value="{{ admin.user_id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover Admin">
+                                        <i class="bi bi-x-circle"></i> Remover
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
                         </li>
                         {% endfor %}
                     </ul>
@@ -58,6 +73,19 @@
                     <h5 class="mb-0"><i class="bi bi-people"></i> Utilizadores do Condomínio</h5>
                 </div>
                 <div class="card-body">
+                    <!-- Formulário para associar utilizador por email -->
+                    <div class="mb-3 p-3 bg-light rounded">
+                        <h6 class="mb-2"><i class="bi bi-plus-circle"></i> Associar Empresa/Utilizador</h6>
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/assign-admin-by-email" class="d-flex gap-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="email" name="email" class="form-control form-control-sm" placeholder="Email do utilizador" required>
+                            <button type="submit" class="btn btn-sm btn-primary">
+                                <i class="bi bi-shield-check"></i> Associar como Admin
+                            </button>
+                        </form>
+                        <small class="text-muted">Associa o utilizador ao condomínio como administrador sem fração</small>
+                    </div>
+
                     {% if condominium_users %}
                     <ul class="list-group list-group-flush">
                         {% for cu in condominium_users %}
@@ -77,6 +105,9 @@
                                 {% if cu.fraction_identifier %}
                                 <br>
                                 <small class="text-muted">Fração: {{ cu.fraction_identifier }}</small>
+                                {% else %}
+                                <br>
+                                <small class="text-muted"><i class="bi bi-building"></i> Sem fração</small>
                                 {% endif %}
                             </div>
                             <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/assign-admin" class="d-inline">

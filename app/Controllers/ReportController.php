@@ -46,13 +46,20 @@ class ReportController extends Controller
 
         $this->loadPageTranslations('reports');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/finances/reports.html.twig',
             'page' => ['titulo' => 'Relatórios'],
             'condominium' => $condominium,
             'current_year' => $currentYear,
             'csrf_token' => Security::generateCSRFToken(),
-            'is_admin' => $isAdmin
+            'is_admin' => $isAdmin,
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

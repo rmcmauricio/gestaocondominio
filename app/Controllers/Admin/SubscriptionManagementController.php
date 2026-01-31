@@ -77,6 +77,11 @@ class SubscriptionManagementController extends Controller
 
         $this->loadPageTranslations('admin');
 
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+
         $this->data += [
             'viewName' => 'pages/admin/subscriptions/index.html.twig',
             'page' => [
@@ -87,7 +92,9 @@ class SubscriptionManagementController extends Controller
             'plans' => $plans,
             'filter_plan' => $filterPlan,
             'filter_status' => $filterStatus,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -122,6 +129,11 @@ class SubscriptionManagementController extends Controller
 
         $this->loadPageTranslations('admin');
 
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+
         $this->data += [
             'viewName' => 'pages/admin/subscriptions-manage/view.html.twig',
             'page' => [
@@ -133,7 +145,9 @@ class SubscriptionManagementController extends Controller
             'associated_condominiums' => $associatedCondominiums,
             'pricing_preview' => $pricingPreview,
             'validation' => $validation,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

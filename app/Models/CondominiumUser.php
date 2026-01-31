@@ -179,6 +179,85 @@ class CondominiumUser extends Model
     }
 
     /**
+     * Remove admin role from user in condominium
+     */
+    public function removeAdmin(int $condominiumId, int $userId, int $removedByUserId): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        // Check if user is owner - cannot remove owner's admin role
+        global $db;
+        $stmt = $db->prepare("SELECT user_id FROM condominiums WHERE id = :condominium_id AND user_id = :user_id");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':user_id' => $userId
+        ]);
+        $isOwner = $stmt->fetch();
+        
+        if ($isOwner) {
+            // Cannot remove admin role from owner
+            return false;
+        }
+
+        // Find admin entry in condominium_users
+        $stmt = $this->db->prepare("
+            SELECT id FROM condominium_users 
+            WHERE user_id = :user_id 
+            AND condominium_id = :condominium_id
+            AND role = 'admin'
+            AND (ended_at IS NULL OR ended_at > CURDATE())
+        ");
+        $stmt->execute([
+            ':user_id' => $userId,
+            ':condominium_id' => $condominiumId
+        ]);
+        $adminEntry = $stmt->fetch();
+
+        if ($adminEntry) {
+            // Check if user has other roles (condomino, proprietario, etc.)
+            // If yes, change role to condomino; if no, end the association
+            $stmt = $this->db->prepare("
+                SELECT id, role FROM condominium_users 
+                WHERE user_id = :user_id 
+                AND condominium_id = :condominium_id
+                AND id != :admin_id
+                AND (ended_at IS NULL OR ended_at > CURDATE())
+            ");
+            $stmt->execute([
+                ':user_id' => $userId,
+                ':condominium_id' => $condominiumId,
+                ':admin_id' => $adminEntry['id']
+            ]);
+            $otherRoles = $stmt->fetchAll();
+
+            if (!empty($otherRoles)) {
+                // User has other roles, just change admin role to condomino
+                $stmt = $this->db->prepare("
+                    UPDATE condominium_users 
+                    SET role = 'condomino'
+                    WHERE id = :id
+                ");
+                return $stmt->execute([':id' => $adminEntry['id']]);
+            } else {
+                // User only has admin role, end the association
+                $stmt = $this->db->prepare("
+                    UPDATE condominium_users 
+                    SET ended_at = :ended_at
+                    WHERE id = :id
+                ");
+                return $stmt->execute([
+                    ':id' => $adminEntry['id'],
+                    ':ended_at' => date('Y-m-d')
+                ]);
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Get user condominiums with role information
      * Returns both condominiums where user is admin (owner or assigned) and where user is condomino
      */

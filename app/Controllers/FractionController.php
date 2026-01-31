@@ -122,11 +122,18 @@ class FractionController extends Controller
 
         $this->loadPageTranslations('fractions');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/fractions/create.html.twig',
             'page' => ['titulo' => 'Criar Fração'],
             'condominium' => $condominium,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -201,12 +208,19 @@ class FractionController extends Controller
 
         $this->loadPageTranslations('fractions');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/fractions/edit.html.twig',
             'page' => ['titulo' => 'Editar Fração'],
             'condominium' => $condominium,
             'fraction' => $fraction,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

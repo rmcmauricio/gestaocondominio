@@ -172,6 +172,47 @@ class CondominiumController extends Controller
                 'started_at' => date('Y-m-d')
             ]);
 
+            // Associate condominium to user's active subscription if exists
+            $activeSubscription = $this->subscriptionModel->getActiveSubscription($userId);
+            if ($activeSubscription) {
+                $planModel = new \App\Models\Plan();
+                $plan = $planModel->findById($activeSubscription['plan_id']);
+                if ($plan) {
+                    $planType = $plan['plan_type'] ?? null;
+                    $allowMultipleCondos = $plan['allow_multiple_condos'] ?? false;
+                    
+                    try {
+                        if ($planType === 'condominio' && !$allowMultipleCondos) {
+                            // Base plan: associate directly via condominium_id
+                            // Only if subscription doesn't already have a condominium
+                            if (!$activeSubscription['condominium_id']) {
+                                global $db;
+                                $db->prepare("UPDATE condominiums SET subscription_id = :subscription_id WHERE id = :id")
+                                   ->execute([':subscription_id' => $activeSubscription['id'], ':id' => $condominiumId]);
+                                
+                                // Update subscription condominium_id
+                                $this->subscriptionModel->update($activeSubscription['id'], [
+                                    'condominium_id' => $condominiumId
+                                ]);
+                                
+                                // Recalculate licenses
+                                $this->subscriptionService->recalculateUsedLicenses($activeSubscription['id']);
+                            }
+                        } elseif ($planType && $allowMultipleCondos) {
+                            // Professional/Enterprise: use SubscriptionCondominium
+                            $subscriptionCondominiumModel = new \App\Models\SubscriptionCondominium();
+                            $subscriptionCondominiumModel->attach($activeSubscription['id'], $condominiumId, $userId);
+                            
+                            // Recalculate licenses
+                            $this->subscriptionService->recalculateUsedLicenses($activeSubscription['id']);
+                        }
+                    } catch (\Exception $e) {
+                        // Log error but don't fail condominium creation
+                        error_log('Error associating condominium to subscription: ' . $e->getMessage());
+                    }
+                }
+            }
+
             $_SESSION['success'] = 'Condomínio criado com sucesso!';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId);
             exit;
@@ -430,6 +471,11 @@ class CondominiumController extends Controller
 
         $this->loadPageTranslations('condominiums');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/condominiums/show.html.twig',
             'page' => ['titulo' => $condominium['name']],
@@ -443,7 +489,9 @@ class CondominiumController extends Controller
             'available_years' => $availableYears,
             'selected_fees_year' => $selectedYear,
             'fees_map_form_action' => BASE_URL . 'condominiums/' . $id,
-            'month_names' => $monthNames
+            'month_names' => $monthNames,
+            'error' => $error,
+            'success' => $success
         ];
 
         // Update session with current condominium ID
@@ -529,6 +577,11 @@ class CondominiumController extends Controller
             $templateIdForRendering = $currentTemplate;
         }
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         // Build data array - IMPORTANT: template_id must be set for preview to work
         $this->data += [
             'viewName' => 'pages/condominiums/edit.html.twig',
@@ -539,6 +592,8 @@ class CondominiumController extends Controller
             'logo_url' => $logoUrl,
             'template_options' => $templateOptions,
             'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
         
         // CRITICAL: Set template_id AFTER building data array to ensure it's not overwritten
@@ -744,6 +799,11 @@ class CondominiumController extends Controller
             17 => ['name' => 'Contraste Clássico', 'description' => 'Estilo clássico com alto contraste entre preto, branco e tons terrosos']
         ];
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         // Build data array
         $this->data += [
             'viewName' => 'pages/condominiums/customize.html.twig',
@@ -753,6 +813,8 @@ class CondominiumController extends Controller
             'logo_url' => $logoUrl,
             'template_options' => $templateOptions,
             'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
         
         // Set template_id for rendering
@@ -1167,13 +1229,22 @@ class CondominiumController extends Controller
 
         $this->loadPageTranslations('condominiums');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/condominiums/assign-admin.html.twig',
             'page' => ['titulo' => 'Designar Administradores'],
             'condominium' => $condominium,
             'condominium_users' => $condominiumUsers,
             'current_admins' => $currentAdmins,
-            'csrf_token' => Security::generateCSRFToken()
+            'owner_id' => $condominium['user_id'],
+            'current_user_id' => $userId,
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -1213,11 +1284,268 @@ class CondominiumController extends Controller
             exit;
         }
 
-        $condominiumUserModel = new CondominiumUser();
-        if ($condominiumUserModel->assignAdmin($id, $targetUserId, $userId)) {
-            $_SESSION['success'] = 'Administrador designado com sucesso!';
+        // Check if this is a professional transfer (new admin has Professional/Enterprise subscription)
+        $targetUserSubscription = $this->subscriptionModel->getActiveSubscription($targetUserId);
+        $isProfessionalTransfer = false;
+        $fromSubscriptionId = null;
+        $toSubscriptionId = null;
+
+        if ($targetUserSubscription) {
+            $planModel = new \App\Models\Plan();
+            $targetPlan = $planModel->findById($targetUserSubscription['plan_id']);
+            $targetPlanType = $targetPlan['plan_type'] ?? null;
+            
+            // Check if target has Professional or Enterprise plan
+            if ($targetPlanType === 'professional' || $targetPlanType === 'enterprise') {
+                $isProfessionalTransfer = true;
+                $toSubscriptionId = $targetUserSubscription['id'];
+                
+                // Find current subscription for this condominium
+                $condominium = $this->condominiumModel->findById($id);
+                if ($condominium) {
+                    // Check Base plan direct association
+                    if (isset($condominium['subscription_id']) && $condominium['subscription_id']) {
+                        $fromSubscriptionId = $condominium['subscription_id'];
+                    } else {
+                        // Check Professional/Enterprise association
+                        $subscriptionCondominiumModel = new \App\Models\SubscriptionCondominium();
+                        $association = $subscriptionCondominiumModel->getByCondominium($id);
+                        if ($association && isset($association['subscription_id'])) {
+                            $fromSubscriptionId = $association['subscription_id'];
+                        }
+                    }
+                }
+            }
+        }
+
+        // Create pending admin transfer instead of assigning directly
+        $adminTransferPendingModel = new \App\Models\AdminTransferPending();
+        $condominium = $this->condominiumModel->findById($id);
+        
+        $message = null;
+        if ($isProfessionalTransfer) {
+            $message = "Foi designado como administrador profissional deste condomínio. Ao aceitar, as licenças serão transferidas para a sua subscrição.";
         } else {
-            $_SESSION['error'] = 'Erro ao designar administrador.';
+            $message = "Foi designado como administrador deste condomínio. Por favor, confirme se aceita esta responsabilidade.";
+        }
+
+        try {
+            $pendingId = $adminTransferPendingModel->createPending(
+                $id,
+                $targetUserId,
+                $userId,
+                $isProfessionalTransfer,
+                $fromSubscriptionId,
+                $toSubscriptionId,
+                $message
+            );
+
+            // Create notification
+            $notificationService = new \App\Services\NotificationService();
+            $condominiumName = $condominium['name'] ?? 'Condomínio';
+            $notificationService->createNotification(
+                $targetUserId,
+                $id,
+                'admin_transfer_pending',
+                'Convite para Administração',
+                "Foi convidado para ser administrador do condomínio \"{$condominiumName}\". Por favor, aceite ou rejeite este convite.",
+                BASE_URL . 'admin-transfers/pending'
+            );
+
+            if ($isProfessionalTransfer) {
+                $_SESSION['success'] = 'Convite enviado ao administrador profissional! O utilizador precisa aceitar o convite.';
+            } else {
+                $_SESSION['success'] = 'Convite enviado ao administrador! O utilizador precisa aceitar o convite.';
+            }
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao criar convite: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+        exit;
+    }
+
+    public function processAssignAdminByEmail(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($id);
+        
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+            exit;
+        }
+
+        // Check if user is admin in this condominium
+        $userId = AuthMiddleware::userId();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $id);
+        
+        if ($userRole !== 'admin') {
+            $_SESSION['error'] = 'Apenas administradores podem designar outros administradores.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id);
+            exit;
+        }
+
+        $email = trim($_POST['email'] ?? '');
+        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['error'] = 'Email inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+            exit;
+        }
+
+        // Find user by email
+        $userModel = new User();
+        $targetUser = $userModel->findByEmail($email);
+        
+        if (!$targetUser) {
+            $_SESSION['error'] = 'Utilizador não encontrado com esse email.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+            exit;
+        }
+
+        $targetUserId = $targetUser['id'];
+
+        // Check if this is a professional transfer (new admin has Professional/Enterprise subscription)
+        $targetUserSubscription = $this->subscriptionModel->getActiveSubscription($targetUserId);
+        $isProfessionalTransfer = false;
+        $fromSubscriptionId = null;
+        $toSubscriptionId = null;
+
+        if ($targetUserSubscription) {
+            $planModel = new \App\Models\Plan();
+            $targetPlan = $planModel->findById($targetUserSubscription['plan_id']);
+            $targetPlanType = $targetPlan['plan_type'] ?? null;
+            
+            // Check if target has Professional or Enterprise plan
+            if ($targetPlanType === 'professional' || $targetPlanType === 'enterprise') {
+                $isProfessionalTransfer = true;
+                $toSubscriptionId = $targetUserSubscription['id'];
+                
+                // Find current subscription for this condominium
+                $condominium = $this->condominiumModel->findById($id);
+                if ($condominium) {
+                    // Check Base plan direct association
+                    if (isset($condominium['subscription_id']) && $condominium['subscription_id']) {
+                        $fromSubscriptionId = $condominium['subscription_id'];
+                    } else {
+                        // Check Professional/Enterprise association
+                        $subscriptionCondominiumModel = new \App\Models\SubscriptionCondominium();
+                        $association = $subscriptionCondominiumModel->getByCondominium($id);
+                        if ($association && isset($association['subscription_id'])) {
+                            $fromSubscriptionId = $association['subscription_id'];
+                        }
+                    }
+                }
+            }
+        }
+
+        // Create pending admin transfer instead of assigning directly
+        $adminTransferPendingModel = new \App\Models\AdminTransferPending();
+        $condominium = $this->condominiumModel->findById($id);
+        
+        $message = null;
+        if ($isProfessionalTransfer) {
+            $message = "Foi designado como administrador profissional deste condomínio. Ao aceitar, as licenças serão transferidas para a sua subscrição.";
+        } else {
+            $message = "Foi designado como administrador deste condomínio. Por favor, confirme se aceita esta responsabilidade.";
+        }
+
+        try {
+            $pendingId = $adminTransferPendingModel->createPending(
+                $id,
+                $targetUserId,
+                $userId,
+                $isProfessionalTransfer,
+                $fromSubscriptionId,
+                $toSubscriptionId,
+                $message
+            );
+
+            // Create notification
+            $notificationService = new \App\Services\NotificationService();
+            $condominiumName = $condominium['name'] ?? 'Condomínio';
+            $notificationService->createNotification(
+                $targetUserId,
+                $id,
+                'admin_transfer_pending',
+                'Convite para Administração',
+                "Foi convidado para ser administrador do condomínio \"{$condominiumName}\". Por favor, aceite ou rejeite este convite.",
+                BASE_URL . 'admin-transfers/pending'
+            );
+
+            if ($isProfessionalTransfer) {
+                $_SESSION['success'] = 'Convite enviado ao administrador profissional! O utilizador precisa aceitar o convite.';
+            } else {
+                $_SESSION['success'] = 'Convite enviado ao administrador! O utilizador precisa aceitar o convite.';
+            }
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao criar convite: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+        exit;
+    }
+
+    public function processRemoveAdmin(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($id);
+        
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+            exit;
+        }
+
+        // Check if user is admin in this condominium
+        $userId = AuthMiddleware::userId();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $id);
+        
+        if ($userRole !== 'admin') {
+            $_SESSION['error'] = 'Apenas administradores podem remover outros administradores.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id);
+            exit;
+        }
+
+        $targetUserId = (int)($_POST['user_id'] ?? 0);
+        if (!$targetUserId) {
+            $_SESSION['error'] = 'Utilizador não especificado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+            exit;
+        }
+
+        // Prevent self-removal
+        if ($targetUserId === $userId) {
+            $_SESSION['error'] = 'Não pode remover o seu próprio cargo de administrador.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+            exit;
+        }
+
+        // Check if target is owner - cannot remove owner's admin role
+        $condominium = $this->condominiumModel->findById($id);
+        if ($condominium && $condominium['user_id'] == $targetUserId) {
+            $_SESSION['error'] = 'Não é possível remover o cargo de administrador do proprietário do condomínio.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');
+            exit;
+        }
+
+        $condominiumUserModel = new CondominiumUser();
+        if ($condominiumUserModel->removeAdmin($id, $targetUserId, $userId)) {
+            $_SESSION['success'] = 'Cargo de administrador removido com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao remover cargo de administrador.';
         }
 
         header('Location: ' . BASE_URL . 'condominiums/' . $id . '/assign-admin');

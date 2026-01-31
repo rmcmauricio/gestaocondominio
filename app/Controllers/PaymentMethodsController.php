@@ -36,12 +36,19 @@ class PaymentMethodsController extends Controller
 
         $this->loadPageTranslations('payments');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/admin/payment-methods/index.html.twig',
             'page' => ['titulo' => 'Gestão de Métodos de Pagamento'],
             'methods' => $methods,
             'csrf_token' => Security::generateCSRFToken(),
-            'user' => AuthMiddleware::user()
+            'user' => AuthMiddleware::user(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

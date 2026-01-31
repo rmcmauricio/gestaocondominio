@@ -375,11 +375,33 @@ class Subscription extends Model
             return false;
         }
 
-        // Use LicenseService to validate license availability
-        $licenseService = new \App\Services\LicenseService();
-        $validation = $licenseService->validateLicenseAvailability($subscription['id'], 1);
+        $planModel = new Plan();
+        $plan = $planModel->findById($subscription['plan_id']);
         
-        return $validation['available'] ?? false;
+        // If plan doesn't have plan_type, it's not license-based, allow creation
+        if (!$plan || !isset($plan['plan_type']) || !$plan['plan_type']) {
+            return true;
+        }
+
+        // Calculate current used licenses dynamically
+        $usedLicenses = $this->calculateUsedLicenses($subscription['id']);
+        
+        // Get license limit
+        $licenseLimit = $subscription['license_limit'] ?? null;
+        $allowOverage = $subscription['allow_overage'] ?? false;
+        
+        // If no limit set, allow creation
+        if ($licenseLimit === null) {
+            return true;
+        }
+        
+        // Check if adding one more fraction would exceed the limit
+        // Allow if: used + 1 <= limit OR overage is allowed
+        if ($allowOverage) {
+            return true; // Allow overage
+        }
+        
+        return ($usedLicenses + 1) <= $licenseLimit;
     }
 
     /**

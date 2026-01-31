@@ -69,6 +69,11 @@ class ReceiptController extends Controller
             $years = [date('Y')];
         }
 
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'condominium' => $condominium,
             'receipts' => $receipts,
@@ -77,7 +82,9 @@ class ReceiptController extends Controller
             'selected_year' => $year ?? date('Y'),
             'available_years' => $years,
             'is_admin' => true,
-            'viewName' => 'pages/receipts/index.html.twig'
+            'viewName' => 'pages/receipts/index.html.twig',
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -145,6 +152,11 @@ class ReceiptController extends Controller
             $years = [date('Y')];
         }
 
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'receipts' => $receipts,
             'condominiums' => $condominiums,
@@ -152,7 +164,9 @@ class ReceiptController extends Controller
             'selected_year' => $year ?? date('Y'),
             'available_years' => $years,
             'is_admin' => false,
-            'viewName' => 'pages/receipts/index.html.twig'
+            'viewName' => 'pages/receipts/index.html.twig',
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -204,10 +218,17 @@ class ReceiptController extends Controller
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'receipt' => $receipt,
             'condominium' => $condominium,
-            'viewName' => 'pages/receipts/show.html.twig'
+            'viewName' => 'pages/receipts/show.html.twig',
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

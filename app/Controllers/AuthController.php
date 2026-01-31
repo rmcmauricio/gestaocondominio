@@ -667,7 +667,16 @@ class AuthController extends Controller
         
         // Get user's condominiums
         $userCondominiums = [];
-        if ($role === 'admin' || $role === 'super_admin') {
+        if ($role === 'super_admin') {
+            // For superadmin, get all condominiums where user is admin or condomino
+            $condominiumUserModel = new \App\Models\CondominiumUser();
+            $condominiumsByRole = $condominiumUserModel->getUserCondominiumsWithRoles($userId);
+            // Combine admin and condomino condominiums
+            $userCondominiums = array_merge(
+                $condominiumsByRole['admin'] ?? [],
+                $condominiumsByRole['condomino'] ?? []
+            );
+        } elseif ($role === 'admin') {
             $condominiumModel = new \App\Models\Condominium();
             $userCondominiums = $condominiumModel->getByUserId($userId);
         } else {

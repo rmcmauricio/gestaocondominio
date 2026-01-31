@@ -444,6 +444,11 @@ class SubscriptionController extends Controller
 
         $this->loadPageTranslations('subscription');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/subscription/choose-plan.html.twig',
             'page' => [
@@ -456,7 +461,9 @@ class SubscriptionController extends Controller
             'plan_promotions' => $planPromotions,
             'plan_pricing_tiers' => $planPricingTiers,
             'show_launch_warning' => $showLaunchWarning,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -1656,6 +1663,17 @@ class SubscriptionController extends Controller
             ");
             $cancelPaymentsStmt->execute([':subscription_id' => $pendingSubscription['id']]);
 
+            // Log the cancellation BEFORE deleting the subscription
+            // (needed because audit_subscriptions has a foreign key constraint on subscription_id)
+            $this->auditService->logSubscription([
+                'subscription_id' => $pendingSubscription['id'],
+                'user_id' => $userId,
+                'action' => 'pending_plan_change_canceled',
+                'old_status' => 'pending',
+                'new_status' => 'deleted',
+                'description' => ($isPlanChange ? "Alteração de plano pendente cancelada pelo utilizador" : "Subscrição pendente cancelada pelo utilizador") . ". Plano ID: {$pendingSubscription['plan_id']}"
+            ]);
+
             // Delete the pending subscription
             $deleteStmt = $db->prepare("DELETE FROM subscriptions WHERE id = :id AND status = 'pending'");
             $deleteStmt->execute([':id' => $pendingSubscription['id']]);
@@ -1665,16 +1683,6 @@ class SubscriptionController extends Controller
                 header('Location: ' . BASE_URL . 'subscription');
                 exit;
             }
-
-            // Log the cancellation
-            $this->auditService->logSubscription([
-                'subscription_id' => $pendingSubscription['id'],
-                'user_id' => $userId,
-                'action' => 'pending_plan_change_canceled',
-                'old_status' => 'pending',
-                'new_status' => 'deleted',
-                'description' => ($isPlanChange ? "Alteração de plano pendente cancelada pelo utilizador" : "Subscrição pendente cancelada pelo utilizador") . ". Plano ID: {$pendingSubscription['plan_id']}"
-            ]);
 
             $_SESSION['success'] = $isPlanChange ? 'Alteração de plano pendente cancelada com sucesso.' : 'Subscrição pendente cancelada com sucesso.';
             header('Location: ' . BASE_URL . 'subscription');
@@ -1801,6 +1809,11 @@ class SubscriptionController extends Controller
 
         $this->loadPageTranslations('subscription');
 
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+
         $this->data += [
             'viewName' => 'pages/subscription/attach-condominium.html.twig',
             'page' => [
@@ -1812,7 +1825,9 @@ class SubscriptionController extends Controller
             'available_condominiums' => $availableCondominiums,
             'used_licenses' => $usedLicenses,
             'license_limit' => $licenseLimit,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

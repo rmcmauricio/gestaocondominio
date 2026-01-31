@@ -71,8 +71,8 @@
             </li>
             {% endif %}
             
-            {% if condominium %}
-            {% if logo_url is defined and logo_url %}
+            {% if user_condominiums and user_condominiums|length > 0 %}
+            {% if condominium and logo_url is defined and logo_url %}
             <li class="nav-item sidebar-logo-container" style="padding: 1rem 1.5rem; text-align: center; border-bottom: 1px solid var(--color-border); margin-bottom: 0.5rem;">
                 <div style="width: 100%; height: 120px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
                     <img src="{{ logo_url }}" alt="{{ condominium.name|default('Condomínio') }}" class="sidebar-logo" style="width: 100%; height: 100%; object-fit: cover; object-position: center; display: block;">
@@ -90,19 +90,23 @@
                             aria-expanded="false"
                             style="color: inherit; border: none; background: none;">
                         {% set maxLength = 20 %}
-                        {% if condominium.name|length > maxLength %}
-                            {{ condominium.name|slice(0, maxLength) }}...
+                        {% if condominium %}
+                            {% if condominium.name|length > maxLength %}
+                                {{ condominium.name|slice(0, maxLength) }}...
+                            {% else %}
+                                {{ condominium.name }}
+                            {% endif %}
                         {% else %}
-                            {{ condominium.name }}
+                            Selecionar Condomínio
                         {% endif %}
                     </button>
                     <ul class="dropdown-menu" aria-labelledby="condominiumDropdown" style="max-width: calc(var(--sidebar-width) - 2rem); width: calc(var(--sidebar-width) - 2rem);">
                         {% for condo in user_condominiums %}
                         <li>
-                            <a class="dropdown-item {% if condo.id == condominium.id %}active{% endif %}" 
+                            <a class="dropdown-item {% if condominium and condo.id == condominium.id %}active{% endif %}" 
                                href="{{ BASE_URL }}condominiums/switch/{{ condo.id }}">
                                 {{ condo.name }}
-                                {% if condo.id == condominium.id %}
+                                {% if condominium and condo.id == condominium.id %}
                                 <i class="bi bi-check float-end"></i>
                                 {% endif %}
                             </a>
@@ -112,7 +116,13 @@
                 </div>
                 {% else %}
                 <div class="d-flex justify-content-between align-items-center">
-                    <span class="nav-section-title">{{ condominium.name }}</span>
+                    <span class="nav-section-title">
+                        {% if condominium %}
+                            {{ condominium.name }}
+                        {% else %}
+                            {{ user_condominiums[0].name }}
+                        {% endif %}
+                    </span>
                     {% if current_condominium_role %}
                     <span class="badge {% if current_condominium_role == 'admin' %}bg-primary{% else %}bg-info{% endif %} ms-2" style="font-size: 0.7rem;">
                         {% if current_condominium_role == 'admin' %}Admin{% else %}Condómino{% endif %}
@@ -121,7 +131,7 @@
                 </div>
                 {% endif %}
                 
-                {% if can_switch_view_mode %}
+                {% if condominium and can_switch_view_mode %}
                 <li class="nav-item mt-2">
                     <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/switch-view-mode" class="mb-0">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -138,6 +148,7 @@
                 {% endif %}
             </li>
             
+            {% if condominium %}
             <li class="nav-item">
                 <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}">
                     <i class="bi bi-info-circle"></i> Visão Geral
@@ -225,6 +236,19 @@
             <li class="nav-item">
                 <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages">
                     <i class="bi bi-envelope"></i> Mensagens
+                </a>
+            </li>
+            {% endif %}
+            {% endif %}
+            
+            {% if condominium and current_condominium_role == 'admin' %}
+            <li class="nav-section">
+                <span class="nav-section-title">Administração</span>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assign-admin">
+                    <i class="bi bi-shield-check"></i> Designar Administradores
                 </a>
             </li>
             {% endif %}

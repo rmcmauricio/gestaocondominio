@@ -124,12 +124,19 @@ class MessageController extends Controller
 
         $this->loadPageTranslations('messages');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/messages/create.html.twig',
             'page' => ['titulo' => 'Nova Mensagem'],
             'condominium' => $condominium,
             'users' => $users,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -379,6 +386,11 @@ class MessageController extends Controller
         // Determine page title
         $pageTitle = $isViewingReply ? $viewingMessage['subject'] : $rootMessage['subject'];
 
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+
         $this->data += [
             'viewName' => 'pages/messages/show.html.twig',
             'page' => ['titulo' => $pageTitle],
@@ -391,7 +403,9 @@ class MessageController extends Controller
             'is_viewing_reply' => $isViewingReply,
             'viewing_message' => $viewingMessage,
             'was_just_marked_as_read' => $wasJustMarkedAsRead,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

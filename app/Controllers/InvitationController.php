@@ -38,13 +38,20 @@ class InvitationController extends Controller
 
         $this->loadPageTranslations('invitations');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/invitations/create.html.twig',
             'page' => ['titulo' => 'Convidar Condómino'],
             'condominium' => $condominium,
             'condominium_id' => $condominiumId,
             'fraction_id' => $fractionId,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -126,11 +133,18 @@ class InvitationController extends Controller
 
         $this->loadPageTranslations('invitations');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/invitations/accept.html.twig',
             'page' => ['titulo' => 'Aceitar Convite'],
             'token' => $token,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

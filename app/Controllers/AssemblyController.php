@@ -434,6 +434,11 @@ class AssemblyController extends Controller
 
         $this->loadPageTranslations('assemblies');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/assemblies/show.html.twig',
             'page' => ['titulo' => $assembly['title']],
@@ -452,6 +457,8 @@ class AssemblyController extends Controller
             'is_admin' => $isAdmin,
             'review_deadline' => $reviewDeadline,
             'review_sent_at' => $reviewSentAt,
+            'error' => $error,
+            'success' => $success,
             'revision_stats' => $revisionStats,
             'revisions' => $revisions,
             'my_fractions_for_revision' => $myFractionsForRevision,

@@ -79,6 +79,11 @@ class VoteController extends Controller
 
         $this->loadPageTranslations('votes');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/votes/create-topic.html.twig',
             'page' => ['titulo' => 'Criar Tópico de Votação'],
@@ -91,7 +96,9 @@ class VoteController extends Controller
             'return_to_show' => $returnToShow,
             'point_id' => $pointId,
             'point_title' => $pointTitle,
-            'back_url' => $backUrl
+            'back_url' => $backUrl,
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -430,6 +437,11 @@ class VoteController extends Controller
 
         $this->loadPageTranslations('votes');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/votes/results.html.twig',
             'page' => ['titulo' => 'Resultados da Votação'],
@@ -438,7 +450,9 @@ class VoteController extends Controller
             'topic' => $topic,
             'results' => $results,
             'votes' => $votes,
-            'condominium_id' => $condominiumId
+            'condominium_id' => $condominiumId,
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

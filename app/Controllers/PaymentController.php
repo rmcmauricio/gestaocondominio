@@ -478,6 +478,11 @@ class PaymentController extends Controller
 
         $this->loadPageTranslations('payments');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/payments/create.html.twig',
             'page' => ['titulo' => 'Efetuar Pagamento'],
@@ -503,7 +508,9 @@ class PaymentController extends Controller
             'payment_methods' => $paymentMethods,
             'show_launch_warning' => $showLaunchWarning,
             'csrf_token' => Security::generateCSRFToken(),
-            'user' => AuthMiddleware::user()
+            'user' => AuthMiddleware::user(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -844,6 +851,11 @@ class PaymentController extends Controller
 
         $this->loadPageTranslations('payments');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/payments/contact-email.html.twig',
             'page' => ['titulo' => 'Contactar para Subscrição'],
@@ -853,7 +865,9 @@ class PaymentController extends Controller
             'is_expired' => $isExpired,
             'backpayment_months' => $backpaymentMonths,
             'csrf_token' => Security::generateCSRFToken(),
-            'user' => AuthMiddleware::user()
+            'user' => AuthMiddleware::user(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -912,13 +926,20 @@ class PaymentController extends Controller
 
         $this->loadPageTranslations('payments');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/payments/index.html.twig',
             'page' => ['titulo' => 'Meus Pagamentos'],
             'payments' => $payments,
             'pending_invoices_for_extras' => $pendingInvoicesForExtras,
             'csrf_token' => Security::generateCSRFToken(),
-            'user' => AuthMiddleware::user()
+            'user' => AuthMiddleware::user(),
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
