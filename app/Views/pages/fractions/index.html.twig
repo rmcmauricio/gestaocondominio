@@ -162,12 +162,9 @@
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                     {% if not fraction.primary_owner %}
-                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/assign-self" class="d-inline">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="submit" class="btn btn-outline-info btn-sm" title="Atribuir a mim">
-                                            <i class="bi bi-person-check"></i>
-                                        </button>
-                                    </form>
+                                    <button type="button" class="btn btn-outline-info btn-sm" title="Atribuir a mim" data-bs-toggle="modal" data-bs-target="#assignSelfModal{{ fraction.id }}">
+                                        <i class="bi bi-person-check"></i>
+                                    </button>
                                     {% endif %}
                                     <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#inviteModal{{ fraction.id }}" title="Convidar Condómino">
                                         <i class="bi bi-person-plus"></i>
@@ -302,12 +299,9 @@
                         <i class="bi bi-pencil"></i> Editar
                     </a>
                     {% if not fraction.primary_owner %}
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/assign-self" class="d-inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button type="submit" class="btn btn-outline-info btn-sm">
-                            <i class="bi bi-person-check"></i> Atribuir
-                        </button>
-                    </form>
+                    <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#assignSelfModal{{ fraction.id }}">
+                        <i class="bi bi-person-check"></i> Atribuir
+                    </button>
                     {% endif %}
                     <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#inviteModal{{ fraction.id }}">
                         <i class="bi bi-person-plus"></i> Convidar
@@ -371,14 +365,57 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-envelope"></i> Enviar Convite
+                        <button type="submit" class="btn btn-primary" id="submitBtn{{ fraction.id }}">
+                            <i class="bi bi-envelope" id="icon{{ fraction.id }}"></i> <span id="btnText{{ fraction.id }}">Atribuir Fração</span>
                         </button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
+    {% endfor %}
+    
+    <!-- Modals for assigning fraction to self -->
+    {% for fraction in fractions %}
+        {% if not fraction.primary_owner %}
+        <!-- Assign Self Modal for Fraction {{ fraction.id }} -->
+        <div class="modal fade" id="assignSelfModal{{ fraction.id }}" tabindex="-1" aria-labelledby="assignSelfModalLabel{{ fraction.id }}" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="assignSelfModalLabel{{ fraction.id }}">Atribuir Fração</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/assign-self" id="assignSelfForm{{ fraction.id }}">
+                        <div class="modal-body">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> <strong>Confirmação</strong>
+                            </div>
+                            
+                            <p>Tem certeza que deseja atribuir a fração <strong>{{ fraction.identifier }}</strong> a si mesmo?</p>
+                            
+                            <div class="mb-3">
+                                <p class="mb-1"><strong>Administrador:</strong> {{ user.name }}</p>
+                                <p class="mb-0"><strong>Fração:</strong> {{ fraction.identifier }}</p>
+                            </div>
+                            
+                            <div class="alert alert-warning">
+                                <small><i class="bi bi-exclamation-triangle"></i> Esta ação irá associá-lo como <strong>proprietário</strong> desta fração.</small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-person-check"></i> Confirmar Atribuição
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     {% endfor %}
     
     <!-- Modals for adding email to pending invitations -->
@@ -465,6 +502,41 @@
             });
         }
         
+        // Function to update button text based on email input
+        let emailListenerAdded{{ fraction.id }} = false;
+        function updateButtonText{{ fraction.id }}() {
+            const emailInput = document.getElementById('email{{ fraction.id }}');
+            const btnText = document.getElementById('btnText{{ fraction.id }}');
+            const icon = document.getElementById('icon{{ fraction.id }}');
+            
+            if (emailInput && btnText && icon) {
+                // Add event listener only once
+                if (!emailListenerAdded{{ fraction.id }}) {
+                    emailInput.addEventListener('input', function() {
+                        const btnTextEl = document.getElementById('btnText{{ fraction.id }}');
+                        const iconEl = document.getElementById('icon{{ fraction.id }}');
+                        if (this.value.trim() !== '') {
+                            btnTextEl.textContent = 'Enviar Convite';
+                            iconEl.className = 'bi bi-envelope';
+                        } else {
+                            btnTextEl.textContent = 'Atribuir Fração';
+                            iconEl.className = 'bi bi-person-plus';
+                        }
+                    });
+                    emailListenerAdded{{ fraction.id }} = true;
+                }
+                
+                // Check initial state
+                if (emailInput.value.trim() === '') {
+                    btnText.textContent = 'Atribuir Fração';
+                    icon.className = 'bi bi-person-plus';
+                } else {
+                    btnText.textContent = 'Enviar Convite';
+                    icon.className = 'bi bi-envelope';
+                }
+            }
+        }
+        
         // Prevent modal from closing unexpectedly
         const modal{{ fraction.id }} = document.getElementById('inviteModal{{ fraction.id }}');
         if (modal{{ fraction.id }}) {
@@ -473,10 +545,10 @@
                 const form = document.getElementById('inviteForm{{ fraction.id }}');
                 if (form) {
                     form.reset();
+                    updateButtonText{{ fraction.id }}();
                     const submitBtn = form.querySelector('button[type="submit"]');
                     if (submitBtn) {
                         submitBtn.disabled = false;
-                        submitBtn.innerHTML = '<i class="bi bi-envelope"></i> Enviar Convite';
                     }
                 }
             });
@@ -489,6 +561,9 @@
                 }
             });
         }
+        
+        // Initialize button text on page load
+        updateButtonText{{ fraction.id }}();
         {% endfor %}
         
         // Handle add email modal form submissions
@@ -508,6 +583,23 @@
                 }
                 {% endif %}
             {% endfor %}
+        {% endfor %}
+        
+        // Handle assign self modal form submissions
+        {% for fraction in fractions %}
+            {% if not fraction.primary_owner %}
+            const assignSelfForm{{ fraction.id }} = document.getElementById('assignSelfForm{{ fraction.id }}');
+            if (assignSelfForm{{ fraction.id }}) {
+                assignSelfForm{{ fraction.id }}.addEventListener('submit', function(e) {
+                    // Prevent multiple submissions
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Atribuindo...';
+                    }
+                });
+            }
+            {% endif %}
         {% endfor %}
     });
 </script>
