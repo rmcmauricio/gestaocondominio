@@ -1555,13 +1555,14 @@ class FinancialTransactionController extends Controller
 
                 if ($isTransfer) {
                     // Create transfer: expense in origin, income in destination
+                    $transferDescription = $rowData['description'] ?? 'Movimento importado';
                     $fromTransactionId = $this->transactionModel->create([
                         'condominium_id' => $condominiumId,
                         'bank_account_id' => $rowData['bank_account_id'],
                         'transaction_type' => 'expense',
                         'amount' => $rowData['amount'],
                         'transaction_date' => $rowData['transaction_date'],
-                        'description' => 'Transferência: ' . $rowData['description'],
+                        'description' => 'Transferência: ' . $transferDescription,
                         'category' => $rowData['category'] ?? 'Transferência',
                         'reference' => $rowData['reference'] ?? null,
                         'related_type' => 'transfer',
@@ -1586,7 +1587,7 @@ class FinancialTransactionController extends Controller
                         'transaction_type' => 'income',
                         'amount' => $rowData['amount'],
                         'transaction_date' => $rowData['transaction_date'],
-                        'description' => 'Transferência recebida de ' . $fromAccountName . ': ' . $rowData['description'],
+                        'description' => 'Transferência recebida de ' . $fromAccountName . ': ' . $transferDescription,
                         'category' => $rowData['category'] ?? 'Transferência',
                         'reference' => $rowData['reference'] ?? null,
                         'related_type' => 'transfer',
@@ -1614,6 +1615,7 @@ class FinancialTransactionController extends Controller
                     // Reference for quota payment
                     $ref = 'REF' . $condominiumId . $quotaFractionId . date('YmdHis') . $index;
 
+                    $quotaDescription = $rowData['description'] ?? 'Movimento importado';
                     $transactionId = $this->transactionModel->create([
                         'condominium_id' => $condominiumId,
                         'bank_account_id' => $rowData['bank_account_id'],
@@ -1621,7 +1623,7 @@ class FinancialTransactionController extends Controller
                         'transaction_type' => 'income',
                         'amount' => $rowData['amount'],
                         'transaction_date' => $rowData['transaction_date'],
-                        'description' => $rowData['description'],
+                        'description' => $quotaDescription,
                         'category' => 'Quotas',
                         'income_entry_type' => 'quota',
                         'reference' => $ref,
@@ -1631,7 +1633,7 @@ class FinancialTransactionController extends Controller
                         'created_by' => $userId
                     ]);
 
-                    $movementId = $faModel->addCredit($accountId, $rowData['amount'], 'quota_payment', $transactionId, $rowData['description']);
+                    $movementId = $faModel->addCredit($accountId, $rowData['amount'], 'quota_payment', $transactionId, $quotaDescription);
 
                     // Liquidate quotas
                     $liquidationService = new LiquidationService();
@@ -1688,7 +1690,7 @@ class FinancialTransactionController extends Controller
                         'transaction_type' => $rowData['transaction_type'],
                         'amount' => $rowData['amount'],
                         'transaction_date' => $rowData['transaction_date'],
-                        'description' => $rowData['description'],
+                        'description' => $rowData['description'] ?? 'Movimento importado',
                         'category' => $rowData['category'] ?? null,
                         'reference' => $rowData['reference'] ?? null,
                         'related_type' => 'manual',

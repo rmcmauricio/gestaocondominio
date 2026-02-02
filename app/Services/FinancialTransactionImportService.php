@@ -85,9 +85,15 @@ class FinancialTransactionImportService
         switch ($extension) {
             case 'xlsx':
                 $reader = new Xlsx();
+                // Read only data values, not formulas - prevents calculation errors with structured references
+                $reader->setReadDataOnly(true);
+                $reader->setReadEmptyCells(false);
                 break;
             case 'xls':
                 $reader = new Xls();
+                // Read only data values, not formulas - prevents calculation errors with structured references
+                $reader->setReadDataOnly(true);
+                $reader->setReadEmptyCells(false);
                 break;
             case 'csv':
                 $reader = new Csv();
@@ -113,19 +119,67 @@ class FinancialTransactionImportService
                 throw new \Exception('Ficheiro não encontrado ou não acessível: ' . $filePath);
             }
             
-            $spreadsheet = $reader->load($filePath);
+            // Disable calculation completely before loading to prevent any formula evaluation
+            // This is critical for files with structured references (Excel tables)
+            if (class_exists('\PhpOffice\PhpSpreadsheet\Calculation\Calculation')) {
+                try {
+                    // Temporarily disable calculation engine globally
+                    $globalCalc = \PhpOffice\PhpSpreadsheet\Calculation\Calculation::getInstance();
+                    $globalCalc->setCalculationCacheEnabled(false);
+                    $globalCalc->disableCalculationCache();
+                } catch (\Exception $calcEx) {
+                    // Ignore if we can't disable calculation globally
+                }
+            }
+            
+            // Load spreadsheet - wrap in try-catch to catch calculation errors during load
+            try {
+                $spreadsheet = $reader->load($filePath);
+            } catch (\PhpOffice\PhpSpreadsheet\Calculation\Exception $loadCalcEx) {
+                $errorMsg = $loadCalcEx->getMessage();
+                if (strpos($errorMsg, 'Table for Structured Reference') !== false || 
+                    strpos($errorMsg, 'structured reference') !== false ||
+                    strpos($errorMsg, 'Structured Reference') !== false) {
+                    throw new \Exception('O ficheiro Excel contém fórmulas com referências a tabelas estruturadas que não podem ser processadas. Solução: 1) Abra o ficheiro no Excel, 2) Selecione as células com fórmulas, 3) Copie (Ctrl+C), 4) Clique com botão direito e escolha "Colar Especial" > "Valores", 5) Guarde o ficheiro e tente importar novamente. Alternativamente, exporte o ficheiro para CSV e importe o CSV.');
+                }
+                throw $loadCalcEx;
+            } catch (\Exception $loadEx) {
+                // Check if it's a calculation error even if not the specific exception type
+                $errorMsg = $loadEx->getMessage();
+                $errorClass = get_class($loadEx);
+                if (strpos($errorClass, 'Calculation') !== false || 
+                    strpos($errorMsg, 'Table for Structured Reference') !== false ||
+                    strpos($errorMsg, 'structured reference') !== false ||
+                    strpos($errorMsg, 'Structured Reference') !== false) {
+                    throw new \Exception('O ficheiro Excel contém fórmulas com referências a tabelas estruturadas que não podem ser processadas. Solução: 1) Abra o ficheiro no Excel, 2) Selecione as células com fórmulas, 3) Copie (Ctrl+C), 4) Clique com botão direito e escolha "Colar Especial" > "Valores", 5) Guarde o ficheiro e tente importar novamente. Alternativamente, exporte o ficheiro para CSV e importe o CSV.');
+                }
+                throw $loadEx;
+            }
+            
             $worksheet = $spreadsheet->getActiveSheet();
             
-            // Get highest row and column
-            $highestRow = $worksheet->getHighestRow();
-            $highestColumn = $worksheet->getHighestColumn();
+            // Ensure calculation is disabled for this spreadsheet instance
+            try {
+                $calculation = \PhpOffice\PhpSpreadsheet\Calculation\Calculation::getInstance($spreadsheet);
+                $calculation->setCalculationCacheEnabled(false);
+                $calculation->disableCalculationCache();
+            } catch (\Exception $calcEx) {
+                // Ignore if calculation instance cannot be accessed
+            }
+            
+            // Get highest row and column - use data-only approach to avoid formula evaluation
+            // Use iterateOnlyExistingCells to avoid triggering calculations
+            $highestRow = $worksheet->getHighestDataRow();
+            $highestColumn = $worksheet->getHighestDataColumn();
             
             if ($highestRow < 1) {
                 throw new \Exception('Ficheiro vazio ou sem dados');
             }
             
-            // Get data as array with numeric indices (null = calculate, true = formatted values, true = return as array, false = numeric indices)
-            $data = $worksheet->toArray(null, true, true, false);
+            // Get data as array - read only calculated values, don't evaluate formulas
+            // false = don't calculate formulas (prevents errors with structured references)
+            // true = formatted values, true = return as array, false = numeric indices
+            $data = $worksheet->toArray(false, true, true, false);
             
             // Clean empty rows
             $data = array_filter($data, function($row) {
@@ -167,8 +221,28 @@ class FinancialTransactionImportService
             ];
         } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
             throw new \Exception('Erro ao ler ficheiro Excel/CSV: ' . $e->getMessage());
+        } catch (\PhpOffice\PhpSpreadsheet\Calculation\Exception $e) {
+            // Handle calculation errors (e.g., structured references in Excel tables)
+            $errorMsg = $e->getMessage();
+            if (strpos($errorMsg, 'Table for Structured Reference') !== false || 
+                strpos($errorMsg, 'structured reference') !== false ||
+                strpos($errorMsg, 'Structured Reference') !== false) {
+                throw new \Exception('O ficheiro Excel contém fórmulas com referências a tabelas estruturadas que não podem ser processadas. Por favor, converta as fórmulas para valores (copiar e colar como valores) ou remova as referências a tabelas antes de importar.');
+            }
+            throw new \Exception('Erro ao calcular fórmulas no ficheiro Excel: ' . $errorMsg);
         } catch (\Exception $e) {
-            throw new \Exception('Erro ao processar ficheiro: ' . $e->getMessage() . ' (Tipo: ' . get_class($e) . ')');
+            // Check if it's a calculation-related error even if not caught above
+            $errorMsg = $e->getMessage();
+            $errorClass = get_class($e);
+            
+            if (strpos($errorClass, 'Calculation') !== false || 
+                strpos($errorMsg, 'Table for Structured Reference') !== false ||
+                strpos($errorMsg, 'structured reference') !== false ||
+                strpos($errorMsg, 'Structured Reference') !== false) {
+                throw new \Exception('O ficheiro Excel contém fórmulas com referências a tabelas estruturadas que não podem ser processadas. Por favor, converta as fórmulas para valores (copiar e colar como valores) ou remova as referências a tabelas antes de importar.');
+            }
+            
+            throw new \Exception('Erro ao processar ficheiro: ' . $errorMsg . ' (Tipo: ' . $errorClass . ')');
         }
     }
 
@@ -744,8 +818,9 @@ class FinancialTransactionImportService
             $errors[] = 'Valor é obrigatório e deve ser maior que zero';
         }
 
+        // Description is optional - if empty, set a default value
         if (empty($rowData['description'])) {
-            $errors[] = 'Descrição é obrigatória';
+            $rowData['description'] = 'Movimento importado';
         }
 
         // Bank account is now set before validation, just verify it exists

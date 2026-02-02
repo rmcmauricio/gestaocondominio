@@ -85,8 +85,8 @@
                 <div class="card-body">
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle"></i> Mapeie cada coluna do ficheiro para o campo correspondente do sistema.
-                        <strong>Campos obrigatórios:</strong> Data, Valor (ou Crédito/Débito), Descrição
-                        <br><strong>Nota:</strong> A conta bancária já foi selecionada anteriormente e será aplicada a todos os movimentos.
+                        <strong>Campos obrigatórios:</strong> Data, Valor (ou Crédito/Débito)
+                        <br><strong>Nota:</strong> A conta bancária já foi selecionada anteriormente e será aplicada a todos os movimentos. Se a descrição não for mapeada, será usado "Movimento importado" como descrição padrão.
                     </div>
 
                     <div id="selectedAccountInfo" class="alert alert-success mb-3" style="display: none;">
@@ -118,6 +118,24 @@
     </div>
 </div>
 
+<!-- Modal para Alertas -->
+<div class="modal fade" id="alertModal" tabindex="-1" aria-labelledby="alertModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" id="alertModalHeader">
+                <h5 class="modal-title" id="alertModalLabel">Aviso</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="alertModalBody">
+                <!-- Conteúdo será inserido aqui -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 console.log('Import script loaded');
 let fileData = null;
@@ -126,6 +144,60 @@ let fileInput = null;
 // Store Twig variables in JavaScript-safe format
 const IMPORT_BASE_URL = {{ BASE_URL|json_encode|raw }};
 const IMPORT_CONDOMINIUM_ID = {{ condominium.id|default(0) }};
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Function to show alert in modal
+function showAlertModal(title, message, type = 'warning') {
+    const modalElement = document.getElementById('alertModal');
+    const modalLabel = document.getElementById('alertModalLabel');
+    const modalBody = document.getElementById('alertModalBody');
+    const modalHeader = document.getElementById('alertModalHeader');
+    
+    if (!modalElement || !modalLabel || !modalBody || !modalHeader) {
+        // Fallback to regular alert if modal elements not found
+        alert(title + ': ' + message);
+        return;
+    }
+    
+    // Set title and message
+    modalLabel.textContent = title;
+    modalBody.innerHTML = '<p class="mb-0">' + escapeHtml(message) + '</p>';
+    
+    // Set header color based on type
+    modalHeader.className = 'modal-header';
+    if (type === 'error' || type === 'danger') {
+        modalHeader.classList.add('bg-danger', 'text-white');
+    } else if (type === 'success') {
+        modalHeader.classList.add('bg-success', 'text-white');
+    } else if (type === 'info') {
+        modalHeader.classList.add('bg-info', 'text-white');
+    } else {
+        modalHeader.classList.add('bg-warning', 'text-dark');
+    }
+    
+    // Show modal using Bootstrap
+    let bsModal;
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        bsModal = new bootstrap.Modal(modalElement);
+        bsModal.show();
+    } else {
+        // Fallback: show modal manually
+        modalElement.classList.add('show');
+        modalElement.style.display = 'block';
+        modalElement.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        backdrop.id = 'alertModalBackdrop';
+        document.body.appendChild(backdrop);
+    }
+}
 
 // Wait for DOM to be ready
 function initImportForm() {
@@ -167,7 +239,7 @@ async function handleFormSubmit(e) {
     const fileInputElement = document.getElementById('file');
 
     if (!fileInputElement || !fileInputElement.files[0]) {
-        alert('Por favor, selecione um ficheiro');
+        showAlertModal('Atenção', 'Por favor, selecione um ficheiro', 'warning');
         return false;
     }
 
@@ -218,14 +290,14 @@ async function handleFormSubmit(e) {
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="bi bi-upload"></i> Carregar e Analisar';
         } else {
-            alert('Erro: ' + (result.error || 'Erro desconhecido'));
+            showAlertModal('Erro ao Processar Ficheiro', result.error || 'Erro desconhecido', 'error');
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="bi bi-upload"></i> Carregar e Analisar';
         }
         return false;
     } catch (error) {
         console.error('Error processing file:', error);
-        alert('Erro ao processar ficheiro: ' + error.message);
+        showAlertModal('Erro ao Processar Ficheiro', error.message, 'error');
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<i class="bi bi-upload"></i> Carregar e Analisar';
         return false;
@@ -236,7 +308,7 @@ function showMappingSection(data) {
     // Validate data structure
     if (!data || !data.headers || !Array.isArray(data.headers)) {
         console.error('Invalid data structure:', data);
-        alert('Erro: Dados do ficheiro inválidos. Por favor, tente novamente.');
+        showAlertModal('Erro', 'Dados do ficheiro inválidos. Por favor, tente novamente.', 'error');
         return;
     }
 
@@ -245,7 +317,7 @@ function showMappingSection(data) {
 
     if (!mappingSection || !mappingTable) {
         console.error('Mapping section elements not found');
-        alert('Erro: Elementos da página não encontrados.');
+        showAlertModal('Erro', 'Elementos da página não encontrados.', 'error');
         return;
     }
 
@@ -283,7 +355,7 @@ function showMappingSection(data) {
             { key: 'amount_credit', label: 'Crédito/Entrada', required: true, description: '(obrigatório)' },
             { key: 'amount_debit', label: 'Débito/Saída', required: true, description: '(obrigatório)' }
         ] : []),
-        { key: 'description', label: 'Descrição', required: true, description: '(obrigatório)' },
+        { key: 'description', label: 'Descrição', required: false, description: '(opcional)' },
         { key: 'category', label: 'Categoria', required: false, description: '(opcional)' },
         { key: 'reference', label: 'Referência', required: false, description: '(opcional)' },
         { key: 'is_transfer', label: 'É Transferência?', required: false, description: '(opcional)' }
@@ -524,7 +596,7 @@ function validateMapping() {
     const errors = [];
 
     if (!hasDate) errors.push('Data é obrigatória');
-    if (!hasDescription) errors.push('Descrição é obrigatória');
+    // Description is optional - no validation needed
 
     if (isSeparateMode) {
         // Separate columns mode - require both credit and debit
@@ -555,11 +627,5 @@ function resetMapping() {
     document.getElementById('mappingSection').style.display = 'none';
     document.getElementById('uploadForm').reset();
     fileData = null;
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
 }
 </script>
