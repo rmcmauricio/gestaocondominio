@@ -100,21 +100,45 @@
                                                     <div class="flex-grow-1">
                                                         <strong>{{ invitation.name }}</strong>
                                                         <span class="badge bg-warning ms-1" style="font-size: 0.65rem;">Pendente</span>
+                                                        {% if not invitation.email %}
+                                                            <span class="badge bg-secondary ms-1" style="font-size: 0.65rem;">Sem email</span>
+                                                        {% endif %}
                                                         <br>
-                                                        <small class="text-muted">{{ invitation.email }}</small>
-                                                        <br>
-                                                        <small class="text-muted">
-                                                            <i class="bi bi-clock"></i> Convite enviado em {{ invitation.created_at|date('d/m/Y H:i') }}
-                                                        </small>
+                                                        {% if invitation.email %}
+                                                            <small class="text-muted">{{ invitation.email }}</small>
+                                                            <br>
+                                                            <small class="text-muted">
+                                                                <i class="bi bi-clock"></i> Convite enviado em {{ invitation.created_at|date('d/m/Y H:i') }}
+                                                            </small>
+                                                        {% else %}
+                                                            <small class="text-muted">
+                                                                <i class="bi bi-info-circle"></i> Adicione um email para enviar o convite
+                                                            </small>
+                                                        {% endif %}
                                                     </div>
                                                     {% if is_admin %}
-                                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ invitation.id }}/revoke" class="d-inline ms-2">
-                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                            <input type="hidden" name="fraction_id" value="{{ fraction.id }}">
-                                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Revogar convite" onclick="return confirm('Tem certeza que deseja revogar o convite para {{ invitation.name }}?');">
-                                                                <i class="bi bi-x-circle"></i>
-                                                            </button>
-                                                        </form>
+                                                        <div class="d-flex gap-1 ms-2">
+                                                            {% if not invitation.email %}
+                                                                <button type="button" class="btn btn-sm btn-outline-primary" title="Adicionar email e enviar convite" data-bs-toggle="modal" data-bs-target="#addEmailModal{{ invitation.id }}">
+                                                                    <i class="bi bi-envelope-plus"></i>
+                                                                </button>
+                                                            {% else %}
+                                                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ invitation.id }}/resend" class="d-inline">
+                                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                                    <input type="hidden" name="fraction_id" value="{{ fraction.id }}">
+                                                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Reenviar convite" onclick="return confirm('Tem certeza que deseja reenviar o convite para {{ invitation.name }}?');">
+                                                                        <i class="bi bi-arrow-repeat"></i>
+                                                                    </button>
+                                                                </form>
+                                                            {% endif %}
+                                                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ invitation.id }}/revoke" class="d-inline">
+                                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                                <input type="hidden" name="fraction_id" value="{{ fraction.id }}">
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Revogar convite" onclick="return confirm('Tem certeza que deseja revogar o convite para {{ invitation.name }}?');">
+                                                                    <i class="bi bi-x-circle"></i>
+                                                                </button>
+                                                            </form>
+                                                        </div>
                                                     {% endif %}
                                                 </div>
                                             </div>
@@ -224,18 +248,40 @@
                             <div class="d-flex align-items-center gap-1 flex-wrap">
                                 <strong class="small">{{ invitation.name }}</strong>
                                 <span class="badge bg-warning" style="font-size: 0.6rem;">Pendente</span>
+                                {% if not invitation.email %}
+                                    <span class="badge bg-secondary" style="font-size: 0.6rem;">Sem email</span>
+                                {% endif %}
                             </div>
-                            <small class="text-muted d-block">{{ invitation.email }}</small>
-                            <small class="text-muted d-block"><i class="bi bi-clock"></i> {{ invitation.created_at|date('d/m/Y H:i') }}</small>
+                            {% if invitation.email %}
+                                <small class="text-muted d-block">{{ invitation.email }}</small>
+                                <small class="text-muted d-block"><i class="bi bi-clock"></i> {{ invitation.created_at|date('d/m/Y H:i') }}</small>
+                            {% else %}
+                                <small class="text-muted d-block"><i class="bi bi-info-circle"></i> Adicione um email para enviar o convite</small>
+                            {% endif %}
                         </div>
                         {% if is_admin %}
-                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ invitation.id }}/revoke" class="d-inline ms-2">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <input type="hidden" name="fraction_id" value="{{ fraction.id }}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Revogar" onclick="return confirm('Revogar convite para {{ invitation.name }}?');">
-                                <i class="bi bi-x-circle"></i>
-                            </button>
-                        </form>
+                        <div class="d-flex gap-1 ms-2">
+                            {% if not invitation.email %}
+                                <button type="button" class="btn btn-sm btn-outline-primary" title="Adicionar email" data-bs-toggle="modal" data-bs-target="#addEmailModal{{ invitation.id }}">
+                                    <i class="bi bi-envelope-plus"></i>
+                                </button>
+                            {% else %}
+                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ invitation.id }}/resend" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="fraction_id" value="{{ fraction.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Reenviar" onclick="return confirm('Reenviar convite para {{ invitation.name }}?');">
+                                        <i class="bi bi-arrow-repeat"></i>
+                                    </button>
+                                </form>
+                            {% endif %}
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ invitation.id }}/revoke" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="fraction_id" value="{{ fraction.id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Revogar" onclick="return confirm('Revogar convite para {{ invitation.name }}?');">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            </form>
+                        </div>
                         {% endif %}
                     </div>
                     {% endfor %}
@@ -305,8 +351,9 @@
                         </div>
                         
                         <div class="mb-3">
-                            <label for="email{{ fraction.id }}" class="form-label">Email <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" id="email{{ fraction.id }}" name="email" required placeholder="email@exemplo.com">
+                            <label for="email{{ fraction.id }}" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email{{ fraction.id }}" name="email" placeholder="email@exemplo.com (opcional)">
+                            <small class="form-text text-muted">Deixe em branco para adicionar apenas o nome. Pode adicionar o email posteriormente.</small>
                         </div>
                         
                         <div class="mb-3">
@@ -319,7 +366,7 @@
                         </div>
                         
                         <div class="alert alert-info">
-                            <small><i class="bi bi-info-circle"></i> Um email será enviado com um link para criar a conta e aceitar o convite.</small>
+                            <small><i class="bi bi-info-circle"></i> Se fornecer um email, um convite será enviado automaticamente. Caso contrário, pode adicionar o email posteriormente.</small>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -332,6 +379,51 @@
             </div>
         </div>
     </div>
+    {% endfor %}
+    
+    <!-- Modals for adding email to pending invitations -->
+    {% for fraction in fractions %}
+        {% for invitation in fraction.pending_invitations %}
+            {% if not invitation.email %}
+            <!-- Add Email Modal for Invitation {{ invitation.id }} -->
+            <div class="modal fade" id="addEmailModal{{ invitation.id }}" tabindex="-1" aria-labelledby="addEmailModalLabel{{ invitation.id }}" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="addEmailModalLabel{{ invitation.id }}">Adicionar Email e Enviar Convite</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ invitation.id }}/update-email-and-send" id="addEmailForm{{ invitation.id }}">
+                            <div class="modal-body">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="fraction_id" value="{{ fraction.id }}">
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Nome</label>
+                                    <input type="text" class="form-control" value="{{ invitation.name }}" readonly>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="email_invitation{{ invitation.id }}" class="form-label">Email <span class="text-danger">*</span></label>
+                                    <input type="email" class="form-control" id="email_invitation{{ invitation.id }}" name="email" required placeholder="email@exemplo.com">
+                                </div>
+                                
+                                <div class="alert alert-info">
+                                    <small><i class="bi bi-info-circle"></i> Um email será enviado com um link para criar a conta e aceitar o convite.</small>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-envelope"></i> Adicionar Email e Enviar Convite
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
     {% endfor %}
     
     {% else %}
@@ -357,47 +449,66 @@
 </div>
 
 <script>
-// Prevent modal form submission issues
-document.addEventListener('DOMContentLoaded', function() {
-    // Handle modal form submissions
-    {% for fraction in fractions %}
-    const form{{ fraction.id }} = document.getElementById('inviteForm{{ fraction.id }}');
-    if (form{{ fraction.id }}) {
-        form{{ fraction.id }}.addEventListener('submit', function(e) {
-            // Prevent multiple submissions
-            const submitBtn = this.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enviando...';
-            }
-        });
-    }
-    
-    // Prevent modal from closing unexpectedly
-    const modal{{ fraction.id }} = document.getElementById('inviteModal{{ fraction.id }}');
-    if (modal{{ fraction.id }}) {
-        modal{{ fraction.id }}.addEventListener('show.bs.modal', function() {
-            // Reset form when modal opens
-            const form = document.getElementById('inviteForm{{ fraction.id }}');
-            if (form) {
-                form.reset();
-                const submitBtn = form.querySelector('button[type="submit"]');
+    // Prevent modal form submission issues
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle modal form submissions
+        {% for fraction in fractions %}
+        const form{{ fraction.id }} = document.getElementById('inviteForm{{ fraction.id }}');
+        if (form{{ fraction.id }}) {
+            form{{ fraction.id }}.addEventListener('submit', function(e) {
+                // Prevent multiple submissions
+                const submitBtn = this.querySelector('button[type="submit"]');
                 if (submitBtn) {
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = '<i class="bi bi-envelope"></i> Enviar Convite';
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enviando...';
                 }
-            }
-        });
+            });
+        }
         
-        // Prevent modal from closing on backdrop click if form has errors
-        modal{{ fraction.id }}.addEventListener('hide.bs.modal', function(e) {
-            const form = document.getElementById('inviteForm{{ fraction.id }}');
-            if (form && form.querySelector('.is-invalid')) {
-                e.preventDefault();
-            }
-        });
-    }
-    {% endfor %}
-});
+        // Prevent modal from closing unexpectedly
+        const modal{{ fraction.id }} = document.getElementById('inviteModal{{ fraction.id }}');
+        if (modal{{ fraction.id }}) {
+            modal{{ fraction.id }}.addEventListener('show.bs.modal', function() {
+                // Reset form when modal opens
+                const form = document.getElementById('inviteForm{{ fraction.id }}');
+                if (form) {
+                    form.reset();
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="bi bi-envelope"></i> Enviar Convite';
+                    }
+                }
+            });
+            
+            // Prevent modal from closing on backdrop click if form has errors
+            modal{{ fraction.id }}.addEventListener('hide.bs.modal', function(e) {
+                const form = document.getElementById('inviteForm{{ fraction.id }}');
+                if (form && form.querySelector('.is-invalid')) {
+                    e.preventDefault();
+                }
+            });
+        }
+        {% endfor %}
+        
+        // Handle add email modal form submissions
+        {% for fraction in fractions %}
+            {% for invitation in fraction.pending_invitations %}
+                {% if not invitation.email %}
+                const addEmailForm{{ invitation.id }} = document.getElementById('addEmailForm{{ invitation.id }}');
+                if (addEmailForm{{ invitation.id }}) {
+                    addEmailForm{{ invitation.id }}.addEventListener('submit', function(e) {
+                        // Prevent multiple submissions
+                        const submitBtn = this.querySelector('button[type="submit"]');
+                        if (submitBtn) {
+                            submitBtn.disabled = true;
+                            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enviando...';
+                        }
+                    });
+                }
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+    });
 </script>
 

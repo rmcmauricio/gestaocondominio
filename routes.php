@@ -133,6 +133,8 @@ $router->post('/condominiums/{condominium_id}/fractions/{id}/remove-owner', 'App
 $router->get('/condominiums/{condominium_id}/invitations/create', 'App\Controllers\InvitationController@create');
 $router->post('/condominiums/{condominium_id}/invitations', 'App\Controllers\InvitationController@store');
 $router->post('/condominiums/{condominium_id}/invitations/{invitation_id}/revoke', 'App\Controllers\InvitationController@revoke');
+$router->post('/condominiums/{condominium_id}/invitations/{invitation_id}/update-email-and-send', 'App\Controllers\InvitationController@updateEmailAndSend');
+$router->post('/condominiums/{condominium_id}/invitations/{invitation_id}/resend', 'App\Controllers\InvitationController@resend');
 $router->get('/invitation/accept', 'App\Controllers\InvitationController@accept');
 $router->post('/invitation/accept', 'App\Controllers\InvitationController@processAccept');
 

@@ -62,7 +62,7 @@ class FractionController extends Controller
                 WHERE fraction_id = :fraction_id
                 AND condominium_id = :condominium_id
                 AND accepted_at IS NULL
-                AND expires_at > NOW()
+                AND (expires_at IS NULL OR expires_at > NOW())
                 ORDER BY created_at DESC
             ");
             $stmt->execute([

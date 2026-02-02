@@ -21,34 +21,36 @@ class InvitationService
     }
 
     /**
-     * Send invitation to condomino
+     * Create invitation (with or without email)
      */
-    public function sendInvitation(int $condominiumId, ?int $fractionId, string $email, string $name, string $role = 'condomino'): bool
+    public function createInvitation(int $condominiumId, ?int $fractionId, ?string $email, string $name, string $role = 'condomino'): ?int
     {
         global $db;
         
         if (!$db) {
-            error_log("InvitationService::sendInvitation - Database connection not available");
-            return false;
+            error_log("InvitationService::createInvitation - Database connection not available");
+            return null;
         }
 
-        // Check if user already exists
-        try {
-            $user = $this->userModel->findByEmail($email);
-            
-            if ($user) {
-                // User exists, just associate with fraction
-                $result = $this->associateExistingUser($condominiumId, $fractionId, $user['id'], $role);
-                return $result;
+        // If email is provided, check if user already exists
+        if (!empty($email)) {
+            try {
+                $user = $this->userModel->findByEmail($email);
+                
+                if ($user) {
+                    // User exists, just associate with fraction (no invitation needed)
+                    $result = $this->associateExistingUser($condominiumId, $fractionId, $user['id'], $role);
+                    return $result ? -1 : null; // Return -1 to indicate user was associated directly
+                }
+            } catch (\Exception $e) {
+                error_log("InvitationService::createInvitation - Error checking user existence: " . $e->getMessage());
+                return null;
             }
-        } catch (\Exception $e) {
-            error_log("InvitationService::sendInvitation - Error checking user existence: " . $e->getMessage());
-            return false;
         }
 
-        // Generate invitation token
-        $token = Security::generateToken(32);
-        $expiresAt = date('Y-m-d H:i:s', strtotime('+7 days'));
+        // Generate invitation token (only if email is provided, otherwise null)
+        $token = !empty($email) ? Security::generateToken(32) : null;
+        $expiresAt = !empty($email) ? date('Y-m-d H:i:s', strtotime('+7 days')) : null;
 
         // Store invitation
         $stmt = $db->prepare("
@@ -66,7 +68,7 @@ class InvitationService
             $stmt->execute([
                 ':condominium_id' => $condominiumId,
                 ':fraction_id' => $fractionId ?? null,
-                ':email' => $email,
+                ':email' => !empty($email) ? $email : null,
                 ':name' => $name,
                 ':role' => $role,
                 ':token' => $token,
@@ -74,44 +76,258 @@ class InvitationService
                 ':created_by' => $userId
             ]);
 
-            // Send invitation email
-            $invitationLink = BASE_URL . 'invitation/accept?token=' . $token;
-            
-            $subject = 'Convite para Condomínio';
-            $html = "
-                <h2>Convite para Condomínio</h2>
-                <p>Olá {$name},</p>
-                <p>Foi convidado para fazer parte de um condomínio.</p>
-                <p>Clique no link abaixo para criar a sua conta e aceitar o convite:</p>
-                <p><a href='{$invitationLink}'>Aceitar Convite</a></p>
-                <p>Este link expira em 7 dias.</p>
-            ";
-            $text = "Convite para Condomínio\n\nOlá {$name},\n\nFoi convidado para fazer parte de um condomínio.\n\nClique no link abaixo para criar a sua conta e aceitar o convite:\n{$invitationLink}\n\nEste link expira em 7 dias.";
+            $invitationId = $db->lastInsertId();
 
-            // Try to send email
-            $emailSent = $this->emailService->sendEmail($email, $subject, $html, $text);
-            
-            // Get environment to check if we're in development
-            $appEnv = defined('APP_ENV') ? APP_ENV : ($_ENV['APP_ENV'] ?? 'development');
-            $isDevelopment = (strtolower($appEnv) === 'development');
-            
-            if (!$emailSent) {
-                // In development mode, if email fails (e.g., DEV_EMAIL not set), 
-                // still return true because invitation is saved and valid
-                if ($isDevelopment) {
-                    return true; // Invitation is saved, so it's successful even if email failed
-                }
-                
-                // In production, email failure is more critical
-                error_log("Invitation warning: Failed to send email to {$email}, but invitation was saved with token: {$token}");
-                return false;
+            // If email is provided, send invitation email
+            if (!empty($email) && !empty($token)) {
+                $this->sendInvitationEmail($email, $name, $token);
             }
-            
-            return true;
+
+            return (int)$invitationId;
         } catch (\Exception $e) {
             error_log("Invitation error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Send invitation to condomino (legacy method - now calls createInvitation)
+     */
+    public function sendInvitation(int $condominiumId, ?int $fractionId, string $email, string $name, string $role = 'condomino'): bool
+    {
+        $result = $this->createInvitation($condominiumId, $fractionId, $email, $name, $role);
+        return $result !== null;
+    }
+
+    /**
+     * Send invitation email
+     */
+    protected function sendInvitationEmail(string $email, string $name, string $token): bool
+    {
+        $invitationLink = BASE_URL . 'invitation/accept?token=' . $token;
+        
+        $subject = 'Convite para Condomínio';
+        $html = "
+            <h2>Convite para Condomínio</h2>
+            <p>Olá {$name},</p>
+            <p>Foi convidado para fazer parte de um condomínio.</p>
+            <p>Clique no link abaixo para criar a sua conta e aceitar o convite:</p>
+            <p><a href='{$invitationLink}'>Aceitar Convite</a></p>
+            <p>Este link expira em 7 dias.</p>
+        ";
+        $text = "Convite para Condomínio\n\nOlá {$name},\n\nFoi convidado para fazer parte de um condomínio.\n\nClique no link abaixo para criar a sua conta e aceitar o convite:\n{$invitationLink}\n\nEste link expira em 7 dias.";
+
+        // Try to send email
+        $emailSent = $this->emailService->sendEmail($email, $subject, $html, $text);
+        
+        // Get environment to check if we're in development
+        $appEnv = defined('APP_ENV') ? APP_ENV : ($_ENV['APP_ENV'] ?? 'development');
+        $isDevelopment = (strtolower($appEnv) === 'development');
+        
+        if (!$emailSent) {
+            // In development mode, if email fails (e.g., DEV_EMAIL not set), 
+            // still return true because invitation is saved and valid
+            if ($isDevelopment) {
+                return true; // Invitation is saved, so it's successful even if email failed
+            }
+            
+            // In production, email failure is more critical
+            error_log("Invitation warning: Failed to send email to {$email}, but invitation was saved with token: {$token}");
             return false;
         }
+        
+        return true;
+    }
+
+    /**
+     * Update invitation email and send invitation
+     */
+    public function updateInvitationEmailAndSend(int $invitationId, int $condominiumId, string $email): bool
+    {
+        global $db;
+        
+        if (!$db) {
+            error_log("InvitationService::updateInvitationEmailAndSend - Database connection not available");
+            return false;
+        }
+
+        // Validate email format
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+
+        // Check if user already exists with this email
+        try {
+            $user = $this->userModel->findByEmail($email);
+            
+            if ($user) {
+                // User exists, get invitation details and associate
+                $stmt = $db->prepare("
+                    SELECT fraction_id, name, role FROM invitations 
+                    WHERE id = :invitation_id 
+                    AND condominium_id = :condominium_id
+                    AND accepted_at IS NULL
+                    LIMIT 1
+                ");
+                $stmt->execute([
+                    ':invitation_id' => $invitationId,
+                    ':condominium_id' => $condominiumId
+                ]);
+                $invitation = $stmt->fetch();
+                
+                if ($invitation) {
+                    // Associate user and mark invitation as accepted
+                    $result = $this->associateExistingUser(
+                        $condominiumId, 
+                        $invitation['fraction_id'], 
+                        $user['id'], 
+                        $invitation['role']
+                    );
+                    if ($result) {
+                        $this->markInvitationAsAcceptedById($invitationId);
+                        return true;
+                    }
+                }
+                return false;
+            }
+        } catch (\Exception $e) {
+            error_log("InvitationService::updateInvitationEmailAndSend - Error checking user existence: " . $e->getMessage());
+            return false;
+        }
+
+        // Get invitation details
+        $stmt = $db->prepare("
+            SELECT name, role, token FROM invitations 
+            WHERE id = :invitation_id 
+            AND condominium_id = :condominium_id
+            AND accepted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':invitation_id' => $invitationId,
+            ':condominium_id' => $condominiumId
+        ]);
+        $invitation = $stmt->fetch();
+
+        if (!$invitation) {
+            return false;
+        }
+
+        // Generate new token if invitation doesn't have one or expired
+        $token = $invitation['token'];
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+7 days'));
+        
+        if (empty($token)) {
+            $token = Security::generateToken(32);
+        }
+
+        // Update invitation with email and token
+        $updateStmt = $db->prepare("
+            UPDATE invitations 
+            SET email = :email, 
+                token = :token, 
+                expires_at = :expires_at
+            WHERE id = :invitation_id
+            AND condominium_id = :condominium_id
+        ");
+        
+        try {
+            $updateStmt->execute([
+                ':email' => $email,
+                ':token' => $token,
+                ':expires_at' => $expiresAt,
+                ':invitation_id' => $invitationId,
+                ':condominium_id' => $condominiumId
+            ]);
+
+            // Send invitation email
+            return $this->sendInvitationEmail($email, $invitation['name'], $token);
+        } catch (\Exception $e) {
+            error_log("Invitation update error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Resend invitation email
+     */
+    public function resendInvitation(int $invitationId, int $condominiumId): bool
+    {
+        global $db;
+        
+        if (!$db) {
+            error_log("InvitationService::resendInvitation - Database connection not available");
+            return false;
+        }
+
+        // Get invitation details
+        $stmt = $db->prepare("
+            SELECT email, name, token FROM invitations 
+            WHERE id = :invitation_id 
+            AND condominium_id = :condominium_id
+            AND accepted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':invitation_id' => $invitationId,
+            ':condominium_id' => $condominiumId
+        ]);
+        $invitation = $stmt->fetch();
+
+        if (!$invitation) {
+            return false;
+        }
+
+        // Check if invitation has email
+        if (empty($invitation['email'])) {
+            return false; // Cannot resend without email
+        }
+
+        // Generate new token and extend expiration
+        $token = Security::generateToken(32);
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+7 days'));
+
+        // Update token and expiration
+        $updateStmt = $db->prepare("
+            UPDATE invitations 
+            SET token = :token, 
+                expires_at = :expires_at
+            WHERE id = :invitation_id
+        ");
+        
+        try {
+            $updateStmt->execute([
+                ':token' => $token,
+                ':expires_at' => $expiresAt,
+                ':invitation_id' => $invitationId
+            ]);
+
+            // Send invitation email
+            return $this->sendInvitationEmail($invitation['email'], $invitation['name'], $token);
+        } catch (\Exception $e) {
+            error_log("Invitation resend error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Mark invitation as accepted by ID
+     */
+    protected function markInvitationAsAcceptedById(int $invitationId): bool
+    {
+        global $db;
+        
+        if (!$db) {
+            return false;
+        }
+
+        $stmt = $db->prepare("
+            UPDATE invitations 
+            SET accepted_at = NOW() 
+            WHERE id = :invitation_id
+        ");
+
+        return $stmt->execute([':invitation_id' => $invitationId]);
     }
 
     /**
@@ -139,6 +355,11 @@ class InvitationService
 
         if (!$invitation) {
             return null;
+        }
+
+        // Check if invitation has email
+        if (empty($invitation['email'])) {
+            return null; // Cannot accept invitation without email
         }
 
         // Check if user already exists
@@ -308,7 +529,7 @@ class InvitationService
             SELECT * FROM invitations 
             WHERE condominium_id = :condominium_id 
             AND accepted_at IS NULL 
-            AND expires_at > NOW()
+            AND (expires_at IS NULL OR expires_at > NOW())
             ORDER BY created_at DESC
         ");
 

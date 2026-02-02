@@ -80,36 +80,44 @@ class InvitationController extends Controller
         $fractionId = !empty($_POST['fraction_id']) && $_POST['fraction_id'] !== '' ? (int)$_POST['fraction_id'] : null;
         $role = Security::sanitize($_POST['role'] ?? 'condomino');
 
-        if (empty($email) || empty($name)) {
-            $_SESSION['error'] = 'Por favor, preencha todos os campos obrigatórios.';
+        if (empty($name)) {
+            $_SESSION['error'] = 'Por favor, preencha o nome.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/invitations/create');
             exit;
         }
 
-        // Validate email format
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        // Validate email format if provided
+        if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $_SESSION['error'] = 'Por favor, insira um email válido.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/invitations/create');
             exit;
         }
 
         try {
-            if ($this->invitationService->sendInvitation($condominiumId, $fractionId, $email, $name, $role)) {
-                $_SESSION['success'] = 'Convite enviado com sucesso!';
+            $result = $this->invitationService->createInvitation($condominiumId, $fractionId, !empty($email) ? $email : null, $name, $role);
+            
+            if ($result !== null) {
+                if ($result === -1) {
+                    $_SESSION['success'] = 'Condómino associado com sucesso! (utilizador já existia)';
+                } elseif (!empty($email)) {
+                    $_SESSION['success'] = 'Convite enviado com sucesso!';
+                } else {
+                    $_SESSION['success'] = 'Condómino adicionado sem email. Pode adicionar o email posteriormente para enviar o convite.';
+                }
                 
                 // Log audit: invitation sent is an important administrative action
                 $this->auditService->log([
                     'action' => 'invitation_sent',
                     'model' => 'invitation',
-                    'model_id' => null,
-                    'description' => "Convite enviado para {$name} ({$email}) no condomínio ID {$condominiumId}" . ($fractionId ? " - Fração ID {$fractionId}" : "") . " - Papel: {$role}"
+                    'model_id' => $result === -1 ? null : $result,
+                    'description' => "Convite criado para {$name}" . (!empty($email) ? " ({$email})" : " (sem email)") . " no condomínio ID {$condominiumId}" . ($fractionId ? " - Fração ID {$fractionId}" : "") . " - Papel: {$role}"
                 ]);
             } else {
-                $_SESSION['error'] = 'Erro ao enviar convite.';
+                $_SESSION['error'] = 'Erro ao criar convite.';
             }
         } catch (\Exception $e) {
             error_log("InvitationController exception: " . $e->getMessage());
-            $_SESSION['error'] = 'Erro ao enviar convite: ' . $e->getMessage();
+            $_SESSION['error'] = 'Erro ao criar convite: ' . $e->getMessage();
         }
 
         // Redirect back to fractions page if fraction_id is provided, otherwise to condominium page
@@ -209,6 +217,122 @@ class InvitationController extends Controller
 
         $_SESSION['error'] = 'Erro ao aceitar convite. Token inválido ou expirado.';
         header('Location: ' . BASE_URL . 'invitation/accept?token=' . $token);
+        exit;
+    }
+
+    /**
+     * Update invitation email and send invitation
+     */
+    public function updateEmailAndSend(int $condominiumId, int $invitationId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $email = trim(Security::sanitize($_POST['email'] ?? ''));
+        $fractionId = !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null;
+
+        if (empty($email)) {
+            $_SESSION['error'] = 'Por favor, insira um email.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        // Validate email format
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['error'] = 'Por favor, insira um email válido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        try {
+            if ($this->invitationService->updateInvitationEmailAndSend($invitationId, $condominiumId, $email)) {
+                $_SESSION['success'] = 'Email adicionado e convite enviado com sucesso!';
+                
+                // Log audit
+                $this->auditService->log([
+                    'action' => 'invitation_email_updated',
+                    'model' => 'invitation',
+                    'model_id' => $invitationId,
+                    'description' => "Email adicionado e convite enviado para convite ID {$invitationId} no condomínio ID {$condominiumId}"
+                ]);
+            } else {
+                $_SESSION['error'] = 'Erro ao atualizar email e enviar convite.';
+            }
+        } catch (\Exception $e) {
+            error_log("InvitationController::updateEmailAndSend exception: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao atualizar email: ' . $e->getMessage();
+        }
+
+        // Redirect back to fractions page if fraction_id is provided, otherwise to condominium page
+        if ($fractionId) {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+        } else {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId);
+        }
+        exit;
+    }
+
+    /**
+     * Resend invitation
+     */
+    public function resend(int $condominiumId, int $invitationId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $fractionId = !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null;
+
+        try {
+            if ($this->invitationService->resendInvitation($invitationId, $condominiumId)) {
+                $_SESSION['success'] = 'Convite reenviado com sucesso!';
+                
+                // Log audit
+                $this->auditService->log([
+                    'action' => 'invitation_resent',
+                    'model' => 'invitation',
+                    'model_id' => $invitationId,
+                    'description' => "Convite reenviado para convite ID {$invitationId} no condomínio ID {$condominiumId}"
+                ]);
+            } else {
+                $_SESSION['error'] = 'Erro ao reenviar convite. Verifique se o convite tem um email associado.';
+            }
+        } catch (\Exception $e) {
+            error_log("InvitationController::resend exception: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao reenviar convite: ' . $e->getMessage();
+        }
+
+        // Redirect back to fractions page if fraction_id is provided, otherwise to condominium page
+        if ($fractionId) {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+        } else {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId);
+        }
         exit;
     }
 
