@@ -31,7 +31,7 @@ global $userInfo;
 global $db;
 
 // Framework version
-define("VERSION", "1.0.11");
+define("VERSION", "1.0.12");
 
 // Application environment
 if (!defined('APP_ENV')) {

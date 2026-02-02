@@ -9,8 +9,13 @@ class AuthMiddleware
      */
     public static function handle(): bool
     {
+        // Don't start session in CLI mode or if headers already sent
+        if (php_sapi_name() === 'cli' || headers_sent()) {
+            return false;
+        }
+
         if (session_status() === PHP_SESSION_NONE) {
-            session_start();
+            @session_start();
         }
 
         if (!isset($_SESSION['user']) || empty($_SESSION['user']['id'])) {
@@ -25,8 +30,15 @@ class AuthMiddleware
      */
     public static function require(): void
     {
+        // Don't require auth in CLI mode
+        if (php_sapi_name() === 'cli') {
+            return;
+        }
+
         if (!self::handle()) {
-            $_SESSION['login_error'] = 'Por favor, faça login para continuar.';
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                $_SESSION['login_error'] = 'Por favor, faça login para continuar.';
+            }
             header('Location: ' . BASE_URL . 'login');
             exit;
         }
@@ -66,6 +78,11 @@ class AuthMiddleware
      */
     public static function requireGuest(): void
     {
+        // Don't require guest in CLI mode
+        if (php_sapi_name() === 'cli') {
+            return;
+        }
+
         if (self::handle()) {
             header('Location: ' . BASE_URL . 'dashboard');
             exit;
