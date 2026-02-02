@@ -222,8 +222,14 @@ class FinancialTransactionImportService
         // Define field patterns with priorities (higher priority = better match)
         $fieldPatterns = [
             'transaction_date' => [
-                'patterns' => ['/^data\s+(operacao|operação|op|transacao|transação|movimento|mov|valor|val)$/i', '/^data$/i', '/data|date|dia/i'],
-                'priority' => [10, 8, 5]
+                // Prioritize "Data Valor" over "Data Operação"
+                'patterns' => [
+                    '/^data\s+valor$/i',  // Highest priority: "Data Valor"
+                    '/^data\s+(operacao|operação|op|transacao|transação|movimento|mov)$/i',  // Lower priority: "Data Operação"
+                    '/^data$/i',  // Generic "Data"
+                    '/data|date|dia/i'  // Any date pattern
+                ],
+                'priority' => [12, 10, 8, 5]  // "Data Valor" has highest priority
             ],
             'description' => [
                 'patterns' => ['/^descri(cao|ção|çao)$/i', '/descri|description|desc|observa|observ|nota|note|memo/i'],
@@ -263,11 +269,39 @@ class FinancialTransactionImportService
         }
 
         // First pass: exact and high-priority matches
+        // Special handling for transaction_date: collect all date columns first, then choose best one
+        $dateColumns = [];
+        
         foreach ($headers as $index => $header) {
             $headerLower = mb_strtolower(trim($header), 'UTF-8');
             $headerClean = preg_replace('/\s+/', ' ', $headerLower);
             
+            // Check if this is a date column
+            $isDateColumn = false;
+            $datePriority = 0;
+            foreach ($fieldPatterns['transaction_date']['patterns'] as $patternIndex => $pattern) {
+                if (preg_match($pattern, $headerLower) || preg_match($pattern, $headerClean)) {
+                    $isDateColumn = true;
+                    $datePriority = $fieldPatterns['transaction_date']['priority'][$patternIndex] ?? 5;
+                    break;
+                }
+            }
+            
+            if ($isDateColumn) {
+                $dateColumns[] = [
+                    'index' => $index,
+                    'priority' => $datePriority,
+                    'header' => $headerLower
+                ];
+            }
+            
+            // Process other fields normally
             foreach ($fieldPatterns as $field => $config) {
+                // Skip transaction_date - handled separately above
+                if ($field === 'transaction_date') {
+                    continue;
+                }
+                
                 // Skip if field already mapped
                 if (in_array($field, $usedFields)) {
                     continue;
@@ -296,6 +330,22 @@ class FinancialTransactionImportService
                     }
                 }
             }
+        }
+        
+        // Choose best date column (highest priority, or first if same priority)
+        if (!empty($dateColumns)) {
+            // Sort by priority descending
+            usort($dateColumns, function($a, $b) {
+                return $b['priority'] - $a['priority'];
+            });
+            
+            // Use the highest priority date column
+            $bestDateColumn = $dateColumns[0];
+            $fieldScores['transaction_date'] = [
+                'index' => $bestDateColumn['index'],
+                'score' => $bestDateColumn['priority'],
+                'header' => $bestDateColumn['header']
+            ];
         }
 
         // Second pass: assign mappings based on scores
@@ -347,11 +397,25 @@ class FinancialTransactionImportService
             $rowArray = array_values($row);
 
             // Map columns
+            // IMPORTANT: columnMapping structure is: [column_index => field_name]
+            // e.g., ["0" => "transaction_date", "1" => "description"] or [0 => "transaction_date", 1 => "description"]
+            // The column index corresponds to the position in the file (0-based)
+            // CRITICAL: Use EXACTLY the column index that was mapped by the user - NO fallback or auto-detection
             foreach ($columnMapping as $fileColumnIndex => $systemField) {
-                // Convert column index to integer
-                $colIndex = is_numeric($fileColumnIndex) ? (int)$fileColumnIndex : 0;
+                // Convert column index to integer - this is the EXACT column the user mapped
+                // Handle both string and integer keys from JSON
+                $colIndex = is_numeric($fileColumnIndex) ? (int)$fileColumnIndex : (int)$fileColumnIndex;
                 
-                // Get value from row array using numeric index
+                // Validate column index is within bounds
+                if ($colIndex < 0 || $colIndex >= count($rowArray)) {
+                    if ($systemField === 'transaction_date') {
+                        $errors[] = 'Índice de coluna inválido para Data: ' . $colIndex . ' (total de colunas: ' . count($rowArray) . ')';
+                    }
+                    continue;
+                }
+                
+                // Get value from row array using the EXACT mapped column index
+                // This is the ONLY place we read the value - we trust the user's mapping completely
                 $value = $rowArray[$colIndex] ?? null;
                 
                 // Clean value
@@ -364,21 +428,35 @@ class FinancialTransactionImportService
                     }
                 }
 
-                // Only set if value is not null or if it's an empty string that should be preserved
-                if ($value !== null || !isset($rowData[$systemField])) {
+                // Set the value for this field - ALWAYS use the mapped column, never override
+                // For transaction_date, this is CRITICAL - we must use ONLY the column the user mapped
+                if ($systemField === 'transaction_date') {
+                    // For transaction_date, always set from mapped column, even if null
+                    // This ensures we don't accidentally use a different date column
                     $rowData[$systemField] = $value;
+                } else {
+                    // For other fields, only set if value is not null
+                    if ($value !== null || !isset($rowData[$systemField])) {
+                        $rowData[$systemField] = $value;
+                    }
                 }
             }
 
-            // Process transaction date
+            // Process transaction date - use ONLY the value from the mapped column
+            // Do NOT look for other date columns or use fallbacks
             if (isset($rowData['transaction_date'])) {
-                $dateResult = $this->parseDate($rowData['transaction_date']);
+                $mappedDateValue = $rowData['transaction_date'];
+                $dateResult = $this->parseDate($mappedDateValue);
                 if ($dateResult['success']) {
+                    // Use the parsed date from the mapped column - this is the ONLY source
                     $rowData['transaction_date'] = $dateResult['date'];
                 } else {
-                    $errors[] = 'Data inválida: ' . ($rowData['transaction_date'] ?? 'vazio');
+                    $errors[] = 'Data inválida na coluna mapeada: ' . ($mappedDateValue ?? 'vazio');
                     $rowData['transaction_date'] = null;
                 }
+            } else {
+                // If transaction_date is not set, it means no column was mapped to it
+                $errors[] = 'Data não mapeada - nenhuma coluna foi selecionada para Data';
             }
 
             // Process amount based on mode
@@ -579,9 +657,17 @@ class FinancialTransactionImportService
         if (is_numeric($value) && $value > 25569) { // Excel epoch starts at 1900-01-01
             try {
                 $date = Date::excelToDateTimeObject($value);
+                // Excel dates are stored as days since 1900-01-01, so we need to extract just the date part
+                // Create a new DateTime with just the date components to avoid timezone issues
+                $year = (int)$date->format('Y');
+                $month = (int)$date->format('m');
+                $day = (int)$date->format('d');
+                $cleanDate = new \DateTime();
+                $cleanDate->setDate($year, $month, $day);
+                $cleanDate->setTime(0, 0, 0);
                 return [
                     'success' => true,
-                    'date' => $date->format('Y-m-d'),
+                    'date' => $cleanDate->format('Y-m-d'),
                     'error' => null
                 ];
             } catch (\Exception $e) {
@@ -609,6 +695,9 @@ class FinancialTransactionImportService
             foreach ($formats as $format) {
                 $date = \DateTime::createFromFormat($format, $value);
                 if ($date !== false) {
+                    // Ensure we're working with date only (no time component)
+                    // Set time to noon to avoid timezone issues, then format as date
+                    $date->setTime(12, 0, 0);
                     return [
                         'success' => true,
                         'date' => $date->format('Y-m-d'),
@@ -620,9 +709,13 @@ class FinancialTransactionImportService
             // Try strtotime as last resort
             $timestamp = strtotime($value);
             if ($timestamp !== false) {
+                // Use DateTime to ensure consistent date formatting
+                $date = new \DateTime();
+                $date->setTimestamp($timestamp);
+                $date->setTime(12, 0, 0); // Set to noon to avoid timezone shifts
                 return [
                     'success' => true,
-                    'date' => date('Y-m-d', $timestamp),
+                    'date' => $date->format('Y-m-d'),
                     'error' => null
                 ];
             }

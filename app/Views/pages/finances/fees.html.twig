@@ -448,65 +448,26 @@
                     <h5 class="modal-title">Liquidar Quotas</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/liquidate-quotas">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <div class="modal-body">
-                        <p class="text-muted small">Regista um pagamento na conta da fração e aplica-o às quotas em atraso (o mesmo que um movimento de entrada «Quotas» para a fração).</p>
-                        <div class="mb-3">
-                            <label for="lq_fraction_id" class="form-label">Fração <span class="text-danger">*</span></label>
-                            <select class="form-select" id="lq_fraction_id" name="fraction_id" required>
-                                <option value="">Selecione a fração...</option>
-                                {% for fraction in fractions %}
-                                <option value="{{ fraction.id }}">{{ fraction.identifier }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="lq_amount" class="form-label">Valor (€) <span class="text-danger">*</span></label>
-                            <div class="input-group">
-                                <span class="input-group-text">€</span>
-                                <input type="number" class="form-control" id="lq_amount" name="amount" step="0.01" min="0.01" required placeholder="0.00">
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="lq_payment_method" class="form-label">Método de Pagamento <span class="text-danger">*</span></label>
-                            <select class="form-select" id="lq_payment_method" name="payment_method" required>
-                                <option value="">Selecione...</option>
-                                <option value="transfer">Transferência</option>
-                                <option value="cash">Dinheiro</option>
-                                <option value="multibanco">Multibanco</option>
-                                <option value="mbway">MB Way</option>
-                                <option value="card">Cartão</option>
-                                <option value="sepa">SEPA</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="lq_bank_account_id" class="form-label">Conta Bancária <span class="text-danger">*</span></label>
-                            <select class="form-select" id="lq_bank_account_id" name="bank_account_id" required>
-                                <option value="">Selecione...</option>
-                                {% for account in bank_accounts %}
-                                <option value="{{ account.id }}" {% if account.account_type == 'bank' and loop.first %}data-is-main-bank="true"{% endif %} {% if account.account_type == 'cash' %}data-is-cash="true"{% endif %}>{{ account.name }}{% if account.account_type == 'cash' %} (Caixa){% endif %}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="lq_payment_date" class="form-label">Data <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" id="lq_payment_date" name="payment_date" value="{{ "now"|date("Y-m-d") }}" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="lq_reference" class="form-label">Referência</label>
-                            <input type="text" class="form-control" id="lq_reference" name="reference" placeholder="Opcional">
-                        </div>
-                        <div class="mb-3">
-                            <label for="lq_notes" class="form-label">Notas</label>
-                            <textarea class="form-control" id="lq_notes" name="notes" rows="2" placeholder="Opcional"></textarea>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary"><i class="bi bi-cash-coin"></i> Liquidar Quotas</button>
-                    </div>
-                </form>
+                <div class="modal-body">
+                    {% include 'blocks/liquidate-quotas-form.html.twig' with {
+                        'condominium': condominium,
+                        'fractions': fractions,
+                        'bank_accounts': bank_accounts,
+                        'csrf_token': csrf_token,
+                        'form_id_prefix': 'lq_',
+                        'is_modal': true
+                    } %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" form="lq_form" class="btn btn-primary"><i class="bi bi-cash-coin"></i> Liquidar Quotas</button>
+                </div>
+                
+                {% include 'blocks/liquidate-quotas-script.html.twig' with {
+                    'condominium_id': condominium.id,
+                    'form_id_prefix': 'lq_',
+                    'modal_id': 'liquidateQuotasModal'
+                } %}
             </div>
         </div>
     </div>

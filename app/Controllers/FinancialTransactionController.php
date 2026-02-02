@@ -1149,12 +1149,19 @@ class FinancialTransactionController extends Controller
             // Read file (pass original filename for extension detection)
             $fileData = $importService->readFile($tmpFile, $hasHeader, $originalName);
             
-            // Get column mapping from POST
+            // Get column mapping from POST - this is the EXACT mapping chosen by the user
             $columnMappingJson = $_POST['column_mapping'] ?? '{}';
             $columnMapping = json_decode($columnMappingJson, true);
             
             if (empty($columnMapping) || !is_array($columnMapping)) {
                 $_SESSION['error'] = 'Mapeamento de colunas não fornecido ou inválido.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/import');
+                exit;
+            }
+            
+            // Validate that transaction_date is mapped
+            if (!in_array('transaction_date', $columnMapping)) {
+                $_SESSION['error'] = 'Por favor, mapeie uma coluna para o campo "Data".';
                 header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/import');
                 exit;
             }
@@ -1168,7 +1175,8 @@ class FinancialTransactionController extends Controller
             }
             $mode = ($hasCredit && $hasDebit) ? 'separate' : 'single';
             
-            // Parse rows
+            // Parse rows using EXACTLY the mapping provided by the user
+            // The parseRows method will use ONLY the columns mapped by the user
             $parsedData = $importService->parseRows($fileData['rows'], $columnMapping, $mode);
             
             // Debug: log if no data parsed
@@ -1356,6 +1364,19 @@ class FinancialTransactionController extends Controller
         foreach ($mappedEditedData as $index => $editedRow) {
             if (isset($parsedData[$index])) {
                 $parsedData[$index] = array_merge($parsedData[$index], $editedRow);
+                
+                // Reprocess transaction date if it was edited (ensure it's in Y-m-d format)
+                if (isset($editedRow['transaction_date']) && !empty($editedRow['transaction_date'])) {
+                    $importService = new FinancialTransactionImportService();
+                    $dateResult = $importService->parseDate($editedRow['transaction_date']);
+                    if ($dateResult['success']) {
+                        $parsedData[$index]['transaction_date'] = $dateResult['date'];
+                    } else {
+                        // If parsing fails, try to use the original value
+                        // But log the error
+                        error_log('Failed to parse edited date: ' . $editedRow['transaction_date']);
+                    }
+                }
                 
                 // Reprocess amount if columns were edited
                 if ($mode === 'separate') {
@@ -1769,6 +1790,40 @@ class FinancialTransactionController extends Controller
         exit;
     }
 
+    public function getFractionBalance(int $condominiumId, int $fractionId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        header('Content-Type: application/json');
+
+        try {
+            // Validate fraction belongs to condominium
+            $fractionModel = new Fraction();
+            $fraction = $fractionModel->findById($fractionId);
+            
+            if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
+                echo json_encode(['success' => false, 'error' => 'Fração não encontrada ou não pertence ao condomínio']);
+                exit;
+            }
+
+            // Get fraction account balance
+            $faModel = new FractionAccount();
+            $account = $faModel->getByFraction($fractionId);
+            $balance = $account ? (float)$account['balance'] : 0.0;
+
+            echo json_encode([
+                'success' => true,
+                'balance' => $balance,
+                'has_balance' => $balance > 0
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
+
     private static function feeLabel(array $f): string
     {
         if (($f['fee_type'] ?? '') === 'extra' && !empty($f['reference'])) {
@@ -1842,11 +1897,20 @@ class FinancialTransactionController extends Controller
             $userId = AuthMiddleware::userId();
             $transactionAmount = (float)$transaction['amount'];
             $paymentDate = $transaction['transaction_date'];
+            $useFractionBalance = !empty($_POST['use_fraction_balance']);
 
-            // Add credit to fraction account
+            // Get fraction account
             $faModel = new FractionAccount();
             $account = $faModel->getOrCreate($fractionId, $condominiumId);
             $accountId = (int)$account['id'];
+            
+            // Get existing balance before adding credit (if using balance)
+            $existingBalance = 0.0;
+            if ($useFractionBalance) {
+                $existingBalance = (float)($account['balance'] ?? 0.0);
+            }
+
+            // Add credit to fraction account from transaction
             $movementId = $faModel->addCredit(
                 $accountId,
                 $transactionAmount,
@@ -1855,7 +1919,7 @@ class FinancialTransactionController extends Controller
                 'Crédito por liquidação de quotas - Movimento #' . $id
             );
 
-            // Liquidate fees
+            // Liquidate fees (will use existing balance + transaction credit)
             $liquidationService = new LiquidationService();
             $result = $liquidationService->liquidateSelectedFees(
                 $fractionId,
@@ -1919,20 +1983,19 @@ class FinancialTransactionController extends Controller
             }
 
             // Log audit
-            $this->auditService->log(
-                $userId,
-                'financial_transaction',
-                $id,
-                'quota_liquidation',
-                "Liquidação de quotas aplicada ao movimento #{$id}",
-                [
-                    'fraction_id' => $fractionId,
-                    'selected_fee_ids' => $selectedFeeIds,
-                    'fully_paid_count' => $fullyPaidCount,
-                    'partially_paid_count' => $partiallyPaidCount,
-                    'credit_remaining' => $result['credit_remaining'] ?? 0
-                ]
-            );
+            $auditDescription = "Liquidação de quotas aplicada ao movimento #{$id} (Fração: {$fractionId}, Taxas selecionadas: " . count($selectedFeeIds) . ", Totalmente pagas: {$fullyPaidCount}, Parcialmente pagas: {$partiallyPaidCount}";
+            if ($useFractionBalance && $existingBalance > 0) {
+                $auditDescription .= ", Saldo da fração utilizado: " . number_format($existingBalance, 2, ',', '.') . "€";
+            }
+            $auditDescription .= ", Crédito restante: " . number_format($result['credit_remaining'] ?? 0, 2, ',', '.') . "€)";
+            
+            $this->auditService->log([
+                'user_id' => $userId,
+                'action' => 'quota_liquidation',
+                'model' => 'financial_transaction',
+                'model_id' => $id,
+                'description' => $auditDescription
+            ]);
 
             $_SESSION['success'] = 'Quotas liquidadas com sucesso!';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');

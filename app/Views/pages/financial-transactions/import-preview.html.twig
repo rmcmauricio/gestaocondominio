@@ -58,7 +58,7 @@
                     <table class="table-excel" id="import-preview-table" style="min-width: 100%; width: max-content;">
                         <thead>
                             <tr>
-                                <th style="width: 60px; text-align: center;">#</th>
+                                <th style="width: 50px; text-align: center;" title="Tipo">Tipo</th>
                                 <th style="width: 110px;">Data</th>
                                 {% if mode == 'separate' %}
                                 <th style="min-width: 120px;">Crédito</th>
@@ -80,13 +80,10 @@
                             {% for row in parsedData %}
                             <tr data-row-index="{{ loop.index0 }}">
                                 <td style="text-align: center;">
-                                    <span style="display: inline-flex; align-items: center; gap: 4px;">
-                                        <span>{{ row._row_index }}</span>
-                                        <i class="bi {% if row.transaction_type == 'income' %}bi-arrow-up-circle-fill text-success{% else %}bi-arrow-down-circle-fill text-danger{% endif %}" 
-                                           id="type_badge_{{ loop.index0 }}" 
-                                           title="{% if row.transaction_type == 'income' %}Entrada{% else %}Saída{% endif %}"
-                                           style="font-size: 0.9rem;"></i>
-                                    </span>
+                                    <i class="bi {% if row.transaction_type == 'income' %}bi-arrow-up-circle-fill text-success{% else %}bi-arrow-down-circle-fill text-danger{% endif %}" 
+                                       id="type_badge_{{ loop.index0 }}" 
+                                       title="{% if row.transaction_type == 'income' %}Entrada{% else %}Saída{% endif %}"
+                                       style="font-size: 0.9rem;"></i>
                                 </td>
                                 <td style="width: 110px;">
                                     {{ row.transaction_date|date('d/m/Y') }}
@@ -586,15 +583,10 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Update row numbers after deletion
+// Update row numbers after deletion (no longer needed since we removed the # column)
 function updateRowNumbers() {
-    const rows = document.querySelectorAll('tbody tr');
-    rows.forEach((row, index) => {
-        const rowNumberCell = row.querySelector('td:first-child');
-        if (rowNumberCell) {
-            rowNumberCell.textContent = index + 1;
-        }
-    });
+    // Function kept for compatibility but no longer updates row numbers
+    // Row numbers column has been removed
 }
 
 // Track edited fields (excluding transaction_date which is now read-only)

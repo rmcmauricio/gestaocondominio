@@ -357,8 +357,9 @@ function showMappingSection(data) {
     }
 
     // Field name mappings for better matching
+    // Prioritize "Data Valor" over "Data Operação"
     const fieldNameMappings = {
-        'transaction_date': ['data', 'date', 'data operacao', 'data operação', 'data movimento', 'data transacao', 'data transação'],
+        'transaction_date': ['data valor', 'data', 'date', 'data operacao', 'data operação', 'data movimento', 'data transacao', 'data transação'],
         'amount': ['valor', 'amount', 'montante', 'importe', 'value', 'total'],
         'amount_credit': ['credito', 'crédito', 'credit', 'entrada', 'receita', 'income'],
         'amount_debit': ['debito', 'débito', 'debit', 'saida', 'saída', 'despesa', 'expense'],

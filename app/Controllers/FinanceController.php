@@ -1614,40 +1614,55 @@ class FinanceController extends Controller
         }
 
         $fractionId = (int)($_POST['fraction_id'] ?? 0);
-        $amount = (float)($_POST['amount'] ?? 0);
+        $amount = !empty($_POST['amount']) ? (float)$_POST['amount'] : 0;
         $paymentMethod = Security::sanitize($_POST['payment_method'] ?? '');
-        $bankAccountId = (int)($_POST['bank_account_id'] ?? 0);
+        $bankAccountId = !empty($_POST['bank_account_id']) ? (int)$_POST['bank_account_id'] : 0;
         $paymentDate = $_POST['payment_date'] ?? date('Y-m-d');
-        $reference = Security::sanitize($_POST['reference'] ?? '');
         $notes = Security::sanitize($_POST['notes'] ?? '');
+        $useFractionBalance = !empty($_POST['use_fraction_balance']);
+        $selectedFeeIds = !empty($_POST['selected_fee_ids']) ? array_map('intval', $_POST['selected_fee_ids']) : [];
 
         if ($fractionId <= 0) {
             $_SESSION['error'] = 'Selecione a fração.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
             exit;
         }
-        if ($amount <= 0) {
-            $_SESSION['error'] = 'O valor deve ser maior que zero.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
-            exit;
-        }
-        if (!in_array($paymentMethod, ['multibanco', 'mbway', 'transfer', 'cash', 'card', 'sepa'])) {
-            $_SESSION['error'] = 'Método de pagamento inválido.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
-            exit;
-        }
-        if ($bankAccountId <= 0) {
-            $_SESSION['error'] = 'Selecione a conta bancária.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
-            exit;
-        }
+        
+        // If using only fraction balance (no new payment), skip payment validations
+        if (!$useFractionBalance) {
+            if ($amount <= 0) {
+                $_SESSION['error'] = 'O valor deve ser maior que zero ou selecione "Usar apenas saldo da fração".';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
+                exit;
+            }
+            if (!in_array($paymentMethod, ['multibanco', 'mbway', 'transfer', 'cash', 'card', 'sepa'])) {
+                $_SESSION['error'] = 'Método de pagamento inválido.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
+                exit;
+            }
+            if ($bankAccountId <= 0) {
+                $_SESSION['error'] = 'Selecione a conta bancária.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
+                exit;
+            }
 
-        $bankAccountModel = new BankAccount();
-        $account = $bankAccountModel->findById($bankAccountId);
-        if (!$account || $account['condominium_id'] != $condominiumId) {
-            $_SESSION['error'] = 'Conta bancária inválida.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
-            exit;
+            $bankAccountModel = new BankAccount();
+            $account = $bankAccountModel->findById($bankAccountId);
+            if (!$account || $account['condominium_id'] != $condominiumId) {
+                $_SESSION['error'] = 'Conta bancária inválida.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+                exit;
+            }
+        } else {
+            // Using only balance - validate that balance exists
+            $faModel = new FractionAccount();
+            $fa = $faModel->getOrCreate($fractionId, $condominiumId);
+            $existingBalance = (float)($fa['balance'] ?? 0.0);
+            if ($existingBalance <= 0) {
+                $_SESSION['error'] = 'A fração não tem saldo disponível.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
+                exit;
+            }
         }
 
         $fractionModel = new Fraction();
@@ -1663,37 +1678,83 @@ class FinanceController extends Controller
             $db->beginTransaction();
             $userId = AuthMiddleware::userId();
 
-            $description = 'Liquidação de quotas - Fração ' . $fraction['identifier'];
-            if ($notes) {
-                $description .= ' - ' . $notes;
-            }
-
-            $ref = $reference ?: ('REF' . $condominiumId . $fractionId . date('YmdHis'));
-
             $faModel = new FractionAccount();
             $fa = $faModel->getOrCreate($fractionId, $condominiumId);
             $accountId = (int)$fa['id'];
+            $existingBalance = (float)($fa['balance'] ?? 0.0);
+            
+            $transactionId = null;
+            $movementId = null;
+            
+            // If using only balance, ignore amount and use only existing balance
+            if ($useFractionBalance) {
+                // Force amount to 0 when using only balance
+                $amount = 0;
+                // Only apply existing balance to quotas - no new transaction
+                $description = 'Liquidação de quotas usando saldo da fração - Fração ' . $fraction['identifier'];
+                if ($notes) {
+                    $description .= ' - ' . $notes;
+                }
+                
+                // Verify balance exists before liquidating
+                if ($existingBalance <= 0) {
+                    throw new \Exception('A fração não tem saldo disponível para liquidar quotas.');
+                }
+                
+                // Use liquidateSelectedFees if fees are selected, otherwise use liquidate
+                $liquidationService = new LiquidationService();
+                if (!empty($selectedFeeIds)) {
+                    $result = $liquidationService->liquidateSelectedFees($fractionId, $selectedFeeIds, $userId, $paymentDate, null);
+                } else {
+                    $result = $liquidationService->liquidate($fractionId, $userId, $paymentDate, null);
+                }
+                
+                // Check if any quotas were liquidated
+                $fullyPaidCount = count($result['fully_paid'] ?? []);
+                $partiallyPaidCount = count($result['partially_paid'] ?? []);
+                
+                if ($fullyPaidCount == 0 && $partiallyPaidCount == 0) {
+                    throw new \Exception('Não foram encontradas quotas pendentes para liquidar ou o saldo não é suficiente.');
+                }
+            } else {
+                // Create new transaction and add credit
+                $description = 'Liquidação de quotas - Fração ' . $fraction['identifier'];
+                if ($notes) {
+                    $description .= ' - ' . $notes;
+                }
 
-            $transactionModel = new FinancialTransaction();
-            $transactionId = $transactionModel->create([
-                'condominium_id' => $condominiumId,
-                'bank_account_id' => $bankAccountId,
-                'fraction_id' => $fractionId,
-                'transaction_type' => 'income',
-                'amount' => $amount,
-                'transaction_date' => $paymentDate,
-                'description' => $description,
-                'category' => 'Quotas',
-                'income_entry_type' => 'quota',
-                'reference' => $ref,
-                'related_type' => 'fraction_account',
-                'related_id' => $accountId,
-                'transfer_to_account_id' => null,
-                'created_by' => $userId
-            ]);
+                // Generate reference automatically
+                $ref = 'REF' . $condominiumId . $fractionId . date('YmdHis');
 
-            $movementId = $faModel->addCredit($accountId, $amount, 'quota_payment', $transactionId, $description);
-            $result = (new LiquidationService())->liquidate($fractionId, $userId, $paymentDate, $transactionId);
+                $transactionModel = new FinancialTransaction();
+                $transactionId = $transactionModel->create([
+                    'condominium_id' => $condominiumId,
+                    'bank_account_id' => $bankAccountId,
+                    'fraction_id' => $fractionId,
+                    'transaction_type' => 'income',
+                    'amount' => $amount,
+                    'transaction_date' => $paymentDate,
+                    'description' => $description,
+                    'category' => 'Quotas',
+                    'income_entry_type' => 'quota',
+                    'reference' => $ref,
+                    'related_type' => 'fraction_account',
+                    'related_id' => $accountId,
+                    'transfer_to_account_id' => null,
+                    'created_by' => $userId
+                ]);
+
+                $movementId = $faModel->addCredit($accountId, $amount, 'quota_payment', $transactionId, $description);
+                
+                // Liquidate with new credit + existing balance (if using both)
+                // Use liquidateSelectedFees if fees are selected, otherwise use liquidate
+                $liquidationService = new LiquidationService();
+                if (!empty($selectedFeeIds)) {
+                    $result = $liquidationService->liquidateSelectedFees($fractionId, $selectedFeeIds, $userId, $paymentDate, $transactionId);
+                } else {
+                    $result = $liquidationService->liquidate($fractionId, $userId, $paymentDate, $transactionId);
+                }
+            }
 
             $parts = [];
             foreach ($result['fully_paid'] ?? [] as $fid) {
@@ -1705,23 +1766,43 @@ class FinanceController extends Controller
                 $parts[] = ($f ? $this->feeLabelForLiquidation($f) : ('Quota #' . $fid)) . ' (parcial)';
             }
             $builtDesc = implode(', ', $parts);
-            if ($builtDesc !== '') {
+            
+            // Update transaction/movement description if transaction was created
+            if ($transactionId && $builtDesc !== '') {
+                $transactionModel = new FinancialTransaction();
                 $transactionModel->update($transactionId, ['description' => $builtDesc]);
-                (new FractionAccountMovement())->update($movementId, ['description' => $builtDesc]);
+                if ($movementId) {
+                    (new FractionAccountMovement())->update($movementId, ['description' => $builtDesc]);
+                }
             }
 
             // Log liquidation operation
             $fullyPaidCount = count($result['fully_paid'] ?? []);
             $partiallyPaidCount = count($result['partially_paid'] ?? []);
+            
+            if ($useFractionBalance) {
+                // Using only balance
+                $usedBalance = $existingBalance - ($result['credit_remaining'] ?? $existingBalance);
+                $auditDescription = "Liquidação de quotas executada para fração {$fraction['identifier']} usando apenas saldo da fração. Saldo utilizado: €" . number_format($usedBalance, 2, ',', '.') . ". Quotas totalmente pagas: {$fullyPaidCount}, Pagamentos parciais: {$partiallyPaidCount}";
+            } else {
+                // Using new payment + optionally balance
+                $auditDescription = "Liquidação de quotas executada para fração {$fraction['identifier']}. Valor: €" . number_format($amount, 2, ',', '.');
+                if ($useFractionBalance && $existingBalance > 0) {
+                    $usedBalance = $existingBalance - ($result['credit_remaining'] ?? $existingBalance);
+                    $auditDescription .= ", Saldo da fração também utilizado: €" . number_format($usedBalance, 2, ',', '.');
+                }
+                $auditDescription .= ". Quotas totalmente pagas: {$fullyPaidCount}, Pagamentos parciais: {$partiallyPaidCount}. Método: {$paymentMethod}";
+            }
+            
             $this->auditService->logFinancial([
                 'condominium_id' => $condominiumId,
-                'entity_type' => 'financial_transaction',
-                'entity_id' => $transactionId,
+                'entity_type' => $transactionId ? 'financial_transaction' : 'fraction_account',
+                'entity_id' => $transactionId ?: $accountId,
                 'action' => 'quotas_liquidated',
                 'user_id' => $userId,
-                'amount' => $amount,
+                'amount' => $amount > 0 ? $amount : ($existingBalance - ($result['credit_remaining'] ?? 0)),
                 'new_status' => 'completed',
-                'description' => "Liquidação de quotas executada para fração {$fraction['identifier']}. Valor: €" . number_format($amount, 2, ',', '.') . ". Quotas totalmente pagas: {$fullyPaidCount}, Pagamentos parciais: {$partiallyPaidCount}. Método: {$paymentMethod}"
+                'description' => $auditDescription
             ]);
 
             $receiptSvc = new ReceiptService();
@@ -1730,7 +1811,14 @@ class FinanceController extends Controller
             }
 
             $db->commit();
-            $_SESSION['success'] = 'Pagamento registado. O valor foi aplicado às quotas em atraso da fração ' . $fraction['identifier'] . '.';
+            if ($useFractionBalance) {
+                $fullyPaidCount = count($result['fully_paid'] ?? []);
+                $partiallyPaidCount = count($result['partially_paid'] ?? []);
+                $usedBalance = $existingBalance - ($result['credit_remaining'] ?? $existingBalance);
+                $_SESSION['success'] = 'Saldo da fração (€' . number_format($usedBalance, 2, ',', '.') . ') aplicado às quotas em atraso da fração ' . $fraction['identifier'] . '. ' . $fullyPaidCount . ' quota(s) totalmente paga(s), ' . $partiallyPaidCount . ' parcialmente paga(s).';
+            } else {
+                $_SESSION['success'] = 'Pagamento registado. O valor foi aplicado às quotas em atraso da fração ' . $fraction['identifier'] . '.';
+            }
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
             exit;
         } catch (\Exception $e) {

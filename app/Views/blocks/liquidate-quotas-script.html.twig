@@ -1,0 +1,437 @@
+{#
+    Bloco JavaScript reutilizável para funcionalidade de liquidar quotas
+    Parâmetros:
+    - condominium_id: ID do condomínio
+    - form_id_prefix: prefixo para IDs dos campos (opcional, padrão: 'lq_')
+    - modal_id: ID do modal (opcional, se for modal)
+#}
+{% set form_id_prefix = form_id_prefix|default('lq_') %}
+{% set modal_id = modal_id|default(null) %}
+
+<script>
+(function() {
+    const condominiumId = {{ condominium_id }};
+    const prefix = '{{ form_id_prefix }}';
+    const fractionSelect = document.getElementById(prefix + 'fraction_id');
+    const balanceInfo = document.getElementById(prefix + 'fraction_balance_info');
+    const balanceAmount = document.getElementById(prefix + 'fraction_balance_amount');
+    const useBalanceCheckbox = document.getElementById(prefix + 'use_fraction_balance');
+    const paymentFields = document.getElementById(prefix + 'payment_fields');
+    const amountInput = document.getElementById(prefix + 'amount');
+    const paymentMethodSelect = document.getElementById(prefix + 'payment_method');
+    const bankAccountSelect = document.getElementById(prefix + 'bank_account_id');
+    const quotaInfoSection = document.getElementById(prefix + 'quota_info_section');
+    const quotaList = document.getElementById(prefix + 'quota_list');
+    const quotaCheckboxes = document.querySelector('.' + prefix + 'quota-checkboxes');
+    const quotaSummary = document.querySelector('.' + prefix + 'quota-summary');
+    
+    if (!fractionSelect) return;
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function loadPendingFees(fractionId) {
+        if (!fractionId) {
+            if (quotaInfoSection) quotaInfoSection.style.display = 'none';
+            if (quotaList) quotaList.style.display = 'none';
+            if (quotaCheckboxes) quotaCheckboxes.innerHTML = '';
+            if (quotaSummary) quotaSummary.style.display = 'none';
+            return;
+        }
+        
+        fetch(`{{ BASE_URL }}condominiums/${condominiumId}/financial-transactions/import/pending-fees/${fractionId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.fees && data.fees.length > 0) {
+                    if (quotaInfoSection) quotaInfoSection.style.display = 'block';
+                    if (quotaList) quotaList.style.display = 'block';
+                    
+                    let html = '';
+                    data.fees.forEach(fee => {
+                        html += `
+                            <div class="form-check mb-2">
+                                <input class="form-check-input ${prefix}quota-fee-checkbox" 
+                                       type="checkbox" 
+                                       name="selected_fee_ids[]"
+                                       value="${fee.id}"
+                                       data-pending="${fee.pending_amount}">
+                                <label class="form-check-label">
+                                    ${escapeHtml(fee.label)} - Pendente: €${fee.pending_amount.toFixed(2)}
+                                </label>
+                            </div>
+                        `;
+                    });
+                    if (quotaCheckboxes) quotaCheckboxes.innerHTML = html;
+                    
+                    // Add event listeners to checkboxes
+                    document.querySelectorAll('.' + prefix + 'quota-fee-checkbox').forEach(cb => {
+                        cb.addEventListener('change', updateQuotaSummary);
+                    });
+                    
+                    updateQuotaSummary();
+                } else {
+                    if (quotaInfoSection) quotaInfoSection.style.display = 'block';
+                    if (quotaList) quotaList.style.display = 'block';
+                    if (quotaCheckboxes) quotaCheckboxes.innerHTML = '<small class="text-muted">Nenhuma quota pendente encontrada.</small>';
+                    if (quotaSummary) quotaSummary.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading pending fees:', error);
+                if (quotaInfoSection) quotaInfoSection.style.display = 'block';
+                if (quotaList) quotaList.style.display = 'block';
+                if (quotaCheckboxes) quotaCheckboxes.innerHTML = '<small class="text-danger">Erro ao carregar quotas pendentes.</small>';
+            });
+    }
+    
+    function updateQuotaSummary() {
+        const selectedFees = [];
+        let selectedTotal = 0;
+        
+        document.querySelectorAll('.' + prefix + 'quota-fee-checkbox:checked').forEach(cb => {
+            const feeId = parseInt(cb.value);
+            const pendingAmount = parseFloat(cb.dataset.pending);
+            selectedFees.push({ id: feeId, pending: pendingAmount });
+            selectedTotal += pendingAmount;
+        });
+        
+        // Get available amount (transaction amount or balance)
+        let availableAmount = 0;
+        const useBalance = useBalanceCheckbox && useBalanceCheckbox.checked;
+        if (useBalance) {
+            if (balanceAmount) {
+                availableAmount = parseFloat(balanceAmount.textContent) || 0;
+            }
+        } else {
+            if (amountInput) {
+                availableAmount = parseFloat(amountInput.value) || 0;
+            }
+        }
+        
+        const remaining = Math.max(0, availableAmount - selectedTotal);
+        const selectedTotalSpan = document.querySelector('.' + prefix + 'quota-selected-total');
+        const remainingSpan = document.querySelector('.' + prefix + 'quota-remaining');
+        
+        if (selectedTotalSpan) selectedTotalSpan.textContent = selectedTotal.toFixed(2);
+        if (remainingSpan) remainingSpan.textContent = remaining.toFixed(2);
+        
+        if (quotaSummary && availableAmount > 0) {
+            quotaSummary.style.display = 'block';
+        } else if (quotaSummary) {
+            quotaSummary.style.display = 'none';
+        }
+    }
+    
+    // Toggle payment fields visibility and required status
+    function togglePaymentFields(useBalance) {
+        if (paymentFields) {
+            const amountRequired = document.getElementById(prefix + 'amount_required');
+            const paymentMethodRequired = document.getElementById(prefix + 'payment_method_required');
+            const bankAccountRequired = document.getElementById(prefix + 'bank_account_required');
+            
+            if (useBalance) {
+                paymentFields.style.display = 'none';
+                if (amountInput) {
+                    amountInput.removeAttribute('required');
+                    amountInput.removeAttribute('min');
+                    amountInput.value = '';
+                }
+                if (paymentMethodSelect) {
+                    paymentMethodSelect.removeAttribute('required');
+                    paymentMethodSelect.value = '';
+                }
+                if (bankAccountSelect) {
+                    bankAccountSelect.removeAttribute('required');
+                    bankAccountSelect.value = '';
+                }
+                if (amountRequired) amountRequired.style.display = 'none';
+                if (paymentMethodRequired) paymentMethodRequired.style.display = 'none';
+                if (bankAccountRequired) bankAccountRequired.style.display = 'none';
+            } else {
+                paymentFields.style.display = 'block';
+                if (amountInput) {
+                    amountInput.setAttribute('required', 'required');
+                    amountInput.setAttribute('min', '0.01');
+                }
+                if (paymentMethodSelect) {
+                    paymentMethodSelect.setAttribute('required', 'required');
+                }
+                if (bankAccountSelect) {
+                    bankAccountSelect.setAttribute('required', 'required');
+                }
+                if (amountRequired) amountRequired.style.display = 'inline';
+                if (paymentMethodRequired) paymentMethodRequired.style.display = 'inline';
+                if (bankAccountRequired) bankAccountRequired.style.display = 'inline';
+            }
+        }
+    }
+    
+    // Handle use balance checkbox change
+    if (useBalanceCheckbox) {
+        // Set initial state
+        togglePaymentFields(useBalanceCheckbox.checked);
+        
+        useBalanceCheckbox.addEventListener('change', function() {
+            togglePaymentFields(this.checked);
+            updateQuotaSummary();
+        });
+    } else {
+        // If checkbox doesn't exist, ensure payment fields are visible and required
+        togglePaymentFields(false);
+    }
+    
+    // Update summary when amount changes
+    if (amountInput) {
+        amountInput.addEventListener('input', updateQuotaSummary);
+    }
+    
+    // Load fraction balance and pending fees when fraction is selected
+    fractionSelect.addEventListener('change', function() {
+        const fractionId = this.value;
+        
+        // Load pending fees
+        loadPendingFees(fractionId);
+        
+        // Load fraction balance
+        if (fractionId) {
+            fetch(`{{ BASE_URL }}condominiums/${condominiumId}/financial-transactions/fraction-balance/${fractionId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.has_balance) {
+                        if (balanceAmount) {
+                            balanceAmount.textContent = parseFloat(data.balance).toFixed(2);
+                        }
+                        if (balanceInfo) {
+                            balanceInfo.style.display = 'block';
+                        }
+                        // Reset checkbox state when fraction changes
+                        if (useBalanceCheckbox) {
+                            togglePaymentFields(useBalanceCheckbox.checked);
+                        }
+                        updateQuotaSummary();
+                    } else {
+                        if (balanceInfo) balanceInfo.style.display = 'none';
+                        if (useBalanceCheckbox) {
+                            useBalanceCheckbox.checked = false;
+                            togglePaymentFields(false);
+                        }
+                        updateQuotaSummary();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading fraction balance:', error);
+                    if (balanceInfo) balanceInfo.style.display = 'none';
+                    if (useBalanceCheckbox) {
+                        useBalanceCheckbox.checked = false;
+                        togglePaymentFields(false);
+                    }
+                });
+        } else {
+            if (balanceInfo) balanceInfo.style.display = 'none';
+            if (useBalanceCheckbox) {
+                useBalanceCheckbox.checked = false;
+                togglePaymentFields(false);
+            }
+        }
+    });
+    
+    // Handle form submission
+    const formId = prefix ? (prefix + 'form') : 'form';
+    const form = document.getElementById(formId);
+    
+    if (!form) {
+        console.error('Form not found with ID:', formId);
+        return;
+    }
+    
+    // Update form novalidate based on use balance checkbox
+    if (useBalanceCheckbox) {
+        useBalanceCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                form.setAttribute('novalidate', 'novalidate');
+            } else {
+                form.removeAttribute('novalidate');
+            }
+        });
+        // Set initial state
+        if (useBalanceCheckbox.checked) {
+            form.setAttribute('novalidate', 'novalidate');
+        }
+    }
+    
+        form.addEventListener('submit', function(e) {
+            const useBalance = useBalanceCheckbox && useBalanceCheckbox.checked;
+            
+            // Always remove required from payment fields when using balance
+            if (useBalance) {
+                if (amountInput) {
+                    amountInput.removeAttribute('required');
+                    amountInput.removeAttribute('min');
+                    if (!amountInput.value || parseFloat(amountInput.value) <= 0) {
+                        amountInput.value = '';
+                    }
+                }
+                if (paymentMethodSelect) {
+                    paymentMethodSelect.removeAttribute('required');
+                    if (!paymentMethodSelect.value) {
+                        paymentMethodSelect.value = '';
+                    }
+                }
+                if (bankAccountSelect) {
+                    bankAccountSelect.removeAttribute('required');
+                    if (!bankAccountSelect.value) {
+                        bankAccountSelect.value = '';
+                    }
+                }
+            }
+            
+            // Validate fraction is selected
+            if (!fractionSelect || !fractionSelect.value) {
+                e.preventDefault();
+                alert('Por favor, selecione uma fração.');
+                return false;
+            }
+            
+            // If using balance, validate balance exists
+            if (useBalance) {
+                const balance = balanceAmount ? parseFloat(balanceAmount.textContent) : 0;
+                if (balance <= 0) {
+                    e.preventDefault();
+                    alert('A fração não tem saldo disponível.');
+                    return false;
+                }
+            } else {
+                // If not using balance, validate payment fields
+                if (!amountInput || !amountInput.value || parseFloat(amountInput.value) <= 0) {
+                    e.preventDefault();
+                    alert('Por favor, informe um valor maior que zero ou selecione "Usar apenas saldo da fração".');
+                    return false;
+                }
+                if (!paymentMethodSelect || !paymentMethodSelect.value) {
+                    e.preventDefault();
+                    alert('Por favor, selecione um método de pagamento.');
+                    return false;
+                }
+                if (!bankAccountSelect || !bankAccountSelect.value) {
+                    e.preventDefault();
+                    alert('Por favor, selecione uma conta bancária.');
+                    return false;
+                }
+            }
+            
+            // Disable submit button to prevent double submission
+            const submitBtn = document.querySelector('button[type="submit"][form="' + formId + '"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>A processar...';
+                // Re-enable after 5 seconds as fallback
+                setTimeout(function() {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }, 5000);
+            }
+        });
+    
+    // Handle button click directly - ensure form submits
+    const submitBtn = document.querySelector('button[type="submit"][form="' + formId + '"]') || document.getElementById('submit_liquidate_quotas');
+    if (submitBtn && form) {
+        submitBtn.addEventListener('click', function(e) {
+            e.preventDefault(); // Prevent default to handle validation ourselves
+            e.stopPropagation();
+            
+            const useBalance = useBalanceCheckbox && useBalanceCheckbox.checked;
+            
+            // Validate fraction is selected
+            if (!fractionSelect || !fractionSelect.value) {
+                alert('Por favor, selecione uma fração.');
+                return false;
+            }
+            
+            // If using balance, ensure payment fields don't block submission
+            if (useBalance) {
+                if (amountInput) {
+                    amountInput.removeAttribute('required');
+                    amountInput.removeAttribute('min');
+                    amountInput.value = '';
+                }
+                if (paymentMethodSelect) {
+                    paymentMethodSelect.removeAttribute('required');
+                    paymentMethodSelect.value = '';
+                }
+                if (bankAccountSelect) {
+                    bankAccountSelect.removeAttribute('required');
+                    bankAccountSelect.value = '';
+                }
+                form.setAttribute('novalidate', 'novalidate');
+                
+                // Validate balance exists
+                const balance = balanceAmount ? parseFloat(balanceAmount.textContent) : 0;
+                if (balance <= 0) {
+                    alert('A fração não tem saldo disponível.');
+                    return false;
+                }
+            } else {
+                // If not using balance, validate payment fields
+                if (!amountInput || !amountInput.value || parseFloat(amountInput.value) <= 0) {
+                    alert('Por favor, informe um valor maior que zero ou selecione "Usar apenas saldo da fração".');
+                    return false;
+                }
+                if (!paymentMethodSelect || !paymentMethodSelect.value) {
+                    alert('Por favor, selecione um método de pagamento.');
+                    return false;
+                }
+                if (!bankAccountSelect || !bankAccountSelect.value) {
+                    alert('Por favor, selecione uma conta bancária.');
+                    return false;
+                }
+            }
+            
+            // Disable button and submit form
+            submitBtn.disabled = true;
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>A processar...';
+            
+            // Submit the form
+            form.submit();
+            
+            return false;
+        });
+    }
+    
+    // Clear balance info when modal is hidden (if modal)
+    {% if modal_id %}
+    const modalElement = document.getElementById('{{ modal_id }}');
+    if (modalElement) {
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            if (balanceInfo) balanceInfo.style.display = 'none';
+            if (useBalanceCheckbox) {
+                useBalanceCheckbox.checked = false;
+                togglePaymentFields(false);
+            }
+            if (fractionSelect) fractionSelect.value = '';
+            if (amountInput) amountInput.value = '';
+            if (paymentMethodSelect) paymentMethodSelect.value = '';
+            if (bankAccountSelect) bankAccountSelect.value = '';
+            if (quotaInfoSection) quotaInfoSection.style.display = 'none';
+            if (quotaCheckboxes) quotaCheckboxes.innerHTML = '';
+            if (quotaSummary) quotaSummary.style.display = 'none';
+            // Uncheck all quota checkboxes
+            document.querySelectorAll('.' + prefix + 'quota-fee-checkbox').forEach(cb => cb.checked = false);
+            // Re-enable submit button
+            const form = document.getElementById(prefix ? (prefix + 'form') : 'form');
+            if (form) {
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-cash-coin"></i> Liquidar Quotas';
+                }
+            }
+        });
+    }
+    {% endif %}
+})();
+</script>

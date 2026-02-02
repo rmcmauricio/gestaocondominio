@@ -337,6 +337,7 @@ $router->post('/condominiums/{condominium_id}/financial-transactions/import/uplo
 $router->post('/condominiums/{condominium_id}/financial-transactions/import/preview', 'App\Controllers\FinancialTransactionController@previewImport');
 $router->post('/condominiums/{condominium_id}/financial-transactions/import/process', 'App\Controllers\FinancialTransactionController@processImport');
 $router->get('/condominiums/{condominium_id}/financial-transactions/import/pending-fees/{fraction_id}', 'App\Controllers\FinancialTransactionController@getPendingFees');
+$router->get('/condominiums/{condominium_id}/financial-transactions/fraction-balance/{fraction_id}', 'App\Controllers\FinancialTransactionController@getFractionBalance');
 $router->post('/condominiums/{condominium_id}/financial-transactions/{id}/liquidate-quotas', 'App\Controllers\FinancialTransactionController@liquidateQuotas');
 
 // Vote routes

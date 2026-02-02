@@ -92,7 +92,7 @@
                 <table class="table table-excel" id="financial-transactions-table" style="min-width: 100%; width: max-content;">
                     <thead>
                         <tr>
-                            <th style="width: 80px; text-align: center;">#</th>
+                            <th style="width: 50px; text-align: center;" title="Tipo">Tipo</th>
                             <th style="width: 100px;">Data</th>
                             <th>Descrição</th>
                             <th>Categoria</th>
@@ -111,14 +111,11 @@
                         {% for transaction in transactions %}
                         <tr>
                             <td style="text-align: center;">
-                                <span style="display: inline-flex; align-items: center; gap: 4px;">
-                                    <span>{{ loop.index }}</span>
-                                    {% if transaction.transaction_type == 'income' %}
-                                    <i class="bi bi-arrow-up-circle-fill text-success" style="font-size: 0.9rem;" title="Entrada"></i>
-                                    {% else %}
-                                    <i class="bi bi-arrow-down-circle-fill text-danger" style="font-size: 0.9rem;" title="Saída"></i>
-                                    {% endif %}
-                                </span>
+                                {% if transaction.transaction_type == 'income' %}
+                                <i class="bi bi-arrow-up-circle-fill text-success" style="font-size: 0.9rem;" title="Entrada"></i>
+                                {% else %}
+                                <i class="bi bi-arrow-down-circle-fill text-danger" style="font-size: 0.9rem;" title="Saída"></i>
+                                {% endif %}
                             </td>
                             <td>{{ transaction.transaction_date|date('d/m/Y') }}</td>
                             <td>
@@ -622,6 +619,20 @@ body #financial-transactions-table-container #financial-transactions-table tbody
                             {% endfor %}
                         </select>
                     </div>
+                    
+                    <div id="modal_fraction_balance_info" style="display: none;" class="mb-3">
+                        <div class="alert alert-success">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modal_use_fraction_balance">
+                                <label class="form-check-label" for="modal_use_fraction_balance">
+                                    <strong>Usar saldo da fração</strong>
+                                </label>
+                            </div>
+                            <small class="text-muted d-block mt-1">
+                                Saldo disponível: <strong id="modal_fraction_balance_amount">0.00</strong> €
+                            </small>
+                        </div>
+                    </div>
                 
                     <div id="modal_quota_list" style="display: none;">
                         <label class="form-label"><strong>Selecione quotas específicas (opcional):</strong></label>
@@ -664,6 +675,8 @@ function initQuotaModal() {
                 const list = document.getElementById('modal_quota_list');
                 const checkboxesDiv = document.querySelector('.quota-checkboxes-modal');
                 const summaryDiv = document.querySelector('.quota-summary-modal');
+                const balanceInfo = document.getElementById('modal_fraction_balance_info');
+                const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
                 
                 if (checkbox) checkbox.checked = false;
                 if (config) config.style.display = 'none';
@@ -671,6 +684,8 @@ function initQuotaModal() {
                 if (list) list.style.display = 'none';
                 if (checkboxesDiv) checkboxesDiv.innerHTML = '';
                 if (summaryDiv) summaryDiv.style.display = 'none';
+                if (balanceInfo) balanceInfo.style.display = 'none';
+                if (useBalanceCheckbox) useBalanceCheckbox.checked = false;
                 currentTransactionId = null;
                 currentTransactionAmount = 0;
             });
@@ -700,11 +715,15 @@ document.addEventListener('click', function(e) {
         const modalConfig = document.getElementById('modal_quota_config');
         const modalFraction = document.getElementById('modal_quota_fraction');
         const modalList = document.getElementById('modal_quota_list');
+        const balanceInfo = document.getElementById('modal_fraction_balance_info');
+        const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
         
         if (modalCheckbox) modalCheckbox.checked = false;
         if (modalFraction) modalFraction.value = '';
         if (modalConfig) modalConfig.style.display = 'none';
         if (modalList) modalList.style.display = 'none';
+        if (balanceInfo) balanceInfo.style.display = 'none';
+        if (useBalanceCheckbox) useBalanceCheckbox.checked = false;
         
         const checkboxesDiv = document.querySelector('.quota-checkboxes-modal');
         const summaryDiv = document.querySelector('.quota-summary-modal');
@@ -745,21 +764,61 @@ document.getElementById('modal_quota_liquidation_checkbox').addEventListener('ch
     }
 });
 
-// Handle fraction selection in modal - load pending fees
+// Handle fraction selection in modal - load pending fees and balance
 document.getElementById('modal_quota_fraction').addEventListener('change', function() {
     const fractionId = this.value;
     
     if (fractionId) {
+        loadFractionBalance(fractionId);
         loadQuotasForModal(fractionId, currentTransactionAmount);
     } else {
         const list = document.getElementById('modal_quota_list');
         const checkboxesDiv = document.querySelector('.quota-checkboxes-modal');
         const summaryDiv = document.querySelector('.quota-summary-modal');
+        const balanceInfo = document.getElementById('modal_fraction_balance_info');
+        const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
         if (list) list.style.display = 'none';
         if (checkboxesDiv) checkboxesDiv.innerHTML = '';
         if (summaryDiv) summaryDiv.style.display = 'none';
+        if (balanceInfo) balanceInfo.style.display = 'none';
+        if (useBalanceCheckbox) useBalanceCheckbox.checked = false;
     }
 });
+
+function loadFractionBalance(fractionId) {
+    const balanceInfo = document.getElementById('modal_fraction_balance_info');
+    const balanceAmount = document.getElementById('modal_fraction_balance_amount');
+    const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
+    
+    fetch(`{{ BASE_URL }}condominiums/${condominiumId}/financial-transactions/fraction-balance/${fractionId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.has_balance) {
+                if (balanceAmount) {
+                    balanceAmount.textContent = parseFloat(data.balance).toFixed(2);
+                }
+                if (balanceInfo) {
+                    balanceInfo.style.display = 'block';
+                }
+                // Add event listener to checkbox to update summary when toggled
+                if (useBalanceCheckbox) {
+                    useBalanceCheckbox.addEventListener('change', function() {
+                        const fractionId = document.getElementById('modal_quota_fraction').value;
+                        if (fractionId) {
+                            loadQuotasForModal(fractionId, currentTransactionAmount);
+                        }
+                    });
+                }
+            } else {
+                if (balanceInfo) balanceInfo.style.display = 'none';
+                if (useBalanceCheckbox) useBalanceCheckbox.checked = false;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading fraction balance:', error);
+            if (balanceInfo) balanceInfo.style.display = 'none';
+        });
+}
 
 function loadQuotasForModal(fractionId, transactionAmount) {
     const quotaListDiv = document.getElementById('modal_quota_list');
@@ -795,6 +854,14 @@ function loadQuotasForModal(fractionId, transactionAmount) {
                     });
                 });
                 
+                // Add event listener to use balance checkbox
+                const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
+                if (useBalanceCheckbox) {
+                    useBalanceCheckbox.addEventListener('change', function() {
+                        updateQuotaSummaryModal(transactionAmount);
+                    });
+                }
+                
                 updateQuotaSummaryModal(transactionAmount);
             } else {
                 checkboxesDiv.innerHTML = '<p class="text-muted">Nenhuma quota pendente encontrada.</p>';
@@ -819,7 +886,19 @@ function updateQuotaSummaryModal(transactionAmount) {
         selectedTotal += pendingAmount;
     });
     
-    const remaining = Math.max(0, transactionAmount - selectedTotal);
+    // Check if using fraction balance
+    const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
+    const useBalance = useBalanceCheckbox && useBalanceCheckbox.checked;
+    let balanceAmount = 0;
+    if (useBalance) {
+        const balanceText = document.getElementById('modal_fraction_balance_amount');
+        if (balanceText) {
+            balanceAmount = parseFloat(balanceText.textContent) || 0;
+        }
+    }
+    
+    const totalAvailable = transactionAmount + balanceAmount;
+    const remaining = Math.max(0, totalAvailable - selectedTotal);
     const summaryDiv = document.querySelector('.quota-summary-modal');
     
     if (selectedFees.length > 0 || remaining > 0) {
@@ -884,6 +963,16 @@ document.getElementById('saveQuotaLiquidation').addEventListener('click', functi
         feeInput.value = feeId;
         form.appendChild(feeInput);
     });
+    
+    // Add use_balance flag if checked
+    const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
+    if (useBalanceCheckbox && useBalanceCheckbox.checked) {
+        const useBalanceInput = document.createElement('input');
+        useBalanceInput.type = 'hidden';
+        useBalanceInput.name = 'use_fraction_balance';
+        useBalanceInput.value = '1';
+        form.appendChild(useBalanceInput);
+    }
     
     document.body.appendChild(form);
     form.submit();
