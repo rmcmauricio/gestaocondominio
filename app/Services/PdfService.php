@@ -627,7 +627,7 @@ class PdfService
         $generationDate = date('d/m/Y H:i');
 
         // Replace placeholders - do ALL replacements
-        $template = str_replace('{{LOGO_HTML}}', $this->getLogoHtml($logoUrl), $template);
+        $template = str_replace('{{LOGO_HTML}}', $this->getLogoHtml($logoPath), $template);
         $template = str_replace('{{condominium_name}}', htmlspecialchars($condominiumName), $template);
         $template = str_replace('{{condominium_address}}', htmlspecialchars($condominiumAddress), $template);
         $template = str_replace('{{assembly_date}}', $date, $template);

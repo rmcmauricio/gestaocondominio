@@ -161,10 +161,60 @@
                 </a>
             </li>
             
+            {% set is_finances_page = viewName is defined and (
+                'pages/finances/' in viewName or 
+                'pages/financial-transactions/' in viewName or 
+                'pages/bank-accounts/' in viewName
+            ) %}
             <li class="nav-item">
-                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances">
+                <a class="nav-link" href="#" data-bs-toggle="collapse" data-bs-target="#finances-submenu" aria-expanded="{{ is_finances_page ? 'true' : 'false' }}" aria-controls="finances-submenu" onclick="event.preventDefault();">
                     <i class="bi bi-cash-coin"></i> Finanças
+                    <i class="bi bi-chevron-down ms-auto finances-chevron" style="font-size: 0.75rem; transition: transform 0.2s;"></i>
                 </a>
+                <ul class="nav flex-column collapse {% if is_finances_page %}show{% endif %}" id="finances-submenu" data-bs-parent=".sidebar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link ps-4 {% if viewName is defined and viewName == 'pages/finances/index.html.twig' %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances">
+                            <i class="bi bi-speedometer2"></i> Visão Geral
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link ps-4 {% if viewName is defined and 'pages/financial-transactions/' in viewName %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions">
+                            <i class="bi bi-list-ul"></i> Movimentos Financeiros
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link ps-4 {% if viewName is defined and 'pages/bank-accounts/' in viewName %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts">
+                            <i class="bi bi-bank"></i> Contas Bancárias
+                        </a>
+                    </li>
+                    {% if current_condominium_role == 'admin' or not current_condominium_role %}
+                    <li class="nav-item">
+                        <a class="nav-link ps-4 {% if viewName is defined and ('pages/finances/create-budget.html.twig' in viewName or 'pages/finances/show-budget.html.twig' in viewName or 'pages/finances/edit-budget.html.twig' in viewName) %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create">
+                            <i class="bi bi-calendar-check"></i> Orçamentos
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link ps-4 {% if viewName is defined and 'pages/finances/create-expense.html.twig' in viewName %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create">
+                            <i class="bi bi-cash-stack"></i> Despesas
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link ps-4 {% if viewName is defined and ('pages/finances/revenues.html.twig' in viewName or 'pages/finances/create-revenue.html.twig' in viewName or 'pages/finances/edit-revenue.html.twig' in viewName) %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues">
+                            <i class="bi bi-arrow-up-circle"></i> Receitas
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link ps-4 {% if viewName is defined and 'pages/finances/historical-debts.html.twig' in viewName %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-debts">
+                            <i class="bi bi-clock-history"></i> Dívidas Históricas
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link ps-4 {% if viewName is defined and 'pages/finances/reports.html.twig' in viewName %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports">
+                            <i class="bi bi-file-earmark-text"></i> Relatórios
+                        </a>
+                    </li>
+                </ul>
             </li>
             
             <li class="nav-item">
@@ -176,12 +226,6 @@
             <li class="nav-item">
                 <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fraction-accounts">
                     <i class="bi bi-wallet2"></i> Contas por fração
-                </a>
-            </li>
-            
-            <li class="nav-item">
-                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports">
-                    <i class="bi bi-file-earmark-text"></i> Relatórios
                 </a>
             </li>
             

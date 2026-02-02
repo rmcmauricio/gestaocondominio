@@ -202,6 +202,15 @@ class Assembly extends Model
 
         return $this->update($id, $data);
     }
+
+    /**
+     * Check if accounts for a year have been approved
+     */
+    public function hasApprovedAccountsForYear(int $condominiumId, int $year): bool
+    {
+        $approvalModel = new \App\Models\AssemblyAccountApproval();
+        return $approvalModel->hasApprovedYear($condominiumId, $year);
+    }
 }
 
 

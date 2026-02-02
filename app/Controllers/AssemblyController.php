@@ -8,6 +8,7 @@ use App\Middleware\AuthMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Models\Assembly;
 use App\Models\AssemblyAttendee;
+use App\Models\AssemblyAccountApproval;
 use App\Models\Condominium;
 use App\Models\Fraction;
 use App\Models\VoteTopic;
@@ -15,6 +16,7 @@ use App\Models\Vote;
 use App\Models\AssemblyAgendaPoint;
 use App\Services\NotificationService;
 use App\Services\PdfService;
+use App\Services\AuditService;
 use App\Core\EmailService;
 
 class AssemblyController extends Controller
@@ -388,6 +390,10 @@ class AssemblyController extends Controller
         $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
         $isAdmin = ($userRole === 'admin');
 
+        // Get account approvals for this condominium
+        $approvalModel = new AssemblyAccountApproval();
+        $approvedYears = $approvalModel->getByCondominium($condominiumId);
+
         $mt = !empty($minutesTemplate) ? $minutesTemplate[0] : null;
         $reviewDeadline = null;
         $reviewSentAt = null;
@@ -464,6 +470,8 @@ class AssemblyController extends Controller
             'my_fractions_for_revision' => $myFractionsForRevision,
             'my_revision' => $myRevision,
             'today_ymd' => date('Y-m-d'),
+            'approved_years' => $approvedYears,
+            'current_year' => (int)date('Y'),
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null,
@@ -1961,6 +1969,116 @@ class AssemblyController extends Controller
         $_SESSION['success'] = 'Status da assembleia alterado para "' . ($statusNames[$newStatus] ?? $newStatus) . '" com sucesso!';
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
         exit;
+    }
+
+    public function approveAccounts(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Método inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        // Verify assembly is completed
+        if ($assembly['status'] !== 'completed') {
+            $_SESSION['error'] = 'Apenas assembleias concluídas podem aprovar contas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        // Verify approved minutes exist
+        $documentModel = new \App\Models\Document();
+        $approvedMinutes = $documentModel->getByAssemblyId($id, [
+            'document_type' => 'minutes',
+            'status' => 'approved'
+        ]);
+
+        if (empty($approvedMinutes)) {
+            $_SESSION['error'] = 'É necessário ter atas aprovadas antes de aprovar as contas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        // Get and validate year
+        $year = !empty($_POST['approved_year']) ? (int)$_POST['approved_year'] : null;
+        if (!$year || $year < 2000 || $year > 2100) {
+            $_SESSION['error'] = 'Ano inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        // Validate year is not future or current (should be past year)
+        $currentYear = (int)date('Y');
+        if ($year >= $currentYear) {
+            $_SESSION['error'] = 'Só pode aprovar contas de anos passados (anteriores a ' . $currentYear . ').';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        // Check if year is already approved
+        $approvalModel = new AssemblyAccountApproval();
+        if ($approvalModel->hasApprovedYear($condominiumId, $year)) {
+            $_SESSION['error'] = 'As contas do ano ' . $year . ' já foram aprovadas anteriormente.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        try {
+            $userId = AuthMiddleware::userId();
+            $notes = !empty($_POST['notes']) ? Security::sanitize($_POST['notes']) : null;
+
+            // Create approval record
+            $approvalId = $approvalModel->create([
+                'assembly_id' => $id,
+                'condominium_id' => $condominiumId,
+                'approved_year' => $year,
+                'approved_at' => date('Y-m-d H:i:s'),
+                'approved_by' => $userId,
+                'notes' => $notes
+            ]);
+
+            // Log audit
+            $auditService = new AuditService();
+            $auditService->logFinancial([
+                'condominium_id' => $condominiumId,
+                'entity_type' => 'assembly_account_approval',
+                'entity_id' => $approvalId,
+                'action' => 'accounts_approved',
+                'user_id' => $userId,
+                'description' => "Contas do ano {$year} aprovadas na assembleia {$assembly['title']}",
+                'changes' => [
+                    'assembly_id' => $id,
+                    'approved_year' => $year,
+                    'notes' => $notes
+                ]
+            ]);
+
+            $_SESSION['success'] = 'Contas do ano ' . $year . ' aprovadas com sucesso! Os movimentos financeiros deste ano ficam bloqueados para edição/apagação.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao aprovar contas: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
     }
 }
 

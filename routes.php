@@ -312,6 +312,7 @@ $router->post('/condominiums/{condominium_id}/assemblies/{id}/change-status', 'A
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/agenda-points', 'App\Controllers\AssemblyController@storeAgendaPoint');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/agenda-points/{point_id}/link-vote', 'App\Controllers\AssemblyController@updateAgendaPointVoteTopic');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/agenda-points/{point_id}/unlink-vote/{topic_id}', 'App\Controllers\AssemblyController@unlinkAgendaPointVoteTopic');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/approve-accounts', 'App\Controllers\AssemblyController@approveAccounts');
 
 // Bank Accounts routes
 $router->get('/condominiums/{condominium_id}/bank-accounts', 'App\Controllers\BankAccountController@index');
@@ -330,6 +331,13 @@ $router->get('/condominiums/{condominium_id}/financial-transactions/{id}/edit', 
 $router->post('/condominiums/{condominium_id}/financial-transactions/{id}/update', 'App\Controllers\FinancialTransactionController@update');
 $router->post('/condominiums/{condominium_id}/financial-transactions/{id}/delete', 'App\Controllers\FinancialTransactionController@delete');
 $router->get('/condominiums/{condominium_id}/financial-transactions/balance/{account_id}', 'App\Controllers\FinancialTransactionController@getAccountBalance');
+// Import routes
+$router->get('/condominiums/{condominium_id}/financial-transactions/import', 'App\Controllers\FinancialTransactionController@import');
+$router->post('/condominiums/{condominium_id}/financial-transactions/import/upload', 'App\Controllers\FinancialTransactionController@uploadImport');
+$router->post('/condominiums/{condominium_id}/financial-transactions/import/preview', 'App\Controllers\FinancialTransactionController@previewImport');
+$router->post('/condominiums/{condominium_id}/financial-transactions/import/process', 'App\Controllers\FinancialTransactionController@processImport');
+$router->get('/condominiums/{condominium_id}/financial-transactions/import/pending-fees/{fraction_id}', 'App\Controllers\FinancialTransactionController@getPendingFees');
+$router->post('/condominiums/{condominium_id}/financial-transactions/{id}/liquidate-quotas', 'App\Controllers\FinancialTransactionController@liquidateQuotas');
 
 // Vote routes
 $router->get('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/create-topic', 'App\Controllers\VoteController@createTopic');

@@ -92,11 +92,54 @@ class FinancialTransaction extends Model
 
         if (isset($filters['limit'])) {
             $sql .= " LIMIT " . (int)$filters['limit'];
+            if (isset($filters['offset'])) {
+                $sql .= " OFFSET " . (int)$filters['offset'];
+            }
         }
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll() ?: [];
+    }
+
+    /**
+     * Get count of transactions by condominium (for pagination)
+     */
+    public function getCountByCondominium(int $condominiumId, array $filters = []): int
+    {
+        if (!$this->db) {
+            return 0;
+        }
+
+        $sql = "SELECT COUNT(*) as total
+                FROM financial_transactions ft
+                WHERE ft.condominium_id = :condominium_id";
+        $params = [':condominium_id' => $condominiumId];
+
+        if (isset($filters['bank_account_id'])) {
+            $sql .= " AND ft.bank_account_id = :bank_account_id";
+            $params[':bank_account_id'] = $filters['bank_account_id'];
+        }
+
+        if (isset($filters['transaction_type'])) {
+            $sql .= " AND ft.transaction_type = :transaction_type";
+            $params[':transaction_type'] = $filters['transaction_type'];
+        }
+
+        if (isset($filters['from_date'])) {
+            $sql .= " AND ft.transaction_date >= :from_date";
+            $params[':from_date'] = $filters['from_date'];
+        }
+
+        if (isset($filters['to_date'])) {
+            $sql .= " AND ft.transaction_date <= :to_date";
+            $params[':to_date'] = $filters['to_date'];
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetch();
+        return (int)($result['total'] ?? 0);
     }
 
     /**

@@ -56,7 +56,7 @@ class Fee extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT f.id, f.amount, f.reference
+            SELECT f.id, f.amount, f.reference, f.period_year, f.period_month, f.fee_type, f.condominium_id
             FROM fees f
             WHERE f.fraction_id = :fraction_id
             AND f.status IN ('pending', 'overdue')

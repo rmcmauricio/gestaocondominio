@@ -439,16 +439,41 @@
 
   // Handle sidebar submenu collapse/expand
   document.addEventListener('DOMContentLoaded', function() {
+    // API submenu
     const apiSubmenu = document.getElementById('api-submenu');
     const apiSubmenuToggle = document.querySelector('[data-bs-target="#api-submenu"]');
     
     if (apiSubmenu && apiSubmenuToggle) {
+      // Check if submenu is already expanded on page load
+      if (apiSubmenu.classList.contains('show')) {
+        apiSubmenuToggle.setAttribute('aria-expanded', 'true');
+      }
+      
       apiSubmenu.addEventListener('show.bs.collapse', function() {
         apiSubmenuToggle.setAttribute('aria-expanded', 'true');
       });
       
       apiSubmenu.addEventListener('hide.bs.collapse', function() {
         apiSubmenuToggle.setAttribute('aria-expanded', 'false');
+      });
+    }
+    
+    // Finances submenu
+    const financesSubmenu = document.getElementById('finances-submenu');
+    const financesSubmenuToggle = document.querySelector('[data-bs-target="#finances-submenu"]');
+    
+    if (financesSubmenu && financesSubmenuToggle) {
+      // Check if submenu is already expanded on page load
+      if (financesSubmenu.classList.contains('show')) {
+        financesSubmenuToggle.setAttribute('aria-expanded', 'true');
+      }
+      
+      financesSubmenu.addEventListener('show.bs.collapse', function() {
+        financesSubmenuToggle.setAttribute('aria-expanded', 'true');
+      });
+      
+      financesSubmenu.addEventListener('hide.bs.collapse', function() {
+        financesSubmenuToggle.setAttribute('aria-expanded', 'false');
       });
     }
   });

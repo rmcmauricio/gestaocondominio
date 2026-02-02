@@ -1418,13 +1418,16 @@ a:hover .card-hover .text-primary {
   position: relative;
 }
 
-.sidebar-nav .nav-item .nav-link[data-bs-toggle="collapse"] .api-chevron {
+.sidebar-nav .nav-item .nav-link[data-bs-toggle="collapse"] .api-chevron,
+.sidebar-nav .nav-item .nav-link[data-bs-toggle="collapse"] .finances-chevron {
   transition: transform 0.2s ease;
   margin-left: auto;
 }
 
 .sidebar-nav .nav-item .nav-link[data-bs-toggle="collapse"][aria-expanded="true"] .api-chevron,
-.sidebar-nav .nav-item .nav-link[aria-expanded="true"] .api-chevron {
+.sidebar-nav .nav-item .nav-link[aria-expanded="true"] .api-chevron,
+.sidebar-nav .nav-item .nav-link[data-bs-toggle="collapse"][aria-expanded="true"] .finances-chevron,
+.sidebar-nav .nav-item .nav-link[aria-expanded="true"] .finances-chevron {
   transform: rotate(180deg);
 }
 
@@ -1821,8 +1824,8 @@ a:hover .card-hover .text-primary {
   }
 
   /* Ensure actions column is visible */
-  .main-content .table-responsive table:not(.table-budget-mobile) th:last-child,
-  .main-content .table-responsive table:not(.table-budget-mobile) td:last-child {
+  .main-content .table-responsive table:not(.table-budget-mobile):not(.table-excel) th:last-child,
+  .main-content .table-responsive table:not(.table-budget-mobile):not(.table-excel) td:last-child {
     white-space: nowrap;
     min-width: 120px;
   }
@@ -3064,8 +3067,8 @@ a:hover .card-hover .text-primary {
   }
 
   /* Ensure actions column is always visible */
-  .main-content .table-responsive table:not(.table-budget-mobile) th:last-child,
-  .main-content .table-responsive table:not(.table-budget-mobile) td:last-child {
+  .main-content .table-responsive table:not(.table-budget-mobile):not(.table-excel) th:last-child,
+  .main-content .table-responsive table:not(.table-budget-mobile):not(.table-excel) td:last-child {
     white-space: nowrap;
     min-width: 120px; /* Ensure actions column has enough space */
   }
@@ -4875,6 +4878,361 @@ a:hover .card-hover .text-primary {
   .list-group-item .badge {
     font-size: 0.65rem !important;
     padding: 0.2rem 0.4rem;
+  }
+}
+
+/* ============================================
+   Excel-Style Compact Tables
+   ============================================ */
+.table-excel {
+  font-size: 0.8rem;
+  border-collapse: collapse;
+  width: 100%;
+  background-color: #ffffff;
+  border: 1px solid #d0d0d0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Remove Bootstrap table styles */
+.table-excel.table-bordered {
+  border: 1px solid #d0d0d0;
+}
+
+.table-excel.table-hover tbody tr:hover {
+  background-color: #e7f3ff !important;
+}
+
+/* Headers - Excel style */
+.table-excel thead th {
+  background-color: #f2f2f2 !important;
+  border: 1px solid #d0d0d0 !important;
+  border-bottom: 2px solid #808080 !important;
+  padding: 0.4rem 0.5rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-align: left;
+  white-space: nowrap;
+  vertical-align: middle;
+  color: #000000;
+  position: relative;
+}
+
+.table-excel thead th:first-child {
+  border-left: 1px solid #d0d0d0;
+}
+
+.table-excel thead th:last-child {
+  border-right: 1px solid #d0d0d0;
+}
+
+/* Body cells - Excel style */
+.table-excel tbody td {
+  border: 1px solid #d0d0d0 !important;
+  padding: 0.3rem 0.5rem;
+  vertical-align: middle;
+  font-size: 0.8rem;
+  background-color: #ffffff;
+  color: #000000;
+}
+
+/* Zebra striping - Excel style */
+.table-excel tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.table-excel tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+
+/* Row hover - subtle Excel style */
+.table-excel tbody tr:hover {
+  background-color: #e7f3ff !important;
+}
+
+/* Remove Bootstrap success/danger row colors, use Excel style */
+.table-excel tbody tr.table-success-light {
+  background-color: #e6f7e6 !important;
+}
+
+.table-excel tbody tr.table-danger-light {
+  background-color: #ffe6e6 !important;
+}
+
+.table-excel tbody tr.table-danger {
+  background-color: #ffcccc !important;
+}
+
+/* Remove rounded borders */
+.table-excel,
+.table-excel th,
+.table-excel td {
+  border-radius: 0 !important;
+}
+
+/* Override min-width rules for Excel table last column */
+.table-excel th:last-child,
+.table-excel td:last-child {
+  min-width: auto !important;
+  white-space: normal !important;
+}
+
+/* Form controls inside excel tables - Excel style */
+.table-excel .form-control,
+.table-excel .form-select {
+  padding: 0.25rem 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  height: auto;
+  min-height: 1.8rem;
+  background-color: #ffffff;
+  box-shadow: none !important;
+}
+
+.table-excel .form-control:focus,
+.table-excel .form-select:focus {
+  border-color: #0078d4 !important;
+  box-shadow: 0 0 0 1px #0078d4 !important;
+  outline: none;
+}
+
+.table-excel .form-control-sm,
+.table-excel .form-select-sm {
+  padding: 0.2rem 0.35rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  min-height: 1.6rem;
+}
+
+/* Badges in excel tables - Excel style */
+.table-excel .badge {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.4rem;
+  line-height: 1.2;
+  border-radius: 0 !important;
+  border: 1px solid transparent;
+  font-weight: 500;
+}
+
+.table-excel .badge.bg-success {
+  background-color: #c6efce !important;
+  color: #006100 !important;
+  border-color: #006100;
+}
+
+.table-excel .badge.bg-danger {
+  background-color: #ffc7ce !important;
+  color: #9c0006 !important;
+  border-color: #9c0006;
+}
+
+/* Checkboxes and radios */
+.table-excel .form-check {
+  margin-bottom: 0;
+  padding-left: 1.5rem;
+}
+
+.table-excel .form-check.d-inline-block {
+  padding-left: 0;
+  display: inline-block;
+}
+
+.table-excel .form-check-input {
+  margin-top: 0.2rem;
+  width: 0.9rem;
+  height: 0.9rem;
+  cursor: pointer;
+}
+
+.table-excel .form-check-label {
+  font-size: 0.75rem;
+  margin-bottom: 0;
+  padding-left: 0.25rem;
+  cursor: pointer;
+}
+
+.table-excel .form-check-label i {
+  font-size: 1rem;
+  color: #666666;
+}
+
+.table-excel .form-check-input:checked ~ .form-check-label i {
+  color: #0078d4;
+}
+
+/* Alerts and info boxes - Excel style */
+.table-excel .alert {
+  padding: 0.35rem 0.5rem;
+  margin: 0.25rem 0;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  border-radius: 0 !important;
+  border: 1px solid #d0d0d0;
+}
+
+.table-excel .alert-info {
+  background-color: #deebf7 !important;
+  border-color: #5b9bd5 !important;
+  color: #000000 !important;
+}
+
+/* Small text */
+.table-excel small,
+.table-excel .small {
+  font-size: 0.7rem;
+}
+
+/* Buttons in excel tables - Excel style */
+.table-excel .btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  border-radius: 0 !important;
+  border: 1px solid #808080;
+  background-color: #f2f2f2;
+  color: #000000;
+}
+
+.table-excel .btn:hover {
+  background-color: #e6e6e6;
+  border-color: #666666;
+}
+
+.table-excel .btn-sm {
+  padding: 0.2rem 0.4rem;
+  font-size: 0.7rem;
+}
+
+/* Input groups */
+.table-excel .input-group {
+  height: auto;
+}
+
+.table-excel .input-group-text {
+  padding: 0.25rem 0.35rem;
+  font-size: 0.75rem;
+  border: 1px solid #808080 !important;
+  background-color: #f2f2f2;
+  color: #000000;
+  border-radius: 0 !important;
+  min-width: 28px;
+  text-align: center;
+}
+
+/* Input group with prefix (€ on left) - not used in Excel table */
+.table-excel .input-group .form-control:not(:first-child) {
+  border-left: 1px solid #808080 !important;
+  border-radius: 0 !important;
+}
+
+/* Input group with suffix (€ on right) - Excel style */
+.table-excel .input-group .form-control:first-child {
+  border-right: none;
+  border-radius: 0 !important;
+  text-align: right;
+}
+
+.table-excel .input-group .input-group-text:last-child {
+  border-left: none;
+  border-right: 1px solid #808080 !important;
+  border-radius: 0 !important;
+}
+
+.table-excel .input-group .form-control:focus {
+  box-shadow: 0 0 0 1px #0078d4 !important;
+}
+
+/* Select dropdowns */
+.table-excel select.form-select {
+  padding-right: 1.5rem;
+  background-size: 0.6rem 0.6rem;
+}
+
+/* Number inputs */
+.table-excel input[type="number"] {
+  text-align: right;
+}
+
+/* Date inputs */
+.table-excel input[type="date"] {
+  min-width: 120px;
+}
+
+/* Remove extra spacing */
+.table-excel .mt-2 {
+  margin-top: 0.25rem !important;
+}
+
+.table-excel .mt-1 {
+  margin-top: 0.15rem !important;
+}
+
+.table-excel .mb-2 {
+  margin-bottom: 0.25rem !important;
+}
+
+.table-excel .mb-1 {
+  margin-bottom: 0.15rem !important;
+}
+
+/* Nested divs and containers */
+.table-excel td > div {
+  margin: 0;
+}
+
+.table-excel td > div:not(:last-child) {
+  margin-bottom: 0.2rem;
+}
+
+/* Scrollable quota lists - Excel style */
+.table-excel .quota-list {
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 0.25rem;
+  border: 1px solid #d0d0d0 !important;
+  border-radius: 0 !important;
+  background-color: #ffffff;
+}
+
+.table-excel .quota-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.table-excel .quota-checkboxes .form-check {
+  margin-bottom: 0.1rem;
+}
+
+/* Summary text - Excel style */
+.table-excel .quota-summary {
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid #d0d0d0 !important;
+  font-size: 0.7rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 767px) {
+  .table-excel {
+    font-size: 0.75rem;
+  }
+  
+  .table-excel thead th {
+    font-size: 0.7rem;
+    padding: 0.3rem 0.4rem;
+  }
+  
+  .table-excel tbody td {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.4rem;
+  }
+  
+  .table-excel .form-control,
+  .table-excel .form-select {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.35rem;
   }
 }
 
