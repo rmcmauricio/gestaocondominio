@@ -128,6 +128,7 @@ $router->post('/condominiums/{condominium_id}/fractions/{id}', 'App\Controllers\
 $router->post('/condominiums/{condominium_id}/fractions/{id}/delete', 'App\Controllers\FractionController@delete');
 $router->post('/condominiums/{condominium_id}/fractions/{id}/assign-self', 'App\Controllers\FractionController@assignToSelf');
 $router->post('/condominiums/{condominium_id}/fractions/{id}/remove-owner', 'App\Controllers\FractionController@removeOwner');
+$router->post('/condominiums/{condominium_id}/fractions/{id}/update-owner-contact', 'App\Controllers\FractionController@updateOwnerContact');
 
 // Invitation routes
 $router->get('/condominiums/{condominium_id}/invitations/create', 'App\Controllers\InvitationController@create');
@@ -135,6 +136,7 @@ $router->post('/condominiums/{condominium_id}/invitations', 'App\Controllers\Inv
 $router->post('/condominiums/{condominium_id}/invitations/{invitation_id}/revoke', 'App\Controllers\InvitationController@revoke');
 $router->post('/condominiums/{condominium_id}/invitations/{invitation_id}/update-email-and-send', 'App\Controllers\InvitationController@updateEmailAndSend');
 $router->post('/condominiums/{condominium_id}/invitations/{invitation_id}/resend', 'App\Controllers\InvitationController@resend');
+$router->post('/condominiums/{condominium_id}/invitations/{invitation_id}/update', 'App\Controllers\InvitationController@update');
 $router->get('/invitation/accept', 'App\Controllers\InvitationController@accept');
 $router->post('/invitation/accept', 'App\Controllers\InvitationController@processAccept');
 

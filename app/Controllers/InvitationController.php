@@ -389,5 +389,82 @@ class InvitationController extends Controller
         }
         exit;
     }
+
+    /**
+     * Update invitation details
+     */
+    public function update(int $condominiumId, int $invitationId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $name = trim(Security::sanitize($_POST['name'] ?? ''));
+        $email = trim(Security::sanitize($_POST['email'] ?? ''));
+        $role = Security::sanitize($_POST['role'] ?? 'condomino');
+        $nif = trim(Security::sanitize($_POST['nif'] ?? ''));
+        $phone = trim(Security::sanitize($_POST['phone'] ?? ''));
+        $alternativeAddress = trim(Security::sanitize($_POST['alternative_address'] ?? ''));
+        $fractionId = !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null;
+
+        if (empty($name)) {
+            $_SESSION['error'] = 'O nome é obrigatório.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        // Validate email format if provided
+        if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['error'] = 'Por favor, insira um email válido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        try {
+            if ($this->invitationService->updateInvitation($invitationId, $condominiumId, [
+                'name' => $name,
+                'email' => !empty($email) ? $email : null,
+                'role' => $role,
+                'nif' => $nif,
+                'phone' => $phone,
+                'alternative_address' => $alternativeAddress
+            ])) {
+                $_SESSION['success'] = 'Convite atualizado com sucesso!';
+                
+                // Log audit
+                $this->auditService->log([
+                    'action' => 'invitation_updated',
+                    'model' => 'invitation',
+                    'model_id' => $invitationId,
+                    'description' => "Convite atualizado para {$name}" . (!empty($email) ? " ({$email})" : " (sem email)") . " no condomínio ID {$condominiumId}"
+                ]);
+            } else {
+                $_SESSION['error'] = 'Erro ao atualizar convite.';
+            }
+        } catch (\Exception $e) {
+            error_log("InvitationController::update exception: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao atualizar convite: ' . $e->getMessage();
+        }
+
+        // Redirect back to fractions page if fraction_id is provided, otherwise to condominium page
+        if ($fractionId) {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+        } else {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId);
+        }
+        exit;
+    }
 }
 

@@ -23,7 +23,7 @@ class InvitationService
     /**
      * Create invitation (with or without email)
      */
-    public function createInvitation(int $condominiumId, ?int $fractionId, ?string $email, string $name, string $role = 'condomino'): ?int
+    public function createInvitation(int $condominiumId, ?int $fractionId, ?string $email, string $name, string $role = 'condomino', array $contactData = []): ?int
     {
         global $db;
         
@@ -39,7 +39,7 @@ class InvitationService
                 
                 if ($user) {
                     // User exists, just associate with fraction (no invitation needed)
-                    $result = $this->associateExistingUser($condominiumId, $fractionId, $user['id'], $role);
+                    $result = $this->associateExistingUser($condominiumId, $fractionId, $user['id'], $role, $contactData);
                     return $result ? -1 : null; // Return -1 to indicate user was associated directly
                 }
             } catch (\Exception $e) {
@@ -55,10 +55,10 @@ class InvitationService
         // Store invitation
         $stmt = $db->prepare("
             INSERT INTO invitations (
-                condominium_id, fraction_id, email, name, role, token, expires_at, created_by
+                condominium_id, fraction_id, email, name, role, nif, phone, alternative_address, token, expires_at, created_by
             )
             VALUES (
-                :condominium_id, :fraction_id, :email, :name, :role, :token, :expires_at, :created_by
+                :condominium_id, :fraction_id, :email, :name, :role, :nif, :phone, :alternative_address, :token, :expires_at, :created_by
             )
         ");
 
@@ -71,6 +71,9 @@ class InvitationService
                 ':email' => !empty($email) ? $email : null,
                 ':name' => $name,
                 ':role' => $role,
+                ':nif' => !empty($contactData['nif'] ?? null) ? Security::sanitize($contactData['nif']) : null,
+                ':phone' => !empty($contactData['phone'] ?? null) ? Security::sanitize($contactData['phone']) : null,
+                ':alternative_address' => !empty($contactData['alternative_address'] ?? null) ? Security::sanitize($contactData['alternative_address']) : null,
                 ':token' => $token,
                 ':expires_at' => $expiresAt,
                 ':created_by' => $userId
@@ -163,7 +166,7 @@ class InvitationService
             if ($user) {
                 // User exists, get invitation details and associate
                 $stmt = $db->prepare("
-                    SELECT fraction_id, name, role FROM invitations 
+                    SELECT fraction_id, name, role, nif, phone, alternative_address FROM invitations 
                     WHERE id = :invitation_id 
                     AND condominium_id = :condominium_id
                     AND accepted_at IS NULL
@@ -177,11 +180,36 @@ class InvitationService
                 
                 if ($invitation) {
                     // Associate user and mark invitation as accepted
+                    // Use user's NIF/phone if available, otherwise use invitation data
+                    // User data prevails: if user has NIF and invitation doesn't or is different, use user NIF
+                    $invitationNif = $invitation['nif'] ?? null;
+                    $userNif = $user['nif'] ?? null;
+                    $finalNif = null;
+                    
+                    // If user has NIF and (invitation doesn't have NIF or it's different), use user NIF
+                    if (!empty($userNif)) {
+                        if (empty($invitationNif) || $invitationNif !== $userNif) {
+                            $finalNif = $userNif;
+                        } else {
+                            $finalNif = $invitationNif; // Keep invitation NIF if it matches
+                        }
+                    } else {
+                        $finalNif = $invitationNif; // Use invitation NIF if user doesn't have one
+                    }
+                    
+                    // Phone: prefer user phone, fallback to invitation phone
+                    $finalPhone = !empty($user['phone']) ? $user['phone'] : ($invitation['phone'] ?? null);
+                    
                     $result = $this->associateExistingUser(
-                        $condominiumId, 
-                        $invitation['fraction_id'], 
-                        $user['id'], 
-                        $invitation['role']
+                        $condominiumId,
+                        $invitation['fraction_id'],
+                        $user['id'],
+                        $invitation['role'],
+                        [
+                            'nif' => $finalNif,
+                            'phone' => $finalPhone,
+                            'alternative_address' => $invitation['alternative_address'] ?? null
+                        ]
                     );
                     if ($result) {
                         $this->markInvitationAsAcceptedById($invitationId);
@@ -197,7 +225,7 @@ class InvitationService
 
         // Get invitation details
         $stmt = $db->prepare("
-            SELECT name, role, token FROM invitations 
+            SELECT name, role, token, nif, phone, alternative_address FROM invitations 
             WHERE id = :invitation_id 
             AND condominium_id = :condominium_id
             AND accepted_at IS NULL
@@ -221,7 +249,7 @@ class InvitationService
             $token = Security::generateToken(32);
         }
 
-        // Update invitation with email and token
+        // Update invitation with email and token (preserve existing contact data)
         $updateStmt = $db->prepare("
             UPDATE invitations 
             SET email = :email, 
@@ -311,6 +339,108 @@ class InvitationService
     }
 
     /**
+     * Update invitation details (name, email, role)
+     */
+    public function updateInvitation(int $invitationId, int $condominiumId, array $data): bool
+    {
+        global $db;
+        
+        if (!$db) {
+            return false;
+        }
+
+        // Verify invitation belongs to condominium and is not accepted
+        $stmt = $db->prepare("
+            SELECT id, email FROM invitations 
+            WHERE id = :invitation_id 
+            AND condominium_id = :condominium_id
+            AND accepted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':invitation_id' => $invitationId,
+            ':condominium_id' => $condominiumId
+        ]);
+        $invitation = $stmt->fetch();
+
+        if (!$invitation) {
+            return false;
+        }
+
+        $name = Security::sanitize($data['name'] ?? '');
+        $email = !empty($data['email']) ? Security::sanitize($data['email']) : null;
+        $role = Security::sanitize($data['role'] ?? 'condomino');
+        $nif = !empty($data['nif']) ? Security::sanitize($data['nif']) : null;
+        $phone = !empty($data['phone']) ? Security::sanitize($data['phone']) : null;
+        $alternativeAddress = !empty($data['alternative_address']) ? Security::sanitize($data['alternative_address']) : null;
+
+        if (empty($name)) {
+            return false;
+        }
+
+        // If email is being added or changed, generate token and expiration
+        $token = $invitation['token'];
+        $expiresAt = null;
+        
+        if (!empty($email)) {
+            // If email is new or changed, generate new token
+            if (empty($invitation['email']) || $invitation['email'] !== $email) {
+                $token = Security::generateToken(32);
+                $expiresAt = date('Y-m-d H:i:s', strtotime('+7 days'));
+            } else {
+                // Email unchanged, keep existing token and expiration
+                $stmt = $db->prepare("SELECT expires_at FROM invitations WHERE id = :invitation_id");
+                $stmt->execute([':invitation_id' => $invitationId]);
+                $existing = $stmt->fetch();
+                $expiresAt = $existing['expires_at'] ?? null;
+            }
+        }
+
+        // Update invitation
+        $updateStmt = $db->prepare("
+            UPDATE invitations 
+            SET name = :name,
+                email = :email,
+                role = :role,
+                nif = :nif,
+                phone = :phone,
+                alternative_address = :alternative_address,
+                token = :token,
+                expires_at = :expires_at
+            WHERE id = :invitation_id
+        ");
+        
+        try {
+            $updateStmt->execute([
+                ':name' => $name,
+                ':email' => $email,
+                ':role' => $role,
+                ':nif' => $nif,
+                ':phone' => $phone,
+                ':alternative_address' => $alternativeAddress,
+                ':token' => $token,
+                ':expires_at' => $expiresAt,
+                ':invitation_id' => $invitationId
+            ]);
+
+            // If email was added/changed and is valid, send invitation email
+            if (!empty($email) && !empty($token) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                // Check if user already exists
+                $user = $this->userModel->findByEmail($email);
+                if (!$user) {
+                    // Only send email if user doesn't exist
+                    $this->sendInvitationEmail($email, $name, $token);
+                }
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            error_log("Invitation update error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Mark invitation as accepted by ID
      */
     protected function markInvitationAsAcceptedById(int $invitationId): bool
@@ -367,33 +497,76 @@ class InvitationService
         
         if ($user) {
             // User exists, just associate
+            // Use user's NIF/phone if available, otherwise use invitation data
+            // User data prevails: if user has NIF and invitation doesn't or is different, use user NIF
+            $invitationNif = $invitation['nif'] ?? null;
+            $userNif = $user['nif'] ?? null;
+            $finalNif = null;
+            
+            // If user has NIF and (invitation doesn't have NIF or it's different), use user NIF
+            if (!empty($userNif)) {
+                if (empty($invitationNif) || $invitationNif !== $userNif) {
+                    $finalNif = $userNif;
+                } else {
+                    $finalNif = $invitationNif; // Keep invitation NIF if it matches
+                }
+            } else {
+                $finalNif = $invitationNif; // Use invitation NIF if user doesn't have one
+            }
+            
+            // Phone: prefer user phone, fallback to invitation phone
+            $finalPhone = !empty($user['phone']) ? $user['phone'] : ($invitation['phone'] ?? null);
+            
             $this->associateExistingUser(
                 $invitation['condominium_id'],
                 $invitation['fraction_id'],
                 $user['id'],
-                $invitation['role']
+                $invitation['role'],
+                [
+                    'nif' => $finalNif,
+                    'phone' => $finalPhone,
+                    'alternative_address' => $invitation['alternative_address'] ?? null
+                ]
             );
             $this->markInvitationAsAccepted($token);
             return $user['id'];
         }
 
-        // Create new user
-        $userId = $this->userModel->create([
+        // Create new user (with NIF and phone from invitation if provided)
+        $createData = [
             'email' => $invitation['email'],
             'password' => $password,
             'name' => $invitation['name'],
             'role' => 'condomino',
             'status' => 'active'
-        ]);
+        ];
+        
+        // Add NIF and phone to user creation if available in invitation
+        if (!empty($invitation['nif'])) {
+            $createData['nif'] = $invitation['nif'];
+        }
+        if (!empty($invitation['phone'])) {
+            $createData['phone'] = $invitation['phone'];
+        }
+        
+        $userId = $this->userModel->create($createData);
 
         if ($userId) {
             // Associate with condominium and fraction
+            // Use invitation data (which was already copied to user profile)
+            $userData = $this->userModel->findById($userId);
+            $finalNif = $userData['nif'] ?? null;
+            $finalPhone = $userData['phone'] ?? null;
+            
             $this->condominiumUserModel->associate([
                 'condominium_id' => $invitation['condominium_id'],
                 'user_id' => $userId,
                 'fraction_id' => $invitation['fraction_id'],
                 'role' => $invitation['role'],
-                'is_primary' => true
+                'is_primary' => true,
+                'nif' => $finalNif,
+                'phone' => $finalPhone,
+                'alternative_address' => $invitation['alternative_address'] ?? null
             ]);
 
             // Mark invitation as accepted
@@ -406,7 +579,7 @@ class InvitationService
     /**
      * Associate existing user with fraction
      */
-    protected function associateExistingUser(int $condominiumId, ?int $fractionId, int $userId, string $role): bool
+    protected function associateExistingUser(int $condominiumId, ?int $fractionId, int $userId, string $role, array $contactData = []): bool
     {
         global $db;
         
@@ -432,17 +605,23 @@ class InvitationService
                 $existing = $checkStmt->fetch();
                 
                 if ($existing) {
-                    // Association already exists, update it instead
+                    // Association already exists, update it instead (including contact data)
                     $updateStmt = $db->prepare("
                         UPDATE condominium_users 
                         SET condominium_id = :condominium_id,
                             role = :role,
+                            nif = :nif,
+                            phone = :phone,
+                            alternative_address = :alternative_address,
                             ended_at = NULL
                         WHERE id = :id
                     ");
                     $updateStmt->execute([
                         ':condominium_id' => $condominiumId,
                         ':role' => $role,
+                        ':nif' => !empty($contactData['nif']) ? Security::sanitize($contactData['nif']) : null,
+                        ':phone' => !empty($contactData['phone']) ? Security::sanitize($contactData['phone']) : null,
+                        ':alternative_address' => !empty($contactData['alternative_address']) ? Security::sanitize($contactData['alternative_address']) : null,
                         ':id' => $existing['id']
                     ]);
                     return true;
@@ -464,15 +643,21 @@ class InvitationService
                 $existing = $checkStmt->fetch();
                 
                 if ($existing) {
-                    // Association already exists, update it instead
+                    // Association already exists, update it instead (including contact data)
                     $updateStmt = $db->prepare("
                         UPDATE condominium_users 
                         SET role = :role,
+                            nif = :nif,
+                            phone = :phone,
+                            alternative_address = :alternative_address,
                             ended_at = NULL
                         WHERE id = :id
                     ");
                     $updateStmt->execute([
                         ':role' => $role,
+                        ':nif' => !empty($contactData['nif']) ? Security::sanitize($contactData['nif']) : null,
+                        ':phone' => !empty($contactData['phone']) ? Security::sanitize($contactData['phone']) : null,
+                        ':alternative_address' => !empty($contactData['alternative_address']) ? Security::sanitize($contactData['alternative_address']) : null,
                         ':id' => $existing['id']
                     ]);
                     return true;
@@ -480,13 +665,26 @@ class InvitationService
             }
             
             // Create new association
-            $this->condominiumUserModel->associate([
+            $associationData = [
                 'condominium_id' => $condominiumId,
                 'user_id' => $userId,
                 'fraction_id' => $fractionId ?? null,
                 'role' => $role,
                 'is_primary' => false
-            ]);
+            ];
+            
+            // Add contact data if provided
+            if (!empty($contactData['nif'])) {
+                $associationData['nif'] = $contactData['nif'];
+            }
+            if (!empty($contactData['phone'])) {
+                $associationData['phone'] = $contactData['phone'];
+            }
+            if (!empty($contactData['alternative_address'])) {
+                $associationData['alternative_address'] = $contactData['alternative_address'];
+            }
+            
+            $this->condominiumUserModel->associate($associationData);
             return true;
         } catch (\Exception $e) {
             error_log("Association error: " . $e->getMessage());

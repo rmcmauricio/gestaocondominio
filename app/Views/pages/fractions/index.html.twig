@@ -75,16 +75,29 @@
                                                         {% if owner.is_primary %}<span class="badge bg-primary ms-1" style="font-size: 0.65rem;">Principal</span>{% endif %}
                                                         <br>
                                                         <small class="text-muted">{{ owner.email }}</small>
-                                                        {% if owner.phone %}<br><small class="text-muted"><i class="bi bi-telephone"></i> {{ owner.phone }}</small>{% endif %}
+                                                        {% if owner.phone or owner.user_phone %}
+                                                            <br><small class="text-muted"><i class="bi bi-telephone"></i> {{ owner.phone ?: owner.user_phone }}</small>
+                                                        {% endif %}
+                                                        {% if owner.nif %}
+                                                            <br><small class="text-muted"><i class="bi bi-card-text"></i> NIF: {{ owner.nif }}</small>
+                                                        {% endif %}
+                                                        {% if owner.alternative_address %}
+                                                            <br><small class="text-muted"><i class="bi bi-geo-alt"></i> {{ owner.alternative_address }}</small>
+                                                        {% endif %}
                                                     </div>
                                                     {% if is_admin %}
-                                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/remove-owner" class="d-inline ms-2">
-                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                            <input type="hidden" name="user_id" value="{{ owner.user_id }}">
-                                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Desassociar condómino" onclick="return confirm('Tem certeza que deseja desassociar {{ owner.name }} desta fração?');">
-                                                                <i class="bi bi-person-dash"></i>
+                                                        <div class="d-flex gap-1 ms-2">
+                                                            <button type="button" class="btn btn-sm btn-outline-primary" title="Editar dados de contato" data-bs-toggle="modal" data-bs-target="#editContactModal{{ owner.id }}">
+                                                                <i class="bi bi-pencil"></i>
                                                             </button>
-                                                        </form>
+                                                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/remove-owner" class="d-inline">
+                                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                                <input type="hidden" name="user_id" value="{{ owner.user_id }}">
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Desassociar condómino" onclick="return confirm('Tem certeza que deseja desassociar {{ owner.name }} desta fração?');">
+                                                                    <i class="bi bi-person-dash"></i>
+                                                                </button>
+                                                            </form>
+                                                        </div>
                                                     {% endif %}
                                                 </div>
                                             </div>
@@ -115,11 +128,23 @@
                                                                 <i class="bi bi-info-circle"></i> Adicione um email para enviar o convite
                                                             </small>
                                                         {% endif %}
+                                                        {% if invitation.phone %}
+                                                            <br><small class="text-muted"><i class="bi bi-telephone"></i> {{ invitation.phone }}</small>
+                                                        {% endif %}
+                                                        {% if invitation.nif %}
+                                                            <br><small class="text-muted"><i class="bi bi-card-text"></i> NIF: {{ invitation.nif }}</small>
+                                                        {% endif %}
+                                                        {% if invitation.alternative_address %}
+                                                            <br><small class="text-muted"><i class="bi bi-geo-alt"></i> {{ invitation.alternative_address }}</small>
+                                                        {% endif %}
                                                     </div>
                                                     {% if is_admin %}
                                                         <div class="d-flex gap-1 ms-2">
+                                                            <button type="button" class="btn btn-sm btn-outline-primary" title="Editar convite" data-bs-toggle="modal" data-bs-target="#editInvitationModal{{ invitation.id }}">
+                                                                <i class="bi bi-pencil"></i>
+                                                            </button>
                                                             {% if not invitation.email %}
-                                                                <button type="button" class="btn btn-sm btn-outline-primary" title="Adicionar email e enviar convite" data-bs-toggle="modal" data-bs-target="#addEmailModal{{ invitation.id }}">
+                                                                <button type="button" class="btn btn-sm btn-outline-info" title="Adicionar email e enviar convite" data-bs-toggle="modal" data-bs-target="#addEmailModal{{ invitation.id }}">
                                                                     <i class="bi bi-envelope-plus"></i>
                                                                 </button>
                                                             {% else %}
@@ -220,16 +245,29 @@
                                 {% if owner.is_primary %}<span class="badge bg-primary" style="font-size: 0.6rem;">Principal</span>{% endif %}
                             </div>
                             <small class="text-muted d-block">{{ owner.email }}</small>
-                            {% if owner.phone %}<small class="text-muted d-block"><i class="bi bi-telephone"></i> {{ owner.phone }}</small>{% endif %}
+                            {% if owner.phone or owner.user_phone %}
+                                <small class="text-muted d-block"><i class="bi bi-telephone"></i> {{ owner.phone ?: owner.user_phone }}</small>
+                            {% endif %}
+                            {% if owner.nif %}
+                                <small class="text-muted d-block"><i class="bi bi-card-text"></i> NIF: {{ owner.nif }}</small>
+                            {% endif %}
+                            {% if owner.alternative_address %}
+                                <small class="text-muted d-block"><i class="bi bi-geo-alt"></i> {{ owner.alternative_address }}</small>
+                            {% endif %}
                         </div>
                         {% if is_admin %}
-                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/remove-owner" class="d-inline ms-2">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <input type="hidden" name="user_id" value="{{ owner.user_id }}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Desassociar" onclick="return confirm('Desassociar {{ owner.name }}?');">
-                                <i class="bi bi-person-dash"></i>
+                        <div class="d-flex gap-1 ms-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" title="Editar dados" data-bs-toggle="modal" data-bs-target="#editContactModal{{ owner.id }}">
+                                <i class="bi bi-pencil"></i>
                             </button>
-                        </form>
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/remove-owner" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="user_id" value="{{ owner.user_id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Desassociar" onclick="return confirm('Desassociar {{ owner.name }}?');">
+                                    <i class="bi bi-person-dash"></i>
+                                </button>
+                            </form>
+                        </div>
                         {% endif %}
                     </div>
                     {% endfor %}
@@ -255,11 +293,23 @@
                             {% else %}
                                 <small class="text-muted d-block"><i class="bi bi-info-circle"></i> Adicione um email para enviar o convite</small>
                             {% endif %}
+                            {% if invitation.phone %}
+                                <small class="text-muted d-block"><i class="bi bi-telephone"></i> {{ invitation.phone }}</small>
+                            {% endif %}
+                            {% if invitation.nif %}
+                                <small class="text-muted d-block"><i class="bi bi-card-text"></i> NIF: {{ invitation.nif }}</small>
+                            {% endif %}
+                            {% if invitation.alternative_address %}
+                                <small class="text-muted d-block"><i class="bi bi-geo-alt"></i> {{ invitation.alternative_address }}</small>
+                            {% endif %}
                         </div>
                         {% if is_admin %}
                         <div class="d-flex gap-1 ms-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" title="Editar" data-bs-toggle="modal" data-bs-target="#editInvitationModal{{ invitation.id }}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
                             {% if not invitation.email %}
-                                <button type="button" class="btn btn-sm btn-outline-primary" title="Adicionar email" data-bs-toggle="modal" data-bs-target="#addEmailModal{{ invitation.id }}">
+                                <button type="button" class="btn btn-sm btn-outline-info" title="Adicionar email" data-bs-toggle="modal" data-bs-target="#addEmailModal{{ invitation.id }}">
                                     <i class="bi bi-envelope-plus"></i>
                                 </button>
                             {% else %}
@@ -359,8 +409,25 @@
                             </select>
                         </div>
                         
+                        <div class="mb-3">
+                            <label for="nif{{ fraction.id }}" class="form-label">NIF</label>
+                            <input type="text" class="form-control" id="nif{{ fraction.id }}" name="nif" placeholder="NIF (opcional)" maxlength="20">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="phone{{ fraction.id }}" class="form-label">Telefone</label>
+                            <input type="tel" class="form-control" id="phone{{ fraction.id }}" name="phone" placeholder="Telefone de contacto (opcional)" maxlength="20">
+                            <small class="form-text text-muted">Telefone específico para esta fração.</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="alternative_address{{ fraction.id }}" class="form-label">Morada Alternativa</label>
+                            <textarea class="form-control" id="alternative_address{{ fraction.id }}" name="alternative_address" rows="3" placeholder="Morada alternativa (opcional)" maxlength="500"></textarea>
+                            <small class="form-text text-muted">Morada alternativa para correspondência relacionada com esta fração.</small>
+                        </div>
+                        
                         <div class="alert alert-info">
-                            <small><i class="bi bi-info-circle"></i> Se fornecer um email, um convite será enviado automaticamente. Caso contrário, pode adicionar o email posteriormente.</small>
+                            <small><i class="bi bi-info-circle"></i> Se fornecer um email, um convite será enviado automaticamente. Caso contrário, pode adicionar o email posteriormente. Pode guardar dados de contacto mesmo sem email.</small>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -416,6 +483,137 @@
             </div>
         </div>
         {% endif %}
+    {% endfor %}
+    
+    <!-- Modals for editing owner contact information -->
+    {% for fraction in fractions %}
+        {% for owner in fraction.owners %}
+        <!-- Edit Contact Modal for Owner {{ owner.id }} -->
+        <div class="modal fade" id="editContactModal{{ owner.id }}" tabindex="-1" aria-labelledby="editContactModalLabel{{ owner.id }}" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editContactModalLabel{{ owner.id }}">Editar Dados de Contato</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/update-owner-contact" id="editContactForm{{ owner.id }}">
+                        <div class="modal-body">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="association_id" value="{{ owner.id }}">
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Nome</label>
+                                <input type="text" class="form-control" value="{{ owner.name }}" readonly>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Email</label>
+                                <input type="text" class="form-control" value="{{ owner.email }}" readonly>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="nif{{ owner.id }}" class="form-label">NIF</label>
+                                <input type="text" class="form-control" id="nif{{ owner.id }}" name="nif" value="{{ owner.nif }}" placeholder="NIF (opcional)" maxlength="20">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="phone{{ owner.id }}" class="form-label">Telefone</label>
+                                <input type="tel" class="form-control" id="phone{{ owner.id }}" name="phone" value="{{ owner.phone }}" placeholder="Telefone de contacto (opcional)" maxlength="20">
+                                <small class="form-text text-muted">Telefone específico para esta fração. Se vazio, será usado o telefone do perfil do utilizador.</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="alternative_address{{ owner.id }}" class="form-label">Morada Alternativa</label>
+                                <textarea class="form-control" id="alternative_address{{ owner.id }}" name="alternative_address" rows="3" placeholder="Morada alternativa (opcional)" maxlength="500">{{ owner.alternative_address }}</textarea>
+                                <small class="form-text text-muted">Morada alternativa para correspondência relacionada com esta fração.</small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Guardar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% endfor %}
+    
+    <!-- Modals for editing pending invitations -->
+    {% for fraction in fractions %}
+        {% for invitation in fraction.pending_invitations %}
+        <!-- Edit Invitation Modal for Invitation {{ invitation.id }} -->
+        <div class="modal fade" id="editInvitationModal{{ invitation.id }}" tabindex="-1" aria-labelledby="editInvitationModalLabel{{ invitation.id }}" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editInvitationModalLabel{{ invitation.id }}">Editar Convite</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ invitation.id }}/update" id="editInvitationForm{{ invitation.id }}">
+                        <div class="modal-body">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="fraction_id" value="{{ fraction.id }}">
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Fração</label>
+                                <input type="text" class="form-control" value="{{ fraction.identifier }}" readonly>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="invitation_name{{ invitation.id }}" class="form-label">Nome <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="invitation_name{{ invitation.id }}" name="name" required value="{{ invitation.name }}" placeholder="Nome completo">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="invitation_email{{ invitation.id }}" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="invitation_email{{ invitation.id }}" name="email" value="{{ invitation.email }}" placeholder="email@exemplo.com (opcional)">
+                                <small class="form-text text-muted">Se fornecer um email, um convite será enviado automaticamente.</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="invitation_role{{ invitation.id }}" class="form-label">Tipo</label>
+                                <select class="form-select" id="invitation_role{{ invitation.id }}" name="role">
+                                    <option value="proprietario" {% if invitation.role == 'proprietario' %}selected{% endif %}>Proprietário</option>
+                                    <option value="condomino" {% if invitation.role == 'condomino' or not invitation.role %}selected{% endif %}>Condómino</option>
+                                    <option value="arrendatario" {% if invitation.role == 'arrendatario' %}selected{% endif %}>Arrendatário</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="invitation_nif{{ invitation.id }}" class="form-label">NIF</label>
+                                <input type="text" class="form-control" id="invitation_nif{{ invitation.id }}" name="nif" value="{{ invitation.nif }}" placeholder="NIF (opcional)" maxlength="20">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="invitation_phone{{ invitation.id }}" class="form-label">Telefone</label>
+                                <input type="tel" class="form-control" id="invitation_phone{{ invitation.id }}" name="phone" value="{{ invitation.phone }}" placeholder="Telefone de contacto (opcional)" maxlength="20">
+                                <small class="form-text text-muted">Telefone específico para esta fração.</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="invitation_alternative_address{{ invitation.id }}" class="form-label">Morada Alternativa</label>
+                                <textarea class="form-control" id="invitation_alternative_address{{ invitation.id }}" name="alternative_address" rows="3" placeholder="Morada alternativa (opcional)" maxlength="500">{{ invitation.alternative_address }}</textarea>
+                                <small class="form-text text-muted">Morada alternativa para correspondência relacionada com esta fração.</small>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <small><i class="bi bi-info-circle"></i> Pode editar o nome, adicionar/alterar o email e guardar dados de contacto a qualquer momento.</small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Guardar Alterações
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
     {% endfor %}
     
     <!-- Modals for adding email to pending invitations -->
@@ -564,6 +762,40 @@
         
         // Initialize button text on page load
         updateButtonText{{ fraction.id }}();
+        {% endfor %}
+        
+        // Handle edit contact modal form submissions
+        {% for fraction in fractions %}
+            {% for owner in fraction.owners %}
+            const editContactForm{{ owner.id }} = document.getElementById('editContactForm{{ owner.id }}');
+            if (editContactForm{{ owner.id }}) {
+                editContactForm{{ owner.id }}.addEventListener('submit', function(e) {
+                    // Prevent multiple submissions
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Guardando...';
+                    }
+                });
+            }
+            {% endfor %}
+        {% endfor %}
+        
+        // Handle edit invitation modal form submissions
+        {% for fraction in fractions %}
+            {% for invitation in fraction.pending_invitations %}
+            const editInvitationForm{{ invitation.id }} = document.getElementById('editInvitationForm{{ invitation.id }}');
+            if (editInvitationForm{{ invitation.id }}) {
+                editInvitationForm{{ invitation.id }}.addEventListener('submit', function(e) {
+                    // Prevent multiple submissions
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Guardando...';
+                    }
+                });
+            }
+            {% endfor %}
         {% endfor %}
         
         // Handle add email modal form submissions

@@ -10,6 +10,7 @@ use App\Middleware\RateLimitMiddleware;
 use App\Services\SecurityLogger;
 use App\Models\User;
 use App\Models\UserEmailPreference;
+use App\Models\CondominiumUser;
 
 class ProfileController extends Controller
 {
@@ -149,6 +150,18 @@ class ProfileController extends Controller
             $updatedUser = $this->userModel->findById($userId);
             $_SESSION['user']['name'] = $updatedUser['name'];
             $_SESSION['user']['email'] = $updatedUser['email'];
+            
+            // Sync user data with fraction associations
+            try {
+                $condominiumUserModel = new CondominiumUser();
+                $condominiumUserModel->syncUserDataWithFractions($userId, [
+                    'phone' => $phone,
+                    'nif' => $nif
+                ]);
+            } catch (\Exception $e) {
+                // Log error but don't fail profile update
+                error_log("Failed to sync user data with fractions: " . $e->getMessage());
+            }
             
             $_SESSION['success'] = 'Perfil atualizado com sucesso!';
         } else {

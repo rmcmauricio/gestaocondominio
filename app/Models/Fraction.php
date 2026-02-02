@@ -215,7 +215,8 @@ class Fraction extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT cu.*, u.name, u.email, u.phone
+            SELECT cu.*, u.name, u.email, u.phone as user_phone,
+                   cu.nif, cu.phone, cu.alternative_address
             FROM condominium_users cu
             INNER JOIN users u ON u.id = cu.user_id
             WHERE cu.fraction_id = :fraction_id

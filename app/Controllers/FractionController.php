@@ -57,7 +57,7 @@ class FractionController extends Controller
             // Get pending invitations for this fraction
             global $db;
             $stmt = $db->prepare("
-                SELECT id, email, name, role, created_at, expires_at
+                SELECT id, email, name, role, nif, phone, alternative_address, created_at, expires_at, token
                 FROM invitations
                 WHERE fraction_id = :fraction_id
                 AND condominium_id = :condominium_id
@@ -516,6 +516,82 @@ class FractionController extends Controller
             }
         } catch (\Exception $e) {
             $_SESSION['error'] = 'Erro ao remover condómino: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+        exit;
+    }
+
+    /**
+     * Update contact information for a fraction owner
+     */
+    public function updateOwnerContact(int $condominiumId, int $fractionId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $associationId = (int)($_POST['association_id'] ?? 0);
+        if (!$associationId) {
+            $_SESSION['error'] = 'Associação não especificada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $fraction = $this->fractionModel->findById($fractionId);
+        if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Fração não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        // Verify association belongs to this fraction
+        global $db;
+        $stmt = $db->prepare("
+            SELECT id FROM condominium_users 
+            WHERE id = :id 
+            AND fraction_id = :fraction_id 
+            AND condominium_id = :condominium_id
+            AND (ended_at IS NULL OR ended_at > CURDATE())
+        ");
+        $stmt->execute([
+            ':id' => $associationId,
+            ':fraction_id' => $fractionId,
+            ':condominium_id' => $condominiumId
+        ]);
+        
+        if (!$stmt->fetch()) {
+            $_SESSION['error'] = 'Associação não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        try {
+            $success = $this->condominiumUserModel->updateContactInfo($associationId, [
+                'nif' => $_POST['nif'] ?? '',
+                'phone' => $_POST['phone'] ?? '',
+                'alternative_address' => $_POST['alternative_address'] ?? ''
+            ]);
+
+            if ($success) {
+                $_SESSION['success'] = 'Dados de contato atualizados com sucesso!';
+            } else {
+                $_SESSION['error'] = 'Erro ao atualizar dados de contato.';
+            }
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao atualizar dados: ' . $e->getMessage();
         }
 
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');

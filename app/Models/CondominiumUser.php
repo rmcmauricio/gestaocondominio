@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Core\Model;
+use App\Core\Security;
 
 class CondominiumUser extends Model
 {
@@ -19,11 +20,11 @@ class CondominiumUser extends Model
 
         $stmt = $this->db->prepare("
             INSERT INTO condominium_users (
-                condominium_id, user_id, fraction_id, role,
+                condominium_id, user_id, fraction_id, role, nif, phone, alternative_address,
                 can_view_finances, can_vote, is_primary, started_at
             )
             VALUES (
-                :condominium_id, :user_id, :fraction_id, :role,
+                :condominium_id, :user_id, :fraction_id, :role, :nif, :phone, :alternative_address,
                 :can_view_finances, :can_vote, :is_primary, :started_at
             )
         ");
@@ -100,6 +101,31 @@ class CondominiumUser extends Model
 
         return $stmt->execute([
             ':ended_at' => $endDate ?? date('Y-m-d'),
+            ':id' => $id
+        ]);
+    }
+
+    /**
+     * Update contact information for a condominium user association
+     */
+    public function updateContactInfo(int $id, array $data): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE condominium_users 
+            SET nif = :nif,
+                phone = :phone,
+                alternative_address = :alternative_address
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([
+            ':nif' => !empty($data['nif']) ? Security::sanitize($data['nif']) : null,
+            ':phone' => !empty($data['phone']) ? Security::sanitize($data['phone']) : null,
+            ':alternative_address' => !empty($data['alternative_address']) ? Security::sanitize($data['alternative_address']) : null,
             ':id' => $id
         ]);
     }
@@ -314,6 +340,65 @@ class CondominiumUser extends Model
             'admin' => $adminCondominiums,
             'condomino' => $condominoCondominiums
         ];
+    }
+
+    /**
+     * Sync user profile data with fraction associations
+     * Updates phone and NIF in condominium_users based on user profile
+     * NIF: if user NIF doesn't exist in fraction or is different, use user NIF (user data prevails)
+     * Phone: always sync from user profile
+     */
+    public function syncUserDataWithFractions(int $userId, array $userData): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $userPhone = !empty($userData['phone']) ? Security::sanitize($userData['phone']) : null;
+        $userNif = !empty($userData['nif']) ? Security::sanitize($userData['nif']) : null;
+
+        // Get all active associations for this user
+        $stmt = $this->db->prepare("
+            SELECT id, phone, nif 
+            FROM condominium_users 
+            WHERE user_id = :user_id 
+            AND (ended_at IS NULL OR ended_at > CURDATE())
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        $associations = $stmt->fetchAll() ?: [];
+
+        foreach ($associations as $association) {
+            $updateFields = [];
+            $updateParams = [':id' => $association['id']];
+
+            // Always sync phone from user profile
+            if ($userPhone !== null) {
+                $updateFields[] = 'phone = :phone';
+                $updateParams[':phone'] = $userPhone;
+            } else {
+                // If user phone is null, clear fraction phone too
+                $updateFields[] = 'phone = NULL';
+            }
+
+            // Sync NIF: if user NIF doesn't exist in fraction or is different, use user NIF
+            if ($userNif !== null) {
+                $fractionNif = $association['nif'] ?? null;
+                // If fraction doesn't have NIF or it's different from user NIF, update with user NIF
+                if (empty($fractionNif) || $fractionNif !== $userNif) {
+                    $updateFields[] = 'nif = :nif';
+                    $updateParams[':nif'] = $userNif;
+                }
+            }
+
+            // Only update if there are fields to update
+            if (!empty($updateFields)) {
+                $updateSql = "UPDATE condominium_users SET " . implode(', ', $updateFields) . " WHERE id = :id";
+                $updateStmt = $this->db->prepare($updateSql);
+                $updateStmt->execute($updateParams);
+            }
+        }
+
+        return true;
     }
 }
 
