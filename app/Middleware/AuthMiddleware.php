@@ -9,8 +9,27 @@ class AuthMiddleware
      */
     public static function handle(): bool
     {
-        // Don't start session in CLI mode or if headers already sent
-        if (php_sapi_name() === 'cli' || headers_sent()) {
+        $isCli = php_sapi_name() === 'cli';
+        $sessionActive = session_status() === PHP_SESSION_ACTIVE;
+        $headersSent = headers_sent();
+
+        // In CLI mode, only proceed if session is already active (e.g., in tests)
+        // Don't try to start session if headers already sent (e.g., in seeders with output)
+        if ($isCli) {
+            // If session is already active, we can check it (tests scenario)
+            if ($sessionActive) {
+                // Session is active, check authentication
+                if (!isset($_SESSION['user']) || empty($_SESSION['user']['id'])) {
+                    return false;
+                }
+                return true;
+            }
+            // Session not active and we're in CLI - don't start it (seeder scenario)
+            return false;
+        }
+
+        // Web mode: start session if needed, but not if headers already sent
+        if ($headersSent) {
             return false;
         }
 
