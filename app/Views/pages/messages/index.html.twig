@@ -80,48 +80,64 @@
                                 <small class="text-muted ms-2">{{ message.created_at|date('d/m/Y H:i') }}</small>
                             </div>
                         </a>
-                        {# Replies grouped under parent #}
+                        {# Replies grouped under parent - Collapsed by default #}
                         {% if message.replies|default([])|length > 0 %}
-                            {% for reply in message.replies %}
-                            {% set reply_is_sent = reply.from_user_id == current_user_id %}
-                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages/{{ reply.id }}" class="list-group-item list-group-item-action" style="background-color: #f8f9fa; border-left: 4px solid {% if reply_is_sent %}#28a745{% else %}#0d6efd{% endif %}; margin-left: 1.5rem;">
-                                <div class="d-flex w-100 justify-content-between align-items-start">
-                                    <div class="flex-grow-1">
-                                        <div class="d-flex align-items-center gap-2 mb-1">
-                                            <i class="bi bi-arrow-return-right {% if reply_is_sent %}text-success{% else %}text-primary{% endif %}"></i>
-                                            <span class="badge bg-info" style="font-size: 0.7rem;">
-                                                <i class="bi bi-reply"></i> Resposta
-                                            </span>
-                                            {% if reply_is_sent %}
-                                                <span class="badge bg-success" style="font-size: 0.65rem;">
-                                                    <i class="bi bi-send"></i> Enviada
-                                                </span>
-                                            {% else %}
-                                                <span class="badge bg-primary" style="font-size: 0.65rem;">
-                                                    <i class="bi bi-inbox"></i> Recebida
-                                                </span>
-                                                {% if not reply.is_read %}
-                                                    <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">Nova</span>
-                                                {% endif %}
-                                            {% endif %}
-                                            <small class="text-muted">a: {{ message.subject }}</small>
-                                        </div>
-                                        <h6 class="mb-1" style="font-size: 0.9rem;">{{ reply.subject }}</h6>
-                                        <p class="mb-1" style="font-size: 0.85rem;">{{ reply.message|striptags|slice(0, 80) }}{% if reply.message|length > 80 %}...{% endif %}</p>
-                                        {% if reply_is_sent %}
-                                            <small style="font-size: 0.8rem;" class="text-muted">
-                                                <i class="bi bi-arrow-right"></i> Para: {{ reply.recipient_name|default('Todos') }}
-                                            </small>
-                                        {% else %}
-                                            <small style="font-size: 0.8rem;" class="text-muted">
-                                                <i class="bi bi-arrow-left"></i> De: {{ reply.sender_name }}
-                                            </small>
-                                        {% endif %}
+                            {% set replies_id = 'replies-' ~ message.id %}
+                            <div class="list-group-item" style="background-color: #f8f9fa; margin-left: 1.5rem; padding: 0.5rem;">
+                                <div class="d-flex align-items-center justify-content-between" data-bs-toggle="collapse" data-bs-target="#{{ replies_id }}" aria-expanded="false" aria-controls="{{ replies_id }}" style="cursor: pointer;">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-chevron-down reply-toggle-icon" style="font-size: 0.8rem;"></i>
+                                        <span class="badge bg-info" style="font-size: 0.7rem;">
+                                            <i class="bi bi-chat-dots"></i> {{ message.replies|length }} resposta{{ message.replies|length > 1 ? 's' : '' }}
+                                        </span>
                                     </div>
-                                    <small class="text-muted ms-2" style="font-size: 0.8rem;">{{ reply.created_at|date('d/m/Y H:i') }}</small>
+                                    <small class="text-muted">Clique para expandir</small>
                                 </div>
-                            </a>
-                            {% endfor %}
+                                <div class="collapse" id="{{ replies_id }}">
+                                    <div class="mt-2">
+                                        {% for reply in message.replies %}
+                                        {% set reply_is_sent = reply.from_user_id == current_user_id %}
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages/{{ reply.id }}" class="list-group-item list-group-item-action" style="background-color: #ffffff; border-left: 4px solid {% if reply_is_sent %}#28a745{% else %}#0d6efd{% endif %}; margin-top: 0.5rem;">
+                                            <div class="d-flex w-100 justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                                        <i class="bi bi-arrow-return-right {% if reply_is_sent %}text-success{% else %}text-primary{% endif %}"></i>
+                                                        <span class="badge bg-info" style="font-size: 0.7rem;">
+                                                            <i class="bi bi-reply"></i> Resposta
+                                                        </span>
+                                                        {% if reply_is_sent %}
+                                                            <span class="badge bg-success" style="font-size: 0.65rem;">
+                                                                <i class="bi bi-send"></i> Enviada
+                                                            </span>
+                                                        {% else %}
+                                                            <span class="badge bg-primary" style="font-size: 0.65rem;">
+                                                                <i class="bi bi-inbox"></i> Recebida
+                                                            </span>
+                                                            {% if not reply.is_read %}
+                                                                <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">Nova</span>
+                                                            {% endif %}
+                                                        {% endif %}
+                                                        <small class="text-muted">a: {{ message.subject }}</small>
+                                                    </div>
+                                                    <h6 class="mb-1" style="font-size: 0.9rem;">{{ reply.subject }}</h6>
+                                                    <p class="mb-1" style="font-size: 0.85rem;">{{ reply.message|striptags|slice(0, 80) }}{% if reply.message|length > 80 %}...{% endif %}</p>
+                                                    {% if reply_is_sent %}
+                                                        <small style="font-size: 0.8rem;" class="text-muted">
+                                                            <i class="bi bi-arrow-right"></i> Para: {{ reply.recipient_name|default('Todos') }}
+                                                        </small>
+                                                    {% else %}
+                                                        <small style="font-size: 0.8rem;" class="text-muted">
+                                                            <i class="bi bi-arrow-left"></i> De: {{ reply.sender_name }}
+                                                        </small>
+                                                    {% endif %}
+                                                </div>
+                                                <small class="text-muted ms-2" style="font-size: 0.8rem;">{{ reply.created_at|date('d/m/Y H:i') }}</small>
+                                            </div>
+                                        </a>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
                         {% endif %}
                         {# Add spacing after thread (message + replies) #}
                         {% if not loop.last %}
@@ -172,48 +188,64 @@
                                 <small class="text-muted ms-2">{{ message.created_at|date('d/m/Y H:i') }}</small>
                             </div>
                         </a>
-                        {# Replies grouped under parent #}
+                        {# Replies grouped under parent - Collapsed by default #}
                         {% if message.replies|default([])|length > 0 %}
-                            {% for reply in message.replies %}
-                            {% set reply_is_sent = reply.from_user_id == current_user_id %}
-                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages/{{ reply.id }}" class="list-group-item list-group-item-action" style="background-color: #f8f9fa; border-left: 4px solid {% if reply_is_sent %}#28a745{% else %}#0d6efd{% endif %}; margin-left: 1.5rem;">
-                                <div class="d-flex w-100 justify-content-between align-items-start">
-                                    <div class="flex-grow-1">
-                                        <div class="d-flex align-items-center gap-2 mb-1">
-                                            <i class="bi bi-arrow-return-right {% if reply_is_sent %}text-success{% else %}text-primary{% endif %}"></i>
-                                            <span class="badge bg-info" style="font-size: 0.7rem;">
-                                                <i class="bi bi-reply"></i> Resposta
-                                            </span>
-                                            {% if reply_is_sent %}
-                                                <span class="badge bg-success" style="font-size: 0.65rem;">
-                                                    <i class="bi bi-send"></i> Enviada
-                                                </span>
-                                            {% else %}
-                                                <span class="badge bg-primary" style="font-size: 0.65rem;">
-                                                    <i class="bi bi-inbox"></i> Recebida
-                                                </span>
-                                                {% if not reply.is_read %}
-                                                    <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">Nova</span>
-                                                {% endif %}
-                                            {% endif %}
-                                            <small class="text-muted">a: {{ message.subject }}</small>
-                                        </div>
-                                        <h6 class="mb-1" style="font-size: 0.9rem;">{{ reply.subject }}</h6>
-                                        <p class="mb-1" style="font-size: 0.85rem;">{{ reply.message|striptags|slice(0, 80) }}{% if reply.message|length > 80 %}...{% endif %}</p>
-                                        {% if reply_is_sent %}
-                                            <small style="font-size: 0.8rem;" class="text-muted">
-                                                <i class="bi bi-arrow-right"></i> Para: {{ reply.recipient_name|default('Todos') }}
-                                            </small>
-                                        {% else %}
-                                            <small style="font-size: 0.8rem;" class="text-muted">
-                                                <i class="bi bi-arrow-left"></i> De: {{ reply.sender_name }}
-                                            </small>
-                                        {% endif %}
+                            {% set replies_id = 'replies-sent-' ~ message.id %}
+                            <div class="list-group-item" style="background-color: #f8f9fa; margin-left: 1.5rem; padding: 0.5rem;">
+                                <div class="d-flex align-items-center justify-content-between" data-bs-toggle="collapse" data-bs-target="#{{ replies_id }}" aria-expanded="false" aria-controls="{{ replies_id }}" style="cursor: pointer;">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-chevron-down reply-toggle-icon" style="font-size: 0.8rem;"></i>
+                                        <span class="badge bg-info" style="font-size: 0.7rem;">
+                                            <i class="bi bi-chat-dots"></i> {{ message.replies|length }} resposta{{ message.replies|length > 1 ? 's' : '' }}
+                                        </span>
                                     </div>
-                                    <small class="text-muted ms-2" style="font-size: 0.8rem;">{{ reply.created_at|date('d/m/Y H:i') }}</small>
+                                    <small class="text-muted">Clique para expandir</small>
                                 </div>
-                            </a>
-                            {% endfor %}
+                                <div class="collapse" id="{{ replies_id }}">
+                                    <div class="mt-2">
+                                        {% for reply in message.replies %}
+                                        {% set reply_is_sent = reply.from_user_id == current_user_id %}
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages/{{ reply.id }}" class="list-group-item list-group-item-action" style="background-color: #ffffff; border-left: 4px solid {% if reply_is_sent %}#28a745{% else %}#0d6efd{% endif %}; margin-top: 0.5rem;">
+                                            <div class="d-flex w-100 justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                                        <i class="bi bi-arrow-return-right {% if reply_is_sent %}text-success{% else %}text-primary{% endif %}"></i>
+                                                        <span class="badge bg-info" style="font-size: 0.7rem;">
+                                                            <i class="bi bi-reply"></i> Resposta
+                                                        </span>
+                                                        {% if reply_is_sent %}
+                                                            <span class="badge bg-success" style="font-size: 0.65rem;">
+                                                                <i class="bi bi-send"></i> Enviada
+                                                            </span>
+                                                        {% else %}
+                                                            <span class="badge bg-primary" style="font-size: 0.65rem;">
+                                                                <i class="bi bi-inbox"></i> Recebida
+                                                            </span>
+                                                            {% if not reply.is_read %}
+                                                                <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">Nova</span>
+                                                            {% endif %}
+                                                        {% endif %}
+                                                        <small class="text-muted">a: {{ message.subject }}</small>
+                                                    </div>
+                                                    <h6 class="mb-1" style="font-size: 0.9rem;">{{ reply.subject }}</h6>
+                                                    <p class="mb-1" style="font-size: 0.85rem;">{{ reply.message|striptags|slice(0, 80) }}{% if reply.message|length > 80 %}...{% endif %}</p>
+                                                    {% if reply_is_sent %}
+                                                        <small style="font-size: 0.8rem;" class="text-muted">
+                                                            <i class="bi bi-arrow-right"></i> Para: {{ reply.recipient_name|default('Todos') }}
+                                                        </small>
+                                                    {% else %}
+                                                        <small style="font-size: 0.8rem;" class="text-muted">
+                                                            <i class="bi bi-arrow-left"></i> De: {{ reply.sender_name }}
+                                                        </small>
+                                                    {% endif %}
+                                                </div>
+                                                <small class="text-muted ms-2" style="font-size: 0.8rem;">{{ reply.created_at|date('d/m/Y H:i') }}</small>
+                                            </div>
+                                        </a>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
                         {% endif %}
                         {# Add spacing after thread (message + replies) #}
                         {% if not loop.last %}
@@ -241,6 +273,38 @@
         </a>
     </div>
 </div>
+
+<style>
+    .reply-toggle-icon {
+        transition: transform 0.3s ease;
+    }
+    [data-bs-toggle="collapse"][aria-expanded="true"] .reply-toggle-icon {
+        transform: rotate(180deg);
+    }
+    [data-bs-toggle="collapse"]:hover {
+        background-color: #e9ecef;
+        border-radius: 0.25rem;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Atualizar ícones quando collapse é expandido/colapsado
+        document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function(toggle) {
+            const targetId = toggle.getAttribute('data-bs-target');
+            const targetElement = document.querySelector(targetId);
+            
+            if (targetElement) {
+                targetElement.addEventListener('show.bs.collapse', function() {
+                    toggle.setAttribute('aria-expanded', 'true');
+                });
+                targetElement.addEventListener('hide.bs.collapse', function() {
+                    toggle.setAttribute('aria-expanded', 'false');
+                });
+            }
+        });
+    });
+</script>
 
 
 
