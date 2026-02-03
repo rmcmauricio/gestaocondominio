@@ -15,6 +15,7 @@ use App\Models\Plan;
 use App\Models\Promotion;
 use App\Models\PlanExtraCondominiumsPricing;
 use App\Models\PlanPricingTier;
+use App\Models\EmailTemplate;
 use App\Services\AuditService;
 use App\Services\PaymentService;
 use App\Services\LogService;
@@ -30,6 +31,7 @@ class SuperAdminController extends Controller
     protected $promotionModel;
     protected $extraCondominiumsPricingModel;
     protected $planPricingTierModel;
+    protected $emailTemplateModel;
     protected $auditService;
     protected $paymentService;
 
@@ -45,6 +47,7 @@ class SuperAdminController extends Controller
         $this->promotionModel = new Promotion();
         $this->extraCondominiumsPricingModel = new PlanExtraCondominiumsPricing();
         $this->planPricingTierModel = new PlanPricingTier();
+        $this->emailTemplateModel = new EmailTemplate();
         $this->auditService = new AuditService();
         $this->paymentService = new PaymentService();
     }
@@ -3901,6 +3904,610 @@ class SuperAdminController extends Controller
         header('Location: ' . BASE_URL . 'admin/plans/' . $planId . '/pricing-tiers');
         exit;
     }
+
+    /**
+     * List all email templates
+     */
+    public function emailTemplates()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $messages = $this->getSessionMessages();
+        $templates = $this->emailTemplateModel->getAll();
+        $baseLayout = $this->emailTemplateModel->getBaseLayout();
+
+        $this->loadPageTranslations('dashboard');
+
+        $this->data += [
+            'viewName' => 'pages/admin/email-templates/index.html.twig',
+            'page' => ['titulo' => 'Gestão de Templates de Email'],
+            'templates' => $templates,
+            'baseLayout' => $baseLayout,
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info'],
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Edit base layout template
+     */
+    public function editBaseLayout()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $messages = $this->getSessionMessages();
+        $baseLayout = $this->emailTemplateModel->getBaseLayout();
+
+        if (!$baseLayout) {
+            $_SESSION['error'] = 'Template base não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        $this->loadPageTranslations('dashboard');
+
+        $this->data += [
+            'viewName' => 'pages/admin/email-templates/edit-base.html.twig',
+            'page' => ['titulo' => 'Editar Layout Base'],
+            'template' => $baseLayout,
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info'],
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Update base layout template
+     */
+    public function updateBaseLayout()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/email-templates/base/edit');
+            exit;
+        }
+
+        $baseLayout = $this->emailTemplateModel->getBaseLayout();
+        if (!$baseLayout) {
+            $_SESSION['error'] = 'Template base não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        // Validate that {body} placeholder exists
+        $htmlBody = $_POST['html_body'] ?? '';
+        if (strpos($htmlBody, '{body}') === false) {
+            $_SESSION['error'] = 'O template base deve conter o placeholder {body} onde o conteúdo será inserido.';
+            header('Location: ' . BASE_URL . 'admin/email-templates/base/edit');
+            exit;
+        }
+
+        $updateData = [
+            'html_body' => $htmlBody,
+            'text_body' => $_POST['text_body'] ?? null
+        ];
+
+        if ($this->emailTemplateModel->update($baseLayout['id'], $updateData)) {
+            $_SESSION['success'] = 'Layout base atualizado com sucesso! Esta alteração afetará todos os emails do sistema.';
+        } else {
+            $_SESSION['error'] = 'Erro ao atualizar layout base.';
+        }
+
+        header('Location: ' . BASE_URL . 'admin/email-templates/base/edit');
+        exit;
+    }
+
+    /**
+     * Edit email template
+     */
+    public function editEmailTemplate(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $messages = $this->getSessionMessages();
+        $template = $this->emailTemplateModel->findById($id);
+
+        if (!$template || $template['is_base_layout']) {
+            $_SESSION['error'] = 'Template não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        $this->loadPageTranslations('dashboard');
+
+        $this->data += [
+            'viewName' => 'pages/admin/email-templates/edit.html.twig',
+            'page' => ['titulo' => 'Editar Template: ' . $template['name']],
+            'template' => $template,
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info'],
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Update email template
+     */
+    public function updateEmailTemplate(int $id)
+    {
+        error_log("updateEmailTemplate - INÍCIO - ID: {$id}");
+        error_log("updateEmailTemplate - REQUEST_URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
+        error_log("updateEmailTemplate - POST data: " . json_encode($_POST));
+        
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        // Check if this is actually a test email request (shouldn't happen, but just in case)
+        if (isset($_POST['action_type']) && $_POST['action_type'] === 'test_email') {
+            error_log("updateEmailTemplate - ERRO: Recebeu requisição de teste de email! Redirecionando para sendTestEmail...");
+            // Redirect to the correct method
+            $this->sendTestEmail($id);
+            return;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/email-templates/' . $id . '/edit');
+            exit;
+        }
+
+        $template = $this->emailTemplateModel->findById($id);
+        if (!$template || $template['is_base_layout']) {
+            $_SESSION['error'] = 'Template não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        $updateData = [
+            'name' => $_POST['name'] ?? $template['name'],
+            'description' => $_POST['description'] ?? null,
+            'subject' => $_POST['subject'] ?? null,
+            'html_body' => $_POST['html_body'] ?? $template['html_body'],
+            'text_body' => $_POST['text_body'] ?? null,
+            'is_active' => isset($_POST['is_active']) ? (bool)$_POST['is_active'] : $template['is_active']
+        ];
+
+        if ($this->emailTemplateModel->update($id, $updateData)) {
+            $_SESSION['success'] = 'Template atualizado com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao atualizar template.';
+        }
+
+        header('Location: ' . BASE_URL . 'admin/email-templates/' . $id . '/edit');
+        exit;
+    }
+
+    /**
+     * Preview email template
+     */
+    public function previewEmailTemplate(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $template = $this->emailTemplateModel->findById($id);
+        if (!$template) {
+            $_SESSION['error'] = 'Template não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        $baseLayout = $this->emailTemplateModel->getBaseLayout();
+        if (!$baseLayout) {
+            $_SESSION['error'] = 'Template base não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        // Generate sample data for preview
+        $sampleData = $this->getSampleDataForTemplate($template['template_key']);
+
+        // Render template
+        $emailService = new \App\Core\EmailService();
+        
+        // Render from database templates (required)
+        $html = $emailService->renderTemplate($template['template_key'], $sampleData);
+        $text = $emailService->renderTextTemplate($template['template_key'], $sampleData);
+        
+        // If template not found or failed to render, show error
+        if (empty($html)) {
+            $_SESSION['error'] = 'Template não encontrado na base de dados ou base_layout não configurado. Por favor, execute o seeder.';
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        $this->loadPageTranslations('dashboard');
+
+        $this->data += [
+            'viewName' => 'pages/admin/email-templates/preview.html.twig',
+            'page' => ['titulo' => 'Preview: ' . $template['name']],
+            'template' => $template,
+            'html' => $html,
+            'text' => $text,
+            'sampleData' => $sampleData,
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Send test email for a template
+     */
+    public function sendTestEmail(int $id)
+    {
+        error_log("SuperAdminController::sendTestEmail - INÍCIO - ID: {$id}");
+        error_log("SuperAdminController::sendTestEmail - REQUEST_METHOD: " . $_SERVER['REQUEST_METHOD']);
+        
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            error_log("SuperAdminController::sendTestEmail - ERRO: Método não é POST");
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        error_log("SuperAdminController::sendTestEmail - CSRF Token recebido: " . (!empty($csrfToken) ? 'SIM' : 'NÃO'));
+        
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            error_log("SuperAdminController::sendTestEmail - ERRO: Token CSRF inválido");
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/email-templates/' . $id . '/edit');
+            exit;
+        }
+        
+        error_log("SuperAdminController::sendTestEmail - Validações passadas, continuando...");
+
+        $template = $this->emailTemplateModel->findById($id);
+        if (!$template || $template['is_base_layout']) {
+            $_SESSION['error'] = 'Template não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        // Get recipient email (default to superAdmin email)
+        $user = AuthMiddleware::user();
+        $recipientEmail = $_POST['test_email'] ?? $user['email'];
+        
+        if (empty($recipientEmail) || !filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['error'] = 'Email inválido.';
+            header('Location: ' . BASE_URL . 'admin/email-templates/' . $id . '/edit');
+            exit;
+        }
+
+        // Generate sample data for the template
+        $sampleData = $this->getSampleDataForTemplate($template['template_key']);
+
+        // Render and send email
+        $emailService = new \App\Core\EmailService();
+        
+        // Try to render from database templates
+        $html = $emailService->renderTemplate($template['template_key'], $sampleData);
+        $text = $emailService->renderTextTemplate($template['template_key'], $sampleData);
+        
+        // Debug logging
+        error_log("SuperAdminController::sendTestEmail - Template key: {$template['template_key']}");
+        error_log("SuperAdminController::sendTestEmail - HTML length: " . strlen($html));
+        error_log("SuperAdminController::sendTestEmail - Text length: " . strlen($text));
+        
+        // If template not found in database or empty, show error
+        if (empty($html)) {
+            error_log("SuperAdminController::sendTestEmail - ERROR: Template renderizado está vazio!");
+            $_SESSION['error'] = 'Não foi possível renderizar o template. Verifique se o template base está configurado e se o template específico existe no banco de dados.';
+            header('Location: ' . BASE_URL . 'admin/email-templates/' . $id . '/edit');
+            exit;
+        }
+
+        // Prepare subject
+        $subject = $template['subject'] ?? 'Email de Teste: ' . $template['name'];
+        foreach ($sampleData as $key => $value) {
+            $subject = str_replace('{' . $key . '}', $value, $subject);
+        }
+
+        error_log("SuperAdminController::sendTestEmail - Enviando email para: {$recipientEmail}");
+        error_log("SuperAdminController::sendTestEmail - Assunto: [TESTE] {$subject}");
+
+        // Send test email (bypass user preferences for test emails)
+        $sent = $emailService->sendEmail(
+            $recipientEmail,
+            '[TESTE] ' . $subject,
+            $html,
+            $text,
+            null,
+            null // No userId to bypass preferences
+        );
+        
+        error_log("SuperAdminController::sendTestEmail - Resultado do envio: " . ($sent ? 'SUCESSO' : 'FALHA'));
+
+        if ($sent) {
+            // Check if email was redirected in development
+            $appEnv = defined('APP_ENV') ? APP_ENV : ($_ENV['APP_ENV'] ?? 'development');
+            $isDevelopment = (strtolower($appEnv) === 'development');
+            $devEmail = $_ENV['DEV_EMAIL'] ?? '';
+            
+            if ($isDevelopment && !empty($devEmail)) {
+                $_SESSION['success'] = "Email de teste enviado com sucesso! Em desenvolvimento, o email foi redirecionado para: {$devEmail} (destinatário original: {$recipientEmail})";
+            } else {
+                $_SESSION['success'] = "Email de teste enviado com sucesso para {$recipientEmail}!";
+            }
+        } else {
+            // Get last error from logs or provide helpful message
+            $errorMsg = 'Erro ao enviar email de teste. ';
+            
+            // Check if DEV_EMAIL is set in development
+            $appEnv = defined('APP_ENV') ? APP_ENV : ($_ENV['APP_ENV'] ?? 'development');
+            if (strtolower($appEnv) === 'development') {
+                $devEmail = $_ENV['DEV_EMAIL'] ?? '';
+                if (empty($devEmail)) {
+                    $errorMsg .= 'Em desenvolvimento, configure DEV_EMAIL no arquivo .env. ';
+                } else {
+                    $errorMsg .= "Em desenvolvimento, o email será redirecionado para: {$devEmail}. ";
+                }
+            }
+            
+            $errorMsg .= 'Verifique os logs (logs/php_error.log) para mais detalhes. Verifique também as configurações SMTP no arquivo .env (SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD).';
+            $_SESSION['error'] = $errorMsg;
+        }
+
+        header('Location: ' . BASE_URL . 'admin/email-templates/' . $id . '/edit');
+        exit;
+    }
+
+    /**
+     * Send test email for base layout
+     */
+    public function sendTestBaseLayout()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/email-templates/base/edit');
+            exit;
+        }
+
+        $baseLayout = $this->emailTemplateModel->getBaseLayout();
+        if (!$baseLayout) {
+            $_SESSION['error'] = 'Template base não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        // Get recipient email (default to superAdmin email)
+        $user = AuthMiddleware::user();
+        $recipientEmail = $_POST['test_email'] ?? $user['email'];
+        
+        if (empty($recipientEmail) || !filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['error'] = 'Email inválido.';
+            header('Location: ' . BASE_URL . 'admin/email-templates/base/edit');
+            exit;
+        }
+
+        // Sample body content
+        $sampleBody = '<div class="greeting">Olá João Silva!</div>
+<div class="message">Este é um exemplo de conteúdo do email que será inserido no placeholder {body}.</div>
+<div style="text-align: center; margin: 30px 0;">
+    <a href="#" class="button" style="background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; display: inline-block;">Exemplo de Botão</a>
+</div>';
+
+        // Replace placeholders
+        $html = $baseLayout['html_body'];
+        $html = str_replace('{body}', $sampleBody, $html);
+        $html = str_replace('{subject}', 'Email de Teste - Layout Base', $html);
+        $html = str_replace('{baseUrl}', BASE_URL, $html);
+        $html = str_replace('{logoUrl}', '<div style="color: white; font-size: 24px; font-weight: bold;">O MEU PRÉDIO</div>', $html);
+        $html = str_replace('{currentYear}', date('Y'), $html);
+        $html = str_replace('{companyName}', 'O Meu Prédio', $html);
+
+        // Send test email
+        $emailService = new \App\Core\EmailService();
+        $sent = $emailService->sendEmail(
+            $recipientEmail,
+            '[TESTE] Email de Teste - Layout Base',
+            $html,
+            null,
+            null,
+            null
+        );
+
+        if ($sent) {
+            // Check if email was redirected in development
+            $appEnv = defined('APP_ENV') ? APP_ENV : ($_ENV['APP_ENV'] ?? 'development');
+            $isDevelopment = (strtolower($appEnv) === 'development');
+            $devEmail = $_ENV['DEV_EMAIL'] ?? '';
+            
+            if ($isDevelopment && !empty($devEmail)) {
+                $_SESSION['success'] = "Email de teste enviado com sucesso! Em desenvolvimento, o email foi redirecionado para: {$devEmail} (destinatário original: {$recipientEmail})";
+            } else {
+                $_SESSION['success'] = "Email de teste enviado com sucesso para {$recipientEmail}!";
+            }
+        } else {
+            // Get last error from logs or provide helpful message
+            $errorMsg = 'Erro ao enviar email de teste. ';
+            
+            // Check if DEV_EMAIL is set in development
+            $appEnv = defined('APP_ENV') ? APP_ENV : ($_ENV['APP_ENV'] ?? 'development');
+            if (strtolower($appEnv) === 'development') {
+                $devEmail = $_ENV['DEV_EMAIL'] ?? '';
+                if (empty($devEmail)) {
+                    $errorMsg .= 'Em desenvolvimento, configure DEV_EMAIL no arquivo .env. ';
+                } else {
+                    $errorMsg .= "Em desenvolvimento, o email será redirecionado para: {$devEmail}. ";
+                }
+            }
+            
+            $errorMsg .= 'Verifique os logs (logs/php_error.log) para mais detalhes. Verifique também as configurações SMTP no arquivo .env (SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD).';
+            $_SESSION['error'] = $errorMsg;
+        }
+
+        header('Location: ' . BASE_URL . 'admin/email-templates/base/edit');
+        exit;
+    }
+
+    /**
+     * Preview base layout
+     */
+    public function previewBaseLayout()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $baseLayout = $this->emailTemplateModel->getBaseLayout();
+        if (!$baseLayout) {
+            $_SESSION['error'] = 'Template base não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/email-templates');
+            exit;
+        }
+
+        // Sample body content
+        $sampleBody = '<div class="greeting">Olá João Silva!</div>
+<div class="message">Este é um exemplo de conteúdo do email que será inserido no placeholder {body}.</div>
+<div class="button-container">
+    <a href="#" class="button" style="background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; display: inline-block;">Exemplo de Botão</a>
+</div>';
+
+        // Replace placeholders
+        $html = $baseLayout['html_body'];
+        $html = str_replace('{body}', $sampleBody, $html);
+        $html = str_replace('{subject}', 'Exemplo de Assunto', $html);
+        $html = str_replace('{baseUrl}', BASE_URL, $html);
+        $html = str_replace('{logoUrl}', '<div style="color: white; font-size: 24px; font-weight: bold;">O MEU PRÉDIO</div>', $html);
+        $html = str_replace('{currentYear}', date('Y'), $html);
+        $html = str_replace('{companyName}', 'O Meu Prédio', $html);
+
+        $this->loadPageTranslations('dashboard');
+
+        $this->data += [
+            'viewName' => 'pages/admin/email-templates/preview.html.twig',
+            'page' => ['titulo' => 'Preview: Layout Base'],
+            'template' => $baseLayout,
+            'html' => $html,
+            'text' => null,
+            'sampleData' => ['body' => $sampleBody],
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Get sample data for template preview
+     */
+    protected function getSampleDataForTemplate(string $templateKey): array
+    {
+        $samples = [
+            'welcome' => [
+                'nome' => 'João Silva',
+                'verificationUrl' => BASE_URL . 'verify-email?token=sample_token',
+                'baseUrl' => BASE_URL
+            ],
+            'approval' => [
+                'nome' => 'João Silva',
+                'baseUrl' => BASE_URL
+            ],
+            'password_reset' => [
+                'nome' => 'João Silva',
+                'resetUrl' => BASE_URL . 'reset-password?token=sample_token',
+                'baseUrl' => BASE_URL
+            ],
+            'password_reset_success' => [
+                'nome' => 'João Silva',
+                'baseUrl' => BASE_URL
+            ],
+            'new_user_notification' => [
+                'userEmail' => 'novo@exemplo.com',
+                'userName' => 'João Silva',
+                'userId' => '123',
+                'adminUrl' => BASE_URL . 'dashboard/approvals',
+                'baseUrl' => BASE_URL
+            ],
+            'notification' => [
+                'nome' => 'João Silva',
+                'notificationType' => 'assembly',
+                'title' => 'Nova Assembleia Agendada',
+                'message' => 'Uma assembleia foi agendada para o próximo mês.',
+                'link' => BASE_URL . 'condominiums/1/assemblies/1',
+                'baseUrl' => BASE_URL
+            ],
+            'message' => [
+                'nome' => 'João Silva',
+                'senderName' => 'Maria Santos',
+                'subject' => 'Mensagem de Teste',
+                'messageContent' => 'Esta é uma mensagem de exemplo.',
+                'link' => BASE_URL . 'condominiums/1/messages/1',
+                'isAnnouncement' => false,
+                'baseUrl' => BASE_URL
+            ],
+            'fraction_assignment' => [
+                'nome' => 'João Silva',
+                'condominiumName' => 'Condomínio Exemplo',
+                'fractionIdentifier' => 'A-101',
+                'link' => BASE_URL . 'condominiums/1/fractions/1',
+                'baseUrl' => BASE_URL
+            ],
+            'subscription_renewal_reminder' => [
+                'nome' => 'João Silva',
+                'planName' => 'Plano PRO',
+                'expirationDate' => date('d/m/Y', strtotime('+7 days')),
+                'daysLeft' => 7,
+                'monthlyPrice' => 29.99,
+                'link' => BASE_URL . 'subscription',
+                'baseUrl' => BASE_URL
+            ],
+            'subscription_expired' => [
+                'nome' => 'João Silva',
+                'planName' => 'Plano PRO',
+                'link' => BASE_URL . 'subscription',
+                'baseUrl' => BASE_URL
+            ]
+        ];
+
+        return $samples[$templateKey] ?? [
+            'nome' => 'João Silva',
+            'baseUrl' => BASE_URL
+        ];
+    }
+
 
     /**
      * Get and clear session messages

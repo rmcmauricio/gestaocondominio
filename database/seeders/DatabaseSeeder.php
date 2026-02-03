@@ -19,6 +19,8 @@ class DatabaseSeeder
         $this->seedPaymentMethods();
         // Por fim, criar os tiers novamente
         $this->seedPlanPricingTiers();
+        // Seed email templates
+        $this->seedEmailTemplates();
     }
 
     /**
@@ -411,6 +413,13 @@ class DatabaseSeeder
     {
         require __DIR__ . '/PaymentMethodsSeeder.php';
         $seeder = new PaymentMethodsSeeder($this->db);
+        $seeder->run();
+    }
+
+    protected function seedEmailTemplates(): void
+    {
+        require __DIR__ . '/EmailTemplatesSeeder.php';
+        $seeder = new EmailTemplatesSeeder();
         $seeder->run();
     }
 }

@@ -524,5 +524,18 @@ $router->post('/admin/promotions/{id}/delete', 'App\Controllers\SuperAdminContro
 $router->get('/admin/php-logs', 'App\Controllers\SuperAdminController@phpLogs');
 $router->post('/admin/php-logs/clear', 'App\Controllers\SuperAdminController@clearPhpLog');
 
+// Email Templates (super admin only)
+// IMPORTANT: More specific routes must come BEFORE less specific ones
+$router->get('/admin/email-templates', 'App\Controllers\SuperAdminController@emailTemplates');
+$router->get('/admin/email-templates/base/edit', 'App\Controllers\SuperAdminController@editBaseLayout');
+$router->post('/admin/email-templates/base/test', 'App\Controllers\SuperAdminController@sendTestBaseLayout');
+$router->post('/admin/email-templates/base', 'App\Controllers\SuperAdminController@updateBaseLayout');
+$router->get('/admin/email-templates/base/preview', 'App\Controllers\SuperAdminController@previewBaseLayout');
+// Routes with /test and /preview must come BEFORE the generic {id} route
+$router->post('/admin/email-templates/{id}/test', 'App\Controllers\SuperAdminController@sendTestEmail');
+$router->get('/admin/email-templates/{id}/preview', 'App\Controllers\SuperAdminController@previewEmailTemplate');
+$router->get('/admin/email-templates/{id}/edit', 'App\Controllers\SuperAdminController@editEmailTemplate');
+$router->post('/admin/email-templates/{id}', 'App\Controllers\SuperAdminController@updateEmailTemplate');
+
 // Add your routes here
 

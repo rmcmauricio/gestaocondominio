@@ -1,0 +1,123 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Gestão de Templates de Email</h2>
+            <p class="text-muted mb-0">Gerir templates de email do sistema</p>
+        </div>
+        <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- Base Layout Card -->
+    {% if baseLayout %}
+    <div class="card shadow-sm mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">
+                        <i class="bi bi-layout-text-window-reverse"></i> Layout Base (Header/Footer)
+                    </h5>
+                    <small>Template base usado em todos os emails</small>
+                </div>
+                <span class="badge bg-light text-dark">Base Layout</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">{{ baseLayout.description|default('Template base com header e footer padrão. Contém o placeholder {body} onde o conteúdo específico é inserido.') }}</p>
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> 
+                <strong>Atenção:</strong> Alterações no layout base afetarão <strong>TODOS</strong> os emails do sistema.
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{{ BASE_URL }}admin/email-templates/base/edit" class="btn btn-primary">
+                    <i class="bi bi-pencil"></i> Editar Layout Base
+                </a>
+                <a href="{{ BASE_URL }}admin/email-templates/base/preview" class="btn btn-outline-secondary" target="_blank">
+                    <i class="bi bi-eye"></i> Preview
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Templates List -->
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">Templates Específicos</h5>
+            <small class="text-muted">Templates de conteúdo para cada tipo de email</small>
+        </div>
+        <div class="card-body">
+            {% if templates|length > 0 %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Chave</th>
+                            <th>Descrição</th>
+                            <th>Assunto</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for template in templates %}
+                        <tr>
+                            <td>
+                                <strong>{{ template.name }}</strong>
+                            </td>
+                            <td>
+                                <code>{{ template.template_key }}</code>
+                            </td>
+                            <td>
+                                <small class="text-muted">{{ template.description|default('Sem descrição')|slice(0, 80) }}{% if template.description|length > 80 %}...{% endif %}</small>
+                            </td>
+                            <td>
+                                <small>{{ template.subject|default('N/A')|slice(0, 40) }}{% if template.subject|length > 40 %}...{% endif %}</small>
+                            </td>
+                            <td>
+                                {% if template.is_active %}
+                                <span class="badge bg-success">Ativo</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inativo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ BASE_URL }}admin/email-templates/{{ template.id }}/edit" class="btn btn-outline-primary" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="{{ BASE_URL }}admin/email-templates/{{ template.id }}/preview" class="btn btn-outline-info" title="Preview" target="_blank">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                <p class="text-muted mt-3">Nenhum template encontrado.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

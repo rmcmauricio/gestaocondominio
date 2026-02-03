@@ -96,6 +96,11 @@ class Router extends Controller
         } else {
             $uri = '/' . $uri;
         }
+        
+        // Debug logging for email template routes
+        if (strpos($uri, '/admin/email-templates') !== false) {
+            error_log("Router::dispatch - URI: {$uri}, METHOD: {$method}");
+        }
 
         foreach ($this->routes as $route) {
             $routePath = $route['path'];
@@ -116,9 +121,19 @@ class Router extends Controller
             $pattern = '/^' . $pattern . '$/';
 
             if ($method === $route['method'] && preg_match($pattern, $uri, $matches)) {
+                // Debug logging for email template routes
+                if (strpos($uri, '/admin/email-templates') !== false) {
+                    error_log("Router::dispatch - MATCH encontrado! Route: {$routePath}, Pattern: {$pattern}, Matches: " . json_encode($matches));
+                }
+                
                 array_shift($matches); // remove o full match
 
                 [$controllerClass, $action] = explode('@', $route['callback']);
+                
+                // Debug logging for email template routes
+                if (strpos($uri, '/admin/email-templates') !== false) {
+                    error_log("Router::dispatch - Chamando: {$controllerClass}@{$action} com params: " . json_encode($matches));
+                }
 
                 if (!class_exists($controllerClass)) {
                     $this->renderError("Classe $controllerClass não encontrada", 500);

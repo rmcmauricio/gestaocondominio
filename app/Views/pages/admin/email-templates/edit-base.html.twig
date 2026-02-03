@@ -1,0 +1,212 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Editar Layout Base</h2>
+            <p class="text-muted mb-0">Header e footer usado em todos os emails</p>
+        </div>
+        <a href="{{ BASE_URL }}admin/email-templates" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <strong>Atenção:</strong> Alterações neste template afetarão <strong>TODOS</strong> os emails do sistema. 
+        Certifique-se de que o placeholder <code>{body}</code> está presente no template.
+    </div>
+
+    <form method="POST" action="{{ BASE_URL }}admin/email-templates/base" id="templateForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Campos Disponíveis</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Campos do Layout Base:</h6>
+                        <ul class="list-unstyled">
+                            <li><code>{body}</code> <span class="badge bg-danger">Obrigatório</span> - Conteúdo específico do email</li>
+                            <li><code>{subject}</code> - Assunto/título do email</li>
+                            <li><code>{baseUrl}</code> - URL base do sistema</li>
+                            <li><code>{logoUrl}</code> - HTML do logo</li>
+                            <li><code>{currentYear}</code> - Ano atual</li>
+                            <li><code>{companyName}</code> - Nome da empresa</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Informações:</h6>
+                        <p class="small text-muted">
+                            O placeholder <code>{body}</code> é onde o conteúdo específico de cada email será inserido.
+                            Sem este placeholder, os emails não funcionarão corretamente.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Template HTML</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="html_body" class="form-label">HTML do Layout Base</label>
+                    <textarea 
+                        class="form-control" 
+                        id="html_body" 
+                        name="html_body" 
+                        rows="20" 
+                        required
+                    >{{ template.html_body|default('') }}</textarea>
+                    <small class="form-text text-muted">
+                        Use o editor para formatar o conteúdo HTML. Deve conter o placeholder <code>{body}</code> onde o conteúdo será inserido.
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Template Texto Puro</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="text_body" class="form-label">Versão Texto do Layout Base</label>
+                    <textarea 
+                        class="form-control font-monospace" 
+                        id="text_body" 
+                        name="text_body" 
+                        rows="10"
+                        style="font-size: 0.9rem;"
+                    >{{ template.text_body|default('') }}</textarea>
+                    <small class="form-text text-muted">
+                        Versão em texto puro para clientes de email que não suportam HTML.
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Email Section -->
+        <div class="card shadow-sm mb-4 border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-envelope-paper"></i> Enviar Email de Teste</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ BASE_URL }}admin/email-templates/base/test" id="testEmailForm" onsubmit="console.log('Base test form submitting to:', this.action); return true;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="row align-items-end">
+                        <div class="col-md-8">
+                            <label for="test_email" class="form-label">Email de Destino</label>
+                            <input type="email" class="form-control" id="test_email" name="test_email" value="{{ user.email }}" required>
+                            <small class="form-text text-muted">Por padrão, será enviado para o seu email. Pode alterar para outro email.</small>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="submit" class="btn btn-info w-100" id="testEmailSubmitBtn">
+                                <i class="bi bi-send"></i> Enviar Teste
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between">
+            <a href="{{ BASE_URL }}admin/email-templates/base/preview" class="btn btn-outline-info" target="_blank">
+                <i class="bi bi-eye"></i> Preview
+            </a>
+            <div>
+                <button type="button" class="btn btn-outline-secondary" onclick="if(confirm('Tem certeza que deseja restaurar o template padrão?')) { restoreDefault(); }">
+                    <i class="bi bi-arrow-counterclockwise"></i> Restaurar Padrão
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Salvar Alterações
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.getElementById('templateForm').addEventListener('submit', function(e) {
+    // Get HTML from TinyMCE if it's initialized
+    let htmlBody;
+    if (tinymce.get('html_body')) {
+        htmlBody = tinymce.get('html_body').getContent();
+    } else {
+        htmlBody = document.getElementById('html_body').value;
+    }
+    
+    if (!htmlBody.includes('{body}')) {
+        e.preventDefault();
+        alert('Erro: O template deve conter o placeholder {body} onde o conteúdo será inserido.');
+        return false;
+    }
+    
+    if (!confirm('Tem certeza que deseja salvar as alterações? Isso afetará TODOS os emails do sistema.')) {
+        e.preventDefault();
+        return false;
+    }
+});
+
+function restoreDefault() {
+    // Restaurar template padrão (será implementado depois)
+    alert('Funcionalidade de restaurar padrão será implementada em breve.');
+}
+</script>
+
+<!-- TinyMCE WYSIWYG Editor -->
+<script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    tinymce.init({
+        selector: '#html_body',
+        height: 500,
+        menubar: true,
+        plugins: [
+            'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+            'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+            'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
+        ],
+        toolbar: 'undo redo | blocks | ' +
+            'bold italic forecolor | alignleft aligncenter ' +
+            'alignright alignjustify | bullist numlist outdent indent | ' +
+            'link image | removeformat | code | fullscreen',
+        content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+        language: 'pt',
+        language_url: 'https://cdn.jsdelivr.net/npm/tinymce@6/langs/pt.js',
+        branding: false,
+        promotion: false,
+        setup: function(editor) {
+            editor.on('change', function() {
+                editor.save();
+            });
+        }
+    });
+
+    // Ensure TinyMCE content is saved before form submission
+    const form = document.getElementById('templateForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (tinymce.get('html_body')) {
+                tinymce.get('html_body').save();
+            }
+        });
+    }
+});
+</script>

@@ -1398,20 +1398,54 @@ class SubscriptionService
             $link
         );
 
-        // Send email
-        $htmlMessage = "
-            <p>A sua subscrição do plano <strong>{$plan['name']}</strong> expira em <strong>{$daysLeft} dia(s)</strong> ({$expirationDate}).</p>
-            <p><strong>Valor mensal:</strong> €" . number_format($monthlyPrice, 2, ',', '.') . "</p>
-            <p>Para renovar a sua subscrição e evitar o bloqueio do acesso, efetue o pagamento através do link abaixo.</p>
-            <p><a href=\"{$link}\" style=\"display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;\">Renovar Subscrição</a></p>
-            <p><small>Se não renovar até {$expirationDate}, o acesso à gestão dos condomínios será bloqueado.</small></p>
-        ";
+        // Send email using template from database
+        $html = $emailService->renderTemplate('subscription_renewal_reminder', [
+            'nome' => $user['name'],
+            'planName' => $plan['name'],
+            'expirationDate' => $expirationDate,
+            'daysLeft' => (string)$daysLeft,
+            'monthlyPrice' => number_format($monthlyPrice, 2, ',', '.'),
+            'link' => $link,
+            'baseUrl' => BASE_URL
+        ]);
+        $text = $emailService->renderTextTemplate('subscription_renewal_reminder', [
+            'nome' => $user['name'],
+            'planName' => $plan['name'],
+            'expirationDate' => $expirationDate,
+            'daysLeft' => (string)$daysLeft,
+            'monthlyPrice' => number_format($monthlyPrice, 2, ',', '.'),
+            'link' => $link,
+            'baseUrl' => BASE_URL
+        ]);
+        
+        if (!empty($html)) {
+            // Get template subject if available
+            $emailTemplateModel = new \App\Models\EmailTemplate();
+            $template = $emailTemplateModel->findByKey('subscription_renewal_reminder');
+            if ($template && !empty($template['subject'])) {
+                $templateSubject = $template['subject'];
+                $templateSubject = str_replace('{daysLeft}', (string)$daysLeft, $templateSubject);
+                $templateSubject = str_replace('{planName}', $plan['name'], $templateSubject);
+                $templateSubject = str_replace('{expirationDate}', $expirationDate, $templateSubject);
+                $subject = $templateSubject;
+            }
+        } else {
+            // Fallback to inline HTML
+            $html = "
+                <p>A sua subscrição do plano <strong>{$plan['name']}</strong> expira em <strong>{$daysLeft} dia(s)</strong> ({$expirationDate}).</p>
+                <p><strong>Valor mensal:</strong> €" . number_format($monthlyPrice, 2, ',', '.') . "</p>
+                <p>Para renovar a sua subscrição e evitar o bloqueio do acesso, efetue o pagamento através do link abaixo.</p>
+                <p><a href=\"{$link}\" style=\"display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;\">Renovar Subscrição</a></p>
+                <p><small>Se não renovar até {$expirationDate}, o acesso à gestão dos condomínios será bloqueado.</small></p>
+            ";
+            $text = $message;
+        }
 
         return $emailService->sendEmail(
             $user['email'],
             $subject,
-            $htmlMessage,
-            $message,
+            $html,
+            $text,
             'notification',
             $subscription['user_id']
         );
@@ -1490,18 +1524,45 @@ class SubscriptionService
                 $message .= "O acesso à gestão dos condomínios foi bloqueado até efetuar o pagamento.\n\n";
                 $message .= "Para reativar a sua subscrição, efetue o pagamento através do link abaixo.";
                 
-                $htmlMessage = "
-                    <p>A sua subscrição do plano <strong>{$plan['name']}</strong> expirou.</p>
-                    <p>O acesso à gestão dos condomínios foi bloqueado até efetuar o pagamento.</p>
-                    <p>Para reativar a sua subscrição, efetue o pagamento através do link abaixo.</p>
-                    <p><a href=\"" . BASE_URL . "subscription\" style=\"display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;\">Renovar Subscrição</a></p>
-                ";
+                // Send email using template from database
+                $html = $emailService->renderTemplate('subscription_expired', [
+                    'nome' => $user['name'],
+                    'planName' => $plan['name'],
+                    'link' => BASE_URL . 'subscription',
+                    'baseUrl' => BASE_URL
+                ]);
+                $text = $emailService->renderTextTemplate('subscription_expired', [
+                    'nome' => $user['name'],
+                    'planName' => $plan['name'],
+                    'link' => BASE_URL . 'subscription',
+                    'baseUrl' => BASE_URL
+                ]);
+                
+                if (!empty($html)) {
+                    // Get template subject if available
+                    $emailTemplateModel = new \App\Models\EmailTemplate();
+                    $template = $emailTemplateModel->findByKey('subscription_expired');
+                    if ($template && !empty($template['subject'])) {
+                        $templateSubject = $template['subject'];
+                        $templateSubject = str_replace('{planName}', $plan['name'], $templateSubject);
+                        $subject = $templateSubject;
+                    }
+                } else {
+                    // Fallback to inline HTML
+                    $html = "
+                        <p>A sua subscrição do plano <strong>{$plan['name']}</strong> expirou.</p>
+                        <p>O acesso à gestão dos condomínios foi bloqueado até efetuar o pagamento.</p>
+                        <p>Para reativar a sua subscrição, efetue o pagamento através do link abaixo.</p>
+                        <p><a href=\"" . BASE_URL . "subscription\" style=\"display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;\">Renovar Subscrição</a></p>
+                    ";
+                    $text = $message;
+                }
 
                 $emailService->sendEmail(
                     $user['email'],
                     $subject,
-                    $htmlMessage,
-                    $message,
+                    $html,
+                    $text,
                     'notification',
                     $subscription['user_id']
                 );
