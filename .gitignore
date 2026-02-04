@@ -6,3 +6,4 @@ vendor/
 .env
 logs/
 logs/php_error.log
+.env-prod

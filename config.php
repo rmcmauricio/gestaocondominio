@@ -129,6 +129,7 @@ if (($config['APP_ENV'] ?? 'development') !== 'production') {
 // Add global variables to Twig
 $twig->addGlobal('BASE_URL', BASE_URL);
 $twig->addGlobal('VERSION', VERSION);
+$twig->addGlobal('DISABLE_AUTH_REGISTRATION', defined('DISABLE_AUTH_REGISTRATION') ? DISABLE_AUTH_REGISTRATION : false);
 
 // Breadcrumbs: needs_context to receive full Twig context
 $twig->addFunction(new \Twig\TwigFunction('get_breadcrumbs', [\App\Services\BreadcrumbService::class, 'getBreadcrumbs'], ['needs_context' => true]));
@@ -160,3 +161,6 @@ if (isset($config['RECAPTCHA_SECRET'])) {
 
 // Maintenance mode
 define('MAINTENANCE_MODE', isset($config['MAINTENANCE_MODE']) && $config['MAINTENANCE_MODE'] === 'true');
+
+// Disable auth/registration mode
+define('DISABLE_AUTH_REGISTRATION', isset($config['DISABLE_AUTH_REGISTRATION']) && $config['DISABLE_AUTH_REGISTRATION'] === 'true');

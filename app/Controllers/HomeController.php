@@ -98,7 +98,8 @@ class HomeController extends Controller
             'plan_promotions' => $planPromotions,
             'business_plan' => $businessPlan,
             'extra_condominiums_pricing' => $extraCondominiumsPricing,
-            'plan_pricing_tiers' => $planPricingTiers
+            'plan_pricing_tiers' => $planPricingTiers,
+            'auth_disabled_message' => (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) ? 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.' : null
         ];
         
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

@@ -22,6 +22,13 @@ class AuthController extends Controller
 
     public function login()
     {
+        // Check if auth/registration is disabled
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         // If already logged in, redirect to dashboard
         if (isset($_SESSION['user'])) {
             $this->redirectToDashboard();
@@ -97,6 +104,14 @@ class AuthController extends Controller
 
     public function processLogin()
     {
+        // Check if auth/registration is disabled
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+            http_response_code(403);
+            $_SESSION['error'] = 'O login está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         // Only accept POST requests
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'login');
@@ -211,6 +226,13 @@ class AuthController extends Controller
 
     public function register()
     {
+        // Check if auth/registration is disabled
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         // If already logged in, redirect to dashboard
         if (isset($_SESSION['user'])) {
             $this->redirectToDashboard();
@@ -239,6 +261,14 @@ class AuthController extends Controller
 
     public function processRegister()
     {
+        // Check if auth/registration is disabled
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+            http_response_code(403);
+            $_SESSION['error'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'register');
             exit;
@@ -381,6 +411,13 @@ class AuthController extends Controller
 
     public function forgotPassword()
     {
+        // Check if auth/registration is disabled
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         $this->loadPageTranslations('login');
         
         $this->data += [
@@ -403,6 +440,14 @@ class AuthController extends Controller
 
     public function processForgotPassword()
     {
+        // Check if auth/registration is disabled
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+            http_response_code(403);
+            $_SESSION['error'] = 'O reset de senha está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'forgot-password');
             exit;
@@ -474,6 +519,13 @@ class AuthController extends Controller
 
     public function resetPassword()
     {
+        // Check if auth/registration is disabled
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         // Security: Accept token from GET only for initial verification, then store in session
         $token = $_GET['token'] ?? '';
 
@@ -537,6 +589,14 @@ class AuthController extends Controller
 
     public function processResetPassword()
     {
+        // Check if auth/registration is disabled
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+            http_response_code(403);
+            $_SESSION['error'] = 'O reset de senha está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'login');
             exit;
@@ -758,6 +818,13 @@ class AuthController extends Controller
      */
     public function googleAuth()
     {
+        // Check if auth/registration is disabled
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         // If already logged in, redirect to dashboard
         if (isset($_SESSION['user'])) {
             $this->redirectToDashboard();
@@ -786,6 +853,13 @@ class AuthController extends Controller
      */
     public function googleCallback()
     {
+        // Check if auth/registration is disabled
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         // If already logged in, redirect to dashboard
         if (isset($_SESSION['user'])) {
             $this->redirectToDashboard();
@@ -904,6 +978,13 @@ class AuthController extends Controller
      */
     public function selectAccountType()
     {
+        // Check if auth/registration is disabled
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         // If already logged in, redirect to dashboard
         if (isset($_SESSION['user'])) {
             $this->redirectToDashboard();
@@ -939,6 +1020,14 @@ class AuthController extends Controller
      */
     public function processAccountType()
     {
+        // Check if auth/registration is disabled
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+            http_response_code(403);
+            $_SESSION['error'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'auth/select-account-type');
             exit;
@@ -1096,6 +1185,14 @@ class AuthController extends Controller
      */
     public function processPlanSelection()
     {
+        // Check if auth/registration is disabled
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+            http_response_code(403);
+            $_SESSION['error'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'auth/select-plan');
             exit;
