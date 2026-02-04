@@ -56,6 +56,161 @@ class AuthController extends Controller
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
     }
 
+    /**
+     * Direct access login page (secret route - bypasses DISABLE_AUTH_REGISTRATION)
+     * This route is not publicized and should not have visible links
+     */
+    public function directAccessLogin()
+    {
+        // If already logged in, redirect to dashboard
+        if (isset($_SESSION['user'])) {
+            $this->redirectToDashboard();
+            exit;
+        }
+
+        $this->loadPageTranslations('login');
+        
+        $this->data += [
+            'viewName' => 'pages/login.html.twig',
+            'page' => [
+                'titulo' => 'Login',
+                'description' => 'Login to your account',
+                'keywords' => 'login, authentication'
+            ],
+            'error' => $_SESSION['login_error'] ?? null,
+            'success' => $_SESSION['login_success'] ?? null,
+            'csrf_token' => Security::generateCSRFToken(),
+            'direct_access' => true, // Flag to indicate this is direct access route
+            'form_action' => BASE_URL . 'access-admin-panel/process' // Use direct access route for form
+        ];
+        
+        // Clear error messages after displaying
+        unset($_SESSION['login_error']);
+        unset($_SESSION['login_success']);
+        
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Process direct access login (secret route - bypasses DISABLE_AUTH_REGISTRATION)
+     */
+    public function processDirectAccessLogin()
+    {
+        // NOTE: This method does NOT check DISABLE_AUTH_REGISTRATION
+        // It allows login even when registration/login is disabled for public
+
+        // Only accept POST requests
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'access-admin-panel');
+            exit;
+        }
+
+        // Check rate limit BEFORE processing login attempt
+        try {
+            RateLimitMiddleware::require('login');
+        } catch (\Exception $e) {
+            $_SESSION['login_error'] = $e->getMessage();
+            header('Location: ' . BASE_URL . 'access-admin-panel');
+            exit;
+        }
+
+        // Verify CSRF token
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            RateLimitMiddleware::recordAttempt('login');
+            $_SESSION['login_error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'access-admin-panel');
+            exit;
+        }
+
+        $email = Security::sanitize($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $twoFactorCode = $_POST['two_factor_code'] ?? '';
+
+        // Basic validation
+        if (empty($email) || empty($password)) {
+            RateLimitMiddleware::recordAttempt('login');
+            $_SESSION['login_error'] = 'Por favor, preencha todos os campos.';
+            header('Location: ' . BASE_URL . 'access-admin-panel');
+            exit;
+        }
+
+        if (!Security::validateEmail($email)) {
+            RateLimitMiddleware::recordAttempt('login');
+            $_SESSION['login_error'] = 'Email inválido.';
+            header('Location: ' . BASE_URL . 'access-admin-panel');
+            exit;
+        }
+
+        // Authenticate user
+        $user = $this->userModel->findByEmail($email);
+        
+        if (!$user || !$this->userModel->verifyPassword($email, $password)) {
+            RateLimitMiddleware::recordAttempt('login');
+            // Log failed login attempt
+            $securityLogger = new SecurityLogger();
+            $securityLogger->logFailedLogin($email, 'invalid_credentials');
+            $_SESSION['login_error'] = 'Email ou senha incorretos.';
+            header('Location: ' . BASE_URL . 'access-admin-panel');
+            exit;
+        }
+
+        // Check if user is active
+        if ($user['status'] !== 'active') {
+            RateLimitMiddleware::recordAttempt('login');
+            $_SESSION['login_error'] = 'A sua conta está suspensa ou inativa.';
+            header('Location: ' . BASE_URL . 'access-admin-panel');
+            exit;
+        }
+
+        // Check 2FA if enabled
+        if ($user['two_factor_enabled']) {
+            if (empty($twoFactorCode)) {
+                $_SESSION['login_error'] = 'Código de autenticação de dois fatores necessário.';
+                $_SESSION['pending_2fa_user'] = $user['id'];
+                header('Location: ' . BASE_URL . 'login/2fa');
+                exit;
+            }
+
+            if (!Security::verifyTOTP($user['two_factor_secret'], $twoFactorCode)) {
+                RateLimitMiddleware::recordAttempt('login');
+                $_SESSION['login_error'] = 'Código de autenticação inválido.';
+                header('Location: ' . BASE_URL . 'access-admin-panel');
+                exit;
+            }
+        }
+
+        // Regenerate session ID on successful login to prevent session fixation
+        session_regenerate_id(true);
+        
+        // Set user session
+        $_SESSION['user'] = [
+            'id' => $user['id'],
+            'email' => $user['email'],
+            'name' => $user['name'],
+            'role' => $user['role']
+        ];
+        
+        // Set session creation time for periodic regeneration
+        $_SESSION['created'] = time();
+
+        // Reset rate limit on successful login
+        RateLimitMiddleware::reset('login', $email);
+
+        // Update last login
+        $this->userModel->updateLastLogin($user['id']);
+
+        // Log successful login
+        $securityLogger = new SecurityLogger();
+        $securityLogger->logSuccessfulLogin($user['id'], $email);
+
+        // Log audit
+        $this->logAudit($user['id'], 'login', 'User logged in via direct access route');
+
+        $_SESSION['login_success'] = 'Login realizado com sucesso!';
+        $this->redirectToDashboard();
+    }
+
     public function demoAccess()
     {
         // Auto-login demo user
@@ -818,8 +973,9 @@ class AuthController extends Controller
      */
     public function googleAuth()
     {
-        // Check if auth/registration is disabled
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+        // Check if auth/registration is disabled (allow if source is 'direct-access')
+        $source = $_GET['source'] ?? 'login';
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION && $source !== 'direct-access') {
             $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
             header('Location: ' . BASE_URL);
             exit;
@@ -835,15 +991,15 @@ class AuthController extends Controller
             $oauthService = new GoogleOAuthService();
             $authUrl = $oauthService->getAuthUrl();
             
-            // Store source (login or register) in session for redirect after callback
-            $source = $_GET['source'] ?? 'login';
+            // Store source (login, register, or direct-access) in session for redirect after callback
             $_SESSION['google_oauth_source'] = $source;
             
             header('Location: ' . $authUrl);
             exit;
         } catch (\Exception $e) {
             $_SESSION['login_error'] = 'Erro ao iniciar autenticação Google: ' . $e->getMessage();
-            header('Location: ' . BASE_URL . 'login');
+            $redirectUrl = ($source === 'direct-access') ? BASE_URL . 'access-admin-panel' : BASE_URL . 'login';
+            header('Location: ' . $redirectUrl);
             exit;
         }
     }
@@ -853,8 +1009,9 @@ class AuthController extends Controller
      */
     public function googleCallback()
     {
-        // Check if auth/registration is disabled
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+        // Check if auth/registration is disabled (allow if source is 'direct-access')
+        $source = $_SESSION['google_oauth_source'] ?? 'login';
+        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION && $source !== 'direct-access') {
             $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
             header('Location: ' . BASE_URL);
             exit;
@@ -869,19 +1026,24 @@ class AuthController extends Controller
         $code = $_GET['code'] ?? '';
         $error = $_GET['error'] ?? '';
 
+        $getRedirectUrl = function($src) {
+            if ($src === 'direct-access') {
+                return BASE_URL . 'access-admin-panel';
+            }
+            return BASE_URL . ($src === 'register' ? 'register' : 'login');
+        };
+
         if (!empty($error)) {
             $_SESSION['login_error'] = 'Autenticação Google cancelada ou falhou.';
-            $source = $_SESSION['google_oauth_source'] ?? 'login';
             unset($_SESSION['google_oauth_source']);
-            header('Location: ' . BASE_URL . ($source === 'register' ? 'register' : 'login'));
+            header('Location: ' . $getRedirectUrl($source));
             exit;
         }
 
         if (empty($code)) {
             $_SESSION['login_error'] = 'Código de autorização não recebido.';
-            $source = $_SESSION['google_oauth_source'] ?? 'login';
             unset($_SESSION['google_oauth_source']);
-            header('Location: ' . BASE_URL . ($source === 'register' ? 'register' : 'login'));
+            header('Location: ' . $getRedirectUrl($source));
             exit;
         }
 
@@ -912,7 +1074,7 @@ class AuthController extends Controller
                     } else {
                         // Email exists but with different provider - show error
                         $_SESSION['login_error'] = 'Este email já está registado com outro método de autenticação.';
-                        header('Location: ' . BASE_URL . ($source === 'register' ? 'register' : 'login'));
+                        header('Location: ' . $getRedirectUrl($source));
                         exit;
                     }
                 }
@@ -923,7 +1085,7 @@ class AuthController extends Controller
                 // Check if user is active
                 if ($user['status'] !== 'active') {
                     $_SESSION['login_error'] = 'A sua conta está suspensa ou inativa.';
-                    header('Location: ' . BASE_URL . 'login');
+                    header('Location: ' . $getRedirectUrl($source));
                     exit;
                 }
 
@@ -961,14 +1123,14 @@ class AuthController extends Controller
             } else {
                 // Trying to login but account doesn't exist
                 $_SESSION['login_error'] = 'Conta não encontrada. Por favor, registe-se primeiro.';
-                header('Location: ' . BASE_URL . 'register');
+                header('Location: ' . $getRedirectUrl($source));
                 exit;
             }
         } catch (\Exception $e) {
             $_SESSION['login_error'] = 'Erro ao processar autenticação Google: ' . $e->getMessage();
             $source = $_SESSION['google_oauth_source'] ?? 'login';
             unset($_SESSION['google_oauth_source']);
-            header('Location: ' . BASE_URL . ($source === 'register' ? 'register' : 'login'));
+            header('Location: ' . $getRedirectUrl($source));
             exit;
         }
     }

