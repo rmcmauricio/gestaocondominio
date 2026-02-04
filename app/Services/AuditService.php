@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Core\AuditManager;
+
 class AuditService
 {
     protected $db;
@@ -17,6 +19,10 @@ class AuditService
      */
     public function logPayment(array $data): void
     {
+        if (AuditManager::isDisabled()) {
+            return;
+        }
+
         if (!$this->db) {
             return;
         }
@@ -62,6 +68,10 @@ class AuditService
      */
     public function logFinancial(array $data): void
     {
+        if (AuditManager::isDisabled()) {
+            return;
+        }
+
         if (!$this->db) {
             return;
         }
@@ -105,6 +115,10 @@ class AuditService
      */
     public function logSubscription(array $data): void
     {
+        if (AuditManager::isDisabled()) {
+            return;
+        }
+
         if (!$this->db) {
             return;
         }
@@ -153,6 +167,10 @@ class AuditService
      */
     public function logDocument(array $data): void
     {
+        if (AuditManager::isDisabled()) {
+            return;
+        }
+
         if (!$this->db) {
             return;
         }
@@ -198,6 +216,10 @@ class AuditService
      */
     public function log(array $data): void
     {
+        if (AuditManager::isDisabled()) {
+            return;
+        }
+
         if (!$this->db) {
             return;
         }
