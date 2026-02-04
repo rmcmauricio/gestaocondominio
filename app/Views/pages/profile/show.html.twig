@@ -141,6 +141,74 @@
                 </div>
             </div>
 
+            <!-- Preferências de Email -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="bi bi-envelope"></i> Preferências de Email</h6>
+                </div>
+                <div class="card-body">
+                    {% if is_demo %}
+                    <div class="alert alert-warning mb-0">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <strong>Conta de demonstração:</strong> Emails desativados e não editáveis.
+                    </div>
+                    <form class="mt-3">
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="email_notifications_enabled_demo" disabled checked>
+                                <label class="form-check-label text-muted" for="email_notifications_enabled_demo">
+                                    Receber emails de notificações
+                                </label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="email_messages_enabled_demo" disabled checked>
+                                <label class="form-check-label text-muted" for="email_messages_enabled_demo">
+                                    Receber emails de mensagens
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                    {% else %}
+                    <p class="text-muted small mb-3">Configure quais tipos de emails deseja receber.</p>
+                    <form method="POST" action="{{ BASE_URL }}profile/email-preferences">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="email_notifications_enabled" name="email_notifications_enabled" {% if email_preferences.email_notifications_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="email_notifications_enabled">
+                                    <strong>Receber emails de notificações</strong>
+                                </label>
+                                <small class="form-text text-muted d-block">
+                                    Receba emails quando houver novas notificações no sistema (ocorrências, quotas, assembleias, etc.)
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="email_messages_enabled" name="email_messages_enabled" {% if email_preferences.email_messages_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="email_messages_enabled">
+                                    <strong>Receber emails de mensagens</strong>
+                                </label>
+                                <small class="form-text text-muted d-block">
+                                    Receba emails quando receber mensagens privadas ou anúncios do condomínio
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-info">
+                                <i class="bi bi-save"></i> Guardar Preferências
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
             <!-- Informações Adicionais -->
             <div class="card shadow-sm">
                 <div class="card-header">

@@ -1,0 +1,88 @@
+<div class="container py-4 help-page">
+    <div class="help-page-header">
+        <h1 class="help-page-title">
+            <i class="bi bi-cash-stack text-primary me-2"></i>
+            Finanças
+        </h1>
+        <p class="help-page-description">
+            Visão geral do módulo de finanças: orçamentos, quotas, despesas, receitas, relatórios e muito mais.
+        </p>
+    </div>
+
+    {% include 'blocks/help-navigation.html.twig' %}
+
+    <div class="help-section">
+        <h2 class="help-section-title">Visão Geral</h2>
+        <p class="help-step-content">
+            O módulo de Finanças é o coração da gestão financeira do condomínio. Permite criar orçamentos anuais, 
+            gerir quotas mensais e extras, registar despesas e receitas, acompanhar movimentos bancários e gerar relatórios completos.
+        </p>
+    </div>
+
+    <div class="help-section">
+        <h2 class="help-section-title">Funcionalidades Principais</h2>
+
+        <div class="help-step">
+            <h3 class="help-step-title">Orçamentos</h3>
+            <div class="help-step-content">
+                <p>Crie orçamentos anuais definindo as receitas e despesas previstas. O orçamento serve de base para o cálculo automático das quotas mensais.</p>
+                <a href="{{ BASE_URL }}help/finances-budgets" class="btn btn-sm btn-outline-primary">Ver Guia Completo</a>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <h3 class="help-step-title">Quotas</h3>
+            <div class="help-step-content">
+                <p>Gere quotas mensais automaticamente, crie quotas extras para obras ou eventos, e acompanhe o estado de pagamento de cada fração.</p>
+                <a href="{{ BASE_URL }}help/finances-fees" class="btn btn-sm btn-outline-primary">Ver Guia Completo</a>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <h3 class="help-step-title">Despesas</h3>
+            <div class="help-step-content">
+                <p>Registe todas as despesas do condomínio, categorize por tipo e associe a fornecedores. Mantenha um controlo completo dos gastos.</p>
+                <a href="{{ BASE_URL }}help/finances-expenses" class="btn btn-sm btn-outline-primary">Ver Guia Completo</a>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <h3 class="help-step-title">Receitas</h3>
+            <div class="help-step-content">
+                <p>Registe receitas além das quotas (aluguer de espaços, multas, etc.) para ter uma visão completa das entradas financeiras.</p>
+                <a href="{{ BASE_URL }}help/finances-revenues" class="btn btn-sm btn-outline-primary">Ver Guia Completo</a>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <h3 class="help-step-title">Relatórios</h3>
+            <div class="help-step-content">
+                <p>Gere relatórios financeiros completos: balancete, fluxo de caixa, análise de orçamento vs. real, e muito mais.</p>
+                <a href="{{ BASE_URL }}help/finances-reports" class="btn btn-sm btn-outline-primary">Ver Guia Completo</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="help-tip">
+        <div class="help-tip-title">
+            <i class="bi bi-lightbulb"></i>
+            <span>Dica</span>
+        </div>
+        <div class="help-tip-content">
+            <p>Comece sempre por criar o orçamento anual antes de gerar quotas. Isso garante que os valores sejam calculados corretamente com base na permilagem de cada fração.</p>
+        </div>
+    </div>
+
+    <div class="help-related-links">
+        <h3 class="help-related-links-title">Tópicos Relacionados</h3>
+        <ul class="help-related-links-list">
+            <li><a href="{{ BASE_URL }}help/finances-budgets"><i class="bi bi-arrow-right"></i> Orçamentos</a></li>
+            <li><a href="{{ BASE_URL }}help/finances-fees"><i class="bi bi-arrow-right"></i> Quotas</a></li>
+            <li><a href="{{ BASE_URL }}help/finances-fees-map"><i class="bi bi-arrow-right"></i> Mapa de Quotas</a></li>
+            <li><a href="{{ BASE_URL }}help/finances-reports"><i class="bi bi-arrow-right"></i> Relatórios</a></li>
+            <li><a href="{{ BASE_URL }}help/bank-accounts"><i class="bi bi-arrow-right"></i> Contas Bancárias</a></li>
+        </ul>
+    </div>
+
+    {% include 'blocks/help-navigation.html.twig' %}
+</div>

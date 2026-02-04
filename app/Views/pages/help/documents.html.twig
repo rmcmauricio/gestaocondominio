@@ -1,0 +1,129 @@
+<div class="container py-4 help-page">
+    <div class="help-page-header">
+        <h1 class="help-page-title">
+            <i class="bi bi-folder text-primary me-2"></i>
+            Documentos
+        </h1>
+        <p class="help-page-description">
+            Aprenda a fazer upload, organizar e partilhar documentos com pastas e controlo de versões.
+        </p>
+    </div>
+
+    {% include 'blocks/help-navigation.html.twig' %}
+
+    <div class="help-section">
+        <h2 class="help-section-title">Visão Geral</h2>
+        <p class="help-step-content">
+            O sistema de documentos permite armazenar e organizar todos os documentos do condomínio de forma segura e acessível. 
+            Pode criar pastas, fazer upload de ficheiros, controlar versões e definir quem pode visualizar cada documento.
+        </p>
+    </div>
+
+    <div class="help-section">
+        <h2 class="help-section-title">Passo a Passo</h2>
+
+        <div class="help-step">
+            <div class="help-step-number">1</div>
+            <h3 class="help-step-title">Criar Pastas</h3>
+            <div class="help-step-content">
+                <p>Organize os documentos em pastas para facilitar a navegação:</p>
+                <ul>
+                    <li>Clique em "Gerir Pastas"</li>
+                    <li>Adicione uma nova pasta com um nome descritivo</li>
+                    <li>Pode criar subpastas para melhor organização</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Interface de gestão de pastas</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <div class="help-step-number">2</div>
+            <h3 class="help-step-title">Fazer Upload de Documentos</h3>
+            <div class="help-step-content">
+                <p>Para adicionar um novo documento:</p>
+                <ul>
+                    <li>Clique no botão "Adicionar Documento"</li>
+                    <li>Selecione a pasta de destino</li>
+                    <li>Escolha o ficheiro do seu computador</li>
+                    <li>Adicione um título e descrição (opcional)</li>
+                    <li>Defina a visibilidade (Todos, Apenas Admin, etc.)</li>
+                    <li>Clique em "Guardar"</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Formulário de upload de documento</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <div class="help-step-number">3</div>
+            <h3 class="help-step-title">Gerir Versões</h3>
+            <div class="help-step-content">
+                <p>Quando um documento é atualizado, pode adicionar uma nova versão:</p>
+                <ul>
+                    <li>Abra o documento</li>
+                    <li>Clique em "Adicionar Versão"</li>
+                    <li>Faça upload do novo ficheiro</li>
+                    <li>O sistema mantém o histórico de todas as versões</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Histórico de versões de um documento</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <div class="help-step-number">4</div>
+            <h3 class="help-step-title">Visualizar e Descarregar</h3>
+            <div class="help-step-content">
+                <p>Para visualizar ou descarregar um documento:</p>
+                <ul>
+                    <li>Clique no nome do documento na lista</li>
+                    <li>Visualize o documento diretamente no navegador</li>
+                    <li>Ou clique em "Descarregar" para guardar no seu computador</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Visualização de documento com opções de descarregar</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="help-tip">
+        <div class="help-tip-title">
+            <i class="bi bi-lightbulb"></i>
+            <span>Dica</span>
+        </div>
+        <div class="help-tip-content">
+            <p>Organize os documentos por tipo (Atas, Contratos, Orçamentos, etc.) para facilitar a localização. Use nomes descritivos para os ficheiros.</p>
+        </div>
+    </div>
+
+    <div class="help-related-links">
+        <h3 class="help-related-links-title">Tópicos Relacionados</h3>
+        <ul class="help-related-links-list">
+            <li><a href="{{ BASE_URL }}help/assemblies"><i class="bi bi-arrow-right"></i> Assembleias</a></li>
+            <li><a href="{{ BASE_URL }}help/finances-reports"><i class="bi bi-arrow-right"></i> Relatórios</a></li>
+        </ul>
+    </div>
+
+    {% include 'blocks/help-navigation.html.twig' %}
+</div>

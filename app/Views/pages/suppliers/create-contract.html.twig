@@ -14,7 +14,7 @@
                     </div>
                     {% endif %}
 
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/contracts">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/contracts" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
                         <div class="mb-3">
@@ -38,11 +38,21 @@
                         </div>
 
                         <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="amount" class="form-label">Valor Anual (€) <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0" required>
+                            <div class="col-md-4 mb-3">
+                                <label for="amount" class="form-label">Valor (€)</label>
+                                <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0">
+                                <div class="form-text">Deixe vazio se o valor não for fixo</div>
                             </div>
-                            <div class="col-md-6 mb-3">
+                            <div class="col-md-4 mb-3">
+                                <label for="amount_type" class="form-label">Tipo de Valor</label>
+                                <select class="form-select" id="amount_type" name="amount_type">
+                                    <option value="">Selecione...</option>
+                                    <option value="annual">Anual</option>
+                                    <option value="monthly">Mensal</option>
+                                </select>
+                                <div class="form-text">Apenas se o valor for especificado</div>
+                            </div>
+                            <div class="col-md-4 mb-3">
                                 <label for="renewal_alert_days" class="form-label">Alertar Renovação (dias antes)</label>
                                 <input type="number" class="form-control" id="renewal_alert_days" name="renewal_alert_days" value="30" min="1">
                             </div>
@@ -72,6 +82,12 @@
                         <div class="mb-3">
                             <label for="notes" class="form-label">Notas</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="contract_document" class="form-label">Comprovativo do Contrato</label>
+                            <input type="file" class="form-control" id="contract_document" name="contract_document" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+                            <div class="form-text">Formatos aceites: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG (máx. 10MB). O documento ficará guardado nos documentos mas acessível diretamente no contrato.</div>
                         </div>
 
                         <div class="d-flex justify-content-between">

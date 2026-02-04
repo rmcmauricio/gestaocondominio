@@ -8,9 +8,9 @@
    ============================================ */
 :root {
   /* Primary Colors */
-  --color-primary: #6366f1;
-  --color-primary-dark: #4f46e5;
-  --color-primary-light: #818cf8;
+  --color-primary: #e07920;
+  --color-primary-dark: #c7650e;
+  --color-primary-light: #f39e54;
 
   /* Accent Colors */
   --color-accent: #f59e0b;
@@ -34,7 +34,7 @@
   --color-border-dark: #d1d5db;
 
   /* Sidebar */
-  --sidebar-width: 250px;
+  --sidebar-width: 280px;
 
   /* Typography */
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -102,6 +102,9 @@ html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevent zoom on input focus in iOS */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -113,7 +116,10 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow-x: visible;
+  overflow-x: hidden;
+  /* Ensure text wraps properly */
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 /* ============================================
@@ -137,6 +143,8 @@ p {
   margin-bottom: var(--space-md);
   color: var(--color-text);
   line-height: var(--line-height);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 a {
@@ -181,6 +189,7 @@ code {
   border-bottom: 1px solid var(--color-border);
   z-index: 1000;
   box-shadow: var(--shadow-sm);
+  overflow: visible;
 }
 
 .header .container {
@@ -190,12 +199,219 @@ code {
   justify-content: space-between;
   padding: 0 var(--container-padding);
   position: relative;
+  overflow: visible;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
   gap: 1rem;
+  position: relative;
+  overflow: visible;
+}
+
+/* Demo Profile Selector */
+.demo-profile-selector {
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 1051;
+}
+
+.demo-profile-selector .dropdown {
+  position: relative;
+}
+
+.demo-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid var(--color-border);
+  background: white;
+  color: var(--color-text);
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.demo-profile-btn:hover {
+  background: var(--color-bg-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.demo-profile-label {
+  font-weight: 600;
+}
+
+.demo-profile-menu {
+  min-width: 180px;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0;
+  margin-top: 0.5rem;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 1050;
+  background: white;
+  /* Bootstrap handles display - don't override */
+}
+
+/* Ensure Bootstrap can show the dropdown */
+.demo-profile-selector .dropdown.show .dropdown-menu,
+.demo-profile-selector .dropdown.show .demo-profile-menu {
+  display: block !important;
+}
+
+.demo-profile-menu .dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  color: var(--color-text);
+  transition: all var(--transition);
+}
+
+.demo-profile-menu .dropdown-item:hover {
+  background: var(--color-bg-light);
+  color: var(--color-primary);
+}
+
+.demo-profile-menu .dropdown-item.active {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.demo-profile-menu .dropdown-item i:first-child {
+  width: 20px;
+  text-align: center;
+}
+
+.demo-profile-menu .dropdown-item i:last-child {
+  margin-left: auto;
+}
+
+/* Mobile Header Optimizations */
+@media (max-width: 767px) {
+  .header {
+    height: 60px; /* Slightly smaller on mobile */
+  }
+
+  .header .container {
+    padding: 0 0.75rem;
+  }
+
+  /* Logo optimization */
+  .logo-img {
+    max-height: 32px;
+    width: auto;
+  }
+
+  /* Header actions spacing */
+  .header-actions {
+    gap: 0.5rem;
+  }
+
+  /* Buttons in header - ensure touch target */
+  .header-actions .btn,
+  .sidebar-toggle-header {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.125rem;
+  }
+
+  /* Demo profile selector mobile */
+  .demo-profile-selector {
+    display: none; /* Hide on very small screens */
+  }
+
+  /* Badge positioning */
+  .header-actions .badge {
+    font-size: 0.625rem;
+    padding: 0.125rem 0.375rem;
+    min-width: 18px;
+    height: 18px;
+    line-height: 1.2;
+  }
+}
+
+/* Responsive adjustments for demo profile selector */
+@media (max-width: 1320px) {
+  .demo-profile-btn {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .demo-profile-label {
+    display: none;
+  }
+
+  .demo-profile-btn i:first-child {
+    margin-right: 0;
+  }
+
+  /* Keep dropdown positioned relative to button - same as desktop */
+  .demo-profile-selector .dropdown {
+    position: relative;
+  }
+
+  .demo-profile-menu {
+    position: absolute !important;
+    right: 0 !important;
+    left: auto !important;
+    top: 100% !important;
+    bottom: auto !important;
+    margin-top: 0.5rem !important;
+    z-index: 1052 !important;
+    min-width: 200px;
+    max-width: calc(100vw - 2 * var(--container-padding));
+    box-shadow: var(--shadow-xl);
+  }
+
+  /* Ensure header-actions container allows overflow */
+  .header-actions {
+    position: relative;
+    overflow: visible;
+  }
+
+  /* Ensure header container allows overflow */
+  .header .container {
+    overflow: visible;
+  }
+
+  /* Add backdrop on mobile when dropdown is open */
+  .demo-profile-selector .dropdown.show::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1050;
+    pointer-events: auto;
+    animation: fadeIn 0.2s ease;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 }
 
 .sidebar-toggle-header {
@@ -207,6 +423,15 @@ code {
   padding: 0;
   border-radius: var(--radius-md);
   font-size: 1.25rem;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (max-width: 767px) {
+  .sidebar-toggle-header {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 .logo {
@@ -298,21 +523,111 @@ code {
   font-weight: var(--font-weight-semibold);
 }
 
+/* General dropdown menu styles - Bootstrap handles display */
 .dropdown-menu {
-  display: none !important;
   min-width: 150px;
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-lg);
   border-radius: var(--radius-md);
   padding: var(--space-xs);
-  opacity: 0;
-  visibility: hidden;
 }
 
-.dropdown.show .dropdown-menu {
+/* API Documentation dropdown - ensure it appears above cards when shown */
+.dropdown-menu[aria-labelledby="apiCategoryDropdown"] {
+  z-index: 9999 !important;
+  position: absolute !important;
+  max-height: 70vh !important;
+  overflow-y: auto !important;
+  top: 100% !important;
+  left: 0 !important;
+  right: 0 !important;
+  margin-top: 0.125rem !important;
+  background-color: var(--color-bg) !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* When dropdown is shown, ensure it's visible */
+.dropdown.show .dropdown-menu[aria-labelledby="apiCategoryDropdown"] {
   display: block !important;
-  opacity: 1;
-  visibility: visible;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 9999 !important;
+}
+
+/* Ensure the card containing the dropdown allows overflow */
+.card:has(#apiCategoryDropdown),
+.card:has(.dropdown:has(#apiCategoryDropdown)) {
+  overflow: visible !important;
+  position: relative;
+  z-index: 9998 !important;
+}
+
+.card:has(#apiCategoryDropdown) .card-body,
+.card:has(.dropdown:has(#apiCategoryDropdown)) .card-body {
+  overflow: visible !important;
+  position: relative;
+  z-index: 9998 !important;
+}
+
+/* Ensure dropdown container allows overflow */
+.dropdown:has(#apiCategoryDropdown) {
+  position: relative;
+  z-index: 9998 !important;
+}
+
+/* Ensure container allows overflow for dropdown */
+.container:has(#apiCategoryDropdown),
+.py-4:has(#apiCategoryDropdown) {
+  overflow: visible !important;
+  position: relative;
+}
+
+/* Ensure row doesn't cut off dropdown */
+.row:has(.endpoint-card) {
+  overflow: visible !important;
+  position: relative;
+}
+
+/* Ensure main content area allows dropdown overflow */
+main:has(#apiCategoryDropdown) {
+  overflow: visible !important;
+  position: relative;
+}
+
+/* Ensure all cards after the dropdown card have lower z-index */
+.container:has(#apiCategoryDropdown) .card:not(:has(#apiCategoryDropdown)) {
+  z-index: 1 !important;
+  position: relative;
+}
+
+/* Ensure endpoint cards don't overlap the dropdown */
+.endpoint-card {
+  position: relative;
+  z-index: 1 !important;
+}
+
+/* Ensure authentication card doesn't overlap the dropdown */
+#authentication {
+  position: relative;
+  z-index: 1 !important;
+}
+
+/* Ensure all cards on API documentation page have low z-index */
+.container:has(#apiCategoryDropdown) .card {
+  position: relative;
+  z-index: 1 !important;
+}
+
+/* Exception: card containing dropdown should have higher z-index */
+.container:has(#apiCategoryDropdown) .card:has(#apiCategoryDropdown) {
+  z-index: 9998 !important;
+}
+
+/* Ensure demo profile menu works with Bootstrap - don't override Bootstrap's display */
+.demo-profile-selector .dropdown-menu {
+  /* Let Bootstrap handle display via .show class */
+  position: absolute;
+  z-index: 1000;
 }
 
 .dropdown-item {
@@ -359,7 +674,7 @@ code {
 }
 
 /* Mobile Navigation */
-@media (max-width: 991px) {
+@media (max-width: 1320px) {
   /* Header navigation menu is only shown when user is not logged in */
   /* When user is logged in, all navigation is in the sidebar */
 
@@ -435,6 +750,63 @@ main {
   color: var(--color-text-light);
 }
 
+/* Footer Homepage - Ensure readability for default template */
+.footer-homepage {
+  background: #1a1c1e !important;
+  color: #ffffff !important;
+}
+
+.footer-homepage * {
+  color: inherit;
+}
+
+.footer-homepage .footer-column-title {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-description,
+.footer-homepage .footer-contact-item {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage .footer-copyright,
+.footer-homepage .footer-copyright p {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.footer-homepage .footer-developed-by {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.footer-homepage a {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage a:hover {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-column-links a {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage .footer-column-links a:hover {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-column-links li i {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.footer-homepage .footer-developed-by a {
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-weight: 600 !important;
+}
+
+.footer-homepage .footer-developed-by a:hover {
+  color: #ffffff !important;
+}
+
 /* ============================================
    Buttons
    ============================================ */
@@ -455,14 +827,14 @@ main {
 
 .btn-primary {
   background-color: var(--color-primary);
-  color: white;
+  color: hsl(0 0% 100%);
   border-color: var(--color-primary);
 }
 
 .btn-primary:hover {
   background-color: var(--color-primary-dark);
   border-color: var(--color-primary-dark);
-  color: white;
+  color: hsl(0 0% 100%);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -486,18 +858,243 @@ main {
 
 .btn-outline:hover {
   background-color: var(--color-primary);
-  color: white;
+  color: hsl(0 0% 100%);
 }
 
 .btn-outline-secondary {
-  background-color: transparent;
+  background-color: var(--color-bg-light);
   color: var(--color-text);
   border-color: var(--color-border);
 }
 
 .btn-outline-secondary:hover {
-  background-color: var(--color-bg-light);
+  background-color: var(--color-border);
   color: var(--color-text);
+  border-color: var(--color-border-dark);
+}
+
+/* Bootstrap outline button variants */
+.btn-outline-primary {
+  background-color: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-width: 1px;
+}
+
+.btn-outline-primary:hover {
+  background-color: var(--color-primary);
+  color: hsl(0 0% 100%);
+  border-color: var(--color-primary-dark);
+  border-width: 1px;
+}
+
+.btn-outline-success {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: var(--color-success);
+  border: 1px solid var(--color-success);
+  border-width: 1px;
+}
+
+.btn-outline-success:hover {
+  background-color: var(--color-success);
+  color: hsl(0 0% 100%);
+  border-color: var(--color-success);
+  border-width: 1px;
+}
+
+.btn-outline-danger {
+  background-color: transparent;
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+  border-width: 1px;
+}
+
+.btn-outline-danger:hover {
+  background-color: var(--color-danger);
+  color: hsl(0 0% 100%);
+  border-color: var(--color-danger);
+  border-width: 1px;
+}
+
+.btn-outline-warning {
+  background-color: transparent;
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+  border-width: 1px;
+}
+
+.btn-outline-warning:hover {
+  background-color: var(--color-warning);
+  color: hsl(0 0% 100%);
+  border-color: var(--color-warning);
+  border-width: 1px;
+}
+
+.btn-outline-info {
+  background-color: transparent;
+  color: var(--color-info);
+  border: 1px solid var(--color-info);
+  border-width: 1px;
+}
+
+.btn-outline-info:hover {
+  background-color: var(--color-info);
+  color: hsl(0 0% 100%);
+  border-color: var(--color-info);
+  border-width: 1px;
+}
+
+.btn-outline-light {
+  background-color: transparent;
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.btn-outline-light:hover {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  border-color: var(--color-border-dark);
+}
+
+.btn-outline-dark {
+  background-color: transparent;
+  color: var(--color-text);
+  border-color: var(--color-border-dark);
+}
+
+.btn-outline-dark:hover {
+  background-color: var(--color-text);
+  color: hsl(0 0% 100%);
+  border-color: var(--color-text);
+}
+
+/* Ensure all outline buttons have consistent borders */
+.btn-outline-primary,
+.btn-outline-success,
+.btn-outline-danger,
+.btn-outline-warning,
+.btn-outline-info,
+.btn-outline-secondary,
+.btn-outline-light,
+.btn-outline-dark {
+  border-width: 1px !important;
+  border-style: solid !important;
+}
+
+/* Ensure small outline buttons also have consistent borders */
+.btn-sm.btn-outline-primary,
+.btn-sm.btn-outline-success,
+.btn-sm.btn-outline-danger,
+.btn-sm.btn-outline-warning,
+.btn-sm.btn-outline-info,
+.btn-sm.btn-outline-secondary,
+.btn-sm.btn-outline-light,
+.btn-sm.btn-outline-dark {
+  border-width: 1px !important;
+  border-style: solid !important;
+}
+
+/* Ensure buttons in tables have consistent borders and border-radius */
+table .btn-outline-primary,
+table .btn-outline-success,
+table .btn-outline-danger,
+table .btn-outline-warning,
+table .btn-outline-info {
+  border-width: 1px !important;
+  border-style: solid !important;
+  border-radius: 0.375rem !important;
+}
+
+/* Ensure proper spacing between buttons in tables on larger screens */
+@media (min-width: 1321px) {
+  /* Increase spacing between buttons in action columns */
+  table td .d-flex.gap-1 {
+    gap: 0.5rem !important;
+  }
+
+  table td .d-flex.gap-2 {
+    gap: 0.75rem !important;
+  }
+
+  /* Ensure buttons in action columns have proper spacing */
+  table td[onclick] .d-flex {
+    gap: 0.5rem !important;
+  }
+
+  /* Ensure buttons don't stick together */
+  table td .d-flex > .btn,
+  table td .d-flex > a.btn,
+  table td .d-flex > form {
+    margin-right: 0.5rem;
+  }
+
+  table td .d-flex > .btn:last-child,
+  table td .d-flex > a.btn:last-child,
+  table td .d-flex > form:last-child {
+    margin-right: 0;
+  }
+}
+
+/* Ensure forms inside btn-group have consistent styling */
+.btn-group form.d-inline {
+  display: inline-block;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+}
+
+.btn-group form.d-inline .btn {
+  margin: 0;
+  border-radius: 0.375rem !important;
+}
+
+/* Ensure forms in tables have consistent styling with buttons */
+table .btn-group form.d-inline {
+  display: inline-block;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+}
+
+table .btn-group form.d-inline .btn {
+  margin: 0;
+  border-radius: 0.375rem !important;
+  border-width: 1px !important;
+  border-style: solid !important;
+}
+
+/* Ensure btn-group items are properly aligned */
+.btn-group > .btn,
+.btn-group > a.btn,
+.btn-group > form.d-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+/* Ensure all outline buttons have consistent border-radius on all corners */
+.btn-outline-primary,
+.btn-outline-success,
+.btn-outline-danger,
+.btn-outline-warning,
+.btn-outline-info,
+.btn-outline-secondary,
+.btn-outline-light,
+.btn-outline-dark {
+  border-radius: 0.375rem !important;
+}
+
+/* Ensure small outline buttons also have consistent border-radius */
+.btn-sm.btn-outline-primary,
+.btn-sm.btn-outline-success,
+.btn-sm.btn-outline-danger,
+.btn-sm.btn-outline-warning,
+.btn-sm.btn-outline-info,
+.btn-sm.btn-outline-secondary,
+.btn-sm.btn-outline-light,
+.btn-sm.btn-outline-dark {
+  border-radius: 0.375rem !important;
 }
 
 /* ============================================
@@ -614,6 +1211,18 @@ a:hover .card-hover .text-primary {
   border-left: none;
 }
 
+/* Override input-group border-radius for outline buttons to keep all corners rounded */
+.input-group .btn-outline-primary,
+.input-group .btn-outline-success,
+.input-group .btn-outline-danger,
+.input-group .btn-outline-warning,
+.input-group .btn-outline-info,
+.input-group .btn-outline-secondary,
+.input-group .btn-outline-light,
+.input-group .btn-outline-dark {
+  border-radius: 0.375rem !important;
+}
+
 /* ============================================
    Alerts
    ============================================ */
@@ -625,26 +1234,26 @@ a:hover .card-hover .text-primary {
 }
 
 .alert-success {
-  background-color: rgba(16, 185, 129, 0.1);
-  color: #065f46;
-  border-color: rgba(16, 185, 129, 0.2);
+  background-color: #d1f2eb;
+  color: var(--color-success);
+  border-color: #10b981;
 }
 
 .alert-danger {
-  background-color: rgba(239, 68, 68, 0.1);
-  color: #991b1b;
-  border-color: rgba(239, 68, 68, 0.2);
+  background-color: #f8d7da;
+  color: var(--color-danger);
+  border-color: #ef4444;
 }
 
 .alert-warning {
-  background-color: rgba(245, 158, 11, 0.1);
-  color: #92400e;
-  border-color: rgba(245, 158, 11, 0.2);
+  background-color: #fff3cd;
+  color: var(--color-warning);
+  border-color: #ffc107;
 }
 
 .alert-info {
   background-color: rgba(59, 130, 246, 0.1);
-  color: #1e40af;
+  color: var(--color-info);
   border-color: rgba(59, 130, 246, 0.2);
 }
 
@@ -708,8 +1317,20 @@ a:hover .card-hover .text-primary {
   border-right: 1px solid var(--color-border);
   padding: 1.5rem 0;
   position: sticky;
-  height: calc(100vh - 80px);
+  /*height: calc(100vh - 80px);*/
   overflow-y: auto;
+  overflow-x: hidden;
+  min-width: var(--sidebar-width);
+  max-width: var(--sidebar-width);
+}
+
+/* Allow dropdown menus to be visible even with overflow hidden */
+.sidebar-nav .nav-section {
+  overflow: visible;
+}
+
+.sidebar-nav .nav-section .dropdown {
+  overflow: visible;
 }
 
 .sidebar-header {
@@ -718,8 +1339,44 @@ a:hover .card-hover .text-primary {
   margin-bottom: 1rem;
 }
 
+.sidebar-nav {
+  width: 100%;
+  overflow-x: hidden;
+}
+
 .sidebar-nav .nav {
   padding: 0 0.5rem;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* Allow dropdowns to escape overflow */
+.sidebar-nav .nav-section {
+  overflow: visible !important;
+}
+
+.sidebar-nav .nav-section .dropdown {
+  overflow: visible !important;
+}
+
+/* Quick Actions Dropdown - Ensure it works with overflow containers */
+.dropdown {
+  position: relative;
+  overflow: visible;
+}
+
+.dropdown .dropdown-menu {
+  position: absolute;
+  z-index: 1050;
+}
+
+/* Ensure page header allows dropdown overflow */
+.d-flex.justify-content-between.align-items-center {
+  overflow: visible !important;
+}
+
+.d-flex.justify-content-between.align-items-center > div {
+  overflow: visible !important;
 }
 
 .sidebar-nav .nav-item {
@@ -735,6 +1392,10 @@ a:hover .card-hover .text-primary {
   gap: 0.75rem;
   transition: all 0.2s;
   text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .sidebar-nav .nav-link:hover {
@@ -745,6 +1406,29 @@ a:hover .card-hover .text-primary {
 .sidebar-nav .nav-link i {
   width: 20px;
   text-align: center;
+}
+
+/* Sidebar submenu styles */
+.sidebar-nav .nav-item .collapse {
+  margin-left: 1rem;
+  margin-top: 0.25rem;
+}
+
+.sidebar-nav .nav-item .nav-link[data-bs-toggle="collapse"] {
+  position: relative;
+}
+
+.sidebar-nav .nav-item .nav-link[data-bs-toggle="collapse"] .api-chevron,
+.sidebar-nav .nav-item .nav-link[data-bs-toggle="collapse"] .finances-chevron {
+  transition: transform 0.2s ease;
+  margin-left: auto;
+}
+
+.sidebar-nav .nav-item .nav-link[data-bs-toggle="collapse"][aria-expanded="true"] .api-chevron,
+.sidebar-nav .nav-item .nav-link[aria-expanded="true"] .api-chevron,
+.sidebar-nav .nav-item .nav-link[data-bs-toggle="collapse"][aria-expanded="true"] .finances-chevron,
+.sidebar-nav .nav-item .nav-link[aria-expanded="true"] .finances-chevron {
+  transform: rotate(180deg);
 }
 
 /* Sidebar language selector */
@@ -796,6 +1480,10 @@ a:hover .card-hover .text-primary {
 .nav-section {
   padding: 0.5rem 1rem;
   margin-top: 1rem;
+  overflow-x: visible;
+  overflow-y: visible;
+  width: 100%;
+  position: relative;
 }
 
 .nav-section-title {
@@ -804,6 +1492,59 @@ a:hover .card-hover .text-primary {
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.nav-section .dropdown {
+  width: 100%;
+}
+
+.nav-section .dropdown {
+  width: 100%;
+  overflow: visible;
+  position: relative;
+}
+
+.nav-section .dropdown-toggle {
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 1.5rem;
+  position: relative;
+}
+
+.nav-section .dropdown-toggle::after {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 0;
+}
+
+.nav-section .dropdown-menu {
+  max-width: calc(var(--sidebar-width) - 2rem);
+  min-width: calc(var(--sidebar-width) - 2rem);
+  width: calc(var(--sidebar-width) - 2rem);
+  overflow-x: hidden;
+  position: absolute;
+  left: 0 !important;
+  right: auto !important;
+  transform: none !important;
+  z-index: 1050;
+  margin-top: 0.25rem;
+}
+
+.nav-section .dropdown-item {
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .main-content {
@@ -836,8 +1577,13 @@ a:hover .card-hover .text-primary {
   justify-content: center;
 }
 
+/* Tab "Menu" à esquerda: oculto por defeito; só visível quando sidebar está fechado em viewport <= 1320px */
+.sidebar-menu-tab {
+  display: none;
+}
+
 /* Mobile and small tablets */
-@media (max-width: 991px) {
+@media (max-width: 1320px) {
   .main-wrapper {
     flex-direction: column;
   }
@@ -845,13 +1591,17 @@ a:hover .card-hover .text-primary {
   .sidebar {
     position: fixed;
     left: -100%;
-    top: 80px;
+    top: 60px; /* Adjusted for mobile header height */
     z-index: 1000;
-    transition: left 0.3s ease;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Smoother animation */
+    box-shadow: 2px 0 10px rgba(0,0,0,0.15);
     width: 280px;
-    height: calc(100vh - 80px);
+    max-width: 85vw; /* Don't exceed viewport width */
+    height: calc(100vh - 60px);
     background: var(--color-bg);
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
   }
 
   .sidebar.show {
@@ -862,7 +1612,7 @@ a:hover .card-hover .text-primary {
   .sidebar-overlay {
     display: none;
     position: fixed;
-    top: 80px;
+    top: 60px; /* Adjusted for mobile header height */
     left: 0;
     right: 0;
     bottom: 0;
@@ -871,6 +1621,7 @@ a:hover .card-hover .text-primary {
     opacity: 0;
     transition: opacity 0.3s ease;
     cursor: pointer;
+    backdrop-filter: blur(2px); /* Slight blur effect */
   }
 
   .sidebar.show ~ .sidebar-overlay {
@@ -878,10 +1629,86 @@ a:hover .card-hover .text-primary {
     opacity: 1;
   }
 
+  /* Tab "Menu" encostado à esquerda: texto vertical + seta; escondido quando sidebar está aberto */
+  .sidebar-menu-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    margin: 0;
+    padding: 0.6rem 0.3rem 0.6rem 0;
+    background: var(--color-primary);
+    color: hsl(0 0% 100%);
+    border: none;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.18);
+    cursor: pointer;
+    z-index: 997;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .sidebar-menu-tab:hover {
+    background: var(--color-primary-dark);
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.22);
+  }
+  .sidebar-menu-tab:focus-visible {
+    outline: 2px solid hsl(0 0% 100%);
+    outline-offset: 2px;
+  }
+  .sidebar-menu-tab-text {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+  }
+  .sidebar-menu-tab .bi-chevron-right {
+    font-size: 1rem;
+    opacity: 0.95;
+  }
+  .sidebar.show ~ .sidebar-menu-tab {
+    display: none !important;
+  }
+
+  /* Sidebar navigation items - better touch targets */
+  .sidebar-nav .nav-link {
+    min-height: 48px;
+    padding: 0.75rem 1rem;
+    font-size: 0.9375rem; /* 15px */
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .sidebar-nav .nav-link i {
+    font-size: 1.125rem;
+    width: 20px;
+    text-align: center;
+  }
+
+  /* Sidebar section titles */
+  .nav-section-title {
+    font-size: 0.875rem;
+    padding: 0.75rem 1rem;
+    min-height: 48px;
+  }
+
+  /* Sidebar dropdown items */
+  .nav-section .dropdown-item {
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+    font-size: 0.9375rem;
+  }
+
   .main-content {
     width: 100%;
-    padding: 1rem;
-    padding-top: 100px !important;
+    padding-top: 80px !important; /* Adjusted for mobile header */
+    overflow-x: hidden;
   }
 
   /* Header sidebar toggle button remains visible */
@@ -922,10 +1749,29 @@ a:hover .card-hover .text-primary {
   .card-header.d-flex > div:last-child .btn {
     width: 100%;
   }
+
+  /* Exception: Fees map header sempre inline em todas as telas */
+  .card-header.bg-success .d-flex.justify-content-between {
+    flex-direction: row !important;
+    align-items: center !important;
+  }
+
+  .card-header.bg-success .d-flex.justify-content-between > div:last-child {
+    width: auto;
+    flex-direction: row;
+  }
+
+  .card-header.bg-success .d-flex.justify-content-between > div:last-child .btn {
+    width: auto;
+  }
+
+  .card-header.bg-success form {
+    display: inline-block;
+  }
 }
 
 /* Tablets */
-@media (min-width: 768px) and (max-width: 991px) {
+@media (min-width: 768px) and (max-width: 1320px) {
   .col-md-3 {
     flex: 0 0 50%;
     max-width: 50%;
@@ -941,10 +1787,52 @@ a:hover .card-hover .text-primary {
     flex: 0 0 100%;
     max-width: 100%;
   }
+
+  /* Fees map header: manter inline */
+  .card-header.bg-success .d-flex.justify-content-between {
+    flex-direction: row !important;
+    align-items: center !important;
+  }
+
+  .card-header.bg-success .d-flex.justify-content-between > div:last-child {
+    width: auto;
+    flex-direction: row;
+  }
+
+  .card-header.bg-success .d-flex.justify-content-between > div:last-child .btn {
+    width: auto;
+  }
+
+  .card-header.bg-success form {
+    display: inline-block;
+  }
+
+  /* Allow horizontal scroll for tables on tablets */
+  .main-content .table-responsive {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .main-content .fees-map-table {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ensure table columns are visible */
+  .main-content .table-responsive table:not(.table-budget-mobile) {
+    min-width: 800px;
+  }
+
+  /* Ensure actions column is visible */
+  .main-content .table-responsive table:not(.table-budget-mobile):not(.table-excel) th:last-child,
+  .main-content .table-responsive table:not(.table-budget-mobile):not(.table-excel) td:last-child {
+    white-space: nowrap;
+    min-width: 120px;
+  }
 }
 
 /* Tablets and smaller */
-@media (max-width: 991px) {
+@media (max-width: 1320px) {
   /* Prevent horizontal scroll */
   body {
     overflow-x: hidden;
@@ -954,9 +1842,32 @@ a:hover .card-hover .text-primary {
     overflow-x: hidden;
   }
 
-  /* Force table-responsive to show cards instead */
+  /* Exception: container with fees-map-table needs to allow overflow */
+  .container:has(.fees-map-table) {
+    overflow-x: visible;
+  }
+
+  /* Allow table-responsive to scroll horizontally */
   .table-responsive {
-    overflow-x: visible !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ensure tables have minimum width to show all columns */
+  .table-responsive table:not(.table-budget-mobile) {
+    min-width: 800px;
+  }
+
+  /* Ensure actions column is visible */
+  .table-responsive table:not(.table-budget-mobile) th:last-child,
+  .table-responsive table:not(.table-budget-mobile) td:last-child {
+    white-space: nowrap;
+    min-width: 120px;
+  }
+
+  /* Exception: fees-map-table needs horizontal scroll */
+  .fees-map-table {
+    overflow-x: auto !important;
   }
 
   /* Ensure cards take full width on tablets */
@@ -977,6 +1888,28 @@ a:hover .card-hover .text-primary {
 
 /* Mobile phones */
 @media (max-width: 767px) {
+  /* Base typography improvements for mobile */
+  html {
+    font-size: 16px; /* Prevent auto-zoom on iOS */
+  }
+
+  body {
+    font-size: 16px; /* Ensure minimum readable size */
+    line-height: 1.6; /* Better readability */
+  }
+
+  /* Ensure all text elements wrap properly */
+  p, span, div, li, td, th, label {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+
+  /* Prevent text from being too small */
+  small, .small {
+    font-size: 0.875rem !important; /* Minimum 14px */
+  }
+
   .col-md-3,
   .col-md-4,
   .col-md-6,
@@ -992,11 +1925,22 @@ a:hover .card-hover .text-primary {
     overflow-x: visible !important;
   }
 
+  /* Exception: fees-map-table needs horizontal scroll */
+  .fees-map-table {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Allow overflow for card-body containing fees-map-table */
+  .card-body:has(.fees-map-table) {
+    overflow-x: visible !important;
+  }
+
   /* Ensure all text breaks properly */
   code {
     word-break: break-all;
     white-space: normal;
-    font-size: 0.7rem;
+    font-size: 0.875rem; /* Increased from 0.7rem */
   }
 
   /* Prevent any element from causing overflow */
@@ -1004,12 +1948,177 @@ a:hover .card-hover .text-primary {
     max-width: 100%;
   }
 
+  /* Images should be responsive */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Ensure inputs and selects are at least 16px to prevent zoom */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important; /* Prevent iOS zoom */
+    min-height: 44px; /* Touch target size */
+    padding: 0.5rem 0.75rem;
+  }
+
+  /* Form labels */
+  label {
+    font-size: 0.9375rem; /* 15px */
+    margin-bottom: 0.5rem;
+    display: block;
+    font-weight: 500;
+  }
+
+  /* Form groups spacing */
+  .form-group,
+  .mb-3 {
+    margin-bottom: 1.25rem !important;
+  }
+
+  /* Form controls - ensure adequate spacing */
+  .form-control,
+  .form-select {
+    margin-bottom: 0.5rem;
+  }
+
+  /* Form rows spacing */
+  .row.g-3 > *,
+  .row.g-4 > * {
+    margin-bottom: 1rem;
+  }
+
+  /* Form labels should be clearly visible */
+  .form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Input groups */
+  .input-group {
+    flex-wrap: wrap;
+  }
+
+  .input-group .form-control {
+    flex: 1 1 100%;
+    margin-bottom: 0.5rem;
+  }
+
+  .input-group .btn {
+    flex: 1 1 auto;
+    min-width: 44px;
+  }
+
+  /* CRITICAL: Force ALL columns to full width on mobile - highest priority */
+  .container .row > [class*="col-"],
+  .container-fluid .row > [class*="col-"],
+  .row > [class*="col-"],
+  .row > [class*="col-sm"],
+  .row > [class*="col-md"],
+  .row > [class*="col-lg"],
+  .row > [class*="col-xl"] {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  /* Remove ALL row gutters completely on mobile */
+  .row,
+  .row.g-1,
+  .row.g-2,
+  .row.g-3,
+  .row.g-4,
+  .row.g-5 {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .row.g-1 > *,
+  .row.g-2 > *,
+  .row.g-3 > *,
+  .row.g-4 > *,
+  .row.g-5 > * {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  /* Cards should take full width - override everything */
+  .card,
+  .card-body,
+  [class*="col-"] .card,
+  .row .card,
+  .row > [class*="col-"] > .card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  /* Container padding provides spacing instead of gutters */
+  .container,
+  .container-fluid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Add margin between cards for proper spacing */
+  .row > [class*="col-"] {
+    margin-bottom: 1rem;
+  }
+
+  .row > [class*="col-"]:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Exception: fees-map-table and its children - mas não nas colunas sticky */
+  .fees-map-table {
+    max-width: none;
+  }
+
+  .fees-map-table table {
+    max-width: none;
+  }
+
+  /* Não aplicar max-width: none nas colunas sticky */
+  .fees-map-table thead th:first-child,
+  .fees-map-table tbody td:first-child,
+  .fees-map-table thead th:last-child,
+  .fees-map-table tbody td:last-child {
+    max-width: initial;
+  }
+
+  /* Aplicar max-width: none apenas nas colunas dos meses */
+  .fees-map-table th:not(:first-child):not(:last-child),
+  .fees-map-table td:not(:first-child):not(:last-child) {
+    max-width: none;
+  }
+
   .card-body {
     overflow-x: hidden;
   }
 
+  /* Exception for card-body with fees-map-table */
+  .card-body:has(.fees-map-table) {
+    overflow-x: visible !important;
+  }
+
   .row.g-4 > * {
     margin-bottom: 1rem;
+  }
+
+  /* Features e Pricing grid: 1 coluna em mobile */
+  .features-grid,
+  .pricing-grid {
+    grid-template-columns: 1fr !important;
   }
 
   .card-body {
@@ -1034,6 +2143,179 @@ a:hover .card-hover .text-primary {
 
   h6 {
     font-size: 0.875rem;
+  }
+
+  /* Buttons - ensure minimum touch target size */
+  .btn {
+    padding: 0.625rem 1rem;
+    font-size: 0.9375rem; /* 15px */
+    min-height: 44px; /* Touch target */
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn-sm {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem; /* 14px */
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  /* Better spacing for mobile */
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    overflow-x: hidden;
+  }
+
+  .container-fluid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    overflow-x: hidden;
+  }
+
+  /* Cards spacing and sizing */
+  .card {
+    margin-bottom: 1rem;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .card-body {
+    padding: 1rem;
+  }
+
+  .card-header {
+    padding: 0.875rem 1rem;
+  }
+
+  /* Force all column classes to full width on mobile */
+  [class*="col-"] {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Exception: keep col-12 as is */
+  .col-12 {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Cards in rows should take full width */
+  .row > [class*="col-"] > .card,
+  .row .card {
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  /* Remove gutters on mobile for better space usage */
+  .row {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .row > [class*="col-"] {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* But add padding to container instead */
+  .container,
+  .container-fluid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Better line height for readability */
+  p, li, td, th {
+    line-height: 1.6;
+  }
+
+  /* Prevent horizontal overflow globally */
+  body, html {
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  /* Ensure main content doesn't overflow on mobile */
+  .main-content {
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  /* Ensure input-group stays inline on mobile - € symbol with value */
+  .input-group {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    width: 100% !important;
+  }
+
+  .input-group-text {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0.375rem 0.75rem !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    width: auto !important;
+    min-width: auto !important;
+    border-radius: var(--bs-border-radius) 0 0 var(--bs-border-radius) !important;
+    /* Match form-control styling to ensure same height */
+    font-size: 1rem !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+    color: #212529 !important;
+    background-color: #fff !important;
+    border: 1px solid #ced4da !important;
+  }
+
+  .input-group .form-control {
+    display: block !important;
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    border-radius: 0 var(--bs-border-radius) var(--bs-border-radius) 0 !important;
+    /* Ensure consistent styling */
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
+    padding: 0.375rem 0.75rem !important;
+  }
+
+  /* Ensure both elements stretch to same height */
+  .input-group > .input-group-text,
+  .input-group > .form-control {
+    align-self: stretch !important;
+  }
+}
+
+/* Desktop: Allow horizontal scroll for tables */
+@media (min-width: 1321px) {
+  .main-content {
+    overflow-x: visible; /* Changed from hidden to allow table scroll */
+  }
+
+  /* Ensure tables can scroll horizontally */
+  .main-content .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Fees map table needs horizontal scroll */
+  .main-content .fees-map-table {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Card body should allow overflow for tables */
+  .main-content .card-body:has(.table-responsive),
+  .main-content .card-body:has(.fees-map-table) {
+    overflow-x: visible !important;
   }
 }
 
@@ -1066,6 +2348,7 @@ a:hover .card-hover .text-primary {
   .table-responsive {
     font-size: 0.875rem;
   }
+}
 
   .btn {
     padding: 0.5rem 1rem;
@@ -1091,6 +2374,8 @@ a:hover .card-hover .text-primary {
 /* Account cards styling */
 .account-card {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+  width: 100%;
 }
 
 .account-card:hover {
@@ -1100,10 +2385,527 @@ a:hover .card-hover .text-primary {
 
 .account-card .card-body {
   padding: 1.25rem;
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.account-card .card-body.d-flex.flex-column {
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Ensure balance stays inside card */
+.account-card .mt-auto {
+  width: 100%;
+  overflow: visible;
+}
+
+.account-card .mt-auto .d-flex {
+  width: 100%;
+  overflow: visible;
+}
+
+.account-card .mt-auto h4 {
+  overflow: visible;
+  max-width: none;
+}
+
+/* Mobile optimization for account cards */
+@media (max-width: 767px) {
+  .account-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    overflow: hidden;
+  }
+
+  .account-card .card-body {
+    padding: 1rem;
+    min-height: auto;
+    overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Ensure card body doesn't overflow */
+  .account-card .card-body.d-flex.flex-column {
+    overflow: hidden;
+    width: 100%;
+  }
+
+  /* Ensure text doesn't overflow */
+  .account-card h6 {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    font-size: 1rem;
+    max-width: 100%;
+  }
+
+  /* IBAN code should wrap */
+  .account-card code {
+    word-break: break-all;
+    white-space: normal;
+    font-size: 0.7rem;
+    display: block;
+    max-width: 100%;
+    overflow-wrap: break-word;
+  }
+
+  /* Balance display - CRITICAL FIX */
+  .account-card h4 {
+    font-size: 1.25rem;
+    white-space: nowrap;
+    overflow: visible !important;
+    max-width: none !important;
+    flex-shrink: 0;
+    word-break: keep-all;
+  }
+
+  /* Ensure flex layout works on mobile */
+  .account-card .d-flex {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Balance section - ensure it stays inside card but is visible */
+  .account-card .mt-auto {
+    margin-top: auto;
+    width: 100%;
+    max-width: 100%;
+    overflow: visible !important;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .account-card .mt-auto .d-flex {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: nowrap !important;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    overflow: visible !important;
+  }
+
+  .account-card .mt-auto .d-flex small {
+    flex-shrink: 0;
+    white-space: nowrap;
+    min-width: fit-content;
+  }
+
+  .account-card .mt-auto .d-flex h4 {
+    flex-shrink: 0;
+    margin-left: auto;
+    text-align: right;
+    overflow: visible !important;
+    max-width: none !important;
+    min-width: fit-content;
+  }
+
+  /* Card should contain content but ensure balance is visible */
+  .account-card {
+    overflow: hidden;
+  }
+
+  .account-card .card-body {
+    overflow: hidden;
+    padding: 1rem;
+  }
+
+  /* Balance section must be fully visible */
+  .account-card .mt-auto {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .account-card .mt-auto .d-flex {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .account-card .mt-auto h4 {
+    overflow: visible;
+  }
+
+  /* Badge spacing */
+  .account-card .badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  /* Ensure account name and bank name display properly */
+  .account-card .flex-grow-1 {
+    min-width: 0;
+    flex: 1 1 auto;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  /* Fix for bank account cards in finances page */
+  .card-body .row.g-3 > [class*="col-"] {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  /* Bank name and IBAN should wrap */
+  .account-card small,
+  .account-card code {
+    display: block;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+  }
+
+  /* Ensure account name doesn't overflow */
+  .account-card h6 {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+
+  /* Fix flex layout for account info */
+  .account-card .d-flex.flex-column {
+    min-height: auto;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Fix for bank account info sections */
+  .account-card .mb-3 {
+    margin-bottom: 1rem;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Ensure all text is visible and contained */
+  .account-card strong,
+  .account-card small {
+    max-width: 100%;
+    overflow-wrap: break-word;
+  }
+
+  /* CRITICAL: Ensure balance section fits within card */
+  .account-card .mt-auto {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .account-card .mt-auto .d-flex {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* Balance text should fit within card but be fully visible */
+  .account-card .mt-auto h4 {
+    font-size: 1.1rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: visible;
+    flex-shrink: 0;
+    min-width: fit-content;
+  }
+
+  /* Ensure balance container respects card padding */
+  .account-card .mt-auto .d-flex {
+    gap: 0.75rem;
+    width: 100%;
+  }
+
+  /* Ensure card padding allows balance to be visible */
+  .account-card .card-body {
+    padding: 1rem;
+  }
+
+  /* On very small screens, make balance smaller and ensure visibility */
+  @media (max-width: 375px) {
+    .account-card .mt-auto h4 {
+      font-size: 0.95rem;
+    }
+
+    .account-card .card-body {
+      padding: 0.875rem;
+    }
+  }
+}
+
+/* Tablet optimization for account cards */
+@media (min-width: 768px) and (max-width: 1320px) {
+  .account-card .card-body {
+    padding: 1rem;
+  }
+
+  .account-card h6 {
+    font-size: 1rem;
+  }
+
+  .account-card h4 {
+    font-size: 1.5rem;
+  }
+
+  /* Ensure cards don't get too small on tablets */
+  .row.g-3 > [class*="col-sm-6"] {
+    flex: 0 0 50% !important;
+    max-width: 50% !important;
+  }
+}
+
+/* Bank Accounts Summary Card - List Layout */
+.bank-accounts-summary-card {
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+}
+
+.bank-accounts-summary-card .card-body {
+  overflow: hidden;
+  padding: 1rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.bank-accounts-list {
+  width: 100%;
+  max-width: 100%;
+}
+
+.bank-account-item {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.bank-account-header {
+  width: 100%;
+  max-width: 100%;
+  display: flex !important;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: nowrap !important;
+  gap: 1rem;
+  line-height: 1.5;
+}
+
+.bank-account-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  margin: 0;
+  padding: 0;
+}
+
+.bank-account-balance {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+  min-width: fit-content;
+  text-align: right;
+  margin: 0;
+  padding: 0;
+}
+
+.bank-account-item strong {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.bank-account-item small {
+  display: block;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.bank-account-total {
+  font-size: 1.05rem;
+}
+
+.bank-account-total strong {
+  font-size: 1.1rem;
+}
+
+/* Mobile optimization for bank accounts summary list */
+@media (max-width: 767px) {
+  .bank-accounts-summary-card {
+    overflow: hidden;
+  }
+
+  .bank-accounts-summary-card .card-body {
+    padding: 0.75rem;
+    overflow: hidden;
+  }
+
+  .bank-accounts-list {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .bank-account-item {
+    padding: 0.5rem 0;
+  }
+
+  .bank-account-header {
+    flex-wrap: nowrap;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .bank-account-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .bank-account-balance {
+    flex-shrink: 0;
+    text-align: right;
+    min-width: fit-content;
+    white-space: nowrap;
+  }
+
+  .bank-account-item strong {
+    font-size: 0.9375rem;
+  }
+
+  .bank-account-item small {
+    font-size: 0.8125rem;
+  }
+
+  .bank-account-total {
+    font-size: 1rem;
+  }
+
+  .bank-account-total strong {
+    font-size: 1.05rem;
+  }
+
+  .bank-accounts-summary-card hr {
+    margin: 0.75rem 0;
+  }
+}
+
+/* Fees map table - Compact styling */
+.fees-map-table {
+  font-size: 0.85rem;
+}
+
+.fees-map-table .card-body {
+  padding: 0.5rem !important;
+}
+
+.fees-map-table table {
+  font-size: 0.85rem;
+  margin-bottom: 0;
+}
+
+.fees-map-table thead th {
+  padding: 0.35rem 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fees-map-table tbody td {
+  padding: 0.3rem 0.25rem;
+  font-size: 0.75rem;
+  vertical-align: middle;
+}
+
+.fees-map-table .badge {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.35rem;
+  line-height: 1.2;
+}
+
+.fees-map-table i {
+  font-size: 0.9rem !important;
+}
+
+.fees-map-table .text-success,
+.fees-map-table .text-danger,
+.fees-map-table .text-warning {
+  font-size: 0.75rem;
+}
+
+.fees-map-table .d-flex.flex-column {
+  gap: 0.2rem !important;
+}
+
+.fees-map-table .card-header {
+  padding: 0.5rem 0.75rem;
+}
+
+.fees-map-table .card-header h5 {
+  font-size: 1rem;
+  margin-bottom: 0;
+}
+
+.fees-map-table .card-header .btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.fees-map-table .card-body > div:last-child {
+  padding: 0.5rem 0.75rem;
+}
+
+.fees-map-table .card-body > div:last-child small {
+  font-size: 0.7rem;
+}
+
+/* Todas as telas menores que desktop: aplicar sticky columns */
+@media (max-width: 1320px) {
+  .fees-map-table table {
+    width: max-content !important;
+    display: table;
+  }
+
+  /* Primeira coluna (Fração) sticky */
+  .fees-map-table thead th:first-child,
+  .fees-map-table tbody td:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--color-bg);
+    z-index: 10;
+    box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+    min-width: 70px;
+  }
+
+  .fees-map-table thead th:first-child {
+    background: var(--color-bg-light);
+    z-index: 11;
+  }
+
+  /* Última coluna (Total) sticky */
+  .fees-map-table thead th:last-child,
+  .fees-map-table tbody td:last-child {
+    position: sticky;
+    right: 0;
+    background: var(--color-bg);
+    z-index: 10;
+    box-shadow: -2px 0 4px rgba(0,0,0,0.1);
+    min-width: 80px;
+  }
+
+  .fees-map-table thead th:last-child {
+    background: var(--color-bg-light);
+    z-index: 11;
+  }
 }
 
 /* Additional responsive utilities */
-@media (max-width: 991px) {
+@media (max-width: 1320px) {
   /* Improve spacing in cards */
   .card-body .row {
     margin-left: -0.5rem;
@@ -1159,13 +2961,116 @@ a:hover .card-hover .text-primary {
 
 @media (min-width: 768px) {
   .container {
-    max-width: 720px;
+    max-width: 1020px;
   }
 }
 
-@media (min-width: 992px) {
+@media (min-width: 1321px) {
   .container {
-    max-width: 960px;
+    max-width: 1020px;
+  }
+
+  /* Ensure main-content has proper spacing when sidebar is visible */
+  .main-content {
+    margin-left: 0;
+
+    overflow-x: visible; /* Allow horizontal scroll for tables */
+    max-width: 100%;
+    width: 100%;
+  }
+
+  /* Allow horizontal scroll for table-responsive containers */
+  .main-content .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    display: block;
+  }
+
+  /* Ensure fees-map-table has horizontal scroll */
+  .main-content .fees-map-table {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    display: block;
+  }
+
+  /* Ensure card-body contains tables properly */
+  .main-content .card-body:has(.table-responsive:not(:has(.table-budget-mobile))),
+  .main-content .card-body:has(.fees-map-table) {
+    overflow-x: hidden; /* Prevent card-body from overflowing */
+    overflow-y: hidden; /* Prevent vertical overflow */
+  }
+
+  /* Ensure card contains tables properly */
+  .main-content .card:has(.table-responsive:not(:has(.table-budget-mobile))),
+  .main-content .card:has(.fees-map-table) {
+    overflow: hidden; /* Prevent card from overflowing */
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Ensure card-body contains tables properly */
+  .main-content .card:has(.table-responsive:not(:has(.table-budget-mobile))) .card-body,
+  .main-content .card:has(.fees-map-table) .card-body {
+    overflow: hidden; /* Prevent card-body from overflowing */
+    width: 100%;
+    max-width: 100%;
+    padding: 0 !important; /* Remove padding to allow table to use full width */
+  }
+
+  /* Exception: budget tables should have visible overflow */
+  .main-content .card-body:has(.table-budget-mobile),
+  .main-content .card:has(.table-budget-mobile) {
+    overflow: visible !important;
+  }
+
+  /* Ensure container doesn't cut off content */
+  .main-content .container {
+
+    padding-left: 1rem;
+    padding-right: 1rem;
+    overflow-x: visible;
+  }
+
+  /* Ensure table-responsive stays within card */
+  .main-content .table-responsive {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    display: block;
+    margin: 0;
+  }
+
+  /* Ensure fees-map-table stays within card */
+  .main-content .fees-map-table {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    display: block;
+    margin: 0;
+  }
+
+  /* Ensure tables don't exceed card width */
+  .main-content .card .table-responsive table,
+  .main-content .card .fees-map-table table {
+    max-width: 100%;
+  }
+
+  /* Ensure table columns are visible, especially actions column */
+  .main-content .table-responsive table:not(.table-budget-mobile) {
+    min-width: 800px; /* Minimum width to show all columns including actions */
+    width: 100%;
+    margin-bottom: 0;
+  }
+
+  /* Ensure actions column is always visible */
+  .main-content .table-responsive table:not(.table-budget-mobile):not(.table-excel) th:last-child,
+  .main-content .table-responsive table:not(.table-budget-mobile):not(.table-excel) td:last-child {
+    white-space: nowrap;
+    min-width: 120px; /* Ensure actions column has enough space */
   }
 }
 
@@ -1283,7 +3188,7 @@ a:hover .card-hover .text-primary {
 
 .btn-hero-primary {
   background: white;
-  color: #6366f1;
+  color: var(--color-primary);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
@@ -1308,14 +3213,14 @@ a:hover .card-hover .text-primary {
 }
 
 .btn-hero-demo {
-  background: #f59e0b;
-  color: white;
+  background: var(--color-warning);
+  color: hsl(0 0% 100%);
   box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
 }
 
 .btn-hero-demo:hover {
-  background: #d97706;
-  color: white;
+  background: var(--color-warning);
+  color: hsl(0 0% 100%);
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
 }
@@ -1675,8 +3580,23 @@ a:hover .card-hover .text-primary {
 
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: 1fr;
   gap: 2rem;
+}
+
+/* Tablets: 2 colunas (768px - 991px) */
+@media (min-width: 768px) and (max-width: 1320px) {
+  .features-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1.5rem;
+  }
+}
+
+/* Desktop: 3 colunas (992px+) */
+@media (min-width: 1321px) {
+  .features-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
 }
 
 .feature-card {
@@ -1785,10 +3705,26 @@ a:hover .card-hover .text-primary {
 
 .pricing-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: 1fr;
   gap: 2rem;
   max-width: 1100px;
   margin: 0 auto;
+}
+
+/* Tablets: 2 colunas (768px - 991px) */
+@media (min-width: 768px) and (max-width: 1320px) {
+  .pricing-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1.5rem;
+    max-width: 100%;
+  }
+}
+
+/* Desktop: 3 colunas (992px+) */
+@media (min-width: 1321px) {
+  .pricing-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
 }
 
 .pricing-card {
@@ -2021,7 +3957,7 @@ a:hover .card-hover .text-primary {
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .hero-title {
     font-size: 2.5rem;
   }
@@ -2047,6 +3983,11 @@ a:hover .card-hover .text-primary {
 
   .hero-visual {
     overflow: hidden;
+  }
+
+  .features-grid,
+  .pricing-grid {
+    grid-template-columns: 1fr !important;
   }
 }
 
@@ -2106,6 +4047,378 @@ a:hover .card-hover .text-primary {
   }
 }
 
+/* ============================================
+   Mobile Table to Cards Conversion System
+   ============================================ */
+
+/* Generic table to cards conversion for mobile */
+@media (max-width: 767px) {
+  /* Hide table headers on mobile for tables with mobile-cards class */
+  .table-mobile-cards thead {
+    display: none;
+  }
+
+  /* Convert table rows to cards */
+  .table-mobile-cards tbody tr {
+    display: block;
+    margin-bottom: 1rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Convert table cells to card content */
+  .table-mobile-cards tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 0.5rem 0;
+    border: none;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .table-mobile-cards tbody td:last-child {
+    border-bottom: none;
+  }
+
+  /* Add label before cell content */
+  .table-mobile-cards tbody td::before {
+    content: attr(data-label);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-light);
+    margin-right: 1rem;
+    flex-shrink: 0;
+    min-width: 100px;
+  }
+
+  /* Action buttons in mobile cards */
+  .table-mobile-cards tbody td .btn-group,
+  .table-mobile-cards tbody td .d-flex {
+    margin-left: auto;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* Ensure buttons are touch-friendly */
+  .table-mobile-cards tbody td .btn {
+    min-height: 40px;
+    min-width: 40px;
+    padding: 0.5rem 0.75rem;
+  }
+
+  /* Budget tables mobile - simple layout without labels */
+  .table-budget-mobile {
+    width: 100%;
+    overflow: visible;
+    min-width: auto !important;
+    max-width: 100%;
+    table-layout: auto;
+  }
+
+  /* Ensure table-responsive doesn't cut off budget table values */
+  .table-responsive:has(.table-budget-mobile) {
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    width: 100%;
+  }
+
+  /* Ensure card-body doesn't cut off budget table values */
+  .card-body:has(.table-budget-mobile) {
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  /* Ensure card doesn't cut off budget table values */
+  .card:has(.table-budget-mobile) {
+    overflow: visible !important;
+  }
+
+  .table-budget-mobile thead {
+    display: none;
+  }
+
+  .table-budget-mobile tbody tr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+    gap: 0.75rem;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .table-budget-mobile tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .table-budget-mobile tbody td {
+    display: block;
+    padding: 0;
+    border: none;
+    box-sizing: border-box;
+  }
+
+  .table-budget-mobile tbody td:first-child {
+    text-align: left;
+    font-weight: normal;
+    flex: 1 1 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
+    padding-right: 0.5rem;
+  }
+
+  .table-budget-mobile tbody td:last-child {
+    text-align: right;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    min-width: fit-content;
+    max-width: none;
+  }
+
+  .table-budget-mobile tbody td::before {
+    display: none;
+  }
+
+  .table-budget-mobile tfoot {
+    display: table-row-group;
+    border-top: 2px solid var(--color-border);
+    margin-top: 0.5rem;
+  }
+
+  .table-budget-mobile tfoot tr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    margin-top: 0.5rem;
+    gap: 0.75rem;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .table-budget-mobile tfoot th {
+    display: block;
+    padding: 0;
+    border: none;
+    font-weight: var(--font-weight-bold);
+    box-sizing: border-box;
+  }
+
+  .table-budget-mobile tfoot th:first-child {
+    text-align: left;
+    flex: 1 1 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
+    padding-right: 0.5rem;
+  }
+
+  .table-budget-mobile tfoot th:last-child {
+    text-align: right;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    min-width: fit-content;
+    max-width: none;
+  }
+}
+
+/* Budget tables - all screen sizes - ensure values are visible */
+.table-budget-mobile {
+  width: 100%;
+  min-width: auto !important;
+  max-width: 100%;
+  table-layout: auto;
+}
+
+/* Override general table-responsive min-width rules for budget tables */
+.table-responsive:has(.table-budget-mobile),
+.table-responsive .table-budget-mobile {
+  min-width: auto !important;
+  width: 100%;
+}
+
+.table-responsive:has(.table-budget-mobile) {
+  overflow-x: visible !important;
+}
+
+/* Ensure budget table values are always visible on all screen sizes */
+.table-budget-mobile tbody td:last-child,
+.table-budget-mobile tfoot th:last-child {
+  white-space: nowrap;
+  min-width: fit-content;
+}
+
+.table-budget-mobile tbody td:first-child,
+.table-budget-mobile tfoot th:first-child {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Desktop and tablet: normal table layout */
+@media (min-width: 768px) {
+  .table-budget-mobile {
+    display: table;
+  }
+
+  .table-budget-mobile thead {
+    display: table-header-group;
+  }
+
+  .table-budget-mobile tbody {
+    display: table-row-group;
+  }
+
+  .table-budget-mobile tbody tr {
+    display: table-row;
+    padding: 0;
+    border-bottom: 1px solid var(--color-border);
+    gap: 0;
+  }
+
+  .table-budget-mobile tbody td {
+    display: table-cell;
+    padding: 0.75rem;
+    border: none;
+  }
+
+  .table-budget-mobile tbody td:first-child {
+    padding-right: 0.5rem;
+  }
+
+  .table-budget-mobile tfoot {
+    display: table-footer-group;
+    border-top: 2px solid var(--color-border);
+    margin-top: 0;
+  }
+
+  .table-budget-mobile tfoot tr {
+    display: table-row;
+    padding: 0;
+    margin-top: 0;
+    gap: 0;
+  }
+
+  .table-budget-mobile tfoot th {
+    display: table-cell;
+    padding: 0.75rem;
+    border: none;
+  }
+
+  .table-budget-mobile tfoot th:first-child {
+    padding-right: 0.5rem;
+  }
+}
+
+/* Fees page mobile optimization */
+@media (max-width: 767px) {
+  /* Fees table mobile cards */
+  .fees-mobile-card {
+    border-left: 3px solid var(--color-border);
+  }
+
+  .fees-mobile-card .card-body {
+    padding: 1rem;
+  }
+
+  /* Compact filters */
+  #filtersForm .form-select,
+  #filtersForm .btn {
+    font-size: 0.875rem;
+  }
+
+  /* Summary mobile layout */
+  .summary-mobile .col-6 {
+    margin-bottom: 0.75rem;
+  }
+
+  /* Fees table scroll on mobile if needed */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-responsive table:not(.table-budget-mobile) {
+    min-width: 600px;
+  }
+
+  /* Exception: bank accounts table should not have min-width */
+  .bank-accounts-table table {
+    min-width: auto !important;
+    width: 100%;
+  }
+
+  /* Clickable rows hover effect */
+  .table tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+  }
+
+  /* Mobile cards clickable */
+  .card[onclick] {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .card[onclick]:active {
+    transform: scale(0.98);
+  }
+}
+
+/* Tablets optimization */
+@media (min-width: 768px) and (max-width: 1320px) {
+  /* Fees table - compact columns */
+  .table th,
+  .table td {
+    padding: 0.5rem 0.4rem;
+    font-size: 0.875rem;
+  }
+
+  /* Summary tablet layout */
+  .summary-mobile .col-md-2,
+  .summary-mobile .col-md-3 {
+    margin-bottom: 0.5rem;
+  }
+
+  /* Fees table scroll on tablets if needed */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-responsive table:not(.table-budget-mobile) {
+    min-width: 700px;
+  }
+
+  /* Exception: bank accounts table should not have min-width */
+  .bank-accounts-table table {
+    min-width: auto !important;
+    width: 100%;
+  }
+
+  /* Clickable rows hover effect */
+  .table tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+  }
+}
+
+/* Desktop: clickable rows */
+@media (min-width: 1321px) {
+  .table tbody tr[onclick] {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+
+  .table tbody tr[onclick]:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+  }
+}
+
+/* Mobile responsive styles */
+@media (max-width: 767px) {
   .demo-card {
     padding: 2rem 1.5rem;
   }
@@ -2118,9 +4431,9 @@ a:hover .card-hover .text-primary {
     font-size: 2rem;
   }
 
-  .features-grid,
-  .pricing-grid {
-    grid-template-columns: 1fr;
+  .pricing-grid,
+  .features-grid {
+    grid-template-columns: 1fr !important;
   }
 
   .cta-title {
@@ -2153,3 +4466,774 @@ a:hover .card-hover .text-primary {
     padding-top: 0;
   }
 }
+
+/* ============================================
+   Fee Details Modal - Optimized styling
+   ============================================ */
+#feeDetailsModal .modal-dialog {
+  max-width: 900px;
+}
+
+#feeDetailsModal .modal-body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+#feeDetailsModal .modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+#feeDetailsModal .modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#feeDetailsModal .modal-body::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+#feeDetailsModal .modal-body::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+#feeDetailsModal .table-responsive {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+#feeDetailsModal .table-responsive::-webkit-scrollbar {
+  height: 6px;
+}
+
+#feeDetailsModal .table-responsive::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#feeDetailsModal .table-responsive::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+#feeDetailsModal .table-responsive::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+#feeDetailsModal .table thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0.75rem 0.5rem;
+  white-space: nowrap;
+}
+
+#feeDetailsModal .table tbody td {
+  padding: 0.75rem 0.5rem;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+#feeDetailsModal .table tbody tr:hover {
+  background-color: rgba(0, 123, 255, 0.05);
+}
+
+#feeDetailsModal .table thead.sticky-top {
+  z-index: 10;
+}
+
+/* ============================================
+   Page Header Actions Styling
+   ============================================ */
+.page-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap !important;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.page-header-actions .btn {
+  white-space: nowrap !important;
+  flex-shrink: 1;
+  font-size: 0.875rem;
+  padding: 0.375rem 0.75rem;
+  overflow: visible;
+  min-width: auto;
+}
+
+/* ============================================
+   Modal Footer Styling
+   ============================================ */
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+}
+
+.modal-footer .btn {
+  max-width: 200px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ============================================
+   Mobile Modals Optimization
+   ============================================ */
+@media (max-width: 767px) {
+  /* Modals should take full width on mobile */
+  .modal-dialog {
+    margin: 0.5rem;
+    max-width: calc(100% - 1rem);
+  }
+
+  .modal-content {
+    border-radius: var(--radius-lg);
+  }
+
+  .modal-header {
+    padding: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .modal-header .btn-close {
+    margin: 0;
+    padding: 0.5rem;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .modal-body {
+    padding: 1rem;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-footer {
+    padding: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .modal-footer .btn {
+    flex: 1 1 auto;
+    min-width: calc(50% - 0.25rem);
+    max-width: none;
+  }
+
+  /* Page header actions - keep inline even on mobile */
+  .page-header-actions {
+    gap: 0.25rem;
+  }
+
+  .page-header-actions .btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  /* Tables inside modals */
+  .modal-body .table {
+    font-size: 0.875rem;
+  }
+
+  .modal-body .table-responsive {
+    max-height: 300px;
+  }
+
+  /* Specific modal adjustments */
+  #feeDetailsModal .modal-dialog {
+    margin: 0.5rem;
+    max-width: calc(100% - 1rem);
+  }
+
+  #feeDetailsModal .modal-body {
+    max-height: calc(100vh - 150px);
+    padding: 1rem;
+  }
+}
+
+/* ============================================
+   TinyMCE Editor Mobile Optimization
+   ============================================ */
+@media (max-width: 767px) {
+  /* TinyMCE container */
+  .tox-tinymce {
+    border-radius: var(--radius-md);
+  }
+
+  /* TinyMCE toolbar - stack buttons on mobile */
+  .tox .tox-toolbar {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  /* TinyMCE editor content area */
+  .tox .tox-edit-area {
+    min-height: 300px;
+  }
+
+  /* TinyMCE iframe */
+  .tox .tox-edit-area__iframe {
+    min-height: 300px;
+  }
+
+  /* Ensure images in editor are responsive */
+  .tox .tox-edit-area img {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* ============================================
+   Dashboard Mobile Optimization
+   ============================================ */
+@media (max-width: 767px) {
+  /* Dashboard cards */
+  .dashboard-card,
+  .stat-card {
+    margin-bottom: 1rem;
+  }
+
+  /* Dashboard grid */
+  .row.g-4 > [class*="col-"] {
+    margin-bottom: 1rem;
+  }
+
+  /* Stat cards layout */
+  .stat-card .card-body {
+    padding: 1rem;
+  }
+
+  /* Charts and graphs */
+  canvas,
+  .chart-container {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* ============================================
+   Detail Pages Mobile Optimization
+   ============================================ */
+@media (max-width: 767px) {
+  /* Two column layouts become single column */
+  .row > .col-lg-8,
+  .row > .col-lg-4,
+  .row > .col-md-8,
+  .row > .col-md-4 {
+    flex: 0 0 100%;
+    max-width: 100%;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Action buttons stack */
+  .d-flex.justify-content-between {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .d-flex.justify-content-between > * {
+    width: 100%;
+  }
+
+  /* Card headers with buttons */
+  .card-header.d-flex {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-start !important;
+  }
+
+  .card-header.d-flex > div:last-child {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .card-header.d-flex > div:last-child .btn {
+    width: 100%;
+  }
+}
+
+/* ============================================
+   List Pages Mobile Optimization
+   ============================================ */
+@media (max-width: 767px) {
+  /* Filters */
+  .card-body form .row.g-3 > [class*="col-"] {
+    margin-bottom: 1rem;
+  }
+
+  /* Search inputs */
+  input[type="search"],
+  .form-control[type="search"] {
+    width: 100%;
+  }
+
+  /* Filter buttons */
+  .btn-group {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .btn-group .btn {
+    flex: 1 1 auto;
+    min-width: calc(50% - 0.25rem);
+  }
+
+  /* Pagination */
+  .pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.25rem;
+  }
+
+  .pagination .page-link {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* ============================================
+   Message Replies Styling
+   ============================================ */
+.reply-message {
+  position: relative;
+}
+
+.reply-indicator {
+  flex-shrink: 0;
+}
+
+/* Reply items in list group */
+.list-group-item[style*="border-left: 3px solid"] {
+  transition: background-color 0.2s ease;
+}
+
+.list-group-item[style*="border-left: 3px solid"]:hover {
+  background-color: #e9ecef !important;
+}
+
+/* Reply content styling */
+.message-content.bg-light {
+  background-color: #f8f9fa !important;
+}
+
+/* Mobile optimization for replies */
+@media (max-width: 767px) {
+  .list-group-item[style*="margin-left: 1.5rem"] {
+    margin-left: 0.75rem !important;
+    padding-left: 0.75rem !important;
+  }
+
+  .reply-indicator {
+    font-size: 1rem;
+  }
+}
+
+/* ============================================
+   Unified Messages View Styling
+   ============================================ */
+.list-group-item .badge {
+  white-space: nowrap;
+}
+
+/* Sent/Received badges */
+.badge.bg-success[style*="font-size: 0.75rem"],
+.badge.bg-primary[style*="font-size: 0.75rem"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Message direction indicators */
+.bi-arrow-right,
+.bi-arrow-left {
+  font-size: 0.85rem;
+}
+
+/* Thread separator - spacing between message threads */
+.thread-separator {
+  height: 0.75rem;
+  background: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Mobile optimization for unified messages */
+@media (max-width: 767px) {
+  .list-group-item .d-flex.align-items-center.gap-2 {
+    flex-wrap: wrap;
+    gap: 0.5rem !important;
+  }
+
+  .list-group-item .badge {
+    font-size: 0.65rem !important;
+    padding: 0.2rem 0.4rem;
+  }
+}
+
+/* ============================================
+   Excel-Style Compact Tables
+   ============================================ */
+.table-excel {
+  font-size: 0.8rem;
+  border-collapse: collapse;
+  width: 100%;
+  background-color: #ffffff;
+  border: 1px solid #d0d0d0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Remove Bootstrap table styles */
+.table-excel.table-bordered {
+  border: 1px solid #d0d0d0;
+}
+
+.table-excel.table-hover tbody tr:hover {
+  background-color: #e7f3ff !important;
+}
+
+/* Headers - Excel style */
+.table-excel thead th {
+  background-color: #f2f2f2 !important;
+  border: 1px solid #d0d0d0 !important;
+  border-bottom: 2px solid #808080 !important;
+  padding: 0.4rem 0.5rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-align: left;
+  white-space: nowrap;
+  vertical-align: middle;
+  color: #000000;
+  position: relative;
+}
+
+.table-excel thead th:first-child {
+  border-left: 1px solid #d0d0d0;
+}
+
+.table-excel thead th:last-child {
+  border-right: 1px solid #d0d0d0;
+}
+
+/* Body cells - Excel style */
+.table-excel tbody td {
+  border: 1px solid #d0d0d0 !important;
+  padding: 0.3rem 0.5rem;
+  vertical-align: middle;
+  font-size: 0.8rem;
+  background-color: #ffffff;
+  color: #000000;
+}
+
+/* Zebra striping - Excel style */
+.table-excel tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.table-excel tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+
+/* Row hover - subtle Excel style */
+.table-excel tbody tr:hover {
+  background-color: #e7f3ff !important;
+}
+
+/* Remove Bootstrap success/danger row colors, use Excel style */
+.table-excel tbody tr.table-success-light {
+  background-color: #e6f7e6 !important;
+}
+
+.table-excel tbody tr.table-danger-light {
+  background-color: #ffe6e6 !important;
+}
+
+.table-excel tbody tr.table-danger {
+  background-color: #ffcccc !important;
+}
+
+/* Remove rounded borders */
+.table-excel,
+.table-excel th,
+.table-excel td {
+  border-radius: 0 !important;
+}
+
+/* Override min-width rules for Excel table last column */
+.table-excel th:last-child,
+.table-excel td:last-child {
+  min-width: auto !important;
+  white-space: normal !important;
+}
+
+/* Form controls inside excel tables - Excel style */
+.table-excel .form-control,
+.table-excel .form-select {
+  padding: 0.25rem 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  height: auto;
+  min-height: 1.8rem;
+  background-color: #ffffff;
+  box-shadow: none !important;
+}
+
+.table-excel .form-control:focus,
+.table-excel .form-select:focus {
+  border-color: #0078d4 !important;
+  box-shadow: 0 0 0 1px #0078d4 !important;
+  outline: none;
+}
+
+.table-excel .form-control-sm,
+.table-excel .form-select-sm {
+  padding: 0.2rem 0.35rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  min-height: 1.6rem;
+}
+
+/* Badges in excel tables - Excel style */
+.table-excel .badge {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.4rem;
+  line-height: 1.2;
+  border-radius: 0 !important;
+  border: 1px solid transparent;
+  font-weight: 500;
+}
+
+.table-excel .badge.bg-success {
+  background-color: #c6efce !important;
+  color: #006100 !important;
+  border-color: #006100;
+}
+
+.table-excel .badge.bg-danger {
+  background-color: #ffc7ce !important;
+  color: #9c0006 !important;
+  border-color: #9c0006;
+}
+
+/* Checkboxes and radios */
+.table-excel .form-check {
+  margin-bottom: 0;
+  padding-left: 1.5rem;
+}
+
+.table-excel .form-check.d-inline-block {
+  padding-left: 0;
+  display: inline-block;
+}
+
+.table-excel .form-check-input {
+  margin-top: 0.2rem;
+  width: 0.9rem;
+  height: 0.9rem;
+  cursor: pointer;
+}
+
+.table-excel .form-check-label {
+  font-size: 0.75rem;
+  margin-bottom: 0;
+  padding-left: 0.25rem;
+  cursor: pointer;
+}
+
+.table-excel .form-check-label i {
+  font-size: 1rem;
+  color: #666666;
+}
+
+.table-excel .form-check-input:checked ~ .form-check-label i {
+  color: #0078d4;
+}
+
+/* Alerts and info boxes - Excel style */
+.table-excel .alert {
+  padding: 0.35rem 0.5rem;
+  margin: 0.25rem 0;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  border-radius: 0 !important;
+  border: 1px solid #d0d0d0;
+}
+
+.table-excel .alert-info {
+  background-color: #deebf7 !important;
+  border-color: #5b9bd5 !important;
+  color: #000000 !important;
+}
+
+/* Small text */
+.table-excel small,
+.table-excel .small {
+  font-size: 0.7rem;
+}
+
+/* Buttons in excel tables - Excel style */
+.table-excel .btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  border-radius: 0 !important;
+  border: 1px solid #808080;
+  background-color: #f2f2f2;
+  color: #000000;
+}
+
+.table-excel .btn:hover {
+  background-color: #e6e6e6;
+  border-color: #666666;
+}
+
+.table-excel .btn-sm {
+  padding: 0.2rem 0.4rem;
+  font-size: 0.7rem;
+}
+
+/* Input groups */
+.table-excel .input-group {
+  height: auto;
+}
+
+.table-excel .input-group-text {
+  padding: 0.25rem 0.35rem;
+  font-size: 0.75rem;
+  border: 1px solid #808080 !important;
+  background-color: #f2f2f2;
+  color: #000000;
+  border-radius: 0 !important;
+  min-width: 28px;
+  text-align: center;
+}
+
+/* Input group with prefix (€ on left) - not used in Excel table */
+.table-excel .input-group .form-control:not(:first-child) {
+  border-left: 1px solid #808080 !important;
+  border-radius: 0 !important;
+}
+
+/* Input group with suffix (€ on right) - Excel style */
+.table-excel .input-group .form-control:first-child {
+  border-right: none;
+  border-radius: 0 !important;
+  text-align: right;
+}
+
+.table-excel .input-group .input-group-text:last-child {
+  border-left: none;
+  border-right: 1px solid #808080 !important;
+  border-radius: 0 !important;
+}
+
+.table-excel .input-group .form-control:focus {
+  box-shadow: 0 0 0 1px #0078d4 !important;
+}
+
+/* Select dropdowns */
+.table-excel select.form-select {
+  padding-right: 1.5rem;
+  background-size: 0.6rem 0.6rem;
+}
+
+/* Number inputs */
+.table-excel input[type="number"] {
+  text-align: right;
+}
+
+/* Date inputs */
+.table-excel input[type="date"] {
+  min-width: 120px;
+}
+
+/* Remove extra spacing */
+.table-excel .mt-2 {
+  margin-top: 0.25rem !important;
+}
+
+.table-excel .mt-1 {
+  margin-top: 0.15rem !important;
+}
+
+.table-excel .mb-2 {
+  margin-bottom: 0.25rem !important;
+}
+
+.table-excel .mb-1 {
+  margin-bottom: 0.15rem !important;
+}
+
+/* Nested divs and containers */
+.table-excel td > div {
+  margin: 0;
+}
+
+.table-excel td > div:not(:last-child) {
+  margin-bottom: 0.2rem;
+}
+
+/* Scrollable quota lists - Excel style */
+.table-excel .quota-list {
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 0.25rem;
+  border: 1px solid #d0d0d0 !important;
+  border-radius: 0 !important;
+  background-color: #ffffff;
+}
+
+.table-excel .quota-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.table-excel .quota-checkboxes .form-check {
+  margin-bottom: 0.1rem;
+}
+
+/* Summary text - Excel style */
+.table-excel .quota-summary {
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid #d0d0d0 !important;
+  font-size: 0.7rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 767px) {
+  .table-excel {
+    font-size: 0.75rem;
+  }
+  
+  .table-excel thead th {
+    font-size: 0.7rem;
+    padding: 0.3rem 0.4rem;
+  }
+  
+  .table-excel tbody td {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.4rem;
+  }
+  
+  .table-excel .form-control,
+  .table-excel .form-select {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.35rem;
+  }
+}
+
+

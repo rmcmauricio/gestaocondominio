@@ -1,0 +1,1228 @@
+<style>
+th.sortable {
+    user-select: none;
+    position: relative;
+}
+
+th.sortable:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+th.sortable .sort-icon {
+    margin-left: 5px;
+    font-size: 0.8em;
+    opacity: 0.5;
+}
+
+th.sortable:hover .sort-icon {
+    opacity: 1;
+}
+
+th.sortable[style*="color: rgb(13, 110, 253)"] .sort-icon {
+    opacity: 1;
+}
+
+tr.clickable-row:hover {
+    background-color: rgba(0, 123, 255, 0.05) !important;
+}
+
+tr.clickable-row.expanded {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+}
+
+.expand-icon {
+    transition: transform 0.3s ease;
+}
+
+tr.expanded .expand-icon {
+    transform: rotate(180deg);
+}
+
+.condominiums-row {
+    background-color: #f8f9fa;
+}
+
+.condominiums-row td {
+    border-top: none;
+    padding: 0;
+}
+</style>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Gestão de Utilizadores</h2>
+            <p class="text-muted mb-0">Visualizar e gerir todos os utilizadores do sistema</p>
+        </div>
+        <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- Search and Filters -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="searchInput" class="form-label">Pesquisar</label>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Nome ou Email...">
+                </div>
+                <div class="col-md-2">
+                    <label for="filterRole" class="form-label">Role</label>
+                    <select class="form-select" id="filterRole">
+                        <option value="">Todos</option>
+                        {% for role in roles %}
+                        <option value="{{ role }}">{{ role|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="filterStatus" class="form-label">Status</label>
+                    <select class="form-select" id="filterStatus">
+                        <option value="">Todos</option>
+                        {% for status in statuses %}
+                        <option value="{{ status }}">{{ status|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="filterPlan" class="form-label">Plano</label>
+                    <select class="form-select" id="filterPlan">
+                        <option value="">Todos</option>
+                        <option value="none">Sem plano</option>
+                        {% for plan in plans %}
+                        <option value="{{ plan.name }}">{{ plan.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="filterAdvanced" class="form-label">Filtros Avançados</label>
+                    <select class="form-select" id="filterAdvanced">
+                        <option value="">Nenhum</option>
+                        <option value="trial_only">Só Trial</option>
+                        <option value="no_active_plan">Sem Plano Ativo</option>
+                        <option value="no_condominium">Sem Condomínio</option>
+                        <option value="email_not_verified">Email Não Verificado</option>
+                    </select>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="button" class="btn btn-outline-secondary w-100" id="clearFilters">
+                        <i class="bi bi-x-circle"></i> Limpar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-people"></i> Utilizadores</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="usersTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="id" style="cursor: pointer;">
+                                ID <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                            <th class="sortable" data-sort="name" style="cursor: pointer;">
+                                Nome <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                            <th class="sortable" data-sort="email" style="cursor: pointer;">
+                                Email <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Plano</th>
+                            <th class="text-center sortable" data-sort="condominiums" style="cursor: pointer;">
+                                Condomínios <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                            <th class="sortable" data-sort="created" style="cursor: pointer;">
+                                Registado em <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                            <th class="text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr data-role="{{ user.role }}" data-status="{{ user.status }}" data-plan="{{ user.plan_name|default('none') }}" data-name="{{ user.name|lower }}" data-email="{{ user.email|lower }}" 
+                            data-has-only-trial="{{ user.has_only_trial ? 'true' : 'false' }}"
+                            data-has-no-active-plan="{{ user.has_no_active_plan ? 'true' : 'false' }}"
+                            data-has-no-condominium="{{ user.has_no_condominium ? 'true' : 'false' }}"
+                            data-email-not-verified="{{ user.email_not_verified ? 'true' : 'false' }}"
+                            {% if user.role == 'admin' and user.condominiums|length > 0 %}class="admin-row clickable-row" data-user-id="{{ user.id }}" style="cursor: pointer;"{% endif %}>
+                            <td data-sort-value="{{ user.id }}">{{ user.id }}</td>
+                            <td data-sort-value="{{ user.name|lower }}">
+                                <strong>{{ user.name }}</strong>
+                                {% if user.role == 'admin' and user.condominiums|length > 0 %}
+                                    <i class="bi bi-chevron-down ms-2 text-muted expand-icon"></i>
+                                {% endif %}
+                                {% if user.has_only_trial %}
+                                    <span class="badge bg-warning ms-1" title="Apenas trial ativo"><i class="bi bi-clock-history"></i> Trial</span>
+                                {% endif %}
+                                {% if user.has_no_active_plan %}
+                                    <span class="badge bg-danger ms-1" title="Sem plano ativo"><i class="bi bi-x-circle"></i> Sem Plano Ativo</span>
+                                {% endif %}
+                                {% if user.has_no_condominium %}
+                                    <span class="badge bg-secondary ms-1" title="Sem condomínio associado"><i class="bi bi-building-x"></i> Sem Condomínio</span>
+                                {% endif %}
+                                {% if user.email_not_verified %}
+                                    <span class="badge bg-danger ms-1" title="Email não verificado"><i class="bi bi-envelope-x"></i> Não Verificado</span>
+                                {% endif %}
+                            </td>
+                            <td data-sort-value="{{ user.email|lower }}">
+                                {{ user.email }}
+                                {% if user.email_not_verified %}
+                                    <i class="bi bi-exclamation-triangle-fill text-danger ms-1" title="Email não verificado"></i>
+                                {% else %}
+                                    <i class="bi bi-check-circle-fill text-success ms-1" title="Email verificado"></i>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.role == 'super_admin' %}
+                                    <span class="badge bg-danger"><i class="bi bi-shield-check"></i> Super Admin</span>
+                                {% else %}
+                                    <span class="badge bg-info">{{ user.role }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.status == 'active' %}
+                                    <span class="badge bg-success">Ativo</span>
+                                {% elseif user.status == 'suspended' %}
+                                    <span class="badge bg-warning">Suspenso</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Inativo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.plan_name %}
+                                    <span class="badge bg-primary">{{ user.plan_name }}</span>
+                                    {% if user.subscription_status %}
+                                        <br><small class="text-muted">{{ user.subscription_status }}</small>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">Sem plano</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center" data-sort-value="{{ user.total_condominiums }}">{{ user.total_condominiums }}</td>
+                            <td data-sort-value="{{ user.created_at }}">{{ user.created_at|date('d/m/Y H:i') }}</td>
+                            <td class="text-center">
+                                <div class="btn-group" role="group">
+                                    {% if user.role == 'super_admin' %}
+                                        {% if user.id != current_user_id %}
+                                            <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#removeSuperAdminModal" data-user-id="{{ user.id }}" data-user-name="{{ user.name }}" data-user-email="{{ user.email }}">
+                                                <i class="bi bi-person-x"></i> Remover Super Admin
+                                            </button>
+                                        {% else %}
+                                            <span class="badge bg-info" title="Não pode remover o seu próprio cargo de super admin">
+                                                <i class="bi bi-shield-check"></i> Você (Super Admin)
+                                            </span>
+                                        {% endif %}
+                                    {% else %}
+                                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#assignSuperAdminModal" data-user-id="{{ user.id }}" data-user-name="{{ user.name }}" data-user-email="{{ user.email }}">
+                                            <i class="bi bi-shield-check"></i> Tornar Super Admin
+                                        </button>
+                                    {% endif %}
+                                    
+                                    {% if user.role == 'admin' and user.has_only_trial and user.id != current_user_id %}
+                                        <button type="button" class="btn btn-sm btn-danger ms-1" data-bs-toggle="modal" data-bs-target="#deleteTrialAdminModal" 
+                                                data-user-id="{{ user.id }}" 
+                                                data-user-name="{{ user.name }}" 
+                                                data-user-email="{{ user.email }}"
+                                                data-condominium-count="{{ user.condominiums|length }}">
+                                            <i class="bi bi-trash"></i> Apagar Trial
+                                        </button>
+                                    {% endif %}
+                                    
+                                    {% if user.role == 'admin' and user.has_no_active_plan and user.id != current_user_id %}
+                                        <button type="button" class="btn btn-sm btn-danger ms-1" data-bs-toggle="modal" data-bs-target="#deleteUserNoActivePlanModal" 
+                                                data-user-id="{{ user.id }}" 
+                                                data-user-name="{{ user.name }}" 
+                                                data-user-email="{{ user.email }}"
+                                                data-condominium-count="{{ user.condominiums|length }}">
+                                            <i class="bi bi-trash"></i> Apagar Sem Plano
+                                        </button>
+                                    {% endif %}
+                                    
+                                    {% if user.has_no_condominium and user.role != 'super_admin' and user.id != current_user_id %}
+                                        <button type="button" class="btn btn-sm btn-danger ms-1" data-bs-toggle="modal" data-bs-target="#deleteUserNoCondominiumModal" 
+                                                data-user-id="{{ user.id }}" 
+                                                data-user-name="{{ user.name }}" 
+                                                data-user-email="{{ user.email }}">
+                                            <i class="bi bi-trash"></i> Apagar
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% if user.role == 'admin' and user.condominiums|length > 0 %}
+                        <tr class="condominiums-row" data-parent-id="{{ user.id }}" style="display: none;">
+                            <td colspan="9" class="bg-light">
+                                <div class="p-3">
+                                    <h6 class="mb-3"><i class="bi bi-building"></i> Condomínios Administrados ({{ user.condominiums|length }})</h6>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        {% for condo in user.condominiums %}
+                                            <button type="button" 
+                                                    class="badge bg-info text-decoration-none p-2 border-0 btn-stats" 
+                                                    data-condo-id="{{ condo.id }}"
+                                                    data-condo-name="{{ condo.name }}"
+                                                    title="Ver estatísticas de {{ condo.name }}">
+                                                <i class="bi bi-building"></i> {{ condo.name }}
+                                                {% if not condo.is_active %}
+                                                    <span class="badge bg-secondary ms-1">Inativo</span>
+                                                {% endif %}
+                                            </button>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% else %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">
+                                Nenhum utilizador encontrado.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination Controls -->
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div class="d-flex align-items-center">
+                    <label for="itemsPerPage" class="me-2 mb-0">Itens por página:</label>
+                    <select id="itemsPerPage" class="form-select form-select-sm" style="width: auto;">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="0">Todos</option>
+                    </select>
+                </div>
+                <div class="d-flex align-items-center">
+                    <span id="paginationInfo" class="text-muted me-3"></span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0" id="paginationControls">
+                            <!-- Pagination buttons will be inserted here by JavaScript -->
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Atribuir Super Admin -->
+<div class="modal fade" id="assignSuperAdminModal" tabindex="-1" aria-labelledby="assignSuperAdminModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="assignSuperAdminModalLabel">
+                    <i class="bi bi-shield-check"></i> Atribuir Cargo de Super Admin
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/assign-super-admin">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="assign_user_id">
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção!</strong>
+                        <p class="mb-0 mt-2">Tem a certeza que deseja atribuir o cargo de Super Admin ao utilizador:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Nome:</strong> <span id="assign_user_name"></span></p>
+                            <p class="mb-0"><strong>Email:</strong> <span id="assign_user_email"></span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> O utilizador terá acesso completo a todas as funcionalidades administrativas do sistema.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-shield-check"></i> Confirmar Atribuição
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Remover Super Admin -->
+<div class="modal fade" id="removeSuperAdminModal" tabindex="-1" aria-labelledby="removeSuperAdminModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="removeSuperAdminModalLabel">
+                    <i class="bi bi-person-x"></i> Remover Cargo de Super Admin
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/remove-super-admin">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="remove_user_id">
+                    
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção!</strong>
+                        <p class="mb-0 mt-2">Tem a certeza que deseja remover o cargo de Super Admin do utilizador:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Nome:</strong> <span id="remove_user_name"></span></p>
+                            <p class="mb-0"><strong>Email:</strong> <span id="remove_user_email"></span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="new_role" class="form-label">Atribuir novo role:</label>
+                        <select class="form-select" id="new_role" name="new_role" required>
+                            <option value="admin">Admin</option>
+                            <option value="user">User</option>
+                            <option value="condomino">Condomino</option>
+                        </select>
+                        <small class="form-text text-muted">Escolha o novo role que o utilizador terá após remover o cargo de Super Admin.</small>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-shield-check"></i> <strong>Nota de Segurança:</strong>
+                        <p class="mb-0 mt-2">Não é possível remover o seu próprio cargo de Super Admin. Esta proteção garante que sempre exista pelo menos um Super Admin no sistema.</p>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> O utilizador perderá acesso a todas as funcionalidades administrativas do sistema.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-person-x"></i> Confirmar Remoção
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Apagar Admin Trial -->
+<div class="modal fade" id="deleteTrialAdminModal" tabindex="-1" aria-labelledby="deleteTrialAdminModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteTrialAdminModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Apagar Admin Trial
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/delete-trial-admin">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="delete_trial_user_id">
+                    
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção!</strong>
+                        <p class="mb-0 mt-2">Esta ação irá <strong>remover permanentemente</strong>:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Utilizador:</strong> <span id="delete_trial_user_name"></span></p>
+                            <p class="mb-1"><strong>Email:</strong> <span id="delete_trial_user_email"></span></p>
+                            <p class="mb-0"><strong>Condomínios a remover:</strong> <span id="delete_trial_condominium_count" class="badge bg-danger">0</span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> <strong>Será removido:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Todos os condomínios criados pelo utilizador</li>
+                            <li>Todos os dados relacionados (frações, quotas, documentos, etc.)</li>
+                            <li>Todas as subscrições do utilizador</li>
+                            <li>O próprio utilizador</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_trial" required>
+                        <label class="form-check-label" for="confirm_delete_trial">
+                            Confirmo que desejo apagar permanentemente este utilizador e todos os seus dados
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger" id="submit_delete_trial" disabled>
+                        <i class="bi bi-trash"></i> Confirmar Remoção
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Apagar User Sem Plano Ativo -->
+<div class="modal fade" id="deleteUserNoActivePlanModal" tabindex="-1" aria-labelledby="deleteUserNoActivePlanModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteUserNoActivePlanModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Apagar Utilizador Sem Plano Ativo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/delete-user-no-active-plan">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="delete_no_plan_user_id">
+                    
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção Crítica!</strong>
+                        <p class="mb-0 mt-2">Esta ação irá <strong>remover permanentemente</strong>:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Utilizador:</strong> <span id="delete_no_plan_user_name"></span></p>
+                            <p class="mb-1"><strong>Email:</strong> <span id="delete_no_plan_user_email"></span></p>
+                            <p class="mb-0"><strong>Condomínios a remover:</strong> <span id="delete_no_plan_condominium_count" class="badge bg-danger">0</span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> <strong>Será removido:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Todos os condomínios criados pelo utilizador</li>
+                            <li>Todos os dados relacionados (frações, quotas, documentos, etc.)</li>
+                            <li>Todas as subscrições do utilizador</li>
+                            <li>O próprio utilizador</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-shield-check"></i> <strong>Verificação de Segurança:</strong>
+                        <p class="mb-0 mt-2">Este utilizador não possui planos ativos no momento. Esta ação é irreversível.</p>
+                    </div>
+                    
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_no_plan_1" required>
+                        <label class="form-check-label" for="confirm_delete_no_plan_1">
+                            Confirmo que verifiquei que este utilizador não possui planos ativos
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_no_plan_2" required>
+                        <label class="form-check-label" for="confirm_delete_no_plan_2">
+                            Entendo que todos os condomínios e dados relacionados serão removidos permanentemente
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_no_plan_3" required>
+                        <label class="form-check-label" for="confirm_delete_no_plan_3">
+                            Confirmo que desejo prosseguir com a remoção completa deste utilizador
+                        </label>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="delete_no_plan_reason" class="form-label">Motivo da remoção (obrigatório):</label>
+                        <textarea class="form-control" id="delete_no_plan_reason" name="reason" rows="3" required placeholder="Descreva o motivo da remoção deste utilizador..."></textarea>
+                        <small class="form-text text-muted">Este motivo será registado no log de auditoria.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger" id="submit_delete_no_plan" disabled>
+                        <i class="bi bi-trash"></i> Confirmar Remoção Completa
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Apagar User Sem Condomínio -->
+<div class="modal fade" id="deleteUserNoCondominiumModal" tabindex="-1" aria-labelledby="deleteUserNoCondominiumModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteUserNoCondominiumModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Apagar Utilizador Sem Condomínio
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/delete-user-no-condominium">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="delete_no_condo_user_id">
+                    
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção!</strong>
+                        <p class="mb-0 mt-2">Esta ação irá <strong>remover permanentemente</strong> o utilizador:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Nome:</strong> <span id="delete_no_condo_user_name"></span></p>
+                            <p class="mb-0"><strong>Email:</strong> <span id="delete_no_condo_user_email"></span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> <strong>Será removido:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Todas as subscrições do utilizador</li>
+                            <li>Todas as notificações</li>
+                            <li>Preferências de email</li>
+                            <li>Outros dados relacionados</li>
+                            <li>O próprio utilizador</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_no_condo" required>
+                        <label class="form-check-label" for="confirm_delete_no_condo">
+                            Confirmo que desejo apagar permanentemente este utilizador
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger" id="submit_delete_no_condo" disabled>
+                        <i class="bi bi-trash"></i> Confirmar Remoção
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Estatísticas do Condomínio -->
+<div class="modal fade" id="condominiumStatsModal" tabindex="-1" aria-labelledby="condominiumStatsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="condominiumStatsModalLabel">
+                    <i class="bi bi-graph-up"></i> Estatísticas do Condomínio
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe id="statsIframe" src="" style="width: 100%; height: 80vh; border: none;"></iframe>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <a id="openInNewTab" href="#" target="_blank" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-up-right"></i> Abrir em Nova Aba
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const table = document.getElementById('usersTable');
+    if (!table) return;
+    
+    const sortableHeaders = table.querySelectorAll('th.sortable');
+    let currentSort = { column: null, direction: 'asc' };
+    let currentPage = 1;
+    let itemsPerPage = 25;
+    let allRows = [];
+    let filteredRows = [];
+    
+    // Initialize: store all rows
+    const tbody = table.querySelector('tbody');
+    const allTableRows = Array.from(tbody.querySelectorAll('tr'));
+    
+    // Remove empty row if exists and separate admin rows from condominiums rows
+    const emptyRow = allTableRows.find(row => row.querySelector('td[colspan]') && !row.classList.contains('condominiums-row'));
+    const condominiumsRowsMap = new Map();
+    
+    // Build map of condominiums rows by parent ID
+    allTableRows.forEach(row => {
+        if (row.classList.contains('condominiums-row')) {
+            const parentId = row.dataset.parentId;
+            if (parentId) {
+                condominiumsRowsMap.set(parentId, row);
+            }
+        }
+    });
+    
+    // Filter out empty row and condominiums rows from main list
+    allRows = allTableRows.filter(row => {
+        if (row === emptyRow) return false;
+        if (row.classList.contains('condominiums-row')) return false;
+        return true;
+    });
+    
+    // Store condominiums rows map for later use
+    window.condominiumsRowsMap = condominiumsRowsMap;
+    
+    // If no rows, hide pagination and return
+    if (allRows.length === 0) {
+        const paginationContainer = document.querySelector('.d-flex.justify-content-between.align-items-center.mt-3');
+        if (paginationContainer) paginationContainer.style.display = 'none';
+        return;
+    }
+    
+    filteredRows = [...allRows];
+    
+    // Get column index from header
+    function getColumnIndex(sortType) {
+        const headers = Array.from(table.querySelectorAll('thead th'));
+        return headers.findIndex(h => h.dataset.sort === sortType);
+    }
+    
+    // Filter function
+    function applyFilters() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const roleFilter = document.getElementById('filterRole').value;
+        const statusFilter = document.getElementById('filterStatus').value;
+        const planFilter = document.getElementById('filterPlan').value;
+        const advancedFilter = document.getElementById('filterAdvanced').value;
+        
+        filteredRows = allRows.filter(row => {
+            // Search filter
+            if (searchTerm) {
+                const name = row.dataset.name || '';
+                const email = row.dataset.email || '';
+                if (!name.includes(searchTerm) && !email.includes(searchTerm)) {
+                    return false;
+                }
+            }
+            
+            // Role filter
+            if (roleFilter && row.dataset.role !== roleFilter) {
+                return false;
+            }
+            
+            // Status filter
+            if (statusFilter && row.dataset.status !== statusFilter) {
+                return false;
+            }
+            
+            // Plan filter
+            if (planFilter) {
+                const plan = row.dataset.plan || 'none';
+                if (planFilter === 'none' && plan !== 'none') {
+                    return false;
+                } else if (planFilter !== 'none' && plan !== planFilter) {
+                    return false;
+                }
+            }
+            
+            // Advanced filters
+            if (advancedFilter) {
+                if (advancedFilter === 'trial_only' && row.dataset.hasOnlyTrial !== 'true') {
+                    return false;
+                }
+                if (advancedFilter === 'no_active_plan' && row.dataset.hasNoActivePlan !== 'true') {
+                    return false;
+                }
+                if (advancedFilter === 'no_condominium' && row.dataset.hasNoCondominium !== 'true') {
+                    return false;
+                }
+                if (advancedFilter === 'email_not_verified' && row.dataset.emailNotVerified !== 'true') {
+                    return false;
+                }
+            }
+            
+            return true;
+        });
+        
+        currentPage = 1;
+        displayRows();
+        updatePagination();
+    }
+    
+    // Pagination functions
+    function updatePagination() {
+        const totalItems = filteredRows.length;
+        const paginationContainer = document.querySelector('.d-flex.justify-content-between.align-items-center.mt-3');
+        
+        // Hide pagination if no items
+        if (totalItems === 0) {
+            if (paginationContainer) paginationContainer.style.display = 'none';
+            return;
+        }
+        
+        if (paginationContainer) paginationContainer.style.display = 'flex';
+        
+        const totalPages = itemsPerPage === 0 ? 1 : Math.ceil(totalItems / itemsPerPage);
+        
+        // Update info text
+        const infoEl = document.getElementById('paginationInfo');
+        if (itemsPerPage === 0) {
+            infoEl.textContent = `Mostrando todos os ${totalItems} utilizadores`;
+        } else {
+            const start = (currentPage - 1) * itemsPerPage + 1;
+            const end = Math.min(currentPage * itemsPerPage, totalItems);
+            infoEl.textContent = `Mostrando ${start}-${end} de ${totalItems} utilizadores`;
+        }
+        
+        // Generate pagination buttons
+        const controlsEl = document.getElementById('paginationControls');
+        controlsEl.innerHTML = '';
+        
+        if (itemsPerPage === 0 || totalPages <= 1) {
+            return;
+        }
+        
+        // Previous button
+        const prevLi = document.createElement('li');
+        prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+        prevLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage - 1}">Anterior</a>`;
+        controlsEl.appendChild(prevLi);
+        
+        // Page number buttons
+        const maxVisible = 7;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+        
+        if (endPage - startPage < maxVisible - 1) {
+            startPage = Math.max(1, endPage - maxVisible + 1);
+        }
+        
+        if (startPage > 1) {
+            const firstLi = document.createElement('li');
+            firstLi.className = 'page-item';
+            firstLi.innerHTML = `<a class="page-link" href="#" data-page="1">1</a>`;
+            controlsEl.appendChild(firstLi);
+            
+            if (startPage > 2) {
+                const ellipsisLi = document.createElement('li');
+                ellipsisLi.className = 'page-item disabled';
+                ellipsisLi.innerHTML = `<span class="page-link">...</span>`;
+                controlsEl.appendChild(ellipsisLi);
+            }
+        }
+        
+        for (let i = startPage; i <= endPage; i++) {
+            const li = document.createElement('li');
+            li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+            li.innerHTML = `<a class="page-link" href="#" data-page="${i}">${i}</a>`;
+            controlsEl.appendChild(li);
+        }
+        
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                const ellipsisLi = document.createElement('li');
+                ellipsisLi.className = 'page-item disabled';
+                ellipsisLi.innerHTML = `<span class="page-link">...</span>`;
+                controlsEl.appendChild(ellipsisLi);
+            }
+            
+            const lastLi = document.createElement('li');
+            lastLi.className = 'page-item';
+            lastLi.innerHTML = `<a class="page-link" href="#" data-page="${totalPages}">${totalPages}</a>`;
+            controlsEl.appendChild(lastLi);
+        }
+        
+        // Next button
+        const nextLi = document.createElement('li');
+        nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+        nextLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage + 1}">Próximo</a>`;
+        controlsEl.appendChild(nextLi);
+        
+        // Add click handlers
+        controlsEl.querySelectorAll('a[data-page]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const page = parseInt(this.dataset.page);
+                if (page >= 1 && page <= totalPages && page !== currentPage) {
+                    currentPage = page;
+                    displayRows();
+                    updatePagination();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
+        });
+    }
+    
+    function displayRows() {
+        tbody.innerHTML = '';
+        
+        if (filteredRows.length === 0) {
+            const emptyRow = document.createElement('tr');
+            emptyRow.innerHTML = '<td colspan="9" class="text-center text-muted">Nenhum utilizador encontrado.</td>';
+            tbody.appendChild(emptyRow);
+            return;
+        }
+        
+        const rowsToDisplay = itemsPerPage === 0 
+            ? filteredRows 
+            : filteredRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+        
+        rowsToDisplay.forEach(row => {
+            const clonedRow = row.cloneNode(true);
+            tbody.appendChild(clonedRow);
+            
+            // Also clone the condominiums row if it exists
+            const userId = clonedRow.dataset.userId;
+            if (userId && window.condominiumsRowsMap && window.condominiumsRowsMap.has(userId)) {
+                const condominiumsRow = window.condominiumsRowsMap.get(userId);
+                const clonedCondominiumsRow = condominiumsRow.cloneNode(true);
+                clonedCondominiumsRow.style.display = 'none';
+                tbody.appendChild(clonedCondominiumsRow);
+            }
+        });
+        
+        // Setup expansion after displaying
+        setTimeout(setupRowExpansion, 0);
+    }
+    
+    // Search and filter event listeners
+    document.getElementById('searchInput').addEventListener('input', applyFilters);
+    document.getElementById('filterRole').addEventListener('change', applyFilters);
+    document.getElementById('filterStatus').addEventListener('change', applyFilters);
+    document.getElementById('filterPlan').addEventListener('change', applyFilters);
+    document.getElementById('filterAdvanced').addEventListener('change', applyFilters);
+    
+    // Clear filters
+    document.getElementById('clearFilters').addEventListener('click', function() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('filterRole').value = '';
+        document.getElementById('filterStatus').value = '';
+        document.getElementById('filterPlan').value = '';
+        document.getElementById('filterAdvanced').value = '';
+        applyFilters();
+    });
+    
+    // Items per page change handler
+    document.getElementById('itemsPerPage').addEventListener('change', function() {
+        itemsPerPage = parseInt(this.value);
+        currentPage = 1;
+        displayRows();
+        updatePagination();
+    });
+    
+    // Sorting functionality
+    sortableHeaders.forEach(header => {
+        header.addEventListener('click', function() {
+            const sortType = this.dataset.sort;
+            
+            if (filteredRows.length === 0) return;
+            
+            // Determine sort direction
+            if (currentSort.column === sortType) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = sortType;
+                currentSort.direction = 'asc';
+            }
+            
+            // Get column index
+            const columnIndex = getColumnIndex(sortType);
+            
+            // Sort rows
+            filteredRows.sort((a, b) => {
+                const aCells = a.querySelectorAll('td');
+                const bCells = b.querySelectorAll('td');
+                
+                if (!aCells[columnIndex] || !bCells[columnIndex]) return 0;
+                
+                let aValue, bValue;
+                const aCell = aCells[columnIndex];
+                const bCell = bCells[columnIndex];
+                
+                if (sortType === 'id' || sortType === 'condominiums') {
+                    aValue = parseFloat(aCell.dataset.sortValue || aCell.textContent.trim()) || 0;
+                    bValue = parseFloat(bCell.dataset.sortValue || bCell.textContent.trim()) || 0;
+                } else if (sortType === 'name' || sortType === 'email') {
+                    aValue = (aCell.dataset.sortValue || aCell.textContent.trim()).toLowerCase();
+                    bValue = (bCell.dataset.sortValue || bCell.textContent.trim()).toLowerCase();
+                } else if (sortType === 'created') {
+                    aValue = aCell.dataset.sortValue || '';
+                    bValue = bCell.dataset.sortValue || '';
+                }
+                
+                if (typeof aValue === 'string') {
+                    return currentSort.direction === 'asc' 
+                        ? aValue.localeCompare(bValue)
+                        : bValue.localeCompare(aValue);
+                } else {
+                    return currentSort.direction === 'asc' 
+                        ? aValue - bValue
+                        : bValue - aValue;
+                }
+            });
+            
+            currentPage = 1;
+            displayRows();
+            updatePagination();
+            
+            // Update sort icons
+            sortableHeaders.forEach(h => {
+                const icon = h.querySelector('.sort-icon');
+                if (h.dataset.sort === sortType) {
+                    icon.className = currentSort.direction === 'asc' 
+                        ? 'bi bi-arrow-up sort-icon' 
+                        : 'bi bi-arrow-down sort-icon';
+                    h.style.color = '#0d6efd';
+                } else {
+                    icon.className = 'bi bi-arrow-down-up sort-icon';
+                    h.style.color = '';
+                }
+            });
+        });
+        
+        // Add hover effect
+        header.style.transition = 'color 0.2s';
+        header.addEventListener('mouseenter', function() {
+            if (this.dataset.sort !== currentSort.column) {
+                this.style.color = '#0d6efd';
+            }
+        });
+        header.addEventListener('mouseleave', function() {
+            if (this.dataset.sort !== currentSort.column) {
+                this.style.color = '';
+            }
+        });
+    });
+    
+    // Row expansion functionality for admin users
+    function setupRowExpansion() {
+        // Remove existing listeners by cloning rows (cleaner approach)
+        const adminRows = tbody.querySelectorAll('tr.admin-row');
+        
+        adminRows.forEach(row => {
+            // Remove any existing click handler by cloning
+            const newRow = row.cloneNode(true);
+            row.parentNode.replaceChild(newRow, row);
+            
+            newRow.addEventListener('click', function(e) {
+                // Don't expand if clicking on a link or badge
+                if (e.target.tagName === 'A' || e.target.closest('a') || e.target.closest('.badge')) {
+                    return;
+                }
+                
+                const userId = this.dataset.userId;
+                if (!userId) return;
+                
+                // Find the next sibling which should be the condominiums row
+                let nextSibling = this.nextElementSibling;
+                while (nextSibling && !nextSibling.classList.contains('condominiums-row')) {
+                    nextSibling = nextSibling.nextElementSibling;
+                }
+                
+                if (nextSibling && nextSibling.dataset.parentId === userId) {
+                    const isExpanded = nextSibling.style.display !== 'none';
+                    
+                    if (isExpanded) {
+                        nextSibling.style.display = 'none';
+                        this.classList.remove('expanded');
+                    } else {
+                        nextSibling.style.display = '';
+                        this.classList.add('expanded');
+                    }
+                }
+            });
+        });
+    }
+    
+    // Modal functionality for condominium statistics (using event delegation)
+    let statsModal = null;
+    let modalTitle = null;
+    let statsIframe = null;
+    let openInNewTabLink = null;
+    
+    function initStatsModal() {
+        if (!statsModal) {
+            statsModal = new bootstrap.Modal(document.getElementById('condominiumStatsModal'));
+            modalTitle = document.getElementById('condominiumStatsModalLabel');
+            statsIframe = document.getElementById('statsIframe');
+            openInNewTabLink = document.getElementById('openInNewTab');
+            
+            // Clear iframe when modal is hidden
+            document.getElementById('condominiumStatsModal').addEventListener('hidden.bs.modal', function() {
+                if (statsIframe) statsIframe.src = '';
+            });
+        }
+    }
+    
+    // Handle clicks on stats buttons using event delegation (works with cloned elements)
+    document.addEventListener('click', function(e) {
+        const statsBtn = e.target.closest('.btn-stats');
+        if (statsBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            initStatsModal();
+            
+                const condoId = statsBtn.dataset.condoId;
+                const condoName = statsBtn.dataset.condoName;
+                const statsUrl = '{{ BASE_URL }}admin/condominiums/' + condoId + '/stats?modal=1';
+            
+            // Update modal title
+            if (modalTitle) {
+                modalTitle.innerHTML = '<i class="bi bi-graph-up"></i> Estatísticas: ' + condoName;
+            }
+            
+            // Set iframe source
+            if (statsIframe) {
+                statsIframe.src = statsUrl;
+            }
+            
+            // Update "open in new tab" link
+            if (openInNewTabLink) {
+                openInNewTabLink.href = statsUrl;
+            }
+            
+            // Show modal
+            if (statsModal) {
+                statsModal.show();
+            }
+        }
+    });
+    
+    // Initialize modal system
+    initStatsModal();
+    
+    // Setup Super Admin modals
+    const assignModal = document.getElementById('assignSuperAdminModal');
+    if (assignModal) {
+        assignModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const userId = button.getAttribute('data-user-id');
+            const userName = button.getAttribute('data-user-name');
+            const userEmail = button.getAttribute('data-user-email');
+            
+            document.getElementById('assign_user_id').value = userId;
+            document.getElementById('assign_user_name').textContent = userName;
+            document.getElementById('assign_user_email').textContent = userEmail;
+        });
+    }
+    
+    const removeModal = document.getElementById('removeSuperAdminModal');
+    if (removeModal) {
+        removeModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const userId = button.getAttribute('data-user-id');
+            const userName = button.getAttribute('data-user-name');
+            const userEmail = button.getAttribute('data-user-email');
+            
+            document.getElementById('remove_user_id').value = userId;
+            document.getElementById('remove_user_name').textContent = userName;
+            document.getElementById('remove_user_email').textContent = userEmail;
+        });
+    }
+    
+    // Setup Delete Trial Admin Modal
+    const deleteTrialModal = document.getElementById('deleteTrialAdminModal');
+    if (deleteTrialModal) {
+        deleteTrialModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const userId = button.getAttribute('data-user-id');
+            const userName = button.getAttribute('data-user-name');
+            const userEmail = button.getAttribute('data-user-email');
+            const condominiumCount = button.getAttribute('data-condominium-count') || '0';
+            
+            document.getElementById('delete_trial_user_id').value = userId;
+            document.getElementById('delete_trial_user_name').textContent = userName;
+            document.getElementById('delete_trial_user_email').textContent = userEmail;
+            document.getElementById('delete_trial_condominium_count').textContent = condominiumCount;
+            
+            // Reset checkbox and button
+            document.getElementById('confirm_delete_trial').checked = false;
+            document.getElementById('submit_delete_trial').disabled = true;
+        });
+        
+        // Enable/disable submit button based on checkbox
+        document.getElementById('confirm_delete_trial').addEventListener('change', function() {
+            document.getElementById('submit_delete_trial').disabled = !this.checked;
+        });
+    }
+    
+    // Setup Delete User No Active Plan Modal
+    const deleteNoPlanModal = document.getElementById('deleteUserNoActivePlanModal');
+    if (deleteNoPlanModal) {
+        deleteNoPlanModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const userId = button.getAttribute('data-user-id');
+            const userName = button.getAttribute('data-user-name');
+            const userEmail = button.getAttribute('data-user-email');
+            const condominiumCount = button.getAttribute('data-condominium-count') || '0';
+            
+            document.getElementById('delete_no_plan_user_id').value = userId;
+            document.getElementById('delete_no_plan_user_name').textContent = userName;
+            document.getElementById('delete_no_plan_user_email').textContent = userEmail;
+            document.getElementById('delete_no_plan_condominium_count').textContent = condominiumCount;
+            
+            // Reset checkboxes, textarea and button
+            document.getElementById('confirm_delete_no_plan_1').checked = false;
+            document.getElementById('confirm_delete_no_plan_2').checked = false;
+            document.getElementById('confirm_delete_no_plan_3').checked = false;
+            document.getElementById('delete_no_plan_reason').value = '';
+            document.getElementById('submit_delete_no_plan').disabled = true;
+        });
+        
+        // Enable/disable submit button based on all checkboxes and reason
+        function checkDeleteNoPlanForm() {
+            const check1 = document.getElementById('confirm_delete_no_plan_1').checked;
+            const check2 = document.getElementById('confirm_delete_no_plan_2').checked;
+            const check3 = document.getElementById('confirm_delete_no_plan_3').checked;
+            const reason = document.getElementById('delete_no_plan_reason').value.trim();
+            document.getElementById('submit_delete_no_plan').disabled = !(check1 && check2 && check3 && reason.length > 0);
+        }
+        
+        document.getElementById('confirm_delete_no_plan_1').addEventListener('change', checkDeleteNoPlanForm);
+        document.getElementById('confirm_delete_no_plan_2').addEventListener('change', checkDeleteNoPlanForm);
+        document.getElementById('confirm_delete_no_plan_3').addEventListener('change', checkDeleteNoPlanForm);
+        document.getElementById('delete_no_plan_reason').addEventListener('input', checkDeleteNoPlanForm);
+    }
+    
+    // Setup Delete User No Condominium Modal
+    const deleteNoCondoModal = document.getElementById('deleteUserNoCondominiumModal');
+    if (deleteNoCondoModal) {
+        deleteNoCondoModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const userId = button.getAttribute('data-user-id');
+            const userName = button.getAttribute('data-user-name');
+            const userEmail = button.getAttribute('data-user-email');
+            
+            document.getElementById('delete_no_condo_user_id').value = userId;
+            document.getElementById('delete_no_condo_user_name').textContent = userName;
+            document.getElementById('delete_no_condo_user_email').textContent = userEmail;
+            
+            // Reset checkbox and button
+            document.getElementById('confirm_delete_no_condo').checked = false;
+            document.getElementById('submit_delete_no_condo').disabled = true;
+        });
+        
+        // Enable/disable submit button based on checkbox
+        document.getElementById('confirm_delete_no_condo').addEventListener('change', function() {
+            document.getElementById('submit_delete_no_condo').disabled = !this.checked;
+        });
+    }
+    
+    // Initialize table
+    displayRows();
+    updatePagination();
+});
+</script>

@@ -83,7 +83,27 @@
                             <textarea class="form-control" id="description" name="description" rows="3" required placeholder="Descrição do movimento"></textarea>
                         </div>
 
-                        <div class="mb-3">
+                        <div class="mb-3" id="income_destination_group" style="display: none;">
+                            <label for="income_entry_type" class="form-label">Tipo de entrada (atribuir a fração)</label>
+                            <select class="form-select" id="income_entry_type" name="income_entry_type">
+                                <option value="">Não atribuir a fração</option>
+                                <option value="quota">Quotas</option>
+                                <option value="reserva_espaco">Reservas de espaço</option>
+                                <option value="outros">Outros</option>
+                            </select>
+                            <small class="form-text text-muted">Se escolher Quotas, Reservas de espaço ou Outros, deve selecionar a fração. Para Quotas, o valor será aplicado às quotas em atraso da fração.</small>
+                        </div>
+                        <div class="mb-3" id="fraction_id_group" style="display: none;">
+                            <label for="fraction_id" class="form-label">Fração <span class="text-danger">*</span></label>
+                            <select class="form-select" id="fraction_id" name="fraction_id">
+                                <option value="">Selecione a fração...</option>
+                                {% for fraction in fractions|default([]) %}
+                                <option value="{{ fraction.id }}">{{ fraction.identifier }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3" id="category_other_group">
                             <label for="category" class="form-label">Categoria</label>
                             <input type="text" class="form-control" id="category" name="category" placeholder="Ex: Manutenção, Limpeza, Seguros">
                         </div>
@@ -159,8 +179,36 @@ document.addEventListener('DOMContentLoaded', function() {
         return true;
     }
 
+    const incomeDestGroup = document.getElementById('income_destination_group');
+    const incomeEntryType = document.getElementById('income_entry_type');
+    const fractionIdGroup = document.getElementById('fraction_id_group');
+    const fractionIdSelect = document.getElementById('fraction_id');
+
+    function toggleIncomeFractionFields() {
+        if (transactionType.value === 'income') {
+            incomeDestGroup.style.display = 'block';
+            if (incomeEntryType.value && ['quota', 'reserva_espaco', 'outros'].includes(incomeEntryType.value)) {
+                fractionIdGroup.style.display = 'block';
+                fractionIdSelect.setAttribute('required', 'required');
+            } else {
+                fractionIdGroup.style.display = 'none';
+                fractionIdSelect.removeAttribute('required');
+                fractionIdSelect.value = '';
+            }
+        } else {
+            incomeDestGroup.style.display = 'none';
+            fractionIdGroup.style.display = 'none';
+            fractionIdSelect.removeAttribute('required');
+            fractionIdSelect.value = '';
+            incomeEntryType.value = '';
+        }
+    }
+
+    if (incomeEntryType) incomeEntryType.addEventListener('change', toggleIncomeFractionFields);
+
     transactionType.addEventListener('change', function() {
         toggleTransferFields();
+        toggleIncomeFractionFields();
         checkBalance();
     });
 
@@ -196,6 +244,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const transactionTypeValue = transactionType.value;
+        if (transactionTypeValue === 'income' && incomeEntryType && incomeEntryType.value && !fractionIdSelect.value) {
+            e.preventDefault();
+            alert('Selecione a fração para este tipo de entrada.');
+            return false;
+        }
+
         if (transactionTypeValue === 'expense' || transactionTypeValue === 'transfer') {
             const selectedOption = accountSelect.options[accountSelect.selectedIndex];
             const balance = parseFloat(selectedOption.dataset.balance || 0);
@@ -217,5 +271,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize
     toggleTransferFields();
+    toggleIncomeFractionFields();
 });
 </script>

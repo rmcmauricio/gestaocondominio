@@ -1,0 +1,143 @@
+<div class="container py-4 help-page">
+    <div class="help-page-header">
+        <h1 class="help-page-title">
+            <i class="bi bi-calendar-month text-primary me-2"></i>
+            {% if subsectionTitle %}{{ subsectionTitle }}{% else %}{{ sectionData.title }}{% endif %}
+        </h1>
+        <p class="help-page-description">
+            Aprenda a gerir quotas mensais e extras, acompanhar pagamentos e visualizar o mapa de quotas completo.
+        </p>
+    </div>
+
+    {% include 'blocks/help-navigation.html.twig' %}
+
+    <div class="help-section">
+        <h2 class="help-section-title">Visão Geral</h2>
+        <p class="help-step-content">
+            O sistema de quotas permite gerir automaticamente as quotas mensais de todas as frações do condomínio, 
+            criar quotas extras para obras ou eventos especiais, e acompanhar o estado de pagamento de cada quota.
+        </p>
+    </div>
+
+    <div class="help-section">
+        <h2 class="help-section-title">Passo a Passo</h2>
+
+        <div class="help-step">
+            <div class="help-step-number">1</div>
+            <h3 class="help-step-title">Criar um Orçamento</h3>
+            <div class="help-step-content">
+                <p>Antes de gerar quotas, é necessário criar um orçamento para o ano. O orçamento define os valores base das quotas mensais.</p>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Tela de criação de orçamento mostrando os campos necessários</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <div class="help-step-number">2</div>
+            <h3 class="help-step-title">Gerar Quotas Mensais</h3>
+            <div class="help-step-content">
+                <p>Na página de quotas, clique no botão "Gerar Quotas" para criar automaticamente as quotas mensais para todas as frações ativas.</p>
+                <ul>
+                    <li>Selecione o mês e ano</li>
+                    <li>O sistema calculará automaticamente o valor baseado no orçamento e na permilagem de cada fração</li>
+                    <li>As quotas serão criadas com estado "Pendente"</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Botão "Gerar Quotas" e modal de confirmação</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <div class="help-step-number">3</div>
+            <h3 class="help-step-title">Registar Pagamentos</h3>
+            <div class="help-step-content">
+                <p>Quando uma quota é paga, registe o pagamento clicando no botão de ações da quota e selecionando "Adicionar Pagamento".</p>
+                <ul>
+                    <li>Informe o valor pago</li>
+                    <li>Selecione o método de pagamento (Multibanco, MBWay, Transferência, etc.)</li>
+                    <li>Adicione a referência do pagamento (opcional)</li>
+                    <li>Associe a um movimento financeiro se aplicável</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Formulário de adicionar pagamento com todos os campos</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <div class="help-step-number">4</div>
+            <h3 class="help-step-title">Visualizar Mapa de Quotas</h3>
+            <div class="help-step-content">
+                <p>O mapa de quotas mostra uma visão completa de todas as frações e seus estados de pagamento em formato de tabela.</p>
+                <ul>
+                    <li>Verde: Quota totalmente paga</li>
+                    <li>Amarelo: Quota parcialmente paga</li>
+                    <li>Vermelho: Quota em atraso ou não paga</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Mapa de quotas mostrando frações e estados de pagamento</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <div class="help-step-number">5</div>
+            <h3 class="help-step-title">Criar Quotas Extras</h3>
+            <div class="help-step-content">
+                <p>Para criar quotas extras (obras, eventos especiais), use a opção "Gerar Quotas" e selecione "Quota Extra".</p>
+                <ul>
+                    <li>Defina uma descrição para a quota extra</li>
+                    <li>Informe o valor total a distribuir</li>
+                    <li>O sistema distribuirá proporcionalmente pela permilagem</li>
+                </ul>
+                <div class="help-image-placeholder">
+                    <div class="placeholder-content">
+                        <i class="bi bi-image"></i>
+                        <p>Imagem ilustrativa: Criação de quota extra com campos de descrição e valor</p>
+                        <small class="text-muted">Esta imagem será adicionada posteriormente</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="help-tip">
+        <div class="help-tip-title">
+            <i class="bi bi-lightbulb"></i>
+            <span>Dica</span>
+        </div>
+        <div class="help-tip-content">
+            <p>Os recibos são gerados automaticamente quando uma quota é totalmente paga. Pode visualizar e descarregar os recibos na página de Recibos.</p>
+        </div>
+    </div>
+
+    <div class="help-related-links">
+        <h3 class="help-related-links-title">Tópicos Relacionados</h3>
+        <ul class="help-related-links-list">
+            <li><a href="{{ BASE_URL }}help/finances-budgets"><i class="bi bi-arrow-right"></i> Orçamentos</a></li>
+            <li><a href="{{ BASE_URL }}help/finances-fees-map"><i class="bi bi-arrow-right"></i> Mapa de Quotas</a></li>
+            <li><a href="{{ BASE_URL }}help/receipts"><i class="bi bi-arrow-right"></i> Recibos</a></li>
+            <li><a href="{{ BASE_URL }}help/finances"><i class="bi bi-arrow-right"></i> Finanças - Visão Geral</a></li>
+        </ul>
+    </div>
+
+    {% include 'blocks/help-navigation.html.twig' %}
+</div>

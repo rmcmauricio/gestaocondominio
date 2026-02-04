@@ -1,0 +1,131 @@
+<div class="container py-4">
+    {% set page_actions %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Designar Administradores',
+        'actions': page_actions
+    } %}
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-shield-check"></i> Administradores Atuais</h5>
+                </div>
+                <div class="card-body">
+                    {% if current_admins %}
+                    <ul class="list-group list-group-flush">
+                        {% for admin in current_admins %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ admin.name }}</strong>
+                                <br>
+                                <small class="text-muted">{{ admin.email }}</small>
+                                {% if admin.user_id == owner_id %}
+                                <br>
+                                <small class="text-muted"><i class="bi bi-house"></i> Proprietário</small>
+                                {% endif %}
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-primary">Admin</span>
+                                {% if admin.user_id != owner_id and admin.user_id != current_user_id %}
+                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/remove-admin" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover o cargo de administrador de {{ admin.name }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="user_id" value="{{ admin.user_id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover Admin">
+                                        <i class="bi bi-x-circle"></i> Remover
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted mb-0">Nenhum administrador designado.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-people"></i> Utilizadores do Condomínio</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Formulário para associar utilizador por email -->
+                    <div class="mb-3 p-3 bg-light rounded">
+                        <h6 class="mb-2"><i class="bi bi-plus-circle"></i> Associar Empresa/Utilizador</h6>
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/assign-admin-by-email" class="d-flex gap-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="email" name="email" class="form-control form-control-sm" placeholder="Email do utilizador" required>
+                            <button type="submit" class="btn btn-sm btn-primary">
+                                <i class="bi bi-shield-check"></i> Associar como Admin
+                            </button>
+                        </form>
+                        <small class="text-muted">Associa o utilizador ao condomínio como administrador sem fração</small>
+                    </div>
+
+                    {% if condominium_users %}
+                    <ul class="list-group list-group-flush">
+                        {% for cu in condominium_users %}
+                        {% set isAdmin = false %}
+                        {% for admin in current_admins %}
+                        {% if admin.user_id == cu.user_id %}
+                        {% set isAdmin = true %}
+                        {% endif %}
+                        {% endfor %}
+                        
+                        {% if not isAdmin %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ cu.name }}</strong>
+                                <br>
+                                <small class="text-muted">{{ cu.email }}</small>
+                                {% if cu.fraction_identifier %}
+                                <br>
+                                <small class="text-muted">Fração: {{ cu.fraction_identifier }}</small>
+                                {% else %}
+                                <br>
+                                <small class="text-muted"><i class="bi bi-building"></i> Sem fração</small>
+                                {% endif %}
+                            </div>
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/assign-admin" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="user_id" value="{{ cu.user_id }}">
+                                <button type="submit" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-shield-check"></i> Designar Admin
+                                </button>
+                            </form>
+                        </li>
+                        {% endif %}
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted mb-0">Nenhum utilizador associado ao condomínio.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,2 +1,9 @@
 omeupredio_deploy
 omeupredio_deploy.pub
+storage/
+vendor/
+.env.env
+.env
+logs/
+logs/php_error.log
+.env-prod

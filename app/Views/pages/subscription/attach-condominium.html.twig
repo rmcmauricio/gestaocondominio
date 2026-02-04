@@ -1,0 +1,119 @@
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12 col-xl-8 mx-auto">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="bi bi-building"></i> Associar Condomínio</h4>
+                </div>
+                <div class="card-body">
+                    {% if error %}
+                    <div class="alert alert-danger" role="alert">
+                        {{ error }}
+                    </div>
+                    {% endif %}
+
+                    {% if success %}
+                    <div class="alert alert-success" role="alert">
+                        {{ success }}
+                    </div>
+                    {% endif %}
+
+                    {% if subscription %}
+                    <div class="alert alert-info mb-3">
+                        <h6 class="alert-heading"><i class="bi bi-info-circle"></i> Informações</h6>
+                        <p class="mb-0 small">
+                            Ao associar um condomínio, todas as frações ativas desse condomínio serão contabilizadas nas suas licenças.
+                            {% if license_limit %}
+                            O limite atual é de {{ license_limit }} licenças.
+                            {% endif %}
+                        </p>
+                    </div>
+
+                    <form method="POST" action="{{ BASE_URL }}subscription/attach-condominium">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        
+                        <div class="mb-3">
+                            <label for="condominium_id" class="form-label">Selecione o condomínio:</label>
+                            <select class="form-select" id="condominium_id" name="condominium_id" required>
+                                <option value="">-- Selecione um condomínio --</option>
+                                {% if available_condominiums %}
+                                {% for condo in available_condominiums %}
+                                <option value="{{ condo.id }}" data-fractions="{{ condo.active_fractions_count|default(0) }}">
+                                    {{ condo.name }} ({{ condo.active_fractions_count|default(0) }} frações ativas)
+                                </option>
+                                {% endfor %}
+                                {% endif %}
+                            </select>
+                            <small class="text-muted">Apenas condomínios disponíveis aparecem na lista.</small>
+                        </div>
+
+                        <div id="impactPreview" class="alert alert-light" style="display: none;">
+                            <h6>Impacto na Subscrição:</h6>
+                            <p class="mb-0 small">
+                                <strong>Licenças atuais:</strong> <span id="currentLicenses">{{ used_licenses|default(0) }}</span><br>
+                                <strong>Licenças do condomínio:</strong> <span id="condoLicenses">0</span><br>
+                                <strong>Total projetado:</strong> <span id="projectedLicenses">0</span>
+                                {% if license_limit %}
+                                <br><span id="limitWarning" class="text-danger" style="display: none;">
+                                    <i class="bi bi-exclamation-triangle"></i> Excederia o limite de {{ license_limit }} licenças!
+                                </span>
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{{ BASE_URL }}subscription" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Voltar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> Associar Condomínio
+                            </button>
+                        </div>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> Não tem uma subscrição ativa.
+                    </div>
+                    <a href="{{ BASE_URL }}subscription" class="btn btn-primary">
+                        <i class="bi bi-arrow-left"></i> Voltar
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const select = document.getElementById('condominium_id');
+    const preview = document.getElementById('impactPreview');
+    const condoLicensesSpan = document.getElementById('condoLicenses');
+    const projectedLicensesSpan = document.getElementById('projectedLicenses');
+    const limitWarning = document.getElementById('limitWarning');
+    const currentLicenses = parseInt(document.getElementById('currentLicenses').textContent) || 0;
+    const licenseLimit = {{ license_limit|default('null') }};
+
+    if (select) {
+        select.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption.value) {
+                const condoLicenses = parseInt(selectedOption.dataset.fractions) || 0;
+                const projected = currentLicenses + condoLicenses;
+
+                condoLicensesSpan.textContent = condoLicenses;
+                projectedLicensesSpan.textContent = projected;
+                preview.style.display = 'block';
+
+                if (licenseLimit && projected > licenseLimit) {
+                    limitWarning.style.display = 'block';
+                } else {
+                    limitWarning.style.display = 'none';
+                }
+            } else {
+                preview.style.display = 'none';
+            }
+        });
+    }
+});
+</script>

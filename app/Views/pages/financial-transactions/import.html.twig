@@ -1,0 +1,631 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Importar Movimentos Financeiros</h2>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-upload"></i> Passo 1: Upload do Ficheiro
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="uploadForm" enctype="multipart/form-data" data-condominium-id="{{ condominium.id }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="bank_account_id" class="form-label">Conta Bancária <span class="text-danger">*</span></label>
+                            <select class="form-select" id="bank_account_id" name="bank_account_id" required>
+                                <option value="">Selecione uma conta...</option>
+                                {% for account in accounts %}
+                                <option value="{{ account.id }}">
+                                    {{ account.name }}
+                                    {% if account.account_type == 'cash' %}(Caixa){% endif %}
+                                    - Saldo: €{{ account.current_balance|number_format(2, ',', '.') }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">
+                                Todos os movimentos serão importados para esta conta
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="file" class="form-label">Ficheiro Excel ou CSV <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls,.csv" required>
+                            <small class="form-text text-muted">
+                                Formatos suportados: .xlsx, .xls, .csv (máximo 10MB)
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="has_header" name="has_header" value="1" checked>
+                                <label class="form-check-label" for="has_header">
+                                    Primeira linha contém cabeçalhos
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-upload"></i> Carregar e Analisar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Column Mapping Section (hidden initially) -->
+            <div id="mappingSection" class="card shadow-sm mt-4" style="display: none;">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-list-columns"></i> Passo 2: Mapeamento de Colunas
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Mapeie cada coluna do ficheiro para o campo correspondente do sistema.
+                        <strong>Campos obrigatórios:</strong> Data, Valor (ou Crédito/Débito)
+                        <br><strong>Nota:</strong> A conta bancária já foi selecionada anteriormente e será aplicada a todos os movimentos. Se a descrição não for mapeada, será usado "Movimento importado" como descrição padrão.
+                    </div>
+
+                    <div id="selectedAccountInfo" class="alert alert-success mb-3" style="display: none;">
+                        <i class="bi bi-check-circle"></i> <strong>Conta selecionada:</strong> <span id="selectedAccountName"></span>
+                    </div>
+
+                    <form id="mappingForm" method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/import/preview" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="has_header" id="mapping_has_header" value="1">
+                        <input type="hidden" name="bank_account_id" id="mapping_bank_account_id" value="">
+                        <input type="file" name="file" id="mapping_file" style="display: none;">
+                        <input type="hidden" name="column_mapping" id="column_mapping_input">
+
+                        <div id="mappingTable"></div>
+
+                        <div class="mt-4">
+                            <div class="alert alert-warning" id="mappingErrors" style="display: none;"></div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-eye"></i> Ver Preview
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="resetMapping()">
+                                <i class="bi bi-arrow-counterclockwise"></i> Reiniciar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Alertas -->
+<div class="modal fade" id="alertModal" tabindex="-1" aria-labelledby="alertModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" id="alertModalHeader">
+                <h5 class="modal-title" id="alertModalLabel">Aviso</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="alertModalBody">
+                <!-- Conteúdo será inserido aqui -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+console.log('Import script loaded');
+let fileData = null;
+let fileInput = null;
+
+// Store Twig variables in JavaScript-safe format
+const IMPORT_BASE_URL = {{ BASE_URL|json_encode|raw }};
+const IMPORT_CONDOMINIUM_ID = {{ condominium.id|default(0) }};
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Function to show alert in modal
+function showAlertModal(title, message, type = 'warning') {
+    const modalElement = document.getElementById('alertModal');
+    const modalLabel = document.getElementById('alertModalLabel');
+    const modalBody = document.getElementById('alertModalBody');
+    const modalHeader = document.getElementById('alertModalHeader');
+    
+    if (!modalElement || !modalLabel || !modalBody || !modalHeader) {
+        // Fallback to regular alert if modal elements not found
+        alert(title + ': ' + message);
+        return;
+    }
+    
+    // Set title and message
+    modalLabel.textContent = title;
+    modalBody.innerHTML = '<p class="mb-0">' + escapeHtml(message) + '</p>';
+    
+    // Set header color based on type
+    modalHeader.className = 'modal-header';
+    if (type === 'error' || type === 'danger') {
+        modalHeader.classList.add('bg-danger', 'text-white');
+    } else if (type === 'success') {
+        modalHeader.classList.add('bg-success', 'text-white');
+    } else if (type === 'info') {
+        modalHeader.classList.add('bg-info', 'text-white');
+    } else {
+        modalHeader.classList.add('bg-warning', 'text-dark');
+    }
+    
+    // Show modal using Bootstrap
+    let bsModal;
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        bsModal = new bootstrap.Modal(modalElement);
+        bsModal.show();
+    } else {
+        // Fallback: show modal manually
+        modalElement.classList.add('show');
+        modalElement.style.display = 'block';
+        modalElement.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        backdrop.id = 'alertModalBackdrop';
+        document.body.appendChild(backdrop);
+    }
+}
+
+// Wait for DOM to be ready
+function initImportForm() {
+    console.log('Initializing import form...');
+    const uploadForm = document.getElementById('uploadForm');
+    if (!uploadForm) {
+        console.error('Upload form not found');
+        // Try again after a short delay
+        setTimeout(initImportForm, 100);
+        return;
+    }
+
+    console.log('Upload form found, attaching submit handler');
+    uploadForm.addEventListener('submit', handleFormSubmit);
+
+    // Also prevent default form submission as a safety measure
+    uploadForm.onsubmit = function(e) {
+        e.preventDefault();
+        return false;
+    };
+}
+
+// Try to initialize immediately if DOM is already loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initImportForm);
+} else {
+    // DOM is already loaded
+    initImportForm();
+}
+
+async function handleFormSubmit(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    console.log('Form submit intercepted');
+
+    const form = e.target;
+    const formData = new FormData(form);
+    const fileInputElement = document.getElementById('file');
+
+    if (!fileInputElement || !fileInputElement.files[0]) {
+        showAlertModal('Atenção', 'Por favor, selecione um ficheiro', 'warning');
+        return false;
+    }
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (!submitBtn) {
+        console.error('Submit button not found');
+        return false;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> A processar...';
+
+    try {
+        console.log('Sending request to upload endpoint...');
+        const condominiumId = form.dataset.condominiumId || IMPORT_CONDOMINIUM_ID;
+        const uploadUrl = IMPORT_BASE_URL + 'condominiums/' + condominiumId + '/financial-transactions/import/upload';
+        const response = await fetch(uploadUrl, {
+            method: 'POST',
+            body: formData
+        });
+
+        console.log('Response status:', response.status, response.statusText);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Error response:', errorText);
+            throw new Error('Erro HTTP: ' + response.status + ' - ' + errorText.substring(0, 200));
+        }
+
+        const contentType = response.headers.get('content-type');
+        console.log('Response content-type:', contentType);
+
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Non-JSON response:', text.substring(0, 500));
+            throw new Error('Resposta do servidor não é JSON. Pode haver um erro no servidor.');
+        }
+
+        const result = await response.json();
+        console.log('Upload response:', result);
+
+        if (result.success) {
+            fileData = result;
+            fileInput = fileInputElement.files[0];
+            console.log('Calling showMappingSection...');
+            showMappingSection(result);
+            // Reset button state after showing mapping section
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-upload"></i> Carregar e Analisar';
+        } else {
+            showAlertModal('Erro ao Processar Ficheiro', result.error || 'Erro desconhecido', 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-upload"></i> Carregar e Analisar';
+        }
+        return false;
+    } catch (error) {
+        console.error('Error processing file:', error);
+        showAlertModal('Erro ao Processar Ficheiro', error.message, 'error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="bi bi-upload"></i> Carregar e Analisar';
+        return false;
+    }
+}
+
+function showMappingSection(data) {
+    // Validate data structure
+    if (!data || !data.headers || !Array.isArray(data.headers)) {
+        console.error('Invalid data structure:', data);
+        showAlertModal('Erro', 'Dados do ficheiro inválidos. Por favor, tente novamente.', 'error');
+        return;
+    }
+
+    const mappingSection = document.getElementById('mappingSection');
+    const mappingTable = document.getElementById('mappingTable');
+
+    if (!mappingSection || !mappingTable) {
+        console.error('Mapping section elements not found');
+        showAlertModal('Erro', 'Elementos da página não encontrados.', 'error');
+        return;
+    }
+
+    // Store file for later submission
+    const fileInputElement = document.getElementById('file');
+    const mappingFileInput = document.getElementById('mapping_file');
+    const dataTransfer = new DataTransfer();
+    if (fileInputElement && fileInputElement.files[0]) {
+        dataTransfer.items.add(fileInputElement.files[0]);
+        if (mappingFileInput) {
+            mappingFileInput.files = dataTransfer.files;
+        }
+    }
+    const hasHeaderCheckbox = document.getElementById('has_header');
+    const mappingHasHeaderInput = document.getElementById('mapping_has_header');
+    if (hasHeaderCheckbox && mappingHasHeaderInput) {
+        mappingHasHeaderInput.value = hasHeaderCheckbox.checked ? '1' : '0';
+    }
+
+    // Define database fields that need to be mapped
+    // Show fields based on detected mode
+    const isSeparateMode = data.mode === 'separate';
+
+    const databaseFields = [
+        { key: 'transaction_date', label: 'Data', required: true, description: '(obrigatório)' },
+        // Only show "Valor Único" if mode is single (not separate)
+        ...(isSeparateMode ? [] : [{
+            key: 'amount',
+            label: 'Valor Único',
+            required: true,
+            description: '(obrigatório - positivo=entrada, negativo=saída)'
+        }]),
+        // Only show credit/debit fields if mode is separate
+        ...(isSeparateMode ? [
+            { key: 'amount_credit', label: 'Crédito/Entrada', required: true, description: '(obrigatório)' },
+            { key: 'amount_debit', label: 'Débito/Saída', required: true, description: '(obrigatório)' }
+        ] : []),
+        { key: 'description', label: 'Descrição', required: false, description: '(opcional)' },
+        { key: 'category', label: 'Categoria', required: false, description: '(opcional)' },
+        { key: 'reference', label: 'Referência', required: false, description: '(opcional)' },
+        { key: 'is_transfer', label: 'É Transferência?', required: false, description: '(opcional)' }
+    ];
+
+    // Build reverse mapping: create a map from field to suggested column index
+    // suggestedMapping comes as an object with column indices as keys and field names as values
+    const suggestedFieldToIndex = {};
+    if (data.suggestedMapping && typeof data.suggestedMapping === 'object' && !Array.isArray(data.suggestedMapping)) {
+        try {
+            Object.keys(data.suggestedMapping).forEach(columnIndex => {
+                const field = data.suggestedMapping[columnIndex];
+                if (field && !suggestedFieldToIndex[field]) {
+                    suggestedFieldToIndex[field] = parseInt(columnIndex);
+                }
+            });
+        } catch (err) {
+            console.warn('Error processing suggested mapping:', err);
+        }
+    }
+
+    // Enhanced fuzzy matching for fields not matched by backend
+    // This function calculates similarity between field names and headers
+    function calculateSimilarity(str1, str2) {
+        const s1 = str1.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const s2 = str2.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+        // Exact match
+        if (s1 === s2) return 1.0;
+
+        // Check if one contains the other
+        if (s1.includes(s2) || s2.includes(s1)) return 0.8;
+
+        // Check for common words
+        const words1 = s1.split(/\s+/);
+        const words2 = s2.split(/\s+/);
+        const commonWords = words1.filter(w => words2.includes(w));
+        if (commonWords.length > 0) {
+            return Math.min(0.7, commonWords.length / Math.max(words1.length, words2.length));
+        }
+
+        // Levenshtein-like similarity (simplified)
+        const longer = s1.length > s2.length ? s1 : s2;
+        const shorter = s1.length > s2.length ? s2 : s1;
+        const editDistance = getEditDistance(longer, shorter);
+        return 1 - (editDistance / longer.length);
+    }
+
+    function getEditDistance(str1, str2) {
+        const matrix = [];
+        for (let i = 0; i <= str2.length; i++) {
+            matrix[i] = [i];
+        }
+        for (let j = 0; j <= str1.length; j++) {
+            matrix[0][j] = j;
+        }
+        for (let i = 1; i <= str2.length; i++) {
+            for (let j = 1; j <= str1.length; j++) {
+                if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1,
+                        matrix[i][j - 1] + 1,
+                        matrix[i - 1][j] + 1
+                    );
+                }
+            }
+        }
+        return matrix[str2.length][str1.length];
+    }
+
+    // Field name mappings for better matching
+    // Prioritize "Data Valor" over "Data Operação"
+    const fieldNameMappings = {
+        'transaction_date': ['data valor', 'data', 'date', 'data operacao', 'data operação', 'data movimento', 'data transacao', 'data transação'],
+        'amount': ['valor', 'amount', 'montante', 'importe', 'value', 'total'],
+        'amount_credit': ['credito', 'crédito', 'credit', 'entrada', 'receita', 'income'],
+        'amount_debit': ['debito', 'débito', 'debit', 'saida', 'saída', 'despesa', 'expense'],
+        'description': ['descricao', 'descrição', 'description', 'desc', 'observacao', 'observação', 'nota', 'memo'],
+        'category': ['categoria', 'category', 'tipo', 'type', 'class'],
+        'reference': ['referencia', 'referência', 'reference', 'ref', 'numero', 'número', 'num']
+    };
+
+    // If backend didn't suggest a mapping, try fuzzy matching
+    // Only match fields that are relevant to the detected mode
+    if (data.headers && Array.isArray(data.headers)) {
+        databaseFields.forEach(field => {
+            // Skip matching if field is not relevant to current mode
+            if (isSeparateMode && field.key === 'amount') {
+                return; // Don't match "amount" in separate mode
+            }
+            if (!isSeparateMode && (field.key === 'amount_credit' || field.key === 'amount_debit')) {
+                return; // Don't match credit/debit in single mode
+            }
+
+            if (!suggestedFieldToIndex[field.key]) {
+                let bestMatch = null;
+                let bestScore = 0.5; // Minimum threshold
+
+                data.headers.forEach((header, index) => {
+                    if (!header) return;
+
+                    // Check if this column is already mapped to another field
+                    const alreadyMapped = Object.values(suggestedFieldToIndex).includes(index);
+                    if (alreadyMapped) return;
+
+                    // Try exact field name matches first
+                    const fieldNames = fieldNameMappings[field.key] || [field.key.toLowerCase()];
+                    fieldNames.forEach(fieldName => {
+                        const similarity = calculateSimilarity(fieldName, header);
+                        if (similarity > bestScore) {
+                            bestScore = similarity;
+                            bestMatch = index;
+                        }
+                    });
+
+                    // Also try matching with the field label
+                    const labelSimilarity = calculateSimilarity(field.label.toLowerCase(), header);
+                    if (labelSimilarity > bestScore) {
+                        bestScore = labelSimilarity;
+                        bestMatch = index;
+                    }
+                });
+
+                if (bestMatch !== null && bestScore >= 0.5) {
+                    suggestedFieldToIndex[field.key] = bestMatch;
+                    console.log('Auto-matched ' + field.key + ' to column "' + data.headers[bestMatch] + '" (score: ' + bestScore.toFixed(2) + ')');
+                }
+            }
+        });
+    }
+
+    // Build mapping table - reversed: database fields on left, file columns dropdown on right
+    let html = '<table class="table table-bordered">';
+    html += '<thead><tr><th>Campo do Sistema</th><th>Selecionar Coluna do Ficheiro</th></tr></thead>';
+    html += '<tbody>';
+
+    databaseFields.forEach(field => {
+        const suggestedIndex = suggestedFieldToIndex[field.key];
+        const hasAutoMatch = suggestedIndex !== undefined && suggestedIndex !== null;
+        html += '<tr>';
+        html += '<td>';
+        html += '<strong>' + escapeHtml(field.label) + '</strong> ';
+        html += '<span class="text-muted">' + escapeHtml(field.description) + '</span>';
+        if (field.required) {
+            html += ' <span class="text-danger">*</span>';
+        }
+        if (hasAutoMatch) {
+            html += ' <span class="badge bg-info ms-1" title="Mapeamento automático sugerido"><i class="bi bi-magic"></i> Auto</span>';
+        }
+        html += '</td>';
+        html += '<td>';
+        html += '<select class="form-select field-mapping" data-field="' + field.key + '" name="field_' + field.key + '">';
+
+        // Add "Não mapear" option first
+        html += '<option value="">-- Não mapear --</option>';
+
+        // Add file columns as options
+        if (data.headers && Array.isArray(data.headers)) {
+            data.headers.forEach((header, index) => {
+                const selected = (suggestedIndex === index) ? 'selected' : '';
+                const headerLabel = header || 'Coluna ' + (index + 1);
+                html += '<option value="' + index + '" ' + selected + '>' + escapeHtml(headerLabel) + '</option>';
+            });
+        } else {
+            // Fallback if headers is not an array
+            html += '<option value="">Nenhuma coluna disponível</option>';
+        }
+
+        html += '</select>';
+        html += '</td>';
+        html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+
+    // Add mode indicator
+    if (data.mode === 'separate') {
+        html = '<div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> <strong>Modo detectado:</strong> Colunas separadas (Crédito/Débito). Certifique-se de mapear ambas as colunas.</div>' + html;
+    } else {
+        html = '<div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> <strong>Modo detectado:</strong> Coluna única de valor. Valores positivos serão entradas, negativos serão saídas.</div>' + html;
+    }
+
+    mappingTable.innerHTML = html;
+
+    // Store bank account ID and show selected account
+    const bankAccountId = document.getElementById('bank_account_id').value;
+    const bankAccountSelect = document.getElementById('bank_account_id');
+    const selectedOption = bankAccountSelect.options[bankAccountSelect.selectedIndex];
+    const accountName = selectedOption ? selectedOption.text.split(' - ')[0] : '';
+
+    document.getElementById('mapping_bank_account_id').value = bankAccountId;
+    document.getElementById('selectedAccountName').textContent = accountName;
+    document.getElementById('selectedAccountInfo').style.display = 'block';
+
+    mappingSection.style.display = 'block';
+    mappingSection.scrollIntoView({ behavior: 'smooth' });
+
+    // Validate mapping on change
+    document.querySelectorAll('.field-mapping').forEach(select => {
+        select.addEventListener('change', validateMapping);
+    });
+    validateMapping();
+}
+
+function validateMapping() {
+    // Build mappings: field -> column index (reversed from original structure)
+    const mappings = {};
+    let hasDate = false;
+    let hasAmount = false;
+    let hasDescription = false;
+    let hasCredit = false;
+    let hasDebit = false;
+
+    // Determine mode from visible fields (if credit/debit fields exist, it's separate mode)
+    const creditFieldExists = document.querySelector('.field-mapping[data-field="amount_credit"]');
+    const debitFieldExists = document.querySelector('.field-mapping[data-field="amount_debit"]');
+    const amountFieldExists = document.querySelector('.field-mapping[data-field="amount"]');
+    const isSeparateMode = creditFieldExists !== null || debitFieldExists !== null;
+
+    document.querySelectorAll('.field-mapping').forEach(select => {
+        const field = select.dataset.field;
+        const columnIndex = select.value;
+
+        if (columnIndex !== '') {
+            // Store as column_index -> field (to match backend expectation)
+            mappings[columnIndex] = field;
+
+            if (field === 'transaction_date') hasDate = true;
+            if (field === 'amount') hasAmount = true;
+            if (field === 'amount_credit') hasCredit = true;
+            if (field === 'amount_debit') hasDebit = true;
+            if (field === 'description') hasDescription = true;
+        }
+    });
+
+    const errors = [];
+
+    if (!hasDate) errors.push('Data é obrigatória');
+    // Description is optional - no validation needed
+
+    if (isSeparateMode) {
+        // Separate columns mode - require both credit and debit
+        if (!hasCredit) errors.push('Coluna de Crédito/Entrada é obrigatória');
+        if (!hasDebit) errors.push('Coluna de Débito/Saída é obrigatória');
+    } else {
+        // Single column mode - require amount
+        if (!hasAmount) errors.push('Valor é obrigatório');
+    }
+
+    const errorDiv = document.getElementById('mappingErrors');
+    const submitBtn = document.querySelector('#mappingForm button[type="submit"]');
+
+    if (errors.length > 0) {
+        errorDiv.innerHTML = '<strong>Erros de mapeamento:</strong><ul class="mb-0"><li>' + errors.join('</li><li>') + '</li></ul>';
+        errorDiv.style.display = 'block';
+        submitBtn.disabled = true;
+    } else {
+        errorDiv.style.display = 'none';
+        submitBtn.disabled = false;
+    }
+
+    // Store mapping in hidden input (format: column_index -> field_name)
+    document.getElementById('column_mapping_input').value = JSON.stringify(mappings);
+}
+
+function resetMapping() {
+    document.getElementById('mappingSection').style.display = 'none';
+    document.getElementById('uploadForm').reset();
+    fileData = null;
+}
+</script>

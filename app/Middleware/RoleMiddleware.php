@@ -17,7 +17,18 @@ class RoleMiddleware
             return false;
         }
 
-        return $user['role'] === $role;
+        // Check if user is in demo mode and has selected a profile
+        $demoProfile = $_SESSION['demo_profile'] ?? null;
+        
+        // If demo profile is set, use that role instead of user's actual role
+        if ($demoProfile === 'condomino' && $role === 'condomino') {
+            return true;
+        } elseif ($demoProfile === 'admin' && ($role === 'admin' || $role === 'super_admin')) {
+            return true;
+        }
+
+        $userRole = $user['role'] ?? null;
+        return $userRole === $role;
     }
 
     /**
@@ -31,7 +42,18 @@ class RoleMiddleware
             return false;
         }
 
-        return in_array($user['role'], $roles);
+        // Check if user is in demo mode and has selected a profile
+        $demoProfile = $_SESSION['demo_profile'] ?? null;
+        
+        // If demo profile is set, use that role instead of user's actual role
+        if ($demoProfile === 'condomino') {
+            return in_array('condomino', $roles);
+        } elseif ($demoProfile === 'admin') {
+            return in_array('admin', $roles) || in_array('super_admin', $roles);
+        }
+
+        $userRole = $user['role'] ?? null;
+        return $userRole !== null && in_array($userRole, $roles);
     }
 
     /**
@@ -107,6 +129,135 @@ class RoleMiddleware
     }
 
     /**
+     * Get user's effective role in a specific condominium
+     * Returns 'admin', 'condomino', or null if no access
+     * Respects view mode if set in session
+     */
+    public static function getUserRoleInCondominium(int $userId, int $condominiumId): ?string
+    {
+        global $db;
+        
+        if (!$db) {
+            return null;
+        }
+
+        // Super admin is always admin (unless view mode is explicitly set)
+        $user = AuthMiddleware::user();
+        $userRole = $user['role'] ?? null;
+        $isSuperAdmin = $user && $user['id'] === $userId && $userRole === 'super_admin';
+
+        // FIRST: Check if view mode is set for this condominium (allows switching between admin/condomino view)
+        // This must be checked BEFORE checking if user is owner, so view mode takes precedence
+        $viewModeKey = "condominium_{$condominiumId}_view_mode";
+        
+        if (isset($_SESSION[$viewModeKey]) && !empty($_SESSION[$viewModeKey])) {
+            $viewMode = $_SESSION[$viewModeKey];
+            
+            // Verify user actually has both roles before allowing view mode switch
+            if ($viewMode === 'condomino' || $viewMode === 'admin') {
+                $hasAdminRole = false;
+                $hasCondominoRole = false;
+                
+                // Check if user is owner of the condominium
+                $stmt = $db->prepare("SELECT id FROM condominiums WHERE id = :condominium_id AND user_id = :user_id");
+                $stmt->execute([
+                    ':condominium_id' => $condominiumId,
+                    ':user_id' => $userId
+                ]);
+                if ($stmt->fetch()) {
+                    $hasAdminRole = true;
+                }
+                
+                // Check condominium_users table for roles
+                $stmt = $db->prepare("
+                    SELECT role, fraction_id
+                    FROM condominium_users 
+                    WHERE user_id = :user_id 
+                    AND condominium_id = :condominium_id
+                    AND (ended_at IS NULL OR ended_at > CURDATE())
+                ");
+                $stmt->execute([
+                    ':user_id' => $userId,
+                    ':condominium_id' => $condominiumId
+                ]);
+                $results = $stmt->fetchAll();
+                
+                foreach ($results as $result) {
+                    if ($result['role'] === 'admin') {
+                        $hasAdminRole = true;
+                    }
+                    if ($result['fraction_id'] !== null) {
+                        // Has fraction association (condomino role)
+                        $hasCondominoRole = true;
+                    }
+                }
+                
+                // Allow view mode switch if:
+                // 1. User has both roles (can switch between admin/condomino)
+                // 2. User has only the role matching the view_mode (e.g., only condomino and view_mode is condomino)
+                if ($hasAdminRole && $hasCondominoRole) {
+                    // Return the view mode from session (admin or condomino)
+                    // This overrides the default admin role for owners
+                    return $viewMode;
+                } elseif ($viewMode === 'condomino' && $hasCondominoRole && !$hasAdminRole) {
+                    // User is only condomino and view_mode is condomino - respect it
+                    return 'condomino';
+                } elseif ($viewMode === 'admin' && $hasAdminRole && !$hasCondominoRole) {
+                    // User is only admin and view_mode is admin - respect it
+                    return 'admin';
+                }
+            }
+        }
+
+        // If no view mode is set or user doesn't have both roles, determine role normally
+        // Super admin is always admin
+        if ($isSuperAdmin) {
+            return 'admin';
+        }
+
+        // Check if user is owner of the condominium
+        $stmt = $db->prepare("SELECT id FROM condominiums WHERE id = :condominium_id AND user_id = :user_id");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':user_id' => $userId
+        ]);
+        if ($stmt->fetch()) {
+            // Owner is always admin by default (unless view mode is set to condomino)
+            return 'admin';
+        }
+
+        // Check condominium_users table for role
+        $stmt = $db->prepare("
+            SELECT role, fraction_id
+            FROM condominium_users 
+            WHERE user_id = :user_id 
+            AND condominium_id = :condominium_id
+            AND (ended_at IS NULL OR ended_at > CURDATE())
+            ORDER BY 
+                CASE WHEN role = 'admin' THEN 1 ELSE 2 END,
+                is_primary DESC
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':user_id' => $userId,
+            ':condominium_id' => $condominiumId
+        ]);
+        $result = $stmt->fetch();
+        
+        if ($result) {
+            $role = $result['role'];
+            // Return 'admin' or 'condomino' (other roles like 'proprietario' are treated as 'condomino')
+            if ($role === 'admin') {
+                return 'admin';
+            } else {
+                return 'condomino';
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Check if user can access condominium (is admin or associated condomino)
      */
     public static function canAccessCondominium(int $condominiumId): bool
@@ -117,43 +268,25 @@ class RoleMiddleware
             return false;
         }
 
+        // Check if user is in demo mode and has selected a profile
+        $demoProfile = $_SESSION['demo_profile'] ?? null;
+        
         // Super admin can access all
-        if ($user['role'] === 'super_admin') {
+        $userRole = $user['role'] ?? null;
+        if ($userRole === 'super_admin') {
             return true;
         }
 
-        // Admin can access their own condominiums
-        if ($user['role'] === 'admin') {
-            global $db;
-            if ($db) {
-                $stmt = $db->prepare("SELECT id FROM condominiums WHERE user_id = :user_id AND id = :condominium_id");
-                $stmt->execute([
-                    ':user_id' => $user['id'],
-                    ':condominium_id' => $condominiumId
-                ]);
-                return $stmt->fetch() !== false;
-            }
+        // Use getUserRoleInCondominium to check access
+        $role = self::getUserRoleInCondominium($user['id'], $condominiumId);
+        
+        // If demo profile is set, override role check
+        if ($demoProfile === 'condomino' && $role === 'admin') {
+            // In demo mode as condomino, treat admin role as condomino for access
+            return $role !== null; // Still has access, just with condomino permissions
         }
 
-        // Condomino can access if associated
-        if ($user['role'] === 'condomino') {
-            global $db;
-            if ($db) {
-                $stmt = $db->prepare("
-                    SELECT id FROM condominium_users 
-                    WHERE user_id = :user_id 
-                    AND condominium_id = :condominium_id
-                    AND (ended_at IS NULL OR ended_at > CURDATE())
-                ");
-                $stmt->execute([
-                    ':user_id' => $user['id'],
-                    ':condominium_id' => $condominiumId
-                ]);
-                return $stmt->fetch() !== false;
-            }
-        }
-
-        return false;
+        return $role !== null;
     }
 
     /**
@@ -168,6 +301,147 @@ class RoleMiddleware
             header('Location: ' . BASE_URL . 'dashboard');
             exit;
         }
+    }
+
+    /**
+     * Verify that a resource belongs to a condominium
+     * Centralized helper to prevent authorization bypass
+     * 
+     * @param string $table Table name
+     * @param int $resourceId Resource ID
+     * @param int $condominiumId Expected condominium ID
+     * @return bool True if resource belongs to condominium
+     */
+    public static function verifyResourceBelongsToCondominium(string $table, int $resourceId, int $condominiumId): bool
+    {
+        global $db;
+        if (!$db) {
+            return false;
+        }
+
+        // Whitelist of allowed tables with condominium_id column
+        $allowedTables = [
+            'occurrences',
+            'messages',
+            'documents',
+            'fractions',
+            'spaces',
+            'reservations',
+            'votes',
+            'standalone_votes',
+            'financial_transactions',
+            'receipts'
+        ];
+
+        if (!in_array($table, $allowedTables)) {
+            return false;
+        }
+
+        try {
+            $stmt = $db->prepare("SELECT condominium_id FROM `{$table}` WHERE id = :id LIMIT 1");
+            $stmt->execute([':id' => $resourceId]);
+            $result = $stmt->fetch();
+            
+            return $result && (int)$result['condominium_id'] === $condominiumId;
+        } catch (\Exception $e) {
+            error_log("Error verifying resource ownership: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Require that a resource belongs to a condominium
+     * Throws exception or redirects if verification fails
+     * 
+     * @param string $table Table name
+     * @param int $resourceId Resource ID
+     * @param int $condominiumId Expected condominium ID
+     * @throws \Exception If resource doesn't belong to condominium
+     */
+    public static function requireResourceBelongsToCondominium(string $table, int $resourceId, int $condominiumId): void
+    {
+        if (!self::verifyResourceBelongsToCondominium($table, $resourceId, $condominiumId)) {
+            // Log unauthorized access attempt
+            $securityLogger = new \App\Services\SecurityLogger();
+            $securityLogger->logUnauthorizedAccess("{$table}:{$resourceId}", 'resource_access');
+            
+            throw new \Exception("Recurso não encontrado ou sem permissão de acesso.");
+        }
+    }
+
+    /**
+     * Check if user has admin role in specific condominium
+     */
+    public static function isAdminInCondominium(int $userId, int $condominiumId): bool
+    {
+        $role = self::getUserRoleInCondominium($userId, $condominiumId);
+        return $role === 'admin';
+    }
+
+    /**
+     * Require admin role in specific condominium
+     */
+    public static function requireAdminInCondominium(int $condominiumId): void
+    {
+        AuthMiddleware::require();
+        
+        $userId = AuthMiddleware::userId();
+        if (!self::isAdminInCondominium($userId, $condominiumId)) {
+            $_SESSION['error'] = 'Apenas administradores podem aceder a esta página.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId);
+            exit;
+        }
+    }
+
+    /**
+     * Check if user has both admin and condomino roles in a condominium
+     * This allows them to switch between admin and condomino view
+     */
+    public static function hasBothRolesInCondominium(int $userId, int $condominiumId): bool
+    {
+        global $db;
+        
+        if (!$db) {
+            return false;
+        }
+
+        $hasAdminRole = false;
+        $hasCondominoRole = false;
+        
+        // Check if user is owner of the condominium
+        $stmt = $db->prepare("SELECT id FROM condominiums WHERE id = :condominium_id AND user_id = :user_id");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':user_id' => $userId
+        ]);
+        if ($stmt->fetch()) {
+            $hasAdminRole = true;
+        }
+        
+        // Check condominium_users table
+        $stmt = $db->prepare("
+            SELECT role, fraction_id
+            FROM condominium_users 
+            WHERE user_id = :user_id 
+            AND condominium_id = :condominium_id
+            AND (ended_at IS NULL OR ended_at > CURDATE())
+        ");
+        $stmt->execute([
+            ':user_id' => $userId,
+            ':condominium_id' => $condominiumId
+        ]);
+        $results = $stmt->fetchAll();
+        
+        foreach ($results as $result) {
+            if ($result['role'] === 'admin') {
+                $hasAdminRole = true;
+            } elseif ($result['fraction_id'] !== null) {
+                // Has fraction association (condomino role)
+                $hasCondominoRole = true;
+            }
+        }
+        
+        return $hasAdminRole && $hasCondominoRole;
     }
 }
 

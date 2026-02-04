@@ -26,8 +26,8 @@
             <div class="d-flex align-items-center">
                 <i class="bi bi-exclamation-triangle-fill text-warning display-6 me-3"></i>
                 <div>
-                    <h5 class="mb-1">Plano BUSINESS Necessário</h5>
-                    <p class="mb-0">O acesso à API REST está disponível apenas para utilizadores com plano BUSINESS.</p>
+                    <h5 class="mb-1">Plano Enterprise Necessário</h5>
+                    <p class="mb-0">O acesso à API REST está disponível apenas para utilizadores com plano Enterprise.</p>
                     <a href="{{ BASE_URL }}subscription/choose-plan" class="btn btn-warning btn-sm mt-2">
                         <i class="bi bi-arrow-up-circle"></i> Atualizar Plano
                     </a>
@@ -46,6 +46,7 @@
                     <label class="form-label">API Key</label>
                     <div class="input-group">
                         <input type="text" class="form-control font-monospace" id="apiKey" value="{{ api_key_info.api_key }}" readonly>
+                        <input type="hidden" id="apiKeyFull" value="{{ api_key_info.full_key }}">
                         <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey()">
                             <i class="bi bi-clipboard"></i> Copiar
                         </button>
@@ -127,8 +128,22 @@
                 <ul>
                     <li><strong>GET /api/condominiums</strong> - Listar condomínios</li>
                     <li><strong>GET /api/condominiums/{id}</strong> - Detalhes do condomínio</li>
+                    <li><strong>GET /api/condominiums/{id}/fractions</strong> - Listar frações</li>
                     <li><strong>GET /api/condominiums/{id}/fees</strong> - Listar quotas</li>
-                    <li><strong>GET /api/fractions/{id}/fees</strong> - Quotas por fração</li>
+                    <li><strong>GET /api/condominiums/{id}/expenses</strong> - Listar despesas</li>
+                    <li><strong>GET /api/condominiums/{id}/revenues</strong> - Listar receitas</li>
+                    <li><strong>GET /api/condominiums/{id}/budgets</strong> - Listar orçamentos</li>
+                    <li><strong>GET /api/condominiums/{id}/documents</strong> - Listar documentos</li>
+                    <li><strong>GET /api/condominiums/{id}/occurrences</strong> - Listar ocorrências</li>
+                    <li><strong>GET /api/condominiums/{id}/assemblies</strong> - Listar assembleias</li>
+                    <li><strong>GET /api/condominiums/{id}/reservations</strong> - Listar reservas</li>
+                    <li><strong>GET /api/condominiums/{id}/suppliers</strong> - Listar fornecedores</li>
+                    <li><strong>GET /api/condominiums/{id}/contracts</strong> - Listar contratos</li>
+                    <li><strong>GET /api/condominiums/{id}/bank-accounts</strong> - Listar contas bancárias</li>
+                    <li><strong>GET /api/condominiums/{id}/financial-transactions</strong> - Listar transações financeiras</li>
+                    <li><strong>GET /api/condominiums/{id}/messages</strong> - Listar mensagens</li>
+                    <li><strong>GET /api/condominiums/{id}/spaces</strong> - Listar espaços</li>
+                    <li>E muitos mais... <a href="{{ BASE_URL }}api/documentation">Ver documentação completa</a></li>
                 </ul>
 
                 <h6 class="mt-4">Exemplo de Requisição</h6>
@@ -147,10 +162,25 @@
 
 <script>
 function copyApiKey() {
-    const apiKey = document.getElementById('apiKey');
-    apiKey.select();
-    document.execCommand('copy');
-    alert('API Key copiada!');
+    const apiKeyFull = document.getElementById('apiKeyFull');
+    if (apiKeyFull && apiKeyFull.value) {
+        // Criar um elemento temporário para copiar
+        const tempInput = document.createElement('input');
+        tempInput.style.position = 'fixed';
+        tempInput.style.opacity = '0';
+        tempInput.value = apiKeyFull.value;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        alert('API Key copiada!');
+    } else {
+        // Fallback para o campo visível se hidden não existir
+        const apiKey = document.getElementById('apiKey');
+        apiKey.select();
+        document.execCommand('copy');
+        alert('API Key copiada!');
+    }
 }
 
 {% if api_key_generated %}

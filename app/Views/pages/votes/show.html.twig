@@ -1,0 +1,204 @@
+<div class="container py-4">
+    {% set page_actions %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+            {% if is_admin %}
+                {% if vote.status == 'draft' %}
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes/{{ vote.id }}/edit" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-pencil"></i> Editar
+                </a>
+                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes/{{ vote.id }}/start" class="d-inline">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-play-circle"></i> Abrir Votação
+                    </button>
+                </form>
+                {% elseif vote.status == 'open' %}
+                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes/{{ vote.id }}/close" class="d-inline">
+                    <button type="submit" class="btn btn-warning btn-sm">
+                        <i class="bi bi-stop-circle"></i> Encerrar Votação
+                    </button>
+                </form>
+                {% endif %}
+            {% endif %}
+        </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': vote.title,
+        'actions': page_actions
+    } %}
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Informações</h5>
+                    <span class="badge 
+                        {% if vote.status == 'draft' %}bg-secondary
+                        {% elseif vote.status == 'open' %}bg-primary
+                        {% else %}bg-success{% endif %}">
+                        {% if vote.status == 'draft' %}Rascunho
+                        {% elseif vote.status == 'open' %}Em Aberto
+                        {% else %}Encerrada{% endif %}
+                    </span>
+                </div>
+                <div class="card-body">
+                    {% if vote.description %}
+                    <p class="card-text">{{ vote.description|nl2br }}</p>
+                    {% endif %}
+                    <div class="mt-3">
+                        <small class="text-muted d-block">
+                            <i class="bi bi-person"></i> Criada por: {{ vote.created_by_name }}
+                        </small>
+                        <small class="text-muted d-block">
+                            <i class="bi bi-calendar"></i> Criada em: {{ vote.created_at|date('d/m/Y H:i') }}
+                        </small>
+                        {% if vote.voting_started_at %}
+                        <small class="text-muted d-block">
+                            <i class="bi bi-play-circle"></i> Iniciada em: {{ vote.voting_started_at|date('d/m/Y H:i') }}
+                        </small>
+                        {% endif %}
+                        {% if vote.voting_ended_at %}
+                        <small class="text-muted d-block">
+                            <i class="bi bi-stop-circle"></i> Encerrada em: {{ vote.voting_ended_at|date('d/m/Y H:i') }}
+                        </small>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% if vote.status == 'open' and user_fraction and not user_vote %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Votar</h5>
+                </div>
+                <div class="card-body">
+                    <form id="voteForm" method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes/{{ vote.id }}/vote">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="mb-3">
+                            <label class="form-label">Selecione a sua opção:</label>
+                            <div class="d-grid gap-2">
+                                {% for option in options %}
+                                <button type="button" class="btn btn-outline-primary vote-option-btn" data-option-id="{{ option.id }}">
+                                    {{ option.option_label }}
+                                </button>
+                                {% endfor %}
+                            </div>
+                            <input type="hidden" name="vote_option_id" id="vote_option_id" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Observações (opcional)</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary" id="submitVoteBtn" disabled>
+                            <i class="bi bi-check-circle"></i> Confirmar Voto
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% elseif vote.status == 'open' and user_vote %}
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i> 
+                <strong>Voto registado:</strong> Você votou em "{{ user_vote.option_label }}" em {{ user_vote.created_at|date('d/m/Y H:i') }}.
+            </div>
+            {% elseif vote.status == 'open' and not user_fraction %}
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> 
+                Você não tem uma fração associada neste condomínio para poder votar.
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Resultados</h5>
+                </div>
+                <div class="card-body">
+                    {% if results %}
+                        {% set total_votes = 0 %}
+                        {% for result in results %}
+                            {% set total_votes = total_votes + result.vote_count %}
+                        {% endfor %}
+                        
+                        {% for result in results %}
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span><strong>{{ result.option_label }}</strong></span>
+                                <span>
+                                    {% if total_votes > 0 %}
+                                        {{ ((result.vote_count / total_votes) * 100)|number_format(1) }}%
+                                    {% else %}
+                                        0%
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar" role="progressbar" 
+                                     style="width: {% if total_votes > 0 %}{{ ((result.vote_count / total_votes) * 100)|number_format(1) }}{% else %}0{% endif %}%"
+                                     aria-valuenow="{{ result.vote_count }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="{{ total_votes }}">
+                                    {{ result.vote_count }} voto{{ result.vote_count != 1 ? 's' : '' }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        
+                        <hr>
+                        <div class="text-center">
+                            <strong>Total: {{ total_votes }} voto{{ total_votes != 1 ? 's' : '' }}</strong>
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">Ainda não há votos registados.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const optionButtons = document.querySelectorAll('.vote-option-btn');
+    const voteOptionInput = document.getElementById('vote_option_id');
+    const submitBtn = document.getElementById('submitVoteBtn');
+    
+    if (optionButtons.length > 0) {
+        optionButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                // Remove active class from all buttons
+                optionButtons.forEach(b => {
+                    b.classList.remove('active');
+                    b.classList.remove('btn-primary');
+                    b.classList.add('btn-outline-primary');
+                });
+                
+                // Add active class to clicked button
+                this.classList.add('active');
+                this.classList.remove('btn-outline-primary');
+                this.classList.add('btn-primary');
+                
+                // Set hidden input value
+                voteOptionInput.value = this.dataset.optionId;
+                submitBtn.disabled = false;
+            });
+        });
+    }
+});
+</script>

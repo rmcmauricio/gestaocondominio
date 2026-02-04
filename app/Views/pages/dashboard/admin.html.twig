@@ -1,606 +1,370 @@
 <div class="container mt-4">
     <div class="row">
         <div class="col-12">
-            <h1 class="mb-4">Painel Administrador</h1>
-            
-            <div class="row mb-4">
-                <div class="col-md-3 mb-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h3 class="text-primary">{{ stats.total_condominiums }}</h3>
-                            <p class="text-muted mb-0">Condomínios</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-3 mb-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h3 class="text-success">{{ stats.total_fractions }}</h3>
-                            <p class="text-muted mb-0">Frações</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-3 mb-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h3 class="text-warning">{{ stats.overdue_fees }}</h3>
-                            <p class="text-muted mb-0">Quotas em Atraso</p>
-                            {% if stats.overdue_fees_amount > 0 %}
-                            <small class="text-danger">€{{ stats.overdue_fees_amount|number_format(2, ',', '.') }}</small>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-3 mb-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h3 class="text-info">{{ stats.open_occurrences }}</h3>
-                            <p class="text-muted mb-0">Ocorrências Abertas</p>
-                        </div>
-                    </div>
-                </div>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="mb-0">Painel Administrador</h1>
+                {% include 'blocks/help-button.html.twig' with {'section': 'dashboard', 'title': 'Ajuda com Dashboard', 'show_text': false} %}
             </div>
             
-            <!-- Financial Overview Cards -->
-            <div class="row mb-4">
-                <div class="col-md-3 mb-3">
-                    <div class="card border-success">
-                        <div class="card-body">
-                            <h6 class="text-muted mb-2">Receitas (Ano)</h6>
-                            <h4 class="text-success mb-0">€{{ stats.total_revenue|number_format(2, ',', '.') }}</h4>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-3 mb-3">
-                    <div class="card border-danger">
-                        <div class="card-body">
-                            <h6 class="text-muted mb-2">Despesas (Ano)</h6>
-                            <h4 class="text-danger mb-0">€{{ stats.total_expenses|number_format(2, ',', '.') }}</h4>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-3 mb-3">
-                    <div class="card border-info">
-                        <div class="card-body">
-                            <h6 class="text-muted mb-2">Conta à Ordem</h6>
-                            <h4 class="text-info mb-0">€{{ stats.current_account_balance|number_format(2, ',', '.') }}</h4>
-                            {% if stats.total_bank_accounts > 0 %}
-                            <small class="text-muted">{{ stats.total_bank_accounts }} conta(s)</small>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-3 mb-3">
-                    <div class="card border-primary">
-                        <div class="card-body">
-                            <h6 class="text-muted mb-2">Saldo Total Bancário</h6>
-                            <h4 class="text-primary mb-0">€{{ stats.total_bank_balance|number_format(2, ',', '.') }}</h4>
-                            {% if stats.total_bank_accounts > 0 %}
-                            <small class="text-muted">Saldo consolidado</small>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Additional Statistics Row -->
-            <div class="row mb-4">
-                <div class="col-md-3 mb-3">
-                    <div class="card border-warning">
-                        <div class="card-body">
-                            <h6 class="text-muted mb-2">Quotas Pendentes</h6>
-                            <h4 class="text-warning mb-0">€{{ stats.pending_fees_amount|number_format(2, ',', '.') }}</h4>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-3 mb-3">
-                    <div class="card border-success">
-                        <div class="card-body">
-                            <h6 class="text-muted mb-2">Quotas Pagas</h6>
-                            <h4 class="text-success mb-0">€{{ stats.paid_fees_amount|number_format(2, ',', '.') }}</h4>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-3 mb-3">
-                    <div class="card border-secondary">
-                        <div class="card-body">
-                            <h6 class="text-muted mb-2">Total Condóminos</h6>
-                            <h4 class="text-secondary mb-0">{{ stats.total_residents }}</h4>
-                            <small class="text-muted">Residentes ativos</small>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-3 mb-3">
-                    <div class="card border-primary">
-                        <div class="card-body">
-                            <h6 class="text-muted mb-2">Saldo Líquido</h6>
-                            <h4 class="text-primary mb-0">€{{ (stats.total_revenue - stats.total_expenses)|number_format(2, ',', '.') }}</h4>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            {% if condominiums %}
-            <div class="row mb-4">
-                <div class="col-md-6 mb-3">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5>Meus Condomínios</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="list-group">
-                                {% for condominium in condominiums %}
-                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="list-group-item list-group-item-action">
-                                    <div class="d-flex w-100 justify-content-between">
-                                        <h6 class="mb-1">{{ condominium.name }}</h6>
-                                        <small>{{ condominium.city }}</small>
-                                    </div>
-                                    <p class="mb-1">{{ condominium.address }}</p>
-                                </a>
-                                {% endfor %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-6 mb-3">
-                    <div class="card">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">Contas Bancárias</h5>
-                            {% if condominiums|length > 0 %}
-                            <a href="{{ BASE_URL }}condominiums/{{ condominiums[0].id }}/bank-accounts" class="btn btn-sm btn-outline-primary">
-                                Ver Todas
-                            </a>
-                            {% endif %}
-                        </div>
-                        <div class="card-body">
-                            {% if bank_accounts %}
-                            <div class="table-responsive">
-                                <table class="table table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Condomínio</th>
-                                            <th>Conta</th>
-                                            <th class="text-end">Saldo</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for account in bank_accounts %}
-                                        <tr>
-                                            <td><small>{{ account.condominium_name }}</small></td>
-                                            <td>
-                                                <strong>{{ account.name }}</strong>
-                                                {% if account.bank_name %}
-                                                <br><small class="text-muted">{{ account.bank_name }}</small>
-                                                {% endif %}
-                                            </td>
-                                            <td class="text-end">
-                                                <strong class="{% if account.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                                    €{{ account.balance|number_format(2, ',', '.') }}
-                                                </strong>
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                    <tfoot>
-                                        <tr>
-                                            <td colspan="2" class="text-end"><strong>Total:</strong></td>
-                                            <td class="text-end">
-                                                <strong class="{% if stats.total_bank_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                                    €{{ stats.total_bank_balance|number_format(2, ',', '.') }}
-                                                </strong>
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
-                            {% else %}
-                            <p class="text-muted mb-0">Nenhuma conta bancária encontrada.</p>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
+            {% if error %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle"></i> {{ error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
             {% endif %}
             
-            <!-- Condóminos Section -->
-            {% if condominium_users %}
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">Condóminos ({{ stats.total_residents }})</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Condomínio</th>
-                                            <th>Fração</th>
-                                            <th>Nome</th>
-                                            <th>Email</th>
-                                            <th>Telefone</th>
-                                            <th>Tipo</th>
-                                            <th>Principal</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for resident in condominium_users %}
-                                        <tr>
-                                            <td><strong>{{ resident.condominium_name }}</strong></td>
-                                            <td>
-                                                {% if resident.fraction_identifier %}
-                                                <span class="badge bg-secondary">{{ resident.fraction_identifier }}</span>
-                                                {% else %}
-                                                <span class="text-muted">-</span>
-                                                {% endif %}
-                                            </td>
-                                            <td><strong>{{ resident.name }}</strong></td>
-                                            <td>{{ resident.email }}</td>
-                                            <td>{{ resident.phone|default('-') }}</td>
-                                            <td>
-                                                <span class="badge 
-                                                    {% if resident.role == 'admin' %}bg-danger
-                                                    {% elseif resident.role == 'proprietario' %}bg-primary
-                                                    {% elseif resident.role == 'arrendatario' %}bg-info
-                                                    {% else %}bg-secondary{% endif %}">
-                                                    {{ resident.role|title }}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                {% if resident.is_primary %}
-                                                <span class="badge bg-success">Sim</span>
-                                                {% else %}
-                                                <span class="text-muted">Não</span>
-                                                {% endif %}
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            {% if success %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle"></i> {{ success }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
             {% endif %}
             
-            <div class="row">
-                <!-- Financial Chart -->
-                <div class="col-md-8 mb-4">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5>Receitas vs Despesas (Últimos 6 Meses)</h5>
-                        </div>
-                        <div class="card-body">
-                            <canvas id="financialChart" height="100"></canvas>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Quick Actions -->
-                <div class="col-md-4 mb-4">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5>Ações Rápidas</h5>
-                        </div>
-                        <div class="card-body">
-                            <a href="{{ BASE_URL }}condominiums/create" class="btn btn-primary mb-2 d-block">Criar Condomínio</a>
-                            <a href="{{ BASE_URL }}subscription" class="btn btn-secondary mb-2 d-block">Gerir Subscrição</a>
-                            {% if condominiums|length > 0 %}
-                            <a href="{{ BASE_URL }}condominiums/{{ condominiums[0].id }}/finances" class="btn btn-success mb-2 d-block">Ver Finanças</a>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Overdue Fractions -->
-            {% if financial_data.overdue_fractions|length > 0 %}
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header bg-warning text-dark">
-                            <h5 class="mb-0">Top 5 Frações com Maior Dívida</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Condomínio</th>
-                                            <th>Fração</th>
-                                            <th class="text-end">Valor em Atraso</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for fraction in financial_data.overdue_fractions %}
-                                        <tr>
-                                            <td>{{ fraction.condominium_name }}</td>
-                                            <td>{{ fraction.fraction_identifier }}</td>
-                                            <td class="text-end text-danger fw-bold">€{{ fraction.total_debt|number_format(2, ',', '.') }}</td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            {% if info %}
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <i class="bi bi-info-circle"></i> {{ info }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
             {% endif %}
-            
-            <!-- Document Statistics and Recent Documents -->
-            <div class="row mb-4">
-                <div class="col-md-4 mb-3">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5>Estatísticas de Documentos</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <h3 class="text-primary">{{ document_stats.total_documents }}</h3>
-                                <p class="text-muted mb-0">Total de Documentos</p>
-                            </div>
-                            {% if document_stats.documents_by_type|length > 0 %}
-                            <hr>
-                            <h6 class="mb-2">Por Tipo:</h6>
-                            <ul class="list-unstyled mb-0">
-                                {% for type in document_stats.documents_by_type %}
-                                <li class="d-flex justify-content-between">
-                                    <span>{{ type.document_type }}</span>
-                                    <span class="badge bg-secondary">{{ type.count }}</span>
-                                </li>
-                                {% endfor %}
-                            </ul>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-8 mb-3">
-                    <div class="card">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">Documentos Recentes</h5>
-                            {% if condominiums|length > 0 %}
-                            <a href="{{ BASE_URL }}condominiums/{{ condominiums[0].id }}/documents" class="btn btn-sm btn-outline-primary">
-                                Ver Todos
-                            </a>
-                            {% endif %}
-                        </div>
-                        <div class="card-body">
-                            {% if recent_documents %}
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Título</th>
-                                            <th>Pasta</th>
-                                            <th>Tipo</th>
-                                            <th>Upload por</th>
-                                            <th>Data</th>
-                                            <th>Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for document in recent_documents %}
-                                        <tr>
-                                            <td>
-                                                <strong>{{ document.title }}</strong>
-                                                {% if document.description %}
-                                                    <br><small class="text-muted">{{ document.description|slice(0, 40) }}{% if document.description|length > 40 %}...{% endif %}</small>
-                                                {% endif %}
-                                            </td>
-                                            <td>{{ document.folder|default('-') }}</td>
-                                            <td><span class="badge bg-secondary">{{ document.document_type|default('Documento') }}</span></td>
-                                            <td>{{ document.uploaded_by_name|default('N/A') }}</td>
-                                            <td>{{ document.created_at|date('d/m/Y') }}</td>
-                                            <td>
-                                                <div class="btn-group btn-group-sm">
-                                                    <a href="{{ BASE_URL }}condominiums/{{ document.condominium_id }}/documents/{{ document.id }}/view" class="btn btn-outline-info" title="Visualizar">
-                                                        <i class="bi bi-eye"></i>
-                                                    </a>
-                                                    <a href="{{ BASE_URL }}condominiums/{{ document.condominium_id }}/documents/{{ document.id }}/download" class="btn btn-outline-primary" title="Download">
-                                                        <i class="bi bi-download"></i>
-                                                    </a>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                            {% else %}
-                            <p class="text-muted mb-0">Nenhum documento recente.</p>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Occurrence Statistics -->
-            <div class="row mb-4">
-                <div class="col-md-4 mb-3">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5>Estatísticas de Ocorrências</h5>
+            {% if pending_transfers and pending_transfers|length > 0 %}
+            <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-exclamation-triangle fs-4 me-3"></i>
+                    <div class="flex-grow-1">
+                        <strong>Tem {{ pending_transfers|length }} convite(s) pendente(s) para administração de condomínios.</strong>
+                        <br>
+                        <small>Por favor, aceite ou rejeite os convites para continuar.</small>
+                    </div>
+                    <a href="{{ BASE_URL }}admin-transfers/pending" class="btn btn-warning btn-sm ms-3">
+                        <i class="bi bi-eye"></i> Ver Convites
+                    </a>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
+            
+            {% if not admin_condominiums and (user.role == 'admin' or user.role == 'super_admin') %}
+            <!-- Show create condominium first when no condominiums exist -->
+            <div class="card shadow-sm mb-4 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-shield-check"></i> Condomínios que Geres</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-12">
+                            <div class="text-center py-5">
+                                {% if can_create_condominium is defined and can_create_condominium == true %}
+                                <a href="{{ BASE_URL }}condominiums/create" class="text-decoration-none">
+                                    <div class="card border-dashed border-3 border-primary shadow-sm" style="border-style: dashed !important; min-height: 300px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
+                                        <div class="card-body text-center p-5">
+                                            <i class="bi bi-plus-circle display-1 text-primary mb-4"></i>
+                                            <h3 class="card-title text-primary mb-3">Criar o Seu Primeiro Condomínio</h3>
+                                            <p class="card-text text-muted lead mb-4">Comece a gerir o seu condomínio de forma simples e eficiente</p>
+                                            <button class="btn btn-primary btn-lg">
+                                                <i class="bi bi-plus-circle"></i> Criar Condomínio
+                                            </button>
+                                        </div>
+                                    </div>
+                                </a>
+                                {% else %}
+                                <div class="card border-dashed border-3 border-secondary shadow-sm" style="border-style: dashed !important; min-height: 300px; display: flex; align-items: center; justify-content: center; opacity: 0.6;">
+                                    <div class="card-body text-center p-5">
+                                        <i class="bi bi-plus-circle display-1 text-secondary mb-4"></i>
+                                        <h3 class="card-title text-secondary mb-3">Novo Condomínio</h3>
+                                        <p class="card-text text-muted mb-4">Limite de condomínios atingido</p>
+                                        <p class="card-text text-danger">
+                                            <i class="bi bi-exclamation-triangle"></i> Limite de condomínios atingido ({{ current_condominium_count|default(0) }}/{{ condominium_limit|default('∞') }})
+                                        </p>
+                                        <a href="{{ BASE_URL }}subscription" class="btn btn-primary mt-3">
+                                            <i class="bi bi-arrow-up-circle"></i> Alterar Plano
+                                        </a>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+            {% elseif admin_condominiums %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-shield-check"></i> Condomínios que Geres</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        {% for condominium in admin_condominiums %}
+                        <div class="col-md-6 col-lg-4">
+                            <a href="{{ BASE_URL }}condominiums/switch/{{ condominium.id }}" class="text-decoration-none">
+                                <div class="card h-100 shadow-sm card-hover border-primary">
+                                    {% if condominium.logo_url %}
+                                    <div style="width: 100%; height: 150px; overflow: hidden; display: flex; align-items: center; justify-content: center; background-color: #f8f9fa;">
+                                        <img src="{{ condominium.logo_url }}" alt="{{ condominium.name }}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;">
+                                    </div>
+                                    {% endif %}
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h5 class="card-title mb-0">{{ condominium.name }}</h5>
+                                            <span class="badge bg-primary">Admin</span>
+                                        </div>
+                                        <p class="card-text text-muted">
+                                            <i class="bi bi-geo-alt"></i> {{ condominium.city }}{% if condominium.district %}, {{ condominium.district }}{% endif %}
+                                        </p>
+                                        <p class="card-text small text-muted">{{ condominium.address }}</p>
+                                        <div class="d-flex justify-content-between align-items-center mt-3">
+                                            <span class="badge {% if condominium.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                                {% if condominium.is_active %}Ativo{% else %}Inativo{% endif %}
+                                            </span>
+                                            <span class="text-primary">
+                                                <i class="bi bi-arrow-right"></i> Gerir
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                        {% endfor %}
+                        {% if user.role == 'admin' or user.role == 'super_admin' %}
+                        <div class="col-md-6 col-lg-4">
+                            {% if can_create_condominium is defined and can_create_condominium == true %}
+                            <a href="{{ BASE_URL }}condominiums/create" class="text-decoration-none">
+                                <div class="card h-100 shadow-sm card-hover border-dashed border-2 border-primary" style="border-style: dashed !important; min-height: 200px; display: flex; align-items: center; justify-content: center;">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-plus-circle display-4 text-primary mb-3"></i>
+                                        <h5 class="card-title text-primary">Novo Condomínio</h5>
+                                        <p class="card-text text-muted small">Clique para criar um novo condomínio</p>
+                                    </div>
+                                </div>
+                            </a>
+                            {% else %}
+                            <div class="card h-100 shadow-sm border-dashed border-2 border-secondary" style="border-style: dashed !important; min-height: 200px; display: flex; align-items: center; justify-content: center; opacity: 0.6; cursor: not-allowed;" data-bs-toggle="tooltip" data-bs-placement="top" title="Limite de condomínios atingido. Altere o seu plano para adicionar mais condomínios.">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-plus-circle display-4 text-secondary mb-3"></i>
+                                    <h5 class="card-title text-secondary">Novo Condomínio</h5>
+                                    <p class="card-text text-muted small">Limite atingido</p>
+                                    <p class="card-text text-danger small mt-2">
+                                        <i class="bi bi-exclamation-triangle"></i> Limite de condomínios atingido ({{ current_condominium_count|default(0) }}/{{ condominium_limit|default('∞') }})
+                                    </p>
+                                    <a href="{{ BASE_URL }}subscription" class="btn btn-sm btn-primary mt-2">
+                                        <i class="bi bi-arrow-up-circle"></i> Alterar Plano
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if condomino_condominiums %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-house-door"></i> Condomínios onde és Condómino</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        {% for condominium in condomino_condominiums %}
+                        <div class="col-md-6 col-lg-4">
+                            <a href="{{ BASE_URL }}condominiums/switch/{{ condominium.id }}" class="text-decoration-none">
+                                <div class="card h-100 shadow-sm card-hover border-info">
+                                    {% if condominium.logo_url %}
+                                    <div style="width: 100%; height: 150px; overflow: hidden; display: flex; align-items: center; justify-content: center; background-color: #f8f9fa;">
+                                        <img src="{{ condominium.logo_url }}" alt="{{ condominium.name }}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;">
+                                    </div>
+                                    {% endif %}
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h5 class="card-title mb-0">{{ condominium.name }}</h5>
+                                            <span class="badge bg-info">Condómino</span>
+                                        </div>
+                                        <p class="card-text text-muted">
+                                            <i class="bi bi-geo-alt"></i> {{ condominium.city }}{% if condominium.district %}, {{ condominium.district }}{% endif %}
+                                        </p>
+                                        <p class="card-text small text-muted">{{ condominium.address }}</p>
+                                        {% if condominium.fraction_identifier %}
+                                        <p class="card-text small text-muted mb-2">
+                                            <i class="bi bi-house"></i> Fração: {{ condominium.fraction_identifier }}
+                                        </p>
+                                        {% endif %}
+                                        <div class="d-flex justify-content-between align-items-center mt-3">
+                                            <span class="badge {% if condominium.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                                {% if condominium.is_active %}Ativo{% else %}Inativo{% endif %}
+                                            </span>
+                                            <span class="text-info">
+                                                <i class="bi bi-arrow-right"></i> Ver Detalhes
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if admin_condominiums or condomino_condominiums %}
+            <!-- Dashboard Information Cards -->
+            <div class="row mb-4">
+                <!-- Licenses Card -->
+                {% if admin_condominiums|length > 0 %}
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card border-primary h-100">
                         <div class="card-body">
-                            <div class="mb-3">
-                                <h3 class="text-primary">{{ occurrence_stats.total }}</h3>
-                                <p class="text-muted mb-0">Total de Ocorrências</p>
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="text-muted mb-0"><i class="bi bi-key"></i> Licenças</h6>
+                                {% if license_info.plan_type %}
+                                <a href="{{ BASE_URL }}subscription" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-gear"></i>
+                                </a>
+                                {% endif %}
                             </div>
-                            {% if occurrence_stats.average_resolution_time > 0 %}
-                            <div class="mb-3">
-                                <h6 class="text-muted">Tempo Médio de Resolução</h6>
-                                <p class="mb-0"><strong>{{ occurrence_stats.average_resolution_time }}</strong> dias</p>
+                            <div class="mb-2">
+                                <h3 class="mb-0">
+                                    {{ license_info.used_licenses }}
+                                    {% if license_info.license_limit is not null %}
+                                    <small class="text-muted">/ {{ license_info.license_limit }}</small>
+                                    {% endif %}
+                                </h3>
+                                <p class="text-muted small mb-0">Licenças usadas</p>
+                            </div>
+                            {% if license_info.license_limit is not null %}
+                            <div class="mb-2">
+                                <h4 class="mb-0 text-success">
+                                    {{ license_info.license_limit - license_info.used_licenses }}
+                                </h4>
+                                <p class="text-muted small mb-0">Licenças disponíveis</p>
+                            </div>
+                            {% if license_info.license_min is not null %}
+                            <div class="mb-2">
+                                <p class="text-muted small mb-0">
+                                    <strong>{{ license_info.license_min }}</strong> do pacote
+                                    {% if license_info.extra_licenses > 0 %}
+                                    + <strong class="text-success">{{ license_info.extra_licenses }}</strong> extras
+                                    {% endif %}
+                                </p>
                             </div>
                             {% endif %}
-                            {% if occurrence_stats.by_status|length > 0 %}
-                            <hr>
-                            <h6 class="mb-2">Por Estado:</h6>
-                            <ul class="list-unstyled mb-0">
-                                {% for status in occurrence_stats.by_status %}
-                                <li class="d-flex justify-content-between">
-                                    <span>{{ status.status|replace({'_': ' '})|title }}</span>
-                                    <span class="badge bg-secondary">{{ status.count }}</span>
-                                </li>
-                                {% endfor %}
-                            </ul>
                             {% endif %}
-                            {% if occurrence_stats.by_priority|length > 0 %}
-                            <hr>
-                            <h6 class="mb-2">Por Prioridade:</h6>
-                            <ul class="list-unstyled mb-0">
-                                {% for priority in occurrence_stats.by_priority %}
-                                <li class="d-flex justify-content-between">
-                                    <span>{{ priority.priority|title }}</span>
-                                    <span class="badge bg-secondary">{{ priority.count }}</span>
-                                </li>
-                                {% endfor %}
-                            </ul>
+                            {% if license_info.plan_name %}
+                            <p class="text-muted small mb-0">{{ license_info.plan_name }}</p>
+                            {% endif %}
+                            {% if license_info.license_limit is not null %}
+                            <div class="progress mt-2" style="height: 8px;">
+                                {% set usage_percent = (license_info.used_licenses / license_info.license_limit * 100)|round %}
+                                <div class="progress-bar {% if usage_percent >= 90 %}bg-danger{% elseif usage_percent >= 75 %}bg-warning{% else %}bg-primary{% endif %}" 
+                                     role="progressbar" 
+                                     style="width: {{ usage_percent }}%"
+                                     aria-valuenow="{{ usage_percent }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                </div>
+                            </div>
                             {% endif %}
                         </div>
                     </div>
                 </div>
+                {% endif %}
                 
-                <div class="col-md-8 mb-3">
-                    <div class="card">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">Ocorrências Recentes</h5>
-                            {% if condominiums|length > 0 %}
-                            <a href="{{ BASE_URL }}condominiums/{{ condominiums[0].id }}/occurrences" class="btn btn-sm btn-outline-primary">
-                                Ver Todas
-                            </a>
-                            {% endif %}
-                        </div>
-                        <div class="card-body">
-                            {% if occurrence_stats.recent|length > 0 %}
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Título</th>
-                                            <th>Categoria</th>
-                                            <th>Prioridade</th>
-                                            <th>Estado</th>
-                                            <th>Data</th>
-                                            <th>Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for occurrence in occurrence_stats.recent %}
-                                        <tr>
-                                            <td>
-                                                <strong>{{ occurrence.title }}</strong>
-                                                {% if occurrence.description %}
-                                                    <br><small class="text-muted">{{ occurrence.description|slice(0, 40) }}{% if occurrence.description|length > 40 %}...{% endif %}</small>
-                                                {% endif %}
-                                            </td>
-                                            <td>{{ occurrence.category|default('-') }}</td>
-                                            <td>
-                                                <span class="badge 
-                                                    {% if occurrence.priority == 'urgent' %}bg-danger
-                                                    {% elseif occurrence.priority == 'high' %}bg-warning
-                                                    {% elseif occurrence.priority == 'medium' %}bg-info
-                                                    {% else %}bg-secondary{% endif %}">
-                                                    {{ occurrence.priority|title }}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span class="badge 
-                                                    {% if occurrence.status == 'open' %}bg-danger
-                                                    {% elseif occurrence.status == 'in_analysis' %}bg-warning
-                                                    {% elseif occurrence.status == 'assigned' %}bg-info
-                                                    {% elseif occurrence.status == 'completed' %}bg-success
-                                                    {% else %}bg-secondary{% endif %}">
-                                                    {{ occurrence.status|replace({'_': ' '})|title }}
-                                                </span>
-                                            </td>
-                                            <td>{{ occurrence.created_at|date('d/m/Y') }}</td>
-                                            <td>
-                                                <a href="{{ BASE_URL }}condominiums/{{ occurrence.condominium_id }}/occurrences/{{ occurrence.id }}" class="btn btn-sm btn-outline-primary">
-                                                    <i class="bi bi-eye"></i>
-                                                </a>
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
+                <!-- Unread Notifications Card -->
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <a href="{{ BASE_URL }}notifications" class="text-decoration-none">
+                        <div class="card border-info h-100 card-hover">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="text-muted mb-0"><i class="bi bi-bell"></i> Notificações</h6>
+                                    {% if unread_notifications_count > 0 %}
+                                    <span class="badge bg-danger">{{ unread_notifications_count }}</span>
+                                    {% endif %}
+                                </div>
+                                <h3 class="mb-0 {% if unread_notifications_count > 0 %}text-danger{% else %}text-muted{% endif %}">
+                                    {{ unread_notifications_count }}
+                                </h3>
+                                <p class="text-muted small mb-0">Não lidas</p>
                             </div>
-                            {% else %}
-                            <p class="text-muted mb-0">Nenhuma ocorrência recente.</p>
-                            {% endif %}
+                        </div>
+                    </a>
+                </div>
+                
+                <!-- Unread Messages Card -->
+                <div class="col-md-6 col-lg-3 mb-3">
+                    {% if admin_condominiums|length > 0 %}
+                    <a href="{{ BASE_URL }}condominiums/{{ admin_condominiums[0].id }}/messages" class="text-decoration-none">
+                    {% else %}
+                    <a href="#" class="text-decoration-none" onclick="return false;">
+                    {% endif %}
+                        <div class="card border-success h-100 card-hover">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="text-muted mb-0"><i class="bi bi-envelope"></i> Mensagens</h6>
+                                    {% if unread_messages_count > 0 %}
+                                    <span class="badge bg-danger">{{ unread_messages_count }}</span>
+                                    {% endif %}
+                                </div>
+                                <h3 class="mb-0 {% if unread_messages_count > 0 %}text-danger{% else %}text-muted{% endif %}">
+                                    {{ unread_messages_count }}
+                                </h3>
+                                <p class="text-muted small mb-0">Não lidas</p>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                
+                <!-- Open Questionnaires Card -->
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card border-warning h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="text-muted mb-0"><i class="bi bi-clipboard-check"></i> Questionários</h6>
+                                {% if open_votes|length > 0 %}
+                                <span class="badge bg-warning">{{ open_votes|length }}</span>
+                                {% endif %}
+                            </div>
+                            <h3 class="mb-0 {% if open_votes|length > 0 %}text-warning{% else %}text-muted{% endif %}">
+                                {{ open_votes|length }}
+                            </h3>
+                            <p class="text-muted small mb-0">Em aberto</p>
                         </div>
                     </div>
                 </div>
             </div>
             
-            <!-- Chart.js Script -->
-            <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-            <script>
-                // Financial Chart
-                const ctx = document.getElementById('financialChart');
-                if (ctx) {
-                    const financialChart = new Chart(ctx, {
-                        type: 'line',
-                        data: {
-                            labels: {{ financial_data.monthly_revenue|map(f => f.month)|json_encode|raw }},
-                            datasets: [{
-                                label: 'Receitas',
-                                data: {{ financial_data.monthly_revenue|map(f => f.amount)|json_encode|raw }},
-                                borderColor: 'rgb(40, 167, 69)',
-                                backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                                tension: 0.4,
-                                fill: true
-                            }, {
-                                label: 'Despesas',
-                                data: {{ financial_data.monthly_expenses|map(f => f.amount)|json_encode|raw }},
-                                borderColor: 'rgb(220, 53, 69)',
-                                backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                                tension: 0.4,
-                                fill: true
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: true,
-                            plugins: {
-                                legend: {
-                                    position: 'top',
-                                },
-                                tooltip: {
-                                    callbacks: {
-                                        label: function(context) {
-                                            return context.dataset.label + ': €' + context.parsed.y.toFixed(2).replace('.', ',');
-                                        }
-                                    }
-                                }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    ticks: {
-                                        callback: function(value) {
-                                            return '€' + value.toFixed(2).replace('.', ',');
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
-                }
-            </script>
+            <!-- Open Questionnaires List -->
+            {% if open_votes|length > 0 %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-clipboard-check"></i> Questionários em Aberto</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        {% for vote in open_votes %}
+                        <a href="{{ BASE_URL }}condominiums/{{ vote.condominium_id }}/votes/{{ vote.id }}" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">{{ vote.title }}</h6>
+                                    {% if vote.description %}
+                                    <p class="mb-1 text-muted small">{{ vote.description|slice(0, 100) }}{% if vote.description|length > 100 %}...{% endif %}</p>
+                                    {% endif %}
+                                    <small class="text-muted">
+                                        <i class="bi bi-building"></i> {{ vote.condominium_name }}
+                                        {% if vote.voting_started_at %}
+                                        | <i class="bi bi-calendar"></i> Iniciada: {{ vote.voting_started_at|date('d/m/Y H:i') }}
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                <span class="badge bg-warning ms-2">Aberto</span>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
         </div>
     </div>
 </div>

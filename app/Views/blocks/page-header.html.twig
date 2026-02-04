@@ -1,0 +1,27 @@
+{# Bloco reutilizável para cabeçalho de páginas #}
+{# Parâmetros esperados:
+   - title: Título da página (h2)
+   - help_section: Seção de ajuda (opcional)
+   - help_title: Título da ajuda (opcional)
+   - actions: Botões de ação à direita (opcional)
+#}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2" style="overflow: visible;">
+    <div class="d-flex align-items-center gap-2" style="flex-shrink: 0; min-width: 0; overflow: visible; position: relative;">
+        <h2 class="mb-0" style="white-space: nowrap;">{{ title }}</h2>
+        {% if help_section is defined and help_section %}
+            {% include 'blocks/help-button.html.twig' with {
+                'section': help_section, 
+                'title': help_title|default('Ajuda'), 
+                'show_text': false
+            } %}
+        {% endif %}
+        {% if condominium and condominium.id is defined %}
+            {% include 'blocks/quick-actions.html.twig' %}
+        {% endif %}
+    </div>
+    <div class="d-flex align-items-center gap-2" style="flex-shrink: 1; min-width: 0; overflow: hidden; max-width: 100%;">
+        {% if actions is defined and actions %}
+            {{ actions|raw }}
+        {% endif %}
+    </div>
+</div>

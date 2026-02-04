@@ -1,0 +1,156 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Escalões de Pricing - {{ plan.name }}</h2>
+            <p class="text-muted mb-0">Gerir preços por escalão de licenças (frações ativas)</p>
+        </div>
+        <div>
+            <a href="{{ BASE_URL }}admin/plans/{{ plan.id }}/pricing-tiers/create" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Criar Novo Escalão
+            </a>
+            <a href="{{ BASE_URL }}admin/plans" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar aos Planos
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informações do Plano</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <strong>Nome:</strong> {{ plan.name }}<br>
+                    <strong>Slug:</strong> <code>{{ plan.slug }}</code>
+                </div>
+                <div class="col-md-3">
+                    <strong>Tipo:</strong> {{ plan.plan_type|default('N/A')|title }}<br>
+                    <strong>Mín. Licenças:</strong> {{ plan.license_min|default('N/A') }}
+                </div>
+                <div class="col-md-3">
+                    <strong>Modo Pricing:</strong> {{ plan.pricing_mode|default('flat')|title }}<br>
+                    <strong>Desconto Anual:</strong> {{ plan.annual_discount_percentage|default(0) }}%
+                </div>
+                <div class="col-md-3">
+                    <strong>Múltiplos Condomínios:</strong> {% if plan.allow_multiple_condos %}Sim{% else %}Não{% endif %}<br>
+                    <strong>Overage:</strong> {% if plan.allow_overage %}Permitido{% else %}Não permitido{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-list-ul"></i> Escalões de Pricing</h5>
+        </div>
+        <div class="card-body">
+            {% if tiers|length > 0 %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Mín. Licenças</th>
+                            <th>Máx. Licenças</th>
+                            <th>Preço por Licença</th>
+                            <th>Preço Total (Mín - Máx)</th>
+                            <th>Status</th>
+                            <th>Ordem</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tier in tiers %}
+                        <tr {% if not tier.is_active %}class="table-secondary"{% endif %}>
+                            <td><strong>{{ tier.min_licenses }}</strong></td>
+                            <td>
+                                {% if tier.max_licenses %}
+                                    {{ tier.max_licenses }}
+                                {% else %}
+                                    <span class="text-muted">∞ (Ilimitado)</span>
+                                {% endif %}
+                            </td>
+                            <td><strong>€{{ tier.price_per_license|number_format(2, ',', '.') }}</strong></td>
+                            <td>
+                                {% set min_total = tier.min_licenses * tier.price_per_license %}
+                                {% if tier.max_licenses %}
+                                    {% set max_total = tier.max_licenses * tier.price_per_license %}
+                                    <span class="badge bg-info">€{{ min_total|number_format(2, ',', '.') }} - €{{ max_total|number_format(2, ',', '.') }}</span>
+                                {% else %}
+                                    <span class="badge bg-info">€{{ min_total|number_format(2, ',', '.') }} - ∞</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if tier.is_active %}
+                                    <span class="badge bg-success">Ativo</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Inativo</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ tier.sort_order }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ BASE_URL }}admin/plans/{{ plan.id }}/pricing-tiers/{{ tier.id }}/edit" class="btn btn-sm btn-info" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ tier.id }}" title="Deletar">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Nenhum escalão de pricing configurado. 
+                <a href="{{ BASE_URL }}admin/plans/{{ plan.id }}/pricing-tiers/create">Criar primeiro escalão</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modals -->
+{% for tier in tiers %}
+<div class="modal fade" id="deleteModal{{ tier.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ tier.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel{{ tier.id }}">Deletar Escalão</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/plans/{{ plan.id }}/pricing-tiers/{{ tier.id }}/delete">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <p>Tem certeza que deseja deletar este escalão?</p>
+                    <div class="alert alert-warning">
+                        <small><strong>Escalão:</strong> {{ tier.min_licenses }}{% if tier.max_licenses %} - {{ tier.max_licenses }}{% else %}+{% endif %} licenças<br>
+                        <strong>Preço:</strong> €{{ tier.price_per_license|number_format(2, ',', '.') }} por licença</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Deletar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}

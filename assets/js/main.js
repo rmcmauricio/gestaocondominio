@@ -139,11 +139,17 @@
 
   /**
    * Auto-hide Alerts
+   * Alerts will auto-hide after 90 seconds (90000ms)
    */
   function initAutoHideAlerts() {
     const alerts = document.querySelectorAll('.alert');
     
     alerts.forEach(alert => {
+      // Skip alerts that are inside pending subscription cards or have data-no-auto-hide attribute
+      if (alert.closest('.card.border-warning') || alert.hasAttribute('data-no-auto-hide')) {
+        return;
+      }
+      
       if (alert.classList.contains('alert-success') || alert.classList.contains('alert-info')) {
         setTimeout(() => {
           alert.style.transition = 'opacity 0.5s ease-out';
@@ -151,7 +157,7 @@
           setTimeout(() => {
             alert.remove();
           }, 500);
-        }, 5000);
+        }, 90000); // 90 seconds
       }
     });
   }
@@ -222,6 +228,103 @@
     }
   }
 
+  /**
+   * Initialize Demo Profile Dropdown
+   * Bootstrap 5 handles dropdowns automatically with data-bs-toggle="dropdown"
+   * This function ensures proper initialization and mobile-friendly behavior
+   */
+  function initDemoProfileDropdown() {
+    const demoProfileDropdown = document.getElementById('demoProfileDropdown');
+    if (demoProfileDropdown && typeof bootstrap !== 'undefined') {
+      try {
+        // Check if dropdown is already initialized
+        let dropdownInstance = bootstrap.Dropdown.getInstance(demoProfileDropdown);
+        if (!dropdownInstance) {
+          // Initialize if not already done
+          dropdownInstance = new bootstrap.Dropdown(demoProfileDropdown);
+        }
+        
+        // Add mobile-friendly backdrop and click-outside handling
+        const dropdownElement = demoProfileDropdown.closest('.dropdown');
+        const dropdownMenu = dropdownElement?.querySelector('.dropdown-menu');
+        
+        if (dropdownElement && dropdownMenu) {
+          // Close dropdown when clicking outside on mobile
+          document.addEventListener('click', function(event) {
+            const isClickInside = dropdownElement.contains(event.target);
+            const isDropdownOpen = dropdownElement.classList.contains('show');
+            
+            if (!isClickInside && isDropdownOpen) {
+              dropdownInstance.hide();
+            }
+          });
+          
+          // Prevent dropdown from closing when clicking inside the menu
+          if (dropdownMenu) {
+            dropdownMenu.addEventListener('click', function(event) {
+              event.stopPropagation();
+            });
+          }
+        }
+      } catch (e) {
+        // Bootstrap will handle it via data attributes
+        console.debug('Bootstrap dropdown will be handled via data attributes');
+      }
+    }
+  }
+
+  /**
+   * Initialize Quick Actions Dropdowns
+   * Ensures all quick actions dropdowns work properly
+   */
+  function initQuickActionsDropdowns() {
+    // Wait for Bootstrap to be available
+    if (typeof bootstrap === 'undefined') {
+      // Retry after a short delay
+      setTimeout(initQuickActionsDropdowns, 100);
+      return;
+    }
+
+    // Find all dropdown buttons with dropdown-toggle that are in dropdown containers
+    const allDropdownButtons = document.querySelectorAll('.dropdown button[data-bs-toggle="dropdown"]');
+    
+    allDropdownButtons.forEach(button => {
+      // Check if this is a quick actions dropdown by checking the text content
+      const buttonText = button.textContent || button.innerText;
+      if (buttonText.includes('Ações Rápidas') || button.id.startsWith('quickActionsDropdown')) {
+        try {
+          // Check if dropdown is already initialized
+          let dropdownInstance = bootstrap.Dropdown.getInstance(button);
+          if (!dropdownInstance) {
+            // Initialize if not already done
+            dropdownInstance = new bootstrap.Dropdown(button);
+          }
+          
+          // Ensure dropdown menu has proper z-index and positioning
+          const dropdownElement = button.closest('.dropdown');
+          const dropdownMenu = dropdownElement?.querySelector('.dropdown-menu');
+          
+          if (dropdownMenu) {
+            // Ensure parent container allows overflow
+            if (dropdownElement) {
+              dropdownElement.style.position = 'relative';
+              dropdownElement.style.overflow = 'visible';
+            }
+            
+            // Ensure menu is visible when dropdown is shown
+            button.addEventListener('shown.bs.dropdown', function() {
+              dropdownMenu.style.display = 'block';
+              dropdownMenu.style.zIndex = '1050';
+              dropdownMenu.style.position = 'absolute';
+            });
+          }
+        } catch (e) {
+          console.debug('Quick actions dropdown initialization error:', e);
+        }
+      }
+    });
+  }
+
   function init() {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function() {
@@ -231,6 +334,8 @@
         initFormValidation();
         initAutoHideAlerts();
         initLanguageDropdown();
+        initDemoProfileDropdown();
+        initQuickActionsDropdowns();
       });
     } else {
       initMobileNav();
@@ -239,31 +344,27 @@
       initFormValidation();
       initAutoHideAlerts();
       initLanguageDropdown();
+      initDemoProfileDropdown();
+      initQuickActionsDropdowns();
     }
   }
 
-  // Toggle sidebar on mobile
+  // Breakpoint aligned with CSS: sidebar hidden when <= 1320px
+  var SIDEBAR_HIDDEN_BREAKPOINT = 1320;
+
+  // Toggle sidebar when it is hidden (viewport <= SIDEBAR_HIDDEN_BREAKPOINT)
   function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
-    const toggleHeader = document.querySelector('.sidebar-toggle-header');
-    const overlay = document.querySelector('.sidebar-overlay');
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
     
     if (sidebar) {
       const isShowing = sidebar.classList.contains('show');
       sidebar.classList.toggle('show');
+      // Overlay visibility: CSS .sidebar.show ~ .sidebar-overlay handles it
       
-      // Toggle overlay
-      if (overlay) {
-        if (isShowing) {
-          overlay.classList.remove('show');
-        } else {
-          overlay.classList.add('show');
-        }
-      }
-      
-      // Update icon on header button
-      if (toggleHeader) {
-        const icon = toggleHeader.querySelector('i');
+      // Update icon on menu button
+      if (toggleBtn) {
+        const icon = toggleBtn.querySelector('i');
         if (icon) {
           if (isShowing) {
             icon.classList.remove('bi-x-lg');
@@ -275,8 +376,8 @@
         }
       }
       
-      // Prevent body scroll when sidebar is open on mobile
-      if (window.innerWidth <= 991) {
+      // Prevent body scroll when sidebar is open (sidebar hidden breakpoint)
+      if (window.innerWidth <= SIDEBAR_HIDDEN_BREAKPOINT) {
         if (!isShowing) {
           document.body.style.overflow = 'hidden';
         } else {
@@ -289,25 +390,21 @@
   // Make toggleSidebar available globally
   window.toggleSidebar = toggleSidebar;
 
-  // Close sidebar when clicking outside on mobile
+  // Close sidebar when clicking outside (at sidebar-hidden breakpoint)
   document.addEventListener('click', function(event) {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.querySelector('.sidebar-overlay');
-    const toggleHeader = document.querySelector('.sidebar-toggle-header');
-    const isToggleButton = event.target.closest('.sidebar-toggle-header') ||
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
+    const isToggleButton = event.target.closest('#sidebarToggleBtn') ||
                           event.target.closest('[onclick*="toggleSidebar"]');
     
-    if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= 991) {
+    if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= SIDEBAR_HIDDEN_BREAKPOINT) {
       if (!sidebar.contains(event.target) && !isToggleButton && event.target !== overlay) {
         sidebar.classList.remove('show');
-        if (overlay) {
-          overlay.classList.remove('show');
-        }
         document.body.style.overflow = '';
         
-        // Reset icon
-        if (toggleHeader) {
-          const icon = toggleHeader.querySelector('i');
+        if (toggleBtn) {
+          const icon = toggleBtn.querySelector('i');
           if (icon) {
             icon.classList.remove('bi-x-lg');
             icon.classList.add('bi-list');
@@ -320,21 +417,16 @@
   // Close sidebar when clicking a link inside it
   document.addEventListener('click', function(event) {
     const sidebar = document.getElementById('sidebar');
-    const overlay = document.querySelector('.sidebar-overlay');
-    const toggleHeader = document.querySelector('.sidebar-toggle-header');
-    if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= 991) {
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
+    if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= SIDEBAR_HIDDEN_BREAKPOINT) {
       const link = event.target.closest('.sidebar-nav a');
       if (link) {
         setTimeout(function() {
           sidebar.classList.remove('show');
-          if (overlay) {
-            overlay.classList.remove('show');
-          }
           document.body.style.overflow = '';
           
-          // Reset icon
-          if (toggleHeader) {
-            const icon = toggleHeader.querySelector('i');
+          if (toggleBtn) {
+            const icon = toggleBtn.querySelector('i');
             if (icon) {
               icon.classList.remove('bi-x-lg');
               icon.classList.add('bi-list');
@@ -342,6 +434,47 @@
           }
         }, 300);
       }
+    }
+  });
+
+  // Handle sidebar submenu collapse/expand
+  document.addEventListener('DOMContentLoaded', function() {
+    // API submenu
+    const apiSubmenu = document.getElementById('api-submenu');
+    const apiSubmenuToggle = document.querySelector('[data-bs-target="#api-submenu"]');
+    
+    if (apiSubmenu && apiSubmenuToggle) {
+      // Check if submenu is already expanded on page load
+      if (apiSubmenu.classList.contains('show')) {
+        apiSubmenuToggle.setAttribute('aria-expanded', 'true');
+      }
+      
+      apiSubmenu.addEventListener('show.bs.collapse', function() {
+        apiSubmenuToggle.setAttribute('aria-expanded', 'true');
+      });
+      
+      apiSubmenu.addEventListener('hide.bs.collapse', function() {
+        apiSubmenuToggle.setAttribute('aria-expanded', 'false');
+      });
+    }
+    
+    // Finances submenu
+    const financesSubmenu = document.getElementById('finances-submenu');
+    const financesSubmenuToggle = document.querySelector('[data-bs-target="#finances-submenu"]');
+    
+    if (financesSubmenu && financesSubmenuToggle) {
+      // Check if submenu is already expanded on page load
+      if (financesSubmenu.classList.contains('show')) {
+        financesSubmenuToggle.setAttribute('aria-expanded', 'true');
+      }
+      
+      financesSubmenu.addEventListener('show.bs.collapse', function() {
+        financesSubmenuToggle.setAttribute('aria-expanded', 'true');
+      });
+      
+      financesSubmenu.addEventListener('hide.bs.collapse', function() {
+        financesSubmenuToggle.setAttribute('aria-expanded', 'false');
+      });
     }
   });
 

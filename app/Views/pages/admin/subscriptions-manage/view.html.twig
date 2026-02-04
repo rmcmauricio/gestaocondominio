@@ -1,0 +1,302 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Detalhes da Subscrição #{{ subscription.id }}</h2>
+            <p class="text-muted mb-0">Informações completas da subscrição e gestão de licenças</p>
+        </div>
+        <a href="{{ BASE_URL }}admin/subscriptions-manage" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Subscription Details -->
+        <div class="col-lg-8">
+            <!-- Basic Information -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informações da Subscrição</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Utilizador:</strong><br>
+                            <span>{{ subscription.user_id }}</span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Plano:</strong><br>
+                            <span class="badge bg-primary">{{ plan.name }}</span>
+                            {% if plan.plan_type %}
+                            <br><small class="text-muted">{{ plan.plan_type }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Status:</strong><br>
+                            {% if subscription.status == 'active' %}
+                                <span class="badge bg-success">Ativa</span>
+                            {% elseif subscription.status == 'trial' %}
+                                <span class="badge bg-warning">Trial</span>
+                            {% elseif subscription.status == 'canceled' %}
+                                <span class="badge bg-secondary">Cancelada</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ subscription.status }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Período:</strong><br>
+                            {% if subscription.current_period_start %}
+                                {{ subscription.current_period_start|date('d/m/Y') }} - 
+                                {{ subscription.current_period_end|date('d/m/Y') }}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if subscription.trial_ends_at %}
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Trial Expira:</strong><br>
+                            {{ subscription.trial_ends_at|date('d/m/Y H:i') }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- License Information -->
+            {% if plan.plan_type %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-key"></i> Informações de Licenças</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <strong>Licenças Usadas:</strong><br>
+                            <span class="h4">{{ subscription.used_licenses|default(0) }}</span>
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Licenças Mínimas:</strong><br>
+                            <span class="h4">{{ plan.license_min|default(0) }}</span>
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Limite de Licenças:</strong><br>
+                            {% if subscription.license_limit %}
+                                <span class="h4">{{ subscription.license_limit }}</span>
+                            {% else %}
+                                <span class="text-muted">Ilimitado</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if subscription.extra_licenses %}
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <strong>Licenças Extras:</strong><br>
+                            <span class="h5 text-success">{{ subscription.extra_licenses }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if subscription.license_limit %}
+                    <div class="mb-3">
+                        <strong>Uso:</strong>
+                        <div class="progress" style="height: 25px;">
+                            {% set usage_percent = ((subscription.used_licenses|default(0) / subscription.license_limit) * 100)|round %}
+                            <div class="progress-bar {% if usage_percent >= 90 %}bg-danger{% elseif usage_percent >= 75 %}bg-warning{% else %}bg-success{% endif %}" 
+                                 role="progressbar" 
+                                 style="width: {{ usage_percent }}%"
+                                 aria-valuenow="{{ subscription.used_licenses|default(0) }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="{{ subscription.license_limit }}">
+                                {{ usage_percent }}%
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if validation and not validation.valid %}
+                    <div class="alert alert-warning">
+                        <strong>Problemas encontrados:</strong>
+                        <ul class="mb-0">
+                            {% for issue in validation.issues %}
+                            <li>{{ issue }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                    <form method="POST" action="{{ BASE_URL }}admin/subscriptions-manage/recalculate-licenses" class="mt-3">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="subscription_id" value="{{ subscription.id }}">
+                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-arrow-clockwise"></i> Recalcular Licenças
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Pricing Preview -->
+            {% if pricing_preview %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-calculator"></i> Previsão de Preços</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Preço Mensal:</strong><br>
+                            <span class="h4">€{{ pricing_preview.monthly_price|number_format(2, ',', '.') }}</span>
+                        </div>
+                        {% if pricing_preview.annual_price %}
+                        <div class="col-md-6">
+                            <strong>Preço Anual:</strong><br>
+                            <span class="h4">€{{ pricing_preview.annual_price|number_format(2, ',', '.') }}</span>
+                            {% if pricing_preview.annual_discount > 0 %}
+                            <br><small class="text-success">({{ pricing_preview.annual_discount }}% desconto)</small>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if pricing_preview.breakdown %}
+                    <div class="mt-3">
+                        <strong>Breakdown:</strong>
+                        <ul class="mb-0">
+                            {% for item in pricing_preview.breakdown %}
+                            <li>{{ item.licenses }} licenças × €{{ item.price_per_license|number_format(2, ',', '.') }} = €{{ item.subtotal|number_format(2, ',', '.') }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Associated Condominiums -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-building"></i> Condomínios Associados</h5>
+                        {% if plan.plan_type and plan.plan_type != 'condominio' %}
+                        <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#attachCondominiumModal">
+                            <i class="bi bi-plus-circle"></i> Associar Condomínio
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if associated_condominiums %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Endereço</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for condo in associated_condominiums %}
+                                <tr>
+                                    <td><strong>{{ condo.condominium_name }}</strong></td>
+                                    <td>{{ condo.condominium_address }}</td>
+                                    <td>
+                                        {% if condo.status == 'active' %}
+                                            <span class="badge bg-success">Ativo</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Desassociado</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if condo.status == 'active' and plan.plan_type != 'condominio' %}
+                                        <form method="POST" action="{{ BASE_URL }}admin/subscriptions-manage/detach-condominium" class="d-inline" onsubmit="return confirm('Tem certeza que deseja desassociar este condomínio?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <input type="hidden" name="subscription_id" value="{{ subscription.id }}">
+                                            <input type="hidden" name="condominium_id" value="{{ condo.condominium_id }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-x-circle"></i> Desassociar
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">Nenhum condomínio associado.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions Sidebar -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-tools"></i> Ações Administrativas</h5>
+                </div>
+                <div class="card-body">
+                    {% if plan.plan_type and plan.plan_type != 'condominio' %}
+                    <form method="POST" action="{{ BASE_URL }}admin/subscriptions-manage/recalculate-licenses" class="mb-3">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="subscription_id" value="{{ subscription.id }}">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-arrow-clockwise"></i> Recalcular Licenças
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attach Condominium Modal -->
+{% if plan.plan_type and plan.plan_type != 'condominio' %}
+<div class="modal fade" id="attachCondominiumModal" tabindex="-1" aria-labelledby="attachCondominiumModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="attachCondominiumModalLabel">
+                    <i class="bi bi-building"></i> Associar Condomínio
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/subscriptions-manage/attach-condominium">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="subscription_id" value="{{ subscription.id }}">
+                    
+                    <div class="mb-3">
+                        <label for="admin_condominium_id" class="form-label">ID do Condomínio:</label>
+                        <input type="number" class="form-control" id="admin_condominium_id" name="condominium_id" required>
+                        <small class="text-muted">Digite o ID do condomínio a associar</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Associar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}

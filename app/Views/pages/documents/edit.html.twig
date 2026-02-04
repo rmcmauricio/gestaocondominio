@@ -63,9 +63,11 @@
                             <div class="col-md-6 mb-3">
                                 <label for="visibility" class="form-label">Visibilidade</label>
                                 <select class="form-select" id="visibility" name="visibility">
-                                    <option value="condominos" {% if document.visibility == 'condominos' %}selected{% endif %}>Condóminos</option>
+                                    <option value="condominos" {% if document.visibility == 'condominos' %}selected{% endif %}>Condóminos (Público)</option>
+                                    <option value="fraction" {% if document.visibility == 'fraction' %}selected{% endif %}>Fração Específica (Privado)</option>
                                     <option value="admin" {% if document.visibility == 'admin' %}selected{% endif %}>Apenas Administradores</option>
                                 </select>
+                                <div class="form-text">Selecione "Fração Específica" para tornar o documento privado apenas para a fração selecionada</div>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="fraction_id" class="form-label">Fração Específica</label>

@@ -96,11 +96,10 @@ class Router extends Controller
         } else {
             $uri = '/' . $uri;
         }
-
-        // Debug: Log routes and URI (remove in production)
-        if (APP_ENV !== 'production') {
-            error_log("Router Debug - Original URI: $originalUri, Processed URI: $uri, Method: $method");
-            error_log("Router Debug - Registered routes: " . json_encode($this->routes));
+        
+        // Debug logging for email template routes
+        if (strpos($uri, '/admin/email-templates') !== false) {
+            error_log("Router::dispatch - URI: {$uri}, METHOD: {$method}");
         }
 
         foreach ($this->routes as $route) {
@@ -112,18 +111,29 @@ class Router extends Controller
             }
             
             // Convert route path to regex pattern
-            $pattern = preg_replace('/\{(\w+)\}/', '([^/]+)', $routePath);
+            // Special handling for {path} parameter - allow slashes for storage routes
+            if (strpos($routePath, '/storage/{path}') !== false) {
+                $pattern = str_replace('/storage/{path}', '/storage/(.+)', $routePath);
+            } else {
+                $pattern = preg_replace('/\{(\w+)\}/', '([^/]+)', $routePath);
+            }
             $pattern = str_replace('/', '\/', $pattern);
             $pattern = '/^' . $pattern . '$/';
 
-            if (APP_ENV !== 'production') {
-                error_log("Router Debug - Testing route: $routePath against URI: $uri with pattern: $pattern");
-            }
-
             if ($method === $route['method'] && preg_match($pattern, $uri, $matches)) {
+                // Debug logging for email template routes
+                if (strpos($uri, '/admin/email-templates') !== false) {
+                    error_log("Router::dispatch - MATCH encontrado! Route: {$routePath}, Pattern: {$pattern}, Matches: " . json_encode($matches));
+                }
+                
                 array_shift($matches); // remove o full match
 
                 [$controllerClass, $action] = explode('@', $route['callback']);
+                
+                // Debug logging for email template routes
+                if (strpos($uri, '/admin/email-templates') !== false) {
+                    error_log("Router::dispatch - Chamando: {$controllerClass}@{$action} com params: " . json_encode($matches));
+                }
 
                 if (!class_exists($controllerClass)) {
                     $this->renderError("Classe $controllerClass não encontrada", 500);
@@ -137,11 +147,20 @@ class Router extends Controller
                     return;
                 }
 
+                // Apply security headers
+                \App\Middleware\SecurityHeadersMiddleware::apply();
+                
+                // Check subscription middleware before calling controller
+                \App\Middleware\SubscriptionMiddleware::handle();
+
                 call_user_func_array([$controller, $action], $matches);
                 return;
             }
         }
 
+         // Apply security headers even for 404 errors
+         \App\Middleware\SecurityHeadersMiddleware::apply();
+         
          $this->renderError("Página não encontrada", 404);
 
     }

@@ -8,14 +8,21 @@ class ApiAuthMiddleware
 {
     /**
      * Authenticate API request using API key
+     * Security: API keys must be passed via HTTP header only, not query string
      */
     public static function handle(): ?array
     {
-        // Get API key from header or query parameter
-        $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? $_GET['api_key'] ?? null;
+        // Get API key from header only (security: never accept from query string)
+        $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? null;
+        
+        // Security: Reject if API key is provided in query string
+        if (isset($_GET['api_key']) && !empty($_GET['api_key'])) {
+            self::sendError('API key must be provided via X-API-Key header, not query string', 400);
+            return null;
+        }
 
         if (!$apiKey) {
-            self::sendError('API key required', 401);
+            self::sendError('API key required. Please provide it via X-API-Key header', 401);
             return null;
         }
 
@@ -42,7 +49,7 @@ class ApiAuthMiddleware
             return null;
         }
 
-        // Check if user has BUSINESS plan
+        // Check if user has API access feature
         $subscriptionModel = new \App\Models\Subscription();
         $subscription = $subscriptionModel->getActiveSubscription($user['id']);
 
@@ -51,11 +58,8 @@ class ApiAuthMiddleware
             return null;
         }
 
-        $planModel = new \App\Models\Plan();
-        $plan = $planModel->findById($subscription['plan_id']);
-
-        if (!$plan || $plan['slug'] !== 'business') {
-            self::sendError('API access requires BUSINESS plan', 403);
+        if (!$subscriptionModel->hasFeature($user['id'], 'api_access')) {
+            self::sendError('API access requires a plan with API access feature', 403);
             return null;
         }
 
@@ -66,6 +70,10 @@ class ApiAuthMiddleware
             WHERE id = :id
         ");
         $updateStmt->execute([':id' => $user['id']]);
+
+        // Log API key usage
+        $securityLogger = new \App\Services\SecurityLogger();
+        $securityLogger->logApiKeyUsage('api_request', $user['id']);
 
         return $user;
     }

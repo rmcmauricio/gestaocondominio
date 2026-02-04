@@ -1,7 +1,7 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Criar Tópico de Votação</h2>
-        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}" class="btn btn-secondary">
+        <a href="{{ back_url|default(BASE_URL ~ 'condominiums/' ~ assembly.condominium_id ~ '/assemblies/' ~ assembly.id) }}" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Voltar
         </a>
     </div>
@@ -10,6 +10,11 @@
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         {{ error }}
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+    {% if point_title|default('') %}
+    <div class="alert alert-info">
+        <i class="bi bi-link-45deg"></i> Esta votação será associada ao ponto de ordem <strong>«{{ point_title }}»</strong>.
     </div>
     {% endif %}
 
@@ -22,6 +27,11 @@
                 <div class="card-body">
                     <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/topics">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        {% if return_to_edit|default(false) and not (return_to_show|default(false) or (point_id|default(0)) > 0) %}<input type="hidden" name="return" value="edit">{% endif %}
+                        {% if return_to_show|default(false) or (point_id|default(0)) > 0 %}
+                        <input type="hidden" name="return" value="show">
+                        <input type="hidden" name="point_id" value="{{ point_id|default(0) }}">
+                        {% endif %}
 
                         <div class="mb-3">
                             <label for="title" class="form-label">Título <span class="text-danger">*</span></label>
@@ -35,25 +45,50 @@
 
                         <div class="mb-3">
                             <label class="form-label">Opções de Votação <span class="text-danger">*</span></label>
+                            <small class="form-text text-muted d-block mb-2">
+                                As opções padrão do condomínio são pré-preenchidas. Pode adicionar ou remover opções.
+                            </small>
                             <div id="options-container">
-                                <div class="input-group mb-2">
-                                    <input type="text" class="form-control" name="options[]" placeholder="Ex: Sim" required>
-                                    <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                                <div class="input-group mb-2">
-                                    <input type="text" class="form-control" name="options[]" placeholder="Ex: Não" required>
-                                    <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                                <div class="input-group mb-2">
-                                    <input type="text" class="form-control" name="options[]" placeholder="Ex: Abstenção" required>
-                                    <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
+                                {% if default_options %}
+                                    {% for option in default_options %}
+                                    <div class="input-group mb-2">
+                                        <input type="text" class="form-control" name="options[]" value="{{ option }}" required>
+                                        <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    {% if vote_options %}
+                                        {% for option in vote_options %}
+                                        <div class="input-group mb-2">
+                                            <input type="text" class="form-control" name="options[]" value="{{ option.option_label }}" required>
+                                            <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="input-group mb-2">
+                                            <input type="text" class="form-control" name="options[]" placeholder="Ex: A favor" required>
+                                            <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                        <div class="input-group mb-2">
+                                            <input type="text" class="form-control" name="options[]" placeholder="Ex: Contra" required>
+                                            <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                        <div class="input-group mb-2">
+                                            <input type="text" class="form-control" name="options[]" placeholder="Ex: Abstenção" required>
+                                            <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
                             </div>
                             <button type="button" class="btn btn-sm btn-outline-primary" onclick="addOption()">
                                 <i class="bi bi-plus"></i> Adicionar Opção
@@ -64,7 +99,7 @@
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-check-circle"></i> Criar Tópico
                             </button>
-                            <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}" class="btn btn-secondary">Cancelar</a>
+                            <a href="{{ back_url|default(BASE_URL ~ 'condominiums/' ~ assembly.condominium_id ~ '/assemblies/' ~ assembly.id) }}" class="btn btn-secondary">Cancelar</a>
                         </div>
                     </form>
                 </div>

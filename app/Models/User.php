@@ -42,6 +42,43 @@ class User extends Model
     }
 
     /**
+     * Find user by Google ID
+     */
+    public function findByGoogleId(string $googleId): ?array
+    {
+        if (!$this->db) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("SELECT * FROM users WHERE google_id = :google_id LIMIT 1");
+        $stmt->execute([':google_id' => $googleId]);
+        $user = $stmt->fetch();
+
+        return $user ?: null;
+    }
+
+    /**
+     * Link Google account to existing user
+     */
+    public function linkGoogleAccount(int $userId, string $googleId): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE users 
+            SET google_id = :google_id, auth_provider = 'google' 
+            WHERE id = :user_id
+        ");
+
+        return $stmt->execute([
+            ':google_id' => $googleId,
+            ':user_id' => $userId
+        ]);
+    }
+
+    /**
      * Create new user
      */
     public function create(array $data): int
@@ -50,22 +87,69 @@ class User extends Model
             throw new \Exception("Database connection not available");
         }
 
-        $stmt = $this->db->prepare("
-            INSERT INTO users (email, password, name, role, phone, nif, status)
-            VALUES (:email, :password, :name, :role, :phone, :nif, :status)
-        ");
+        // Build dynamic SQL based on provided fields
+        $fields = [];
+        $values = [];
+        $params = [];
 
-        $stmt->execute([
-            ':email' => $data['email'],
-            ':password' => Security::hashPassword($data['password']),
-            ':name' => $data['name'],
-            ':role' => $data['role'] ?? 'condomino',
-            ':phone' => $data['phone'] ?? null,
-            ':nif' => $data['nif'] ?? null,
-            ':status' => $data['status'] ?? 'active'
-        ]);
+        // Required fields
+        $fields[] = 'email';
+        $values[] = ':email';
+        $params[':email'] = $data['email'];
 
-        return (int)$this->db->lastInsertId();
+        $fields[] = 'name';
+        $values[] = ':name';
+        $params[':name'] = $data['name'];
+
+        $fields[] = 'role';
+        $values[] = ':role';
+        $params[':role'] = $data['role'] ?? 'condomino';
+
+        $fields[] = 'status';
+        $values[] = ':status';
+        $params[':status'] = $data['status'] ?? 'active';
+
+        // Optional fields
+        if (isset($data['password']) && !empty($data['password'])) {
+            $fields[] = 'password';
+            $values[] = ':password';
+            $params[':password'] = Security::hashPassword($data['password']);
+        }
+
+        if (isset($data['phone'])) {
+            $fields[] = 'phone';
+            $values[] = ':phone';
+            $params[':phone'] = $data['phone'];
+        }
+
+        if (isset($data['nif'])) {
+            $fields[] = 'nif';
+            $values[] = ':nif';
+            $params[':nif'] = $data['nif'];
+        }
+
+        if (isset($data['google_id'])) {
+            $fields[] = 'google_id';
+            $values[] = ':google_id';
+            $params[':google_id'] = $data['google_id'];
+        }
+
+        if (isset($data['auth_provider'])) {
+            $fields[] = 'auth_provider';
+            $values[] = ':auth_provider';
+            $params[':auth_provider'] = $data['auth_provider'];
+        }
+
+        $sql = "INSERT INTO users (" . implode(', ', $fields) . ") VALUES (" . implode(', ', $values) . ")";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        $userId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($userId, $data);
+        
+        return $userId;
     }
 
     /**
@@ -94,10 +178,24 @@ class User extends Model
             return false;
         }
 
-        $sql = "UPDATE users SET " . implode(', ', $fields) . ", updated_at = NOW() WHERE id = :id";
+        // Get old data for audit
+        $oldData = $this->findById($id);
+        
+        // Detect SQLite for compatibility
+        $isSQLite = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'sqlite';
+        $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
+        
+        $sql = "UPDATE users SET " . implode(', ', $fields) . ", updated_at = {$timestampFunc} WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
-        return $stmt->execute($params);
+        $result = $stmt->execute($params);
+        
+        // Log audit
+        if ($result) {
+            $this->auditUpdate($id, $data, $oldData);
+        }
+        
+        return $result;
     }
 
     /**
@@ -109,7 +207,11 @@ class User extends Model
             return false;
         }
 
-        $stmt = $this->db->prepare("UPDATE users SET last_login_at = NOW() WHERE id = :id");
+        // Detect SQLite for compatibility
+        $isSQLite = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'sqlite';
+        $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
+        
+        $stmt = $this->db->prepare("UPDATE users SET last_login_at = {$timestampFunc} WHERE id = :id");
         return $stmt->execute([':id' => $id]);
     }
 
@@ -168,6 +270,7 @@ class User extends Model
 
     /**
      * Create password reset token
+     * Security: Invalidates all previous tokens for the email before creating a new one
      */
     public function createPasswordResetToken(string $email): ?string
     {
@@ -179,6 +282,22 @@ class User extends Model
         if (!$user) {
             return null;
         }
+
+        // Security: Invalidate all previous tokens for this email
+        $invalidateStmt = $this->db->prepare("
+            UPDATE password_resets 
+            SET used_at = NOW() 
+            WHERE email = :email 
+            AND used_at IS NULL
+        ");
+        $invalidateStmt->execute([':email' => $email]);
+
+        // Clean up expired tokens (older than 24 hours)
+        $cleanupStmt = $this->db->prepare("
+            DELETE FROM password_resets 
+            WHERE expires_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        ");
+        $cleanupStmt->execute();
 
         $token = Security::generateToken();
         $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
@@ -199,10 +318,26 @@ class User extends Model
 
     /**
      * Verify password reset token
+     * Security: Includes attempt limit check
      */
     public function verifyPasswordResetToken(string $token): ?array
     {
         if (!$this->db) {
+            return null;
+        }
+
+        // Security: Check attempt count (prevent brute force on tokens)
+        // Store attempts in session
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        
+        $attemptKey = "password_reset_attempts_{$token}";
+        $attempts = $_SESSION[$attemptKey] ?? 0;
+        
+        if ($attempts >= 5) {
+            // Too many attempts - mark token as used for security
+            $this->markPasswordResetTokenAsUsed($token);
             return null;
         }
 
@@ -215,7 +350,17 @@ class User extends Model
         ");
 
         $stmt->execute([':token' => $token]);
-        return $stmt->fetch() ?: null;
+        $result = $stmt->fetch() ?: null;
+        
+        if (!$result) {
+            // Increment attempt counter
+            $_SESSION[$attemptKey] = $attempts + 1;
+        } else {
+            // Reset attempts on successful verification
+            unset($_SESSION[$attemptKey]);
+        }
+        
+        return $result;
     }
 
     /**
@@ -368,6 +513,87 @@ class User extends Model
             'created_at' => $result['api_key_created_at'],
             'last_used_at' => $result['api_key_last_used_at']
         ];
+    }
+
+    /**
+     * Set default condominium for user
+     */
+    public function setDefaultCondominium(int $userId, int $condominiumId): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        // Verify user has access to this condominium
+        $user = $this->findById($userId);
+        if (!$user) {
+            return false;
+        }
+
+        // Check if user is admin - can be owner OR assigned admin
+        if ($user['role'] === 'admin' || $user['role'] === 'super_admin') {
+            global $db;
+            // Check if user owns the condominium
+            $stmt = $db->prepare("SELECT id FROM condominiums WHERE id = :condominium_id AND user_id = :user_id");
+            $stmt->execute([
+                ':condominium_id' => $condominiumId,
+                ':user_id' => $userId
+            ]);
+            $isOwner = $stmt->fetch();
+            
+            // If not owner, check if user is assigned as admin
+            if (!$isOwner) {
+                $stmt = $db->prepare("
+                    SELECT id FROM condominium_users 
+                    WHERE user_id = :user_id 
+                    AND condominium_id = :condominium_id
+                    AND role = 'admin'
+                    AND (ended_at IS NULL OR ended_at > CURDATE())
+                ");
+                $stmt->execute([
+                    ':user_id' => $userId,
+                    ':condominium_id' => $condominiumId
+                ]);
+                if (!$stmt->fetch()) {
+                    return false;
+                }
+            }
+        } else {
+            // Check if user is associated with this condominium
+            global $db;
+            $stmt = $db->prepare("
+                SELECT id FROM condominium_users 
+                WHERE user_id = :user_id 
+                AND condominium_id = :condominium_id
+                AND (ended_at IS NULL OR ended_at > CURDATE())
+            ");
+            $stmt->execute([
+                ':user_id' => $userId,
+                ':condominium_id' => $condominiumId
+            ]);
+            if (!$stmt->fetch()) {
+                return false;
+            }
+        }
+
+        $stmt = $this->db->prepare("UPDATE users SET default_condominium_id = :condominium_id WHERE id = :user_id");
+        return $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':user_id' => $userId
+        ]);
+    }
+
+    /**
+     * Get default condominium ID for user
+     */
+    public function getDefaultCondominiumId(int $userId): ?int
+    {
+        if (!$this->db) {
+            return null;
+        }
+
+        $user = $this->findById($userId);
+        return $user['default_condominium_id'] ?? null;
     }
 }
 

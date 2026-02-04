@@ -1,0 +1,39 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Liquidar Quotas</h4>
+                    <small>{{ condominium.name }}</small>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    {% include 'blocks/liquidate-quotas-form.html.twig' with {
+                        'condominium': condominium,
+                        'fractions': fractions,
+                        'bank_accounts': bank_accounts,
+                        'csrf_token': csrf_token,
+                        'form_id_prefix': '',
+                        'is_modal': false
+                    } %}
+                    
+                    <div class="d-flex justify-content-between mt-3">
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" form="form" id="submit_liquidate_quotas" class="btn btn-primary"><i class="bi bi-cash-coin"></i> Liquidar Quotas</button>
+                    </div>
+                    
+                    {% include 'blocks/liquidate-quotas-script.html.twig' with {
+                        'condominium_id': condominium.id,
+                        'form_id_prefix': ''
+                    } %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

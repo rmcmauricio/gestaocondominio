@@ -291,6 +291,20 @@ class Vote extends Model
                 : 0;
         }
 
+        // Winning option by permillage (highest percentage_by_millage)
+        $results['winning_option'] = null;
+        $results['winning_percentage_by_millage'] = null;
+        if ($results['total_votes'] > 0 && !empty($results['options'])) {
+            $maxPct = 0;
+            foreach ($results['options'] as $opt => $d) {
+                if (($d['percentage_by_millage'] ?? 0) > $maxPct) {
+                    $maxPct = $d['percentage_by_millage'];
+                    $results['winning_option'] = $opt;
+                    $results['winning_percentage_by_millage'] = $maxPct;
+                }
+            }
+        }
+
         return $results;
     }
 

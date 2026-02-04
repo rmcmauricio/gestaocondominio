@@ -1,0 +1,23 @@
+{# Bloco reutilizável de Ações Rápidas #}
+{% if condominium and condominium.id is defined %}
+{% set quickActionsId = 'quickActionsDropdown' ~ (random(1000, 9999)) %}
+<div class="dropdown" style="position: relative;">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="{{ quickActionsId }}" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-lightning-charge"></i> Ações Rápidas
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="{{ quickActionsId }}" style="z-index: 1050;">
+        {% if current_condominium_role == 'admin' %}
+        <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances"><i class="bi bi-calculator"></i> Finanças</a></li>
+        <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/liquidate"><i class="bi bi-cash-coin"></i> Liquidar Quotas</a></li>
+        <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create"><i class="bi bi-plus-circle"></i> Nova Despesa</a></li>
+        <li><hr class="dropdown-divider"></li>
+        {% endif %}
+        <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations"><i class="bi bi-calendar-check"></i> Reservas</a></li>
+        {% if current_condominium_role == 'admin' %}
+        <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences"><i class="bi bi-exclamation-triangle"></i> Ocorrências</a></li>
+        <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies"><i class="bi bi-people"></i> Assembleias</a></li>
+        <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes"><i class="bi bi-check2-square"></i> Votações</a></li>
+        {% endif %}
+    </ul>
+</div>
+{% endif %}

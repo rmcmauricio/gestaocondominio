@@ -17,20 +17,71 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 
+    <!-- Bootstrap Override CSS (custom colors) -->
+    <link href="{{ BASE_URL }}assets/css/bootstrap-override.css?v={{ VERSION }}" rel="stylesheet">
+
     <!-- Custom CSS -->
-    <link href="{{ BASE_URL }}assets/css/main.css" rel="stylesheet">
+    <link href="{{ BASE_URL }}assets/css/main.css?v={{ VERSION }}" rel="stylesheet">
+    
+    <!-- Template CSS (if template_id is set and valid) - Must be AFTER main.css to override variables -->
+    <!-- DEBUG: template_id={{ template_id|default('NOT SET') }}, defined={{ template_id is defined ? 'YES' : 'NO' }}, null={{ template_id is null ? 'YES' : 'NO' }}, value={{ template_id }} -->
+    {% if template_id is defined and template_id is not null and template_id >= 1 and template_id <= 17 %}
+    <!-- Loading template {{ template_id }} CSS -->
+    <link href="{{ BASE_URL }}assets/css/templates/template_{{ template_id }}.css?v={{ VERSION }}" rel="stylesheet" id="template-css-link">
+    {% else %}
+    <!-- Template CSS NOT LOADED: template_id={{ template_id|default('NOT SET') }}, defined={{ template_id is defined ? 'YES' : 'NO' }}, null={{ template_id is null ? 'YES' : 'NO' }} -->
+    {% endif %}
+    
+    <link href="{{ BASE_URL }}assets/css/homepage.css?v={{ VERSION }}" rel="stylesheet">
+    <link href="{{ BASE_URL }}assets/css/help.css?v={{ VERSION }}" rel="stylesheet">
+    <!-- Cookie Consent CSS - Must be loaded last to override template styles -->
+    <link href="{{ BASE_URL }}assets/css/cookie-consent.css?v={{ VERSION }}" rel="stylesheet">
+    <style>
+        /* Additional inline styles to ensure cookie modal readability */
+        #cookiePreferencesModal .modal-content,
+        #cookiePreferencesModal .modal-header,
+        #cookiePreferencesModal .modal-body,
+        #cookiePreferencesModal .modal-footer {
+            background-color: #ffffff !important;
+        }
+        #cookiePreferencesModal .modal-header .modal-title,
+        #cookiePreferencesModal .modal-body,
+        #cookiePreferencesModal .modal-body * {
+            color: #1f2937 !important;
+        }
+        #cookiePreferencesModal .modal-body p {
+            color: #4b5563 !important;
+        }
+        #cookiePreferencesModal .cookie-category-title,
+        #cookiePreferencesModal .cookie-category h6 {
+            color: #1f2937 !important;
+        }
+        #cookiePreferencesModal .cookie-category-description {
+            color: #6b7280 !important;
+        }
+    </style>
 </head>
 <body>
     {% include 'blocks/header.html.twig' %}
 
     <div class="main-wrapper">
-        {% if user and viewName != 'pages/home.html.twig' %}
+        {% if user %}
             {% include 'blocks/sidebar.html.twig' %}
             <!-- Overlay when sidebar is open -->
             <div class="sidebar-overlay" onclick="toggleSidebar(); return false;"></div>
+            <!-- Tab "Menu" encostado à esquerda quando o menu está fechado (só visível em viewport <= 1320px) -->
+            <button type="button" class="sidebar-menu-tab" id="sidebarMenuTab" onclick="toggleSidebar(); return false;" aria-label="Abrir menu" title="Abrir menu">
+                <span class="sidebar-menu-tab-text">Menu</span>
+                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            </button>
         {% endif %}
-        
-        <main class="main-content {% if viewName == 'pages/home.html.twig' %}main-content-full{% endif %}">
+
+        <main class="main-content {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName or viewName == 'pages/help/index.html.twig' %}main-content-full{% endif %}">
+            {% if viewName != 'pages/home.html.twig' %}
+            <div class="container py-2 py-md-1">
+                {% include 'blocks/breadcrumbs.html.twig' %}
+            </div>
+            {% endif %}
             {% if demo_banner_message %}
             <div class="alert alert-warning alert-dismissible fade show mb-0" role="alert" style="border-radius: 0; border-left: 4px solid #ffc107;">
                 <div class="container">
@@ -45,10 +96,39 @@
 
     {% include 'blocks/footer.html.twig' %}
 
+    <!-- Help Modal (available on all pages) -->
+    {% include 'blocks/help-modal.html.twig' %}
+
+    <!-- Cookie Consent Banner and Modal -->
+    {% include 'blocks/cookie-banner.html.twig' %}
+    {% include 'blocks/cookie-preferences-modal.html.twig' %}
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- Custom JS -->
-    <script src="{{ BASE_URL }}assets/js/main.js"></script>
+    <script src="{{ BASE_URL }}assets/js/main.js?v={{ VERSION }}"></script>
+    <script>
+        // Define BASE_URL for help.js
+        if (typeof window.BASE_URL === 'undefined') {
+            window.BASE_URL = '{{ BASE_URL }}';
+        }
+    </script>
+    <script src="{{ BASE_URL }}assets/js/help.js?v={{ VERSION }}"></script>
+    <script>
+        // Ensure BASE_URL is defined for cookie-consent.js
+        if (typeof window.BASE_URL === 'undefined') {
+            window.BASE_URL = '{{ BASE_URL }}';
+        }
+    </script>
+    <!-- Cookie Consent JS -->
+    <script src="{{ BASE_URL }}assets/js/cookie-consent.js?v={{ VERSION }}"></script>
+    {% if user %}
+    <script src="{{ BASE_URL }}assets/js/notifications-update.js?v={{ VERSION }}"></script>
+    {% endif %}
+    {% if viewName == 'pages/dashboard/condomino.html.twig' %}
+    <script src="{{ BASE_URL }}assets/js/dashboard-votes.js?v={{ VERSION }}"></script>
+    <script src="{{ BASE_URL }}assets/js/dashboard-notifications.js?v={{ VERSION }}"></script>
+    {% endif %}
 </body>
 </html>

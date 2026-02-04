@@ -1,0 +1,249 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Editar Template: {{ template.name }}</h2>
+            <p class="text-muted mb-0">{{ template.description|default('Template de email') }}</p>
+        </div>
+        <a href="{{ BASE_URL }}admin/email-templates" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i>
+        <strong>Nota:</strong> Este é apenas o conteúdo do email (body). O header e footer são definidos no <a href="{{ BASE_URL }}admin/email-templates/base/edit">template base</a>.
+    </div>
+
+    <form method="POST" action="{{ BASE_URL }}admin/email-templates/{{ template.id }}" id="templateForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Informações do Template</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Nome <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" value="{{ template.name }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="description" name="description" rows="2">{{ template.description|default('') }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="subject" class="form-label">Assunto do Email</label>
+                            <input type="text" class="form-control" id="subject" name="subject" value="{{ template.subject|default('') }}" placeholder="Ex: Bem-vindo ao O Meu Prédio">
+                            <small class="form-text text-muted">Pode usar campos como {nome}, {baseUrl}, etc.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-check-label">
+                                <input type="checkbox" class="form-check-input" name="is_active" value="1" {% if template.is_active %}checked{% endif %}>
+                                Template Ativo
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Template HTML (Body)</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="html_body" class="form-label">Conteúdo HTML</label>
+                            <textarea 
+                                class="form-control" 
+                                id="html_body" 
+                                name="html_body" 
+                                rows="20" 
+                                required
+                            >{{ template.html_body|default('') }}</textarea>
+                            <small class="form-text text-muted">Use o editor para formatar o conteúdo HTML. Apenas o conteúdo do body. Header e footer são adicionados automaticamente.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Template Texto Puro (Body)</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="text_body" class="form-label">Conteúdo em Texto</label>
+                            <textarea 
+                                class="form-control font-monospace" 
+                                id="text_body" 
+                                name="text_body" 
+                                rows="10"
+                                style="font-size: 0.9rem;"
+                            >{{ template.text_body|default('') }}</textarea>
+                            <small class="form-text text-muted">Versão em texto puro para clientes de email que não suportam HTML.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm sticky-top" style="top: 20px;">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Campos Disponíveis</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if template.available_fields %}
+                            <p class="small text-muted mb-3">Use estes campos no template usando a sintaxe <code>{campo}</code></p>
+                            <ul class="list-unstyled">
+                                {% for field in template.available_fields %}
+                                <li class="mb-2">
+                                    <code>{{ field.key }}</code>
+                                    {% if field.required %}
+                                    <span class="badge bg-danger">Obrigatório</span>
+                                    {% endif %}
+                                    <br>
+                                    <small class="text-muted">{{ field.description }}</small>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted small">Nenhum campo específico definido para este template.</p>
+                        {% endif %}
+                        
+                        <hr>
+                        
+                        <h6 class="small">Campos Comuns:</h6>
+                        <ul class="list-unstyled small">
+                            <li><code>{baseUrl}</code> - URL base</li>
+                            <li><code>{nome}</code> - Nome do destinatário</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Email Section -->
+        <div class="card shadow-sm mb-4 border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-envelope-paper"></i> Enviar Email de Teste</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ BASE_URL }}admin/email-templates/{{ template.id }}/test" id="testEmailForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="action_type" value="test_email">
+                    <div class="row align-items-end">
+                        <div class="col-md-8">
+                            <label for="test_email" class="form-label">Email de Destino</label>
+                            <input type="email" class="form-control" id="test_email" name="test_email" value="{{ user.email }}" required>
+                            <small class="form-text text-muted">Por padrão, será enviado para o seu email. Pode alterar para outro email.</small>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="submit" class="btn btn-info w-100" id="testEmailSubmitBtn" name="test_email_submit">
+                                <i class="bi bi-send"></i> Enviar Teste
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between">
+            <a href="{{ BASE_URL }}admin/email-templates/{{ template.id }}/preview" class="btn btn-outline-info" target="_blank">
+                <i class="bi bi-eye"></i> Preview
+            </a>
+            <div>
+                <a href="{{ BASE_URL }}admin/email-templates" class="btn btn-outline-secondary">
+                    Cancelar
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Salvar Alterações
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- TinyMCE WYSIWYG Editor -->
+<script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    tinymce.init({
+        selector: '#html_body',
+        height: 500,
+        menubar: true,
+        plugins: [
+            'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+            'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+            'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
+        ],
+        toolbar: 'undo redo | blocks | ' +
+            'bold italic forecolor | alignleft aligncenter ' +
+            'alignright alignjustify | bullist numlist outdent indent | ' +
+            'link image | removeformat | code | fullscreen',
+        content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+        language: 'pt',
+        language_url: 'https://cdn.jsdelivr.net/npm/tinymce@6/langs/pt.js',
+        branding: false,
+        promotion: false,
+        setup: function(editor) {
+            editor.on('change', function() {
+                editor.save();
+            });
+        }
+    });
+
+    // Ensure TinyMCE content is saved before form submission
+    document.getElementById('templateForm').addEventListener('submit', function(e) {
+        if (tinymce.get('html_body')) {
+            tinymce.get('html_body').save();
+        }
+    });
+    
+    // Prevent test email form from being submitted by the main form
+    var testEmailForm = document.getElementById('testEmailForm');
+    if (testEmailForm) {
+        testEmailForm.addEventListener('submit', function(e) {
+            // Log for debugging
+            console.log('Test email form submitting to:', this.action);
+            console.log('Form method:', this.method);
+            console.log('Form action attribute:', this.getAttribute('action'));
+            
+            // Verify the action is correct
+            var expectedAction = '{{ BASE_URL }}admin/email-templates/{{ template.id }}/test';
+            if (this.action !== expectedAction && this.getAttribute('action') !== expectedAction) {
+                console.error('Form action mismatch! Expected:', expectedAction, 'Got:', this.action);
+                // Force correct action
+                this.action = expectedAction;
+            }
+            
+            // Ensure this form doesn't trigger the main form submit
+            e.stopPropagation();
+        });
+    }
+    
+    // Ensure the test email button doesn't trigger the main form
+    var testEmailBtn = document.getElementById('testEmailSubmitBtn');
+    if (testEmailBtn) {
+        testEmailBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            console.log('Test email button clicked');
+        });
+    }
+});
+</script>

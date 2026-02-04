@@ -1,270 +1,509 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2>Relatórios Financeiros</h2>
-            <p class="text-muted mb-0">{{ condominium.name }}</p>
+    {% set page_actions %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Voltar às Finanças
+            </a>
         </div>
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Voltar
-        </a>
-    </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Relatórios Financeiros',
+        'help_section': 'finances',
+        'help_title': 'Ajuda com Relatórios',
+        'actions': page_actions
+    } %}
 
-    <div class="row g-4">
-        <div class="col-md-6 col-lg-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-body text-center">
-                    <i class="bi bi-file-earmark-text display-4 text-primary mb-3"></i>
-                    <h5>Balancete</h5>
-                    <p class="text-muted">Relatório de receitas e despesas</p>
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/balance-sheet" class="d-inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <input type="hidden" name="year" value="{{ current_year }}">
-                        <button type="submit" class="btn btn-outline-primary">
-                            <i class="bi bi-download"></i> Gerar PDF
-                        </button>
-                    </form>
-                </div>
-            </div>
+    {% if not is_admin %}
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle"></i> Apenas administradores podem gerar relatórios financeiros.
         </div>
-
-        <div class="col-md-6 col-lg-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-body text-center">
-                    <i class="bi bi-receipt display-4 text-success mb-3"></i>
-                    <h5>Quotas</h5>
-                    <p class="text-muted">Relatório de quotas por período</p>
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/fees" class="d-inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <input type="hidden" name="year" value="{{ current_year }}">
-                        <button type="submit" class="btn btn-outline-success">
-                            <i class="bi bi-eye"></i> Ver Relatório
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-body text-center">
-                    <i class="bi bi-graph-up display-4 text-info mb-3"></i>
-                    <h5>Despesas</h5>
-                    <p class="text-muted">Análise de despesas por categoria</p>
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/expenses" class="d-inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <input type="hidden" name="year" value="{{ current_year }}">
-                        <div class="btn-group" role="group">
-                            <button type="submit" name="format" value="html" class="btn btn-outline-info btn-sm">
-                                <i class="bi bi-eye"></i> Ver
-                            </button>
-                            <button type="submit" name="format" value="excel" class="btn btn-outline-success btn-sm">
-                                <i class="bi bi-file-excel"></i> Excel
-                            </button>
-                            <button type="submit" name="format" value="pdf" class="btn btn-outline-danger btn-sm">
-                                <i class="bi bi-file-pdf"></i> PDF
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-body text-center">
-                    <i class="bi bi-arrow-left-right display-4 text-primary mb-3"></i>
-                    <h5>Fluxo de Caixa</h5>
-                    <p class="text-muted">Receitas e despesas mensais</p>
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/cash-flow" class="d-inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <input type="hidden" name="year" value="{{ current_year }}">
-                        <div class="btn-group" role="group">
-                            <button type="submit" name="format" value="html" class="btn btn-outline-primary btn-sm">
-                                <i class="bi bi-eye"></i> Ver
-                            </button>
-                            <button type="submit" name="format" value="excel" class="btn btn-outline-success btn-sm">
-                                <i class="bi bi-file-excel"></i> Excel
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-body text-center">
-                    <i class="bi bi-bar-chart display-4 text-info mb-3"></i>
-                    <h5>Orçamento vs Realizado</h5>
-                    <p class="text-muted">Comparativo anual</p>
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/budget-vs-actual" class="d-inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <input type="hidden" name="year" value="{{ current_year }}">
-                        <div class="btn-group" role="group">
-                            <button type="submit" name="format" value="html" class="btn btn-outline-primary btn-sm">
-                                <i class="bi bi-eye"></i> Ver
-                            </button>
-                            <button type="submit" name="format" value="excel" class="btn btn-outline-success btn-sm">
-                                <i class="bi bi-file-excel"></i> Excel
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-body text-center">
-                    <i class="bi bi-exclamation-triangle display-4 text-danger mb-3"></i>
-                    <h5>Inadimplência</h5>
-                    <p class="text-muted">Relatório de quotas em atraso</p>
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/delinquency" class="d-inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <div class="btn-group" role="group">
-                            <button type="submit" name="format" value="html" class="btn btn-outline-primary btn-sm">
-                                <i class="bi bi-eye"></i> Ver
-                            </button>
-                            <button type="submit" name="format" value="excel" class="btn btn-outline-success btn-sm">
-                                <i class="bi bi-file-excel"></i> Excel
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
+    {% else %}
+    
+    <!-- Relatórios Personalizados -->
     <div class="card shadow-sm mt-4">
         <div class="card-header">
-            <h5 class="mb-0">Relatórios Personalizados</h5>
+            <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Gerar Relatório</h5>
         </div>
         <div class="card-body">
-            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/custom">
+            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/custom" class="report-form" id="custom-report-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="mode" value="ajax">
+                
                 <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label for="report_type" class="form-label">Tipo de Relatório</label>
+                    <div class="col-md-6 mb-3">
+                        <label for="report_type" class="form-label"><strong>Tipo de Relatório</strong></label>
                         <select class="form-select" id="report_type" name="report_type" required>
-                            <option value="balance">Balancete</option>
-                            <option value="fees">Quotas</option>
-                            <option value="expenses">Despesas</option>
-                            <option value="summary">Resumo Financeiro</option>
+                            <optgroup label="Relatórios Financeiros">
+                                <option value="balance">Balancete</option>
+                                <option value="fees">Quotas</option>
+                                <option value="expenses">Despesas</option>
+                                <option value="cash-flow">Fluxo de Caixa</option>
+                                <option value="budget-vs-actual">Orçamento vs Realizado</option>
+                                <option value="delinquency">Quotas em Atraso</option>
+                                <option value="summary">Resumo Financeiro</option>
+                            </optgroup>
+                            <optgroup label="Relatórios de Ocorrências">
+                                <option value="occurrences">Ocorrências</option>
+                                <option value="occurrences-by-supplier">Ocorrências por Fornecedor</option>
+                            </optgroup>
                         </select>
+                        <small class="form-text text-muted">Selecione o tipo de relatório que deseja gerar</small>
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label for="start_date" class="form-label">Data Início</label>
-                        <input type="date" class="form-control" id="start_date" name="start_date" required>
+                    
+                    <div class="col-md-3 mb-3">
+                        <label for="start_date" class="form-label"><strong>Data Início</strong></label>
+                        <input type="date" class="form-control" id="start_date" name="start_date" value="{{ current_year }}-01-01" required>
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label for="end_date" class="form-label">Data Fim</label>
-                        <input type="date" class="form-control" id="end_date" name="end_date" required>
+                    
+                    <div class="col-md-3 mb-3">
+                        <label for="end_date" class="form-label"><strong>Data Fim</strong></label>
+                        <input type="date" class="form-control" id="end_date" name="end_date" value="{{ current_year }}-12-31" required>
                     </div>
                 </div>
-                <div class="mb-3">
-                    <label for="format" class="form-label">Formato</label>
-                    <select class="form-select" id="format" name="format">
-                        <option value="pdf">PDF</option>
-                        <option value="excel">Excel</option>
-                    </select>
+
+                <!-- Campos específicos para relatórios de ocorrências -->
+                <div id="occurrence-filters" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="occ_status" class="form-label">Estado</label>
+                            <select class="form-select" id="occ_status" name="status">
+                                <option value="">Todos</option>
+                                <option value="open">Abertas</option>
+                                <option value="completed">Resolvidas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="occ_priority" class="form-label">Prioridade</label>
+                            <select class="form-select" id="occ_priority" name="priority">
+                                <option value="">Todas</option>
+                                <option value="urgent">Urgente</option>
+                                <option value="high">Alta</option>
+                                <option value="medium">Média</option>
+                                <option value="low">Baixa</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="occ_category" class="form-label">Categoria</label>
+                            <input type="text" class="form-control" id="occ_category" name="category" placeholder="Opcional">
+                        </div>
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-primary">Gerar Relatório</button>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-text"></i> Gerar Relatório
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('custom-report-form').reset(); document.getElementById('start_date').value='{{ current_year }}-01-01'; document.getElementById('end_date').value='{{ current_year }}-12-31';">
+                        <i class="bi bi-arrow-counterclockwise"></i> Limpar
+                    </button>
+                </div>
             </form>
         </div>
     </div>
 
-    <!-- Occurrence Reports Section -->
-    <div class="card shadow-sm mt-4">
-        <div class="card-header">
-            <h5 class="mb-0">Relatórios de Ocorrências</h5>
+    <!-- Report Display Container -->
+    <div id="report-container" class="card shadow-sm mt-4" style="display: none;">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0" id="report-title">Relatório</h5>
+            <div class="btn-group">
+                <button type="button" class="btn btn-sm btn-outline-success" id="btn-save-report">
+                    <i class="bi bi-save"></i> Guardar nos Documentos
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btn-print-report">
+                    <i class="bi bi-printer"></i> Abrir para Impressão
+                </button>
+            </div>
         </div>
-        <div class="card-body">
-            <div class="row g-4">
-                <div class="col-md-6">
-                    <div class="card border-primary">
-                        <div class="card-body">
-                            <h6 class="card-title">Relatório de Ocorrências</h6>
-                            <p class="text-muted small">Relatório detalhado de ocorrências por período</p>
-                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/occurrences">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <div class="row g-2 mb-2">
-                                    <div class="col-6">
-                                        <label for="occ_start_date" class="form-label small">Data Início</label>
-                                        <input type="date" class="form-control form-control-sm" id="occ_start_date" name="start_date" value="{{ current_year }}-01-01" required>
-                                    </div>
-                                    <div class="col-6">
-                                        <label for="occ_end_date" class="form-label small">Data Fim</label>
-                                        <input type="date" class="form-control form-control-sm" id="occ_end_date" name="end_date" value="{{ current_year }}-12-31" required>
-                                    </div>
-                                </div>
-                                <div class="row g-2 mb-2">
-                                    <div class="col-4">
-                                        <label for="occ_status" class="form-label small">Estado</label>
-                                        <select class="form-select form-select-sm" id="occ_status" name="status">
-                                            <option value="">Todos</option>
-                                            <option value="open">Abertas</option>
-                                            <option value="completed">Resolvidas</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-4">
-                                        <label for="occ_priority" class="form-label small">Prioridade</label>
-                                        <select class="form-select form-select-sm" id="occ_priority" name="priority">
-                                            <option value="">Todas</option>
-                                            <option value="urgent">Urgente</option>
-                                            <option value="high">Alta</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-4">
-                                        <label for="occ_category" class="form-label small">Categoria</label>
-                                        <input type="text" class="form-control form-control-sm" id="occ_category" name="category" placeholder="Opcional">
-                                    </div>
-                                </div>
-                                <div class="btn-group w-100" role="group">
-                                    <button type="submit" name="export" value="html" class="btn btn-outline-primary btn-sm">
-                                        <i class="bi bi-eye"></i> Ver
-                                    </button>
-                                    <button type="submit" name="export" value="excel" class="btn btn-outline-success btn-sm">
-                                        <i class="bi bi-file-excel"></i> Excel
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
+        <div class="card-body" id="report-content">
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">A carregar...</span>
                 </div>
-
-                <div class="col-md-6">
-                    <div class="card border-info">
-                        <div class="card-body">
-                            <h6 class="card-title">Relatório por Fornecedor</h6>
-                            <p class="text-muted small">Análise de ocorrências por fornecedor</p>
-                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/occurrences-by-supplier">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <div class="row g-2 mb-2">
-                                    <div class="col-6">
-                                        <label for="supp_start_date" class="form-label small">Data Início</label>
-                                        <input type="date" class="form-control form-control-sm" id="supp_start_date" name="start_date" value="{{ current_year }}-01-01" required>
-                                    </div>
-                                    <div class="col-6">
-                                        <label for="supp_end_date" class="form-label small">Data Fim</label>
-                                        <input type="date" class="form-control form-control-sm" id="supp_end_date" name="end_date" value="{{ current_year }}-12-31" required>
-                                    </div>
-                                </div>
-                                <div class="btn-group w-100" role="group">
-                                    <button type="submit" name="export" value="html" class="btn btn-outline-info btn-sm">
-                                        <i class="bi bi-eye"></i> Ver
-                                    </button>
-                                    <button type="submit" name="export" value="excel" class="btn btn-outline-success btn-sm">
-                                        <i class="bi bi-file-excel"></i> Excel
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
+                <p class="mt-2">A carregar relatório...</p>
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
+
+<script>
+(function() {
+    'use strict';
+    
+    const reportContainer = document.getElementById('report-container');
+    const reportContent = document.getElementById('report-content');
+    const reportTitle = document.getElementById('report-title');
+    const btnPrintReport = document.getElementById('btn-print-report');
+    const btnSaveReport = document.getElementById('btn-save-report');
+    const reportTypeSelect = document.getElementById('report_type');
+    const occurrenceFilters = document.getElementById('occurrence-filters');
+    
+    let currentReportData = {
+        html: '',
+        printUrl: '',
+        title: '',
+        type: '',
+        params: {}
+    };
+    
+    // Show/hide occurrence filters based on report type
+    if (reportTypeSelect && occurrenceFilters) {
+        function toggleOccurrenceFilters() {
+            const selectedType = reportTypeSelect.value;
+            if (selectedType === 'occurrences') {
+                occurrenceFilters.style.display = 'block';
+            } else {
+                occurrenceFilters.style.display = 'none';
+                // Clear occurrence filter values when hidden
+                document.getElementById('occ_status').value = '';
+                document.getElementById('occ_priority').value = '';
+                document.getElementById('occ_category').value = '';
+            }
+        }
+        
+        reportTypeSelect.addEventListener('change', toggleOccurrenceFilters);
+        toggleOccurrenceFilters(); // Initial check
+    }
+    
+    // Intercept all report forms
+    document.querySelectorAll('.report-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            formData.append('mode', 'ajax');
+            
+            // Show loading
+            reportContainer.style.display = 'block';
+            reportContent.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">A carregar...</span></div><p class="mt-2">A carregar relatório...</p></div>';
+            
+            // Scroll to container
+            reportContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            
+            // Get report type from form
+            const action = this.getAttribute('action');
+            const reportType = action.includes('custom') ? formData.get('report_type') : 'unknown';
+            
+            // Make AJAX request
+            fetch(action, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    // Extract HTML from response
+                    const html = data.data.html || data.data;
+                    const printUrl = data.data.printUrl || '';
+                    const title = data.data.title || 'Relatório';
+                    
+                    // Store current report data
+                    currentReportData = {
+                        html: html,
+                        printUrl: printUrl,
+                        title: title,
+                        type: reportType,
+                        params: Object.fromEntries(formData.entries())
+                    };
+                    
+                    // Update container
+                    reportTitle.textContent = title;
+                    
+                    // Check if Chart.js is needed and loaded
+                    const needsChart = html.includes('chart') || html.includes('Chart') || html.includes('canvas');
+                    const chartLoaded = typeof Chart !== 'undefined';
+                    
+                    function insertReportHtml(htmlContent) {
+                        // Extract scripts from HTML
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = htmlContent;
+                        const scriptsToExecute = [];
+                        
+                        // Extract script sources and content
+                        tempDiv.querySelectorAll('script').forEach(script => {
+                            if (script.src) {
+                                scriptsToExecute.push({type: 'src', value: script.src});
+                            } else {
+                                scriptsToExecute.push({type: 'inline', value: script.textContent || script.innerHTML});
+                            }
+                            script.remove();
+                        });
+                        
+                        // Insert HTML without scripts
+                        reportContent.innerHTML = tempDiv.innerHTML;
+                        
+                        // Execute scripts
+                        let scriptIndex = 0;
+                        function executeNextScript() {
+                            if (scriptIndex >= scriptsToExecute.length) {
+                                return;
+                            }
+                            
+                            const scriptInfo = scriptsToExecute[scriptIndex];
+                            
+                            if (scriptInfo.type === 'src') {
+                                // Check if script is already loaded
+                                const existingScript = document.querySelector('script[src="' + scriptInfo.value + '"]');
+                                if (existingScript) {
+                                    scriptIndex++;
+                                    executeNextScript();
+                                    return;
+                                }
+                                
+                                // Load external script
+                                const script = document.createElement('script');
+                                script.src = scriptInfo.value;
+                                script.onload = function() {
+                                    scriptIndex++;
+                                    executeNextScript();
+                                };
+                                script.onerror = function() {
+                                    console.error('Error loading script:', scriptInfo.value);
+                                    scriptIndex++;
+                                    executeNextScript();
+                                };
+                                document.head.appendChild(script);
+                            } else {
+                                // Execute inline script in isolated scope to avoid variable conflicts
+                                const script = document.createElement('script');
+                                // Wrap script in IIFE to create isolated scope
+                                script.textContent = '(function() { ' + scriptInfo.value + ' })();';
+                                document.body.appendChild(script);
+                                scriptIndex++;
+                                setTimeout(executeNextScript, 100);
+                            }
+                        }
+                        
+                        // Start executing scripts after a short delay
+                        setTimeout(() => {
+                            executeNextScript();
+                        }, 100);
+                    }
+                    
+                    if (needsChart && !chartLoaded) {
+                        // Load Chart.js dynamically first
+                        const script = document.createElement('script');
+                        script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+                        script.onload = function() {
+                            insertReportHtml(html);
+                        };
+                        script.onerror = function() {
+                            console.error('Error loading Chart.js');
+                            insertReportHtml(html);
+                        };
+                        document.head.appendChild(script);
+                    } else {
+                        insertReportHtml(html);
+                    }
+                    
+                    // Update print button
+                    if (printUrl && btnPrintReport) {
+                        btnPrintReport.onclick = function() {
+                            window.open(printUrl, '_blank');
+                        };
+                    }
+                    
+                    // Show save button if admin
+                    {% if is_admin %}
+                    if (btnSaveReport) {
+                        btnSaveReport.style.display = 'inline-block';
+                    }
+                    {% endif %}
+                } else {
+                    reportContent.innerHTML = '<div class="alert alert-danger">Erro ao carregar relatório: ' + (data.error || 'Erro desconhecido') + '</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                reportContent.innerHTML = '<div class="alert alert-danger">Erro ao carregar relatório. Por favor, tente novamente.</div>';
+            });
+        });
+    });
+    
+    // Check if report type can be exported to Excel (all types now support Excel)
+    function canExportToExcel(reportType) {
+        return true; // All report types support Excel export
+    }
+    
+    // Show notification function
+    function showNotification(message, type) {
+        // Find the main container (container div)
+        const mainContainer = document.querySelector('.container');
+        if (!mainContainer) {
+            console.error('Container não encontrado');
+            return;
+        }
+        
+        // Remove any existing notifications first
+        const existingAlert = mainContainer.querySelector('.alert-notification');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+        
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show alert-notification`;
+        alertDiv.setAttribute('role', 'alert');
+        alertDiv.style.position = 'fixed';
+        alertDiv.style.top = '100px';
+        alertDiv.style.left = '50%';
+        alertDiv.style.transform = 'translateX(-50%)';
+        alertDiv.style.zIndex = '9999';
+        alertDiv.style.minWidth = '400px';
+        alertDiv.style.maxWidth = '600px';
+        alertDiv.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+        alertDiv.style.borderRadius = '8px';
+        // Garantir fundo opaco para melhor legibilidade
+        if (type === 'success') {
+            alertDiv.style.backgroundColor = '#d1e7dd';
+            alertDiv.style.color = '#0f5132';
+            alertDiv.style.borderColor = '#badbcc';
+        } else {
+            alertDiv.style.backgroundColor = '#f8d7da';
+            alertDiv.style.color = '#842029';
+            alertDiv.style.borderColor = '#f5c2c7';
+        }
+        alertDiv.style.opacity = '1';
+        alertDiv.innerHTML = `
+            <div class="d-flex align-items-center">
+                <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}-fill me-2" style="font-size: 1.2rem;"></i>
+                <span>${message}</span>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+
+        // Insert at the beginning of the container
+        mainContainer.insertBefore(alertDiv, mainContainer.firstChild);
+
+        // Auto-dismiss after 15 seconds (increased from 5)
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.style.transition = 'opacity 0.5s ease-out';
+                alertDiv.style.opacity = '0';
+                setTimeout(() => {
+                    alertDiv.remove();
+                }, 500);
+            }
+        }, 15000);
+    }
+    
+    // Save report button
+    {% if is_admin %}
+    if (btnSaveReport) {
+        btnSaveReport.addEventListener('click', function() {
+            if (!currentReportData.html) {
+                showNotification('Nenhum relatório carregado para guardar.', 'danger');
+                return;
+            }
+            
+            // Show format selection modal
+            const formatModal = document.createElement('div');
+            formatModal.className = 'modal fade';
+            formatModal.id = 'saveFormatModal';
+            formatModal.setAttribute('tabindex', '-1');
+            formatModal.setAttribute('aria-labelledby', 'saveFormatModalLabel');
+            formatModal.setAttribute('aria-hidden', 'true');
+            
+            const excelOption = canExportToExcel(currentReportData.type) ? `
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="save_format" id="format_excel" value="excel">
+                    <label class="form-check-label" for="format_excel">
+                        Excel (planilha)
+                    </label>
+                </div>
+            ` : '';
+            
+            formatModal.innerHTML = `
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="saveFormatModalLabel">Escolher Formato</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Escolha o formato em que deseja guardar o relatório:</p>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="save_format" id="format_html" value="html" checked>
+                                <label class="form-check-label" for="format_html">
+                                    HTML (visualização web)
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="save_format" id="format_pdf" value="pdf">
+                                <label class="form-check-label" for="format_pdf">
+                                    PDF (documento para impressão)
+                                </label>
+                            </div>
+                            ${excelOption}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" id="confirm-save">Guardar</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(formatModal);
+            const modal = new bootstrap.Modal(formatModal);
+            modal.show();
+            
+            // Handle confirm save
+            const confirmBtn = formatModal.querySelector('#confirm-save');
+            confirmBtn.addEventListener('click', function() {
+                const selectedFormat = formatModal.querySelector('input[name="save_format"]:checked').value;
+                modal.hide();
+                
+                const btn = btnSaveReport;
+                const originalText = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> A guardar...';
+                
+                const formData = new FormData();
+                formData.append('csrf_token', '{{ csrf_token }}');
+                formData.append('report_html', currentReportData.html);
+                formData.append('report_title', currentReportData.title);
+                formData.append('report_type', currentReportData.type);
+                formData.append('report_params', JSON.stringify(currentReportData.params));
+                formData.append('save_format', selectedFormat);
+                
+                fetch('{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/save', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('Relatório guardado com sucesso nos documentos!', 'success');
+                    } else {
+                        showNotification('Erro ao guardar relatório: ' + (data.error || 'Erro desconhecido'), 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification('Erro ao guardar relatório. Por favor, tente novamente.', 'danger');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    formatModal.remove();
+                });
+            });
+            
+            // Remove modal when closed
+            formatModal.addEventListener('hidden.bs.modal', function() {
+                formatModal.remove();
+            });
+        });
+    }
+    {% endif %}
+})();
+</script>
 
 
 

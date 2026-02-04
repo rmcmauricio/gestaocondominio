@@ -1,25 +1,105 @@
-<header id="header" class="header">
+<header id="header" class="header {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName or viewName == 'pages/help/index.html.twig' %}header-homepage{% endif %}">
   <div class="container">
     <a href="{{ BASE_URL }}" class="logo">
-      <img src="{{ BASE_URL }}assets/images/logo.svg" alt="MeuPrédio" class="logo-img">
+      {% if template_id is defined and template_id == 3 or template_id == 7 %}
+        <img src="{{ BASE_URL }}assets/images/logo-dark.svg" alt="O Meu Prédio" class="logo-img">
+      {% else %}
+        <img src="{{ BASE_URL }}assets/images/logo.svg" alt="O Meu Prédio" class="logo-img">
+      {% endif %}
     </a>
 
     <div class="header-actions">
       {% if user %}
+      <!-- Sidebar toggle (menu) - first for intuitive access when sidebar is hidden -->
+      <button id="sidebarToggleBtn" class="btn btn-primary sidebar-toggle-header" onclick="toggleSidebar(); return false;" aria-label="Abrir menu" title="Abrir menu">
+        <i class="bi bi-list"></i>
+      </button>
+      <!-- Demo Profile Selector -->
+      {% if is_demo_user %}
+      <div class="demo-profile-selector">
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm demo-profile-btn" type="button" id="demoProfileDropdown" aria-expanded="false" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <i class="bi bi-person-badge"></i>
+            <span class="demo-profile-label">
+              {% if demo_profile == 'admin' %}
+                Admin
+              {% else %}
+                Condómino
+              {% endif %}
+            </span>
+            <i class="bi bi-chevron-down ms-1"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end demo-profile-menu" aria-labelledby="demoProfileDropdown">
+            <li>
+              <a class="dropdown-item {% if demo_profile == 'admin' %}active{% endif %}" href="{{ BASE_URL }}demo/switch-profile?profile=admin">
+                <i class="bi bi-shield-check text-primary"></i>
+                <span>Admin</span>
+                {% if demo_profile == 'admin' %}
+                  <i class="bi bi-check-lg ms-auto text-success"></i>
+                {% endif %}
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item {% if demo_profile == 'condomino' %}active{% endif %}" href="{{ BASE_URL }}demo/switch-profile?profile=condomino">
+                <i class="bi bi-person text-info"></i>
+                <span>Condómino</span>
+                {% if demo_profile == 'condomino' %}
+                  <i class="bi bi-check-lg ms-auto text-success"></i>
+                {% endif %}
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+      {% endif %}
+      
+      <!-- Messages button -->
+      {% if condominium %}
+      <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/messages" class="btn btn-outline-primary position-relative sidebar-toggle-header" aria-label="Mensagens" title="Mensagens" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0;">
+        <i class="bi bi-envelope"></i>
+        {% if unread_messages_count > 0 %}
+          <span id="header-messages-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">
+            {{ unread_messages_count }}
+            <span class="visually-hidden">mensagens não lidas</span>
+          </span>
+        {% else %}
+          <span id="header-messages-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem; display: none;">
+            <span class="visually-hidden">mensagens não lidas</span>
+          </span>
+        {% endif %}
+      </a>
+      {% endif %}
+      
       <!-- Notifications button -->
       <a href="{{ BASE_URL }}notifications" class="btn btn-outline-primary position-relative sidebar-toggle-header" aria-label="Notificações" title="Notificações" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0;">
         <i class="bi bi-bell"></i>
         {% if unread_notifications_count > 0 %}
-          <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">
+          <span id="header-notifications-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">
             {{ unread_notifications_count }}
+            <span class="visually-hidden">notificações não lidas</span>
+          </span>
+        {% else %}
+          <span id="header-notifications-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem; display: none;">
             <span class="visually-hidden">notificações não lidas</span>
           </span>
         {% endif %}
       </a>
-      <!-- Sidebar toggle button for logged in users -->
-      <button class="btn btn-primary sidebar-toggle-header" onclick="toggleSidebar(); return false;" aria-label="Abrir menu" title="Abrir menu">
-        <i class="bi bi-list"></i>
-      </button>
+      <!-- Logout button -->
+      <a href="{{ BASE_URL }}logout" class="btn btn-outline-danger sidebar-toggle-header" aria-label="Sair" title="Encerrar Sessão" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0;">
+        <i class="bi bi-box-arrow-right"></i>
+      </a>
+      {% else %}
+      {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName or viewName == 'pages/help/index.html.twig' %}
+      <!-- Homepage Navigation -->
+      <div class="d-flex align-items-center gap-2">
+        {% if not DISABLE_AUTH_REGISTRATION %}
+        <a href="{{ BASE_URL }}login" class="btn-login">Entrar</a>
+        <a href="{{ BASE_URL }}register" class="btn-start-free">Começar Grátis</a>
+        {% else %}
+        <a href="{{ BASE_URL }}demo/access" class="btn-start-free">Demonstração</a>
+        {% endif %}
+      </div>
       {% else %}
       <button class="mobile-nav-toggle" aria-label="Toggle navigation" id="mobileNavToggle">
         <i class="bi bi-list"></i>
@@ -28,8 +108,12 @@
       <nav id="navmenu" class="navmenu">
         <ul>
           <li><a href="{{ BASE_URL }}">Início</a></li>
+          {% if not DISABLE_AUTH_REGISTRATION %}
           <li><a href="{{ BASE_URL }}register" class="btn btn-outline-primary btn-sm">Criar Conta</a></li>
           <li><a href="{{ BASE_URL }}login">Login</a></li>
+          {% else %}
+          <li><a href="{{ BASE_URL }}demo/access" class="btn btn-outline-primary btn-sm">Demonstração</a></li>
+          {% endif %}
           <li class="language-selector">
             <div class="dropdown">
               <button class="btn-language" type="button" id="languageDropdown" aria-expanded="false">
@@ -52,6 +136,7 @@
           </li>
         </ul>
       </nav>
+      {% endif %}
       {% endif %}
     </div>
   </div>

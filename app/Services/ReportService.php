@@ -83,12 +83,36 @@ class ReportService
      */
     public function generateFeesReport(int $condominiumId, int $year, int $month = null): array
     {
-        $filters = ['year' => $year];
-        if ($month) {
-            $filters['month'] = $month;
+        global $db;
+        
+        if (!$db) {
+            return [];
         }
 
-        $fees = $this->feeModel->getByCondominium($condominiumId, $filters);
+        $sql = "SELECT f.*, fr.identifier as fraction_identifier,
+                       GROUP_CONCAT(DISTINCT DATE(fp.payment_date) ORDER BY fp.payment_date DESC SEPARATOR ', ') as payment_dates
+                FROM fees f
+                INNER JOIN fractions fr ON fr.id = f.fraction_id
+                LEFT JOIN fee_payments fp ON fp.fee_id = f.id
+                WHERE f.condominium_id = :condominium_id
+                AND f.period_year = :year";
+
+        $params = [
+            ':condominium_id' => $condominiumId,
+            ':year' => $year
+        ];
+
+        if ($month) {
+            $sql .= " AND f.period_month = :month";
+            $params[':month'] = $month;
+        }
+
+        $sql .= " GROUP BY f.id
+                  ORDER BY f.period_year DESC, f.period_month DESC, fr.identifier ASC";
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $fees = $stmt->fetchAll() ?: [];
 
         $summary = [
             'total' => 0,
@@ -159,9 +183,16 @@ class ReportService
             // Expenses
             $expenses = $this->expenseModel->getTotalByPeriod($condominiumId, $monthStart, $monthEnd);
             
+            // Translate month name to Portuguese
+            $monthNames = [
+                1 => 'Janeiro', 2 => 'Fevereiro', 3 => 'Março', 4 => 'Abril',
+                5 => 'Maio', 6 => 'Junho', 7 => 'Julho', 8 => 'Agosto',
+                9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro'
+            ];
+            
             $cashFlow[] = [
                 'month' => $month,
-                'month_name' => date('F', strtotime($monthStart)),
+                'month_name' => $monthNames[$month] ?? date('F', strtotime($monthStart)),
                 'revenue' => $revenue,
                 'expenses' => $expenses,
                 'net' => $revenue - $expenses
@@ -457,6 +488,71 @@ class ReportService
         ]);
 
         return $stmt->fetchAll() ?: [];
+    }
+
+    /**
+     * Generate summary financial report
+     */
+    public function generateSummaryReport(int $condominiumId, string $startDate, string $endDate): array
+    {
+        global $db;
+        
+        if (!$db) {
+            return [];
+        }
+
+        // Get total revenue (paid fees)
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(fp.amount), 0) as total_revenue
+            FROM fee_payments fp
+            INNER JOIN fees f ON f.id = fp.fee_id
+            WHERE f.condominium_id = :condominium_id
+            AND DATE(fp.payment_date) BETWEEN :start_date AND :end_date
+        ");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':start_date' => $startDate,
+            ':end_date' => $endDate
+        ]);
+        $revenueResult = $stmt->fetch();
+        $totalRevenue = (float)($revenueResult['total_revenue'] ?? 0);
+
+        // Get total expenses
+        $totalExpenses = $this->expenseModel->getTotalByPeriod($condominiumId, $startDate, $endDate);
+
+        // Get fees summary
+        $stmt = $db->prepare("
+            SELECT 
+                COUNT(*) as total_count,
+                SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) as paid_total,
+                SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) as pending_total,
+                SUM(CASE WHEN status = 'pending' AND due_date < CURDATE() THEN amount ELSE 0 END) as overdue_total
+            FROM fees
+            WHERE condominium_id = :condominium_id
+            AND DATE(created_at) BETWEEN :start_date AND :end_date
+        ");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':start_date' => $startDate,
+            ':end_date' => $endDate
+        ]);
+        $feesResult = $stmt->fetch();
+        
+        $balance = $totalRevenue - $totalExpenses;
+
+        return [
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'total_revenue' => $totalRevenue,
+            'total_expenses' => $totalExpenses,
+            'balance' => $balance,
+            'fees' => [
+                'total_count' => (int)($feesResult['total_count'] ?? 0),
+                'paid_total' => (float)($feesResult['paid_total'] ?? 0),
+                'pending_total' => (float)($feesResult['pending_total'] ?? 0),
+                'overdue_total' => (float)($feesResult['overdue_total'] ?? 0)
+            ]
+        ];
     }
 }
 

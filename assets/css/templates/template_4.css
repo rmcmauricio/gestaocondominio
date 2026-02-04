@@ -1,0 +1,186 @@
+/**
+ * Template 4 - Minimalista
+ * Cores neutras claras, muito espaço em branco
+ */
+:root {
+  /* Primary Colors - Neutro claro */
+  --color-primary: #9ca3af;
+  --color-primary-dark: #6b7280;
+  --color-primary-light: #d1d5db;
+
+  /* Accent Colors */
+  --color-accent: #6b7280;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-info: #9ca3af;
+
+  /* Background Colors - Muito branco */
+  --color-bg: #ffffff;
+  --color-bg-light: #fafafa;
+  --color-bg-dark: #f3f4f6;
+
+  /* Border Colors - Muito suave */
+  --color-border: #e5e7eb;
+  --color-border-dark: #d1d5db;
+
+  /* Text Colors */
+  --color-text: #1f2937;
+  --color-text-light: #4b5563;
+  --color-text-muted: #6b7280;
+}
+
+/* Bootstrap Override Variables */
+:root {
+  --bs-card-header-bg: hsl(215 16% 47%);
+  --bs-card-header-text: hsl(0 0% 100%);
+  --bs-card-header-border: hsl(215 16% 52%);
+  --bs-card-header-bg-alt: hsl(215 16% 47%);
+}
+
+/* Card Header Overrides */
+.card-header.bg-primary {
+  background-color: hsl(215 16% 47%) !important;
+  color: hsl(0 0% 100%) !important;
+  border-color: hsl(215 16% 52%) !important;
+}
+
+/* Button Overrides */
+.btn-primary {
+  background-color: #9ca3af !important;
+  border-color: #9ca3af !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.btn-primary:hover {
+  background-color: #6b7280 !important;
+  border-color: #6b7280 !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.btn-outline-primary {
+  color: #9ca3af !important;
+  border-color: #9ca3af !important;
+}
+
+.btn-outline-primary:hover {
+  background-color: #9ca3af !important;
+  border-color: #9ca3af !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.badge.bg-primary {
+  background-color: #9ca3af !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+/* Sidebar styling */
+.sidebar {
+  background: var(--color-bg-light) !important;
+}
+
+.sidebar-nav .nav-link:hover {
+  background: rgba(156, 163, 175, 0.1) !important;
+  color: var(--color-primary) !important;
+}
+
+/* Links */
+a {
+  color: var(--color-primary) !important;
+}
+
+a:hover {
+  color: var(--color-primary-dark) !important;
+}
+
+/* Main Content Background */
+.main-content {
+  background: var(--color-bg-light) !important;
+}
+
+/* Cards */
+.card {
+  background: var(--color-bg) !important;
+  border-color: var(--color-border) !important;
+}
+
+.card-body {
+  background: var(--color-bg) !important;
+}
+
+/* Tables */
+table {
+  background: var(--color-bg) !important;
+}
+
+table thead th {
+  background: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+table tbody td {
+  background: var(--color-bg) !important;
+  border-color: var(--color-border) !important;
+}
+
+table tbody tr:hover {
+  background: var(--color-bg-light) !important;
+}
+
+/* Footer Homepage - Ensure readability */
+.footer-homepage {
+  background: #1a1c1e !important;
+  color: #ffffff !important;
+}
+
+.footer-homepage * {
+  color: inherit;
+}
+
+.footer-homepage .footer-column-title {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-description,
+.footer-homepage .footer-contact-item {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage .footer-copyright,
+.footer-homepage .footer-copyright p {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.footer-homepage .footer-developed-by {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.footer-homepage a {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage a:hover {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-column-links a {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage .footer-column-links a:hover {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-column-links li i {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.footer-homepage .footer-developed-by a {
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-weight: 600 !important;
+}
+
+.footer-homepage .footer-developed-by a:hover {
+  color: #ffffff !important;
+}

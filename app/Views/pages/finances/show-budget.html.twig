@@ -1,17 +1,17 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2>Orçamento {{ budget.year }}</h2>
-            <p class="text-muted mb-0">{{ condominium.name }}</p>
-        </div>
-        <div>
-            {% if budget.status == 'draft' %}
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}/edit" class="btn btn-primary">
+    {% set page_actions %}
+        {% if budget.status == 'draft' %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}/edit" class="btn btn-primary btn-sm">
                 <i class="bi bi-pencil"></i> Editar
             </a>
-            {% endif %}
         </div>
-    </div>
+        {% endif %}
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Orçamento ' ~ budget.year,
+        'actions': page_actions
+    } %}
 
     {% if error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -64,11 +64,10 @@
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table">
+                        <table class="table table-budget-mobile">
                             <thead>
                                 <tr>
                                     <th>Descrição</th>
-                                    <th>Categoria</th>
                                     <th class="text-end">Valor</th>
                                 </tr>
                             </thead>
@@ -76,14 +75,13 @@
                                 {% for item in revenue_items %}
                                 <tr>
                                     <td>{{ item.description }}</td>
-                                    <td><span class="badge bg-success">{{ item.category|replace({'Receita: ': ''}) }}</span></td>
                                     <td class="text-end"><strong>€{{ item.amount|number_format(2, ',', '.') }}</strong></td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot>
                                 <tr>
-                                    <th colspan="2">Total</th>
+                                    <th>Total</th>
                                     <th class="text-end">€{{ total_revenue|number_format(2, ',', '.') }}</th>
                                 </tr>
                             </tfoot>
@@ -100,11 +98,10 @@
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table">
+                        <table class="table table-budget-mobile">
                             <thead>
                                 <tr>
                                     <th>Descrição</th>
-                                    <th>Categoria</th>
                                     <th class="text-end">Valor</th>
                                 </tr>
                             </thead>
@@ -112,14 +109,13 @@
                                 {% for item in expense_items %}
                                 <tr>
                                     <td>{{ item.description }}</td>
-                                    <td><span class="badge bg-danger">{{ item.category|replace({'Despesa: ': ''}) }}</span></td>
                                     <td class="text-end"><strong>€{{ item.amount|number_format(2, ',', '.') }}</strong></td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot>
                                 <tr>
-                                    <th colspan="2">Total</th>
+                                    <th>Total</th>
                                     <th class="text-end">€{{ total_expenses|number_format(2, ',', '.') }}</th>
                                 </tr>
                             </tfoot>
@@ -139,18 +135,24 @@
     </div>
     {% endif %}
 
-    <div class="d-flex justify-content-between">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Voltar
         </a>
-        {% if budget.status == 'draft' %}
-        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}/approve" class="d-inline">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="btn btn-success">
-                <i class="bi bi-check-circle"></i> Aprovar Orçamento
-            </button>
-        </form>
-        {% endif %}
+        <div class="d-flex gap-2">
+            {% if budget.status == 'draft' %}
+            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}/approve" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-check-circle"></i> Aprovar Orçamento
+                </button>
+            </form>
+            {% elseif budget.status == 'approved' or budget.status == 'active' %}
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="btn btn-primary">
+                <i class="bi bi-calculator"></i> Gerar Quotas
+            </a>
+            {% endif %}
+        </div>
     </div>
 </div>
 

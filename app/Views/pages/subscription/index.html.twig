@@ -1,6 +1,190 @@
 <div class="container py-4">
     <div class="row">
         <div class="col-12 col-xl-10 mx-auto">
+            {% if error %}
+            <div class="alert alert-danger" role="alert">
+                {{ error }}
+            </div>
+            {% endif %}
+
+            {% if success %}
+            <div class="alert alert-success" role="alert">
+                {{ success }}
+            </div>
+            {% endif %}
+
+            {% if info %}
+            <div class="alert alert-info" role="alert">
+                {{ info }}
+            </div>
+            {% endif %}
+
+            {% if pending_subscription %}
+            <!-- Pending Subscription Card -->
+            <div class="card shadow-sm mb-4 border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0"><i class="bi bi-clock-history"></i> {% if subscription %}Alteração de Plano Pendente{% else %}Subscrição Pendente{% endif %}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-3">
+                        <h6 class="alert-heading"><i class="bi bi-info-circle"></i> {% if subscription %}Alteração de Plano Aguardando Pagamento{% else %}Subscrição Aguardando Pagamento{% endif %}</h6>
+                        <p class="mb-0 small">
+                            {% if subscription %}
+                            Você solicitou uma alteração de plano. A sua subscrição atual permanece ativa até expirar ou até o pagamento do novo plano ser confirmado. 
+                            Efetue o pagamento abaixo para ativar o novo plano.
+                            {% else %}
+                            Você solicitou uma nova subscrição. Efetue o pagamento abaixo para ativar o plano.
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center mb-3">
+                                <h3 class="mb-0 me-3">{{ pending_subscription.plan_name }}</h3>
+                                <span class="badge bg-warning fs-6">Pendente</span>
+                            </div>
+                            
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-calendar-event text-muted me-2"></i>
+                                        <div>
+                                            <small class="text-muted d-block">Período após ativação</small>
+                                            <strong>{{ pending_subscription.current_period_end|date('d/m/Y') }}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-currency-euro text-muted me-2"></i>
+                                        <div>
+                                            <small class="text-muted d-block">Preço</small>
+                                            {% if pending_subscription.promotion_id %}
+                                                {% set original_price = pending_subscription.original_price_monthly|default(pending_subscription.price_monthly) %}
+                                                {% if original_price != pending_subscription.price_monthly %}
+                                                    <div>
+                                                        <span class="text-muted text-decoration-line-through small">€{{ original_price|number_format(2, ',', '.') }}</span>
+                                                        <strong class="text-danger">€{{ pending_subscription.price_monthly|number_format(2, ',', '.') }}/mês</strong>
+                                                    </div>
+                                                {% else %}
+                                                    <strong>€{{ pending_subscription.price_monthly|number_format(2, ',', '.') }}/mês</strong>
+                                                {% endif %}
+                                            {% else %}
+                                                <strong>€{{ pending_subscription.price_monthly|number_format(2, ',', '.') }}/mês</strong>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {% if pending_subscription.promotion_id %}
+                            <div class="alert alert-success mb-3">
+                                <i class="bi bi-tag-fill"></i> <strong>Promoção Aplicada!</strong>
+                                {% set promo = plan_promotions[pending_subscription.plan_id] ?? null %}
+                                {% if promo %}
+                                    <div class="mt-2">
+                                        <strong>{{ promo.name }}</strong>
+                                        {% if promo.discount_type == 'percentage' %}
+                                            <span class="badge bg-danger">{{ promo.discount_value }}% OFF</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">€{{ promo.discount_value }} OFF</span>
+                                        {% endif %}
+                                        {% if promo.duration_months %}
+                                            <br><small class="text-muted">Válida por {{ promo.duration_months }} {% if promo.duration_months == 1 %}mês{% else %}meses{% endif %}</small>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            
+                            {% if pending_subscription.plan_slug == 'business' and extra_condominiums_pricing %}
+                            <div class="border-top pt-3 mb-3">
+                                <h6 class="mb-3">Condomínios Extras</h6>
+                                <form method="POST" action="{{ BASE_URL }}subscription/update-pending-extras" id="updatePendingExtrasForm">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <div class="mb-3">
+                                        <label for="pending_extra_condominiums" class="form-label small">Número de condomínios extras:</label>
+                                        <input type="number" 
+                                               class="form-control form-control-sm" 
+                                               id="pending_extra_condominiums" 
+                                               name="extra_condominiums"
+                                               value="{{ pending_subscription.extra_condominiums|default(0) }}" 
+                                               min="0"
+                                               data-base-price="{{ pending_subscription.price_monthly }}">
+                                        <small class="text-muted d-block mt-1">
+                                            <span id="pending_extra_price_info">Preço por condomínio extra: €0,00</span>
+                                        </small>
+                                    </div>
+                                    <div class="alert alert-info small mb-2" id="pending_extra_total" style="display: none;">
+                                        <strong>Total extras:</strong> <span id="pending_extra_total_amount">€0,00</span>/mês
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong class="d-block mb-1">Total Mensal:</strong>
+                                        <span class="h5 text-primary" id="pending_total_price_display">€{{ (pending_total_price ?: pending_subscription.price_monthly)|number_format(2, ',', '.') }}</span>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm w-100 mb-2">
+                                        <i class="bi bi-check-circle"></i> Atualizar Extras
+                                    </button>
+                                </form>
+                            </div>
+                            {% elseif pending_subscription.plan_slug == 'business' and pending_subscription.extra_condominiums > 0 %}
+                            <div class="border-top pt-3 mb-3">
+                                <i class="bi bi-building"></i> Condomínios extras: {{ pending_subscription.extra_condominiums }}
+                            </div>
+                            {% endif %}
+                            
+                            {% set pending_plan = plans|filter(p => p.id == pending_subscription.plan_id)|first %}
+                            {% if pending_plan and pending_plan.plan_type %}
+                            <div class="border-top pt-3 mb-3">
+                                <h6 class="mb-3"><i class="bi bi-key"></i> Frações Extras</h6>
+                                <form method="POST" action="{{ BASE_URL }}subscription/update-pending-licenses" id="updatePendingLicensesForm">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <div class="mb-3">
+                                        <label for="pending_extra_licenses" class="form-label small">Número de frações extras:</label>
+                                        <input type="number" 
+                                               class="form-control form-control-sm" 
+                                               id="pending_extra_licenses" 
+                                               name="extra_licenses"
+                                               value="{{ pending_subscription.extra_licenses|default(0) }}" 
+                                               min="0"
+                                               data-plan-id="{{ pending_subscription.plan_id }}"
+                                               data-license-min="{{ pending_plan.license_min|default(0) }}">
+                                        <small class="text-muted d-block mt-1">
+                                            {% if pending_subscription.extra_licenses|default(0) > 0 %}
+                                                + <strong>{{ pending_subscription.extra_licenses }}</strong> extras = 
+                                                <strong>{{ pending_plan.license_min|default(0) + pending_subscription.extra_licenses }}</strong> total
+                                            {% else %}
+                                                {{ pending_plan.license_min|default(0) }} incluídas no plano
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong class="d-block mb-1">Total Mensal:</strong>
+                                        <span class="h5 text-primary" id="pending_licenses_total_display">€{{ (pending_total_price ?: pending_subscription.price_monthly)|number_format(2, ',', '.') }}</span>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm w-100 mb-2">
+                                        <i class="bi bi-check-circle"></i> Atualizar Frações
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="{{ BASE_URL }}payments/{{ pending_subscription.id }}/create" class="btn btn-primary w-100 mb-2">
+                                <i class="bi bi-credit-card"></i> Efetuar Pagamento
+                            </a>
+                            <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-plan-change" onsubmit="return confirm('Tem certeza que deseja cancelar esta alteração pendente?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-outline-danger w-100">
+                                    <i class="bi bi-x-circle"></i> Cancelar Alteração
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             {% if subscription %}
             <!-- Current Subscription Card -->
             <div class="card shadow-sm mb-4">
@@ -68,24 +252,273 @@
                                         <i class="bi bi-currency-euro text-muted me-2"></i>
                                         <div>
                                             <small class="text-muted d-block">Preço</small>
-                                            <strong>€{{ subscription.price_monthly|number_format(2, ',', '.') }}/mês</strong>
+                                            {% if total_price %}
+                                                <strong>€{{ total_price|number_format(2, ',', '.') }}/mês</strong>
+                                                {% if extra_condominiums_price > 0 %}
+                                                    <br><small class="text-muted">
+                                                        Base: €{{ subscription.price_monthly|number_format(2, ',', '.') }} + 
+                                                        Extras: €{{ extra_condominiums_price|number_format(2, ',', '.') }}
+                                                    </small>
+                                                {% endif %}
+                                            {% else %}
+                                                <strong>€{{ subscription.price_monthly|number_format(2, ',', '.') }}/mês</strong>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             
-                            <div class="text-muted small">
+                            <div class="text-muted small mb-3">
                                 <i class="bi bi-clock-history"></i> Criada em: {{ subscription.created_at|date('d/m/Y') }}
                             </div>
+
+                            {% if subscription.plan_type %}
+                            <!-- License Information -->
+                            <div class="border-top pt-3 mb-3">
+                                <h6 class="mb-3"><i class="bi bi-key"></i> Informações de Licenças</h6>
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-check-circle text-success me-2"></i>
+                                            <div>
+                                                <small class="text-muted d-block">Licenças Usadas</small>
+                                                <strong class="fs-5">{{ used_licenses|default(0) }}</strong>
+                                                {% if license_limit %}
+                                                    <span class="text-muted">/ {{ license_limit }}</span>
+                                                    <br><small class="text-muted">
+                                                        {% if subscription_plan and subscription_plan.license_min %}
+                                                            {% set extra_licenses_count = (subscription.extra_licenses|default(0)) + 0 %}
+                                                            {{ subscription_plan.license_min }} incluídas
+                                                            {% if extra_licenses_count > 0 and license_limit > subscription_plan.license_min %}
+                                                                + {{ extra_licenses_count }} extras
+                                                            {% endif %}
+                                                        {% else %}
+                                                            {{ license_limit }} disponíveis
+                                                        {% endif %}
+                                                    </small>
+                                                {% else %}
+                                                    <br><small class="text-muted">
+                                                        {% if subscription_plan and subscription_plan.license_min %}
+                                                            {% set extra_licenses_count = (subscription.extra_licenses|default(0)) + 0 %}
+                                                            {{ subscription_plan.license_min }} incluídas
+                                                            {% if extra_licenses_count > 0 %}
+                                                                + {{ extra_licenses_count }} extras
+                                                            {% endif %}
+                                                        {% endif %}
+                                                    </small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-building text-primary me-2"></i>
+                                            <div>
+                                                <small class="text-muted d-block">Condomínios Associados</small>
+                                                <strong class="fs-5">{{ associated_condominiums|length }}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {% if license_limit %}
+                                <div class="progress mb-2" style="height: 20px;">
+                                    {% set usage_percent = (used_licenses / license_limit * 100)|round %}
+                                    <div class="progress-bar {% if usage_percent >= 90 %}bg-danger{% elseif usage_percent >= 75 %}bg-warning{% else %}bg-success{% endif %}" 
+                                         role="progressbar" 
+                                         style="width: {{ usage_percent }}%"
+                                         aria-valuenow="{{ used_licenses }}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="{{ license_limit }}">
+                                        {{ usage_percent }}%
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                {% if pricing_preview %}
+                                <div class="alert alert-light mb-2">
+                                    <small>
+                                        <strong>Preço Mensal:</strong> €{{ pricing_preview.monthly_price|number_format(2, ',', '.') }}
+                                        {% if pricing_preview.annual_price %}
+                                            | <strong>Preço Anual:</strong> €{{ pricing_preview.annual_price|number_format(2, ',', '.') }}
+                                            {% if pricing_preview.annual_discount > 0 %}
+                                                <span class="text-success">({{ pricing_preview.annual_discount }}% desconto)</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                {% endif %}
+                                
+                                {% if subscription.plan_type %}
+                                <!-- Pending License Addition Alert -->
+                                {% if has_pending_license_addition and pending_license_addition %}
+                                <div class="alert alert-warning mb-3">
+                                    <div class="d-flex justify-content-between align-items-start flex-wrap">
+                                        <div class="flex-grow-1">
+                                            <i class="bi bi-exclamation-triangle"></i> <strong>Atenção:</strong> Tem um pagamento pendente para ativar {{ pending_license_addition.additional_licenses }} fração(ões) extra(s). Complete o pagamento para ativar.
+                                        </div>
+                                        <div class="d-flex gap-2 mt-2 mt-md-0">
+                                            <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-sm btn-primary" title="Completar pagamento">
+                                                <i class="bi bi-credit-card"></i> Completar Pagamento
+                                            </a>
+                                            <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-license-addition" class="d-inline-block" onsubmit="return confirm('Tem a certeza que deseja cancelar este pagamento pendente?');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancelar pagamento pendente">
+                                                    <i class="bi bi-x-circle"></i> Cancelar
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                <!-- Add extra licenses for active subscription -->
+                                <div class="border-top pt-3 mt-3 mb-3">
+                                    <h6 class="mb-3"><i class="bi bi-plus-circle"></i> Adicionar Frações Extras</h6>
+                                    <form method="POST" action="{{ BASE_URL }}subscription/add-active-licenses" id="addActiveLicensesForm">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <div class="mb-3">
+                                            <label for="active_extra_licenses" class="form-label small">Número de frações extras a adicionar:</label>
+                                            <input type="number" 
+                                                   class="form-control form-control-sm" 
+                                                   id="active_extra_licenses" 
+                                                   name="extra_licenses"
+                                                   value="0" 
+                                                   min="0"
+                                                   data-plan-id="{{ subscription.plan_id }}"
+                                                   data-current-licenses="{{ license_limit|default(used_licenses) }}"
+                                                   data-current-extra-licenses="{{ subscription.extra_licenses|default(0) }}"
+                                                   data-license-min="{{ subscription_plan.license_min|default(0) }}">
+                                            <small class="text-muted d-block mt-1">
+                                                Frações atuais: <strong>{{ used_licenses }}</strong>
+                                                {% if subscription_plan and subscription_plan.license_min and license_limit %}
+                                                    {% set extra_licenses_count = used_licenses - subscription_plan.license_min %}
+                                                    {% if extra_licenses_count > 0 %}
+                                                        ({{ subscription_plan.license_min }} incluídas + {{ extra_licenses_count }} extras)
+                                                    {% else %}
+                                                        ({{ subscription_plan.license_min }} incluídas no plano)
+                                                    {% endif %}
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                        <div class="alert alert-info small mb-2" id="active_licenses_price_info" style="display: none;">
+                                            <strong>Preço adicional mensal:</strong> <span id="active_licenses_price_amount">€0,00</span>/mês
+                                        </div>
+                                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                                            <i class="bi bi-check-circle"></i> Adicionar Frações e Gerar Pagamento
+                                        </button>
+                                    </form>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Associated Condominiums -->
+                            {% if subscription.plan_type != 'condominio' or (subscription.plan_type == 'condominio' and subscription.allow_multiple_condos) %}
+                            <div class="border-top pt-3 mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="mb-0"><i class="bi bi-building"></i> Condomínios Associados</h6>
+                                    {% if not user.is_demo %}
+                                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#attachCondominiumModal">
+                                        <i class="bi bi-plus-circle"></i> Associar Condomínio
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if associated_condominiums %}
+                                <div class="list-group">
+                                    {% for condo in associated_condominiums %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>{{ condo.condominium_name }}</strong>
+                                            <br><small class="text-muted">{{ condo.condominium_address }}</small>
+                                        </div>
+                                        {% if not user.is_demo and subscription.plan_type != 'condominio' %}
+                                        <form method="POST" action="{{ BASE_URL }}subscription/detach-condominium" class="d-inline" onsubmit="return confirm('Tem certeza que deseja desassociar este condomínio?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <input type="hidden" name="condominium_id" value="{{ condo.condominium_id }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-x-circle"></i> Desassociar
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p class="text-muted small mb-0">Nenhum condomínio associado.</p>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            {% endif %}
+
+                            {% if subscription.plan_slug == 'business' and extra_condominiums_pricing %}
+                            <div class="border-top pt-3">
+                                <h6 class="mb-3">Condomínios Extras</h6>
+                                {% if has_pending_extra_update %}
+                                <div class="alert alert-warning mb-3">
+                                    <div class="d-flex justify-content-between align-items-start flex-wrap">
+                                        <div class="flex-grow-1">
+                                            <i class="bi bi-exclamation-triangle"></i> <strong>Atenção:</strong> Tem um pagamento pendente para ativar novos condomínios extras. Complete o pagamento para ativar.
+                                        </div>
+                                        <div class="d-flex gap-2 mt-2 mt-md-0">
+                                            <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-sm btn-primary" title="Completar pagamento">
+                                                <i class="bi bi-credit-card"></i> Completar Pagamento
+                                            </a>
+                                            <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-extras" class="d-inline-block" onsubmit="return confirm('Tem a certeza que deseja cancelar este pagamento pendente?');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancelar pagamento pendente">
+                                                    <i class="bi bi-x-circle"></i> Cancelar
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                <form method="POST" action="{{ BASE_URL }}subscription/update-extras" id="updateExtrasForm">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <div class="mb-3">
+                                        <label for="extra_condominiums" class="form-label small">Número de condomínios extras:</label>
+                                        <input type="number" 
+                                               class="form-control form-control-sm" 
+                                               id="extra_condominiums" 
+                                               name="extra_condominiums"
+                                               value="{{ display_extra_condominiums|default(subscription.extra_condominiums|default(0)) }}" 
+                                               min="0"
+                                               data-base-price="{{ subscription.price_monthly }}">
+                                        <small class="text-muted d-block mt-1">
+                                            <span id="extra_price_info">Preço por condomínio extra: €0,00</span>
+                                        </small>
+                                    </div>
+                                    <div class="alert alert-info small mb-2" id="extra_total" style="display: none;">
+                                        <strong>Total extras:</strong> <span id="extra_total_amount">€0,00</span>/mês
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong class="d-block mb-1">Total Mensal:</strong>
+                                        <span class="h5 text-primary" id="total_price_display">€{{ (total_price ?: subscription.price_monthly)|number_format(2, ',', '.') }}</span>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                                        <i class="bi bi-check-circle"></i> Atualizar Extras e Gerar Pagamento
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}
                         </div>
                         <div class="col-md-4 text-end">
                             {% if subscription.status == 'active' %}
-                            <form method="POST" action="{{ BASE_URL }}subscription/cancel" class="mb-2">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <button type="submit" class="btn btn-outline-danger w-100" onclick="return confirm('Tem certeza que deseja cancelar a subscrição?')">
-                                    <i class="bi bi-x-circle"></i> Cancelar Subscrição
-                                </button>
-                            </form>
+                                {% if user.is_demo %}
+                                <div class="mb-2">
+                                    <span class="badge bg-secondary w-100 py-2">
+                                        <i class="bi bi-lock"></i> Conta Demo
+                                    </span>
+                                </div>
+                                {% else %}
+                                <form method="POST" action="{{ BASE_URL }}subscription/cancel" class="mb-2">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="btn btn-outline-danger w-100" onclick="return confirm('Tem certeza que deseja cancelar a subscrição?')">
+                                        <i class="bi bi-x-circle"></i> Cancelar Subscrição
+                                    </button>
+                                </form>
+                                {% endif %}
                             {% endif %}
                             
                             {% if subscription.status == 'trial' %}
@@ -93,43 +526,67 @@
                                 {% set now = 'now'|date('U') %}
                                 {% set daysLeft = ((trialEnds - now) / 86400)|round %}
                                 
-                                {% if daysLeft <= 0 %}
-                                    <div class="alert alert-warning mb-2 p-2">
-                                        <small><i class="bi bi-exclamation-triangle"></i> Trial expirado</small>
+                                {% if user.is_demo %}
+                                    <div class="mb-2">
+                                        <span class="badge bg-secondary w-100 py-2">
+                                            <i class="bi bi-lock"></i> Conta Demo
+                                        </span>
                                     </div>
-                                    <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-primary w-100 mb-2">
-                                        <i class="bi bi-credit-card"></i> Efetuar Pagamento
-                                    </a>
-                                {% elseif daysLeft <= 3 %}
-                                    <div class="alert alert-warning mb-2 p-2">
-                                        <small><i class="bi bi-clock"></i> Trial expira em {{ daysLeft }} dia(s)</small>
-                                    </div>
-                                    <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-primary w-100 mb-2">
-                                        <i class="bi bi-credit-card"></i> Efetuar Pagamento Agora
-                                    </a>
                                 {% else %}
-                                    <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-outline-primary w-100 mb-2">
-                                        <i class="bi bi-credit-card"></i> Efetuar Pagamento
-                                    </a>
-                                    <small class="text-muted d-block text-center">
-                                        Trial expira em {{ daysLeft }} dias
-                                    </small>
+                                    {% if daysLeft <= 0 %}
+                                        <div class="alert alert-warning mb-2 p-2">
+                                            <small><i class="bi bi-exclamation-triangle"></i> Trial expirado</small>
+                                        </div>
+                                        <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-primary w-100 mb-2">
+                                            <i class="bi bi-credit-card"></i> Efetuar Pagamento
+                                        </a>
+                                    {% elseif daysLeft <= 3 %}
+                                        <div class="alert alert-warning mb-2 p-2">
+                                            <small><i class="bi bi-clock"></i> Trial expira em {{ daysLeft }} dia(s)</small>
+                                        </div>
+                                        <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-primary w-100 mb-2">
+                                            <i class="bi bi-credit-card"></i> Efetuar Pagamento Agora
+                                        </a>
+                                    {% else %}
+                                        <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-outline-primary w-100 mb-2">
+                                            <i class="bi bi-credit-card"></i> Efetuar Pagamento
+                                        </a>
+                                        <small class="text-muted d-block text-center">
+                                            Trial expira em {{ daysLeft }} dias
+                                        </small>
+                                    {% endif %}
                                 {% endif %}
                             {% endif %}
                             
                             {% if subscription.status == 'canceled' %}
-                            <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-primary w-100 mb-2">
-                                <i class="bi bi-credit-card"></i> Efetuar Pagamento
-                            </a>
+                                {% if user.is_demo %}
+                                <div class="mb-2">
+                                    <span class="badge bg-secondary w-100 py-2">
+                                        <i class="bi bi-lock"></i> Conta Demo
+                                    </span>
+                                </div>
+                                {% else %}
+                                <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-primary w-100 mb-2">
+                                    <i class="bi bi-credit-card"></i> Efetuar Pagamento
+                                </a>
+                                {% endif %}
                             {% endif %}
                             
                             {% if subscription.status == 'canceled' %}
-                            <form method="POST" action="{{ BASE_URL }}subscription/reactivate">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <button type="submit" class="btn btn-outline-primary w-100">
-                                    <i class="bi bi-arrow-clockwise"></i> Reativar Subscrição
-                                </button>
-                            </form>
+                                {% if user.is_demo %}
+                                <div class="mb-2">
+                                    <span class="badge bg-secondary w-100 py-2">
+                                        <i class="bi bi-lock"></i> Conta Demo
+                                    </span>
+                                </div>
+                                {% else %}
+                                <form method="POST" action="{{ BASE_URL }}subscription/reactivate">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="btn btn-outline-primary w-100">
+                                        <i class="bi bi-arrow-clockwise"></i> Reativar Subscrição
+                                    </button>
+                                </form>
+                                {% endif %}
                             {% endif %}
                             
                             <a href="{{ BASE_URL }}payments" class="btn btn-outline-secondary w-100 mt-2">
@@ -139,47 +596,128 @@
                     </div>
                 </div>
             </div>
-            {% else %}
-            <!-- No Subscription -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-body text-center py-5">
-                    <i class="bi bi-credit-card-2-front display-1 text-muted mb-3"></i>
-                    <h4 class="mb-3">Nenhuma subscrição ativa</h4>
-                    <p class="text-muted mb-4">Escolha um plano para começar a usar o MeuPrédio</p>
-                    <a href="{{ BASE_URL }}subscription/choose-plan" class="btn btn-primary btn-lg">
-                        <i class="bi bi-arrow-right-circle"></i> Escolher Plano
-                    </a>
-                </div>
-            </div>
             {% endif %}
 
             <!-- Available Plans -->
             {% if plans %}
             <div class="card shadow-sm">
                 <div class="card-header bg-light">
-                    <h4 class="mb-0"><i class="bi bi-list-check"></i> Planos Disponíveis</h4>
+                    <h4 class="mb-0"><i class="bi bi-list-check"></i> {% if subscription %}Alteração de Planos{% else %}Subscrição{% endif %}</h4>
                 </div>
                 <div class="card-body p-2 p-sm-3 p-md-4">
                     <div class="row g-3 g-md-4 justify-content-center">
                         {% for plan in plans %}
+                        {% set plan_promotion = plan_promotions[plan.id] ?? null %}
                         <div class="col-12 col-md-6">
-                            <div class="card h-100 {% if subscription and subscription.plan_id == plan.id %}border-success border-2{% elseif plan.slug == 'pro' %}border-primary border-2{% else %}border{% endif %} shadow-sm">
+                            <div class="card h-100 {% if subscription and subscription.plan_id == plan.id %}border-success border-2{% elseif plan.slug == 'pro' %}border-primary border-2{% elseif plan_promotion %}border-warning border-3 shadow-lg{% else %}border{% endif %} shadow-sm">
                                 {% if subscription and subscription.plan_id == plan.id %}
                                 <div class="card-header bg-success text-white text-center py-2">
                                     <small><i class="bi bi-check-circle"></i> Plano Atual</small>
                                 </div>
                                 {% elseif plan.slug == 'pro' %}
                                 <div class="card-header bg-primary text-white text-center py-2">
-                                    <small><i class="bi bi-star"></i> Recomendado</small>
+                                    <span class="badge bg-white fw-bold mb-1 d-inline-block px-2 py-1" style="font-size: 0.8rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); color: #fd7e14 !important;">Mais Popular</span>
+                                    {% if plan_promotion %}
+                                    <div class="mt-2">
+                                        <span class="badge bg-danger text-white mb-1">
+                                            <i class="bi bi-fire"></i> PROMOÇÃO ATIVA
+                                        </span>
+                                        <div class="mt-1">
+                                            <small><strong>{{ plan_promotion.name }}</strong>
+                                            {% if plan_promotion.discount_type == 'percentage' %}
+                                                <span class="badge bg-danger">{{ plan_promotion.discount_value }}% OFF</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">€{{ plan_promotion.discount_value }} OFF</span>
+                                            {% endif %}
+                                            {% if plan_promotion.duration_months %}
+                                                <div class="mt-1">
+                                                    <small class="text-white-50">Válida por {{ plan_promotion.duration_months }} {% if plan_promotion.duration_months == 1 %}mês{% else %}meses{% endif %}</small>
+                                                </div>
+                                            {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% elseif plan_promotion %}
+                                <div class="card-header bg-warning text-dark text-center py-2 position-relative">
+                                    <span class="badge bg-danger text-white mb-1">
+                                        <i class="bi bi-fire"></i> PROMOÇÃO ATIVA
+                                    </span>
+                                    <div class="mt-1">
+                                        <small><strong>{{ plan_promotion.name }}</strong>
+                                        {% if plan_promotion.discount_type == 'percentage' %}
+                                            <span class="badge bg-danger">{{ plan_promotion.discount_value }}% OFF</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">€{{ plan_promotion.discount_value }} OFF</span>
+                                        {% endif %}
+                                        {% if plan_promotion.duration_months %}
+                                            <div class="mt-1">
+                                                <small class="text-dark">Válida por {{ plan_promotion.duration_months }} {% if plan_promotion.duration_months == 1 %}mês{% else %}meses{% endif %}</small>
+                                            </div>
+                                        {% endif %}
+                                        </small>
+                                    </div>
                                 </div>
                                 {% endif %}
                                 <div class="card-body text-center d-flex flex-column p-3 p-md-3 p-lg-4">
                                     <h3 class="mb-2 fs-5 fs-md-4">{{ plan.name }}</h3>
                                     <div class="mb-3">
-                                        <span class="h4 h-md-3 h-lg-2 text-primary">€{{ plan.price_monthly|number_format(2, ',', '.') }}</span>
+                                        {% if plan_promotion %}
+                                            {% set discount_amount = (plan_promotion.discount_type == 'percentage') ? (plan.price_monthly * plan_promotion.discount_value / 100) : plan_promotion.discount_value %}
+                                            {% set final_price = plan.price_monthly - discount_amount %}
+                                            <div>
+                                                <span class="text-muted text-decoration-line-through" style="font-size: 1.2rem;">€{{ plan.price_monthly|number_format(2, ',', '.') }}</span>
+                                                <span class="h4 h-md-3 h-lg-2 text-danger fw-bold">€{{ final_price|number_format(2, ',', '.') }}</span>
+                                            </div>
+                                        {% else %}
+                                            <span class="h4 h-md-3 h-lg-2 text-primary">€{{ plan.price_monthly|number_format(2, ',', '.') }}</span>
+                                        {% endif %}
                                         <span class="text-muted small">/mês</span>
                                     </div>
                                     <p class="text-muted small mb-3 lh-sm">{{ plan.description }}</p>
+                                    
+                                    {% if plan.plan_type %}
+                                    <!-- License-based plan information -->
+                                    <div class="border-top pt-3 mb-3">
+                                        {% if plan.license_min %}
+                                        <div class="mb-2">
+                                            <small class="text-muted d-block mb-1">
+                                                <i class="bi bi-key"></i> <strong>Frações Incluídas:</strong>
+                                            </small>
+                                            <span class="h5 text-primary">{{ plan.license_min }}</span>
+                                            <span class="text-muted small"> frações</span>
+                                        </div>
+                                        {% endif %}
+                                        
+                                        {% if plan_pricing_tiers[plan.id] is defined and plan_pricing_tiers[plan.id]|length > 0 %}
+                                        <div class="mt-3">
+                                            <small class="text-muted d-block mb-2 fw-bold">
+                                                <i class="bi bi-calculator"></i> Preços por Fração Extra:
+                                            </small>
+                                            <div class="small">
+                                                {% for tier in plan_pricing_tiers[plan.id] %}
+                                                {% if tier.is_active %}
+                                                <div class="mb-1">
+                                                    <span class="text-muted">
+                                                        {% if tier.max_licenses %}
+                                                            {{ tier.min_licenses }}-{{ tier.max_licenses }} frações:
+                                                        {% else %}
+                                                            {{ tier.min_licenses }}+ frações:
+                                                        {% endif %}
+                                                    </span>
+                                                    <strong class="text-success ms-1">€{{ tier.price_per_license|number_format(2, ',', '.') }}/fração</strong>
+                                                </div>
+                                                {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                            <small class="text-muted d-block mt-2">
+                                                <i class="bi bi-info-circle"></i> Preços mensais por fração extra
+                                            </small>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
                                     
                                     {% if plan.features %}
                                     <div class="text-start mb-3 flex-grow-1">
@@ -194,19 +732,100 @@
                                         </ul>
                                     </div>
                                     {% endif %}
+
+                                    {% if plan.slug == 'business' and extra_condominiums_pricing %}
+                                    <div class="border-top pt-3 mt-3 mb-3">
+                                        <small class="text-muted d-block mb-2 fw-bold">Preços de Condomínios Extras:</small>
+                                        <div class="small">
+                                            {% for tier in extra_condominiums_pricing %}
+                                            {% if tier.is_active %}
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="text-muted">
+                                                    {% if tier.max_condominios %}
+                                                        {{ tier.min_condominios }}-{{ tier.max_condominios }} condomínios:
+                                                    {% else %}
+                                                        {{ tier.min_condominios }}+ condomínios:
+                                                    {% endif %}
+                                                </span>
+                                                <strong class="text-success">€{{ tier.price_per_condominium|number_format(2, ',', '.') }}/condomínio</strong>
+                                            </div>
+                                            {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                        <small class="text-muted d-block mt-2">
+                                            <i class="bi bi-info-circle"></i> Preços mensais por condomínio extra
+                                        </small>
+                                    </div>
+                                    {% endif %}
                                     
                                     {% if not subscription or subscription.plan_id != plan.id %}
-                                    <form method="POST" action="{{ BASE_URL }}subscription/change-plan" class="mt-auto">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <input type="hidden" name="plan_id" value="{{ plan.id }}">
-                                        <button type="submit" class="btn {% if plan.slug == 'pro' %}btn-primary{% else %}btn-outline-primary{% endif %} w-100">
-                                            {% if subscription %}
-                                                <i class="bi bi-arrow-repeat"></i> <span class="d-none d-lg-inline">Alterar para este plano</span><span class="d-lg-none">Alterar plano</span>
-                                            {% else %}
-                                                <i class="bi bi-check-circle"></i> Escolher
+                                        {% if user.is_demo %}
+                                        <div class="mt-auto">
+                                            <span class="badge bg-secondary w-100 py-2">
+                                                <i class="bi bi-lock"></i> Conta Demo
+                                            </span>
+                                        </div>
+                                        {% else %}
+                                        {% set has_pending_for_plan = pending_subscription and pending_subscription.plan_id == plan.id %}
+                                        {% if has_pending_for_plan %}
+                                        <div class="mt-auto">
+                                            <span class="badge bg-warning w-100 py-2">
+                                                <i class="bi bi-clock-history"></i> Alteração Pendente
+                                            </span>
+                                        </div>
+                                        {% else %}
+                                        <form method="POST" action="{{ BASE_URL }}subscription/change-plan" id="change_plan_form_{{ plan.id }}" class="mt-auto">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <input type="hidden" name="plan_id" value="{{ plan.id }}">
+                                            
+                                            {% if plan.slug == 'business' and extra_condominiums_pricing %}
+                                            <!-- Extra Condominiums Input for Business Plan -->
+                                            <div class="mb-3">
+                                                <label for="change_extra_condominiums_{{ plan.id }}" class="form-label small text-muted">Condomínios extras:</label>
+                                                <input type="number" 
+                                                       class="form-control form-control-sm" 
+                                                       id="change_extra_condominiums_{{ plan.id }}" 
+                                                       value="0" 
+                                                       min="0">
+                                                <input type="hidden" name="extra_condominiums" id="extra_condominiums_hidden_{{ plan.id }}" value="0">
+                                                <small class="text-muted d-block mt-1">
+                                                    <i class="bi bi-info-circle"></i> Pode adicionar ou alterar depois na subscrição pendente
+                                                </small>
+                                            </div>
                                             {% endif %}
-                                        </button>
-                                    </form>
+                                            
+                                            <!-- Promotion Code Input -->
+                                            {% if not plan_promotion %}
+                                            <div class="mb-3">
+                                                <label for="promotion_code_{{ plan.id }}" class="form-label small text-muted">Tem um código de promoção?</label>
+                                                <div class="input-group input-group-sm">
+                                                    <input type="text" 
+                                                           class="form-control" 
+                                                           id="promotion_code_{{ plan.id }}" 
+                                                           name="promotion_code_{{ plan.id }}"
+                                                           placeholder="Código de promoção"
+                                                           data-plan-id="{{ plan.id }}">
+                                                    <button type="button" 
+                                                            class="btn btn-outline-secondary" 
+                                                            onclick="validatePromotionCode({{ plan.id }})">
+                                                        Aplicar
+                                                    </button>
+                                                </div>
+                                                <div id="promo_feedback_{{ plan.id }}" class="mt-2"></div>
+                                                <input type="hidden" name="promotion_code" id="promotion_code_hidden_{{ plan.id }}" value="">
+                                            </div>
+                                            {% endif %}
+                                            
+                                            <button type="submit" class="btn {% if plan.slug == 'pro' %}btn-primary{% else %}btn-outline-primary{% endif %} w-100">
+                                                {% if subscription %}
+                                                    <i class="bi bi-arrow-repeat"></i> <span class="d-none d-lg-inline">Alterar para este plano</span><span class="d-lg-none">Alterar plano</span>
+                                                {% else %}
+                                                    <i class="bi bi-check-circle"></i> Escolher
+                                                {% endif %}
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                        {% endif %}
                                     {% else %}
                                     <span class="badge bg-success w-100 py-2">
                                         <i class="bi bi-check-circle"></i> Plano Atual
@@ -223,4 +842,787 @@
         </div>
     </div>
 </div>
+
+{% if business_plan and extra_condominiums_pricing %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12 col-xl-10 mx-auto">
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Preços Escalonados de Condomínios Extras - Plano Business</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">O plano Business permite adicionar condomínios extras com preços que diminuem conforme aumenta o número de condomínios subscritos:</p>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Faixa de Condomínios</th>
+                                    <th class="text-end">Preço por Condomínio Extra</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tier in extra_condominiums_pricing %}
+                                {% if tier.is_active %}
+                                <tr>
+                                    <td>
+                                        <strong>
+                                            {% if tier.max_condominios %}
+                                                {{ tier.min_condominios }} - {{ tier.max_condominios }} condomínios
+                                            {% else %}
+                                                {{ tier.min_condominios }}+ condomínios
+                                            {% endif %}
+                                        </strong>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong class="text-success fs-5">€{{ tier.price_per_condominium|number_format(2, ',', '.') }}</strong>
+                                        <small class="text-muted d-block">por condomínio/mês</small>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-light mt-3 mb-0">
+                        <small>
+                            <i class="bi bi-lightbulb"></i> <strong>Exemplo:</strong> Se subscrever 15 condomínios extras, cada condomínio extra custará €0,55/mês. 
+                            Se subscrever 25 condomínios extras, cada condomínio extra custará €0,50/mês.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if subscription and subscription.plan_slug == 'business' and extra_condominiums_pricing %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const pricingTiers = {{ extra_condominiums_pricing|json_encode|raw }};
+    const basePrice = {{ subscription.price_monthly }};
+    
+    // Sort tiers by min_condominios descending to find the correct tier
+    const sortedTiers = [...pricingTiers].sort((a, b) => b.min_condominios - a.min_condominios);
+    
+    function getPriceForCondominiums(numCondominios) {
+        if (numCondominios <= 0) return 0;
+        
+        // Find the tier that applies to this number of condominiums
+        for (const tier of sortedTiers) {
+            if (tier.is_active && numCondominios >= tier.min_condominios) {
+                // Check if it's within max range (if max exists)
+                if (tier.max_condominios === null || numCondominios <= tier.max_condominios) {
+                    return parseFloat(tier.price_per_condominium);
+                }
+            }
+        }
+        
+        // Fallback: use first tier price if no match found
+        if (sortedTiers.length > 0 && sortedTiers[0].is_active) {
+            return parseFloat(sortedTiers[0].price_per_condominium);
+        }
+        
+        return 0;
+    }
+    
+    function updatePrice() {
+        const input = document.getElementById('extra_condominiums');
+        const extraPriceInfo = document.getElementById('extra_price_info');
+        const extraTotal = document.getElementById('extra_total');
+        const extraTotalAmount = document.getElementById('extra_total_amount');
+        const totalPriceDisplay = document.getElementById('total_price_display');
+        
+        if (!input) {
+            console.warn('Input element not found');
+            return;
+        }
+        
+        // Get the current value from the input - always read directly from DOM
+        // Use both .value and getAttribute to ensure we get the latest value
+        let inputValue = input.value;
+        if (!inputValue && input.getAttribute('value')) {
+            inputValue = input.getAttribute('value');
+        }
+        
+        inputValue = (inputValue || '').trim();
+        let extraCondominiums = inputValue === '' ? 0 : parseInt(inputValue, 10);
+        
+        // Handle NaN or invalid values
+        if (isNaN(extraCondominiums) || extraCondominiums < 0) {
+            extraCondominiums = 0;
+            if (input.value !== '0') {
+                input.value = '0';
+            }
+        }
+        
+        // Format numbers with Portuguese locale (comma as decimal separator)
+        const formatPrice = (price) => {
+            return price.toFixed(2).replace('.', ',');
+        };
+        
+        if (extraCondominiums > 0) {
+            const pricePerCondominium = getPriceForCondominiums(extraCondominiums);
+            const extraTotalPrice = pricePerCondominium * extraCondominiums;
+            const totalPrice = basePrice + extraTotalPrice;
+            
+            if (extraPriceInfo) {
+                extraPriceInfo.textContent = `Preço por condomínio extra: €${formatPrice(pricePerCondominium)}`;
+            }
+            if (extraTotalAmount) {
+                extraTotalAmount.textContent = `€${formatPrice(extraTotalPrice)}`;
+            }
+            if (extraTotal) {
+                extraTotal.style.display = 'block';
+            }
+            if (totalPriceDisplay) {
+                totalPriceDisplay.textContent = `€${formatPrice(totalPrice)}`;
+            }
+        } else {
+            if (extraTotal) {
+                extraTotal.style.display = 'none';
+            }
+            if (totalPriceDisplay) {
+                totalPriceDisplay.textContent = `€${formatPrice(basePrice)}`;
+            }
+            
+            if (sortedTiers.length > 0 && sortedTiers[sortedTiers.length - 1].is_active && extraPriceInfo) {
+                const firstTier = sortedTiers[sortedTiers.length - 1]; // First tier (lowest min)
+                const maxText = firstTier.max_condominios ? `-${firstTier.max_condominios}` : '+';
+                extraPriceInfo.textContent = `Preço por condomínio extra: €${formatPrice(parseFloat(firstTier.price_per_condominium))} (${firstTier.min_condominios}${maxText} condomínios)`;
+            }
+        }
+    }
+    
+    const input = document.getElementById('extra_condominiums');
+    if (input) {
+        let updateTimeout = null;
+        let lastKnownValue = input.value;
+        
+        // Function to trigger price update
+        function triggerUpdate() {
+            // Clear any pending timeout
+            if (updateTimeout) {
+                clearTimeout(updateTimeout);
+            }
+            
+            // Use a small delay to ensure the input value is fully updated
+            updateTimeout = setTimeout(function() {
+                // Force read the value directly from the input element
+                const currentValue = input.value;
+                
+                // Only update if value actually changed
+                if (currentValue !== lastKnownValue) {
+                    lastKnownValue = currentValue;
+                }
+                
+                // Always recalculate to ensure accuracy
+                updatePrice();
+            }, 10);
+        }
+        
+        // Listen to input events (typing, deleting) - most important for real-time updates
+        input.addEventListener('input', function() {
+            triggerUpdate();
+        });
+        
+        // Listen to change events (when value changes and field loses focus)
+        input.addEventListener('change', function() {
+            triggerUpdate();
+        });
+        
+        // Listen to keyup events
+        input.addEventListener('keyup', function(e) {
+            // Update immediately on Enter or Tab
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                if (updateTimeout) {
+                    clearTimeout(updateTimeout);
+                }
+                setTimeout(updatePrice, 5);
+            } else {
+                triggerUpdate();
+            }
+        });
+        
+        // Listen to blur events (when field loses focus)
+        input.addEventListener('blur', function() {
+            // Ensure update happens when leaving the field
+            if (updateTimeout) {
+                clearTimeout(updateTimeout);
+            }
+            setTimeout(updatePrice, 5);
+        });
+        
+        // Listen to focus events (when field gains focus - recalculate current value)
+        input.addEventListener('focus', function() {
+            // Recalculate when field is focused to show current value
+            if (updateTimeout) {
+                clearTimeout(updateTimeout);
+            }
+            setTimeout(updatePrice, 5);
+        });
+        
+        // Listen to paste events
+        input.addEventListener('paste', function() {
+            setTimeout(function() {
+                triggerUpdate();
+            }, 20);
+        });
+        
+        // Watch for any value changes using MutationObserver as backup
+        let observerTimeout = null;
+        const checkValueChange = function() {
+            const currentValue = input.value;
+            if (currentValue !== lastKnownValue) {
+                lastKnownValue = currentValue;
+                triggerUpdate();
+            }
+        };
+        
+        // Check periodically for value changes (as fallback)
+        const valueObserver = setInterval(checkValueChange, 150);
+        
+        // Also watch for input property changes
+        const inputObserver = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'value') {
+                    checkValueChange();
+                }
+            });
+        });
+        
+        inputObserver.observe(input, {
+            attributes: true,
+            attributeFilter: ['value']
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (valueObserver) {
+                clearInterval(valueObserver);
+            }
+            if (inputObserver) {
+                inputObserver.disconnect();
+            }
+            if (updateTimeout) {
+                clearTimeout(updateTimeout);
+            }
+            if (observerTimeout) {
+                clearTimeout(observerTimeout);
+            }
+        });
+        
+        // Initial update
+        setTimeout(function() {
+            updatePrice();
+        }, 100);
+    }
+});
+</script>
+{% endif %}
+
+<script>
+// Store applied promotions globally
+window.appliedPromotions = {};
+
+// Promotion code validation function
+window.validatePromotionCode = function(planId) {
+    const codeInput = document.getElementById('promotion_code_' + planId);
+    const hiddenInput = document.getElementById('promotion_code_hidden_' + planId);
+    const feedbackEl = document.getElementById('promo_feedback_' + planId);
+    const code = codeInput.value.trim();
+    
+    if (!code) {
+        feedbackEl.innerHTML = '<small class="text-danger">Por favor, insira um código</small>';
+        return;
+    }
+    
+    // Show loading
+    feedbackEl.innerHTML = '<small class="text-muted"><i class="bi bi-hourglass-split"></i> A validar...</small>';
+    
+    // AJAX request
+    const formData = new FormData();
+    formData.append('plan_id', planId);
+    formData.append('code', code);
+    formData.append('csrf_token', '{{ csrf_token }}');
+    
+    fetch('{{ BASE_URL }}subscription/validate-promotion-code', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.valid) {
+            window.appliedPromotions[planId] = data.promotion;
+            hiddenInput.value = code;
+            
+            // Update price display in plan card
+            const priceContainer = codeInput.closest('.card-body').querySelector('.mb-3');
+            if (priceContainer) {
+                const originalPrice = data.promotion.original_price;
+                const finalPrice = data.promotion.final_price;
+                priceContainer.innerHTML = `
+                    <div>
+                        <span class="text-muted text-decoration-line-through" style="font-size: 1.2rem;">€${originalPrice.toFixed(2).replace('.', ',')}</span>
+                        <span class="h4 h-md-3 h-lg-2 text-danger fw-bold">€${finalPrice.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <span class="text-muted small">/mês</span>
+                `;
+            }
+            
+            feedbackEl.innerHTML = `<small class="text-success"><i class="bi bi-check-circle"></i> ${data.promotion.name} aplicada! Desconto: €${data.promotion.discount_amount.toFixed(2).replace('.', ',')}</small>`;
+        } else {
+            window.appliedPromotions[planId] = null;
+            hiddenInput.value = '';
+            feedbackEl.innerHTML = `<small class="text-danger"><i class="bi bi-x-circle"></i> ${data.error || 'Código inválido'}</small>`;
+        }
+    })
+    .catch(error => {
+        feedbackEl.innerHTML = '<small class="text-danger">Erro ao validar código</small>';
+        console.error('Error:', error);
+    });
+};
+
+// Update form submission to include promotion code and sync extra condominiums
+document.addEventListener('DOMContentLoaded', function() {
+    {% for plan in plans %}
+    {% if plan.slug == 'business' %}
+    // Sync extra condominiums input with hidden field
+    const extraInput{{ plan.id }} = document.getElementById('change_extra_condominiums_{{ plan.id }}');
+    const extraHidden{{ plan.id }} = document.getElementById('extra_condominiums_hidden_{{ plan.id }}');
+    if (extraInput{{ plan.id }} && extraHidden{{ plan.id }}) {
+        extraInput{{ plan.id }}.addEventListener('input', function() {
+            extraHidden{{ plan.id }}.value = this.value || '0';
+        });
+        extraInput{{ plan.id }}.addEventListener('change', function() {
+            extraHidden{{ plan.id }}.value = this.value || '0';
+        });
+    }
+    {% endif %}
+    
+    {% if not plan_promotions[plan.id] %}
+    const form{{ plan.id }} = document.getElementById('change_plan_form_{{ plan.id }}');
+    if (form{{ plan.id }}) {
+        form{{ plan.id }}.addEventListener('submit', function(e) {
+            const hiddenInput = document.getElementById('promotion_code_hidden_{{ plan.id }}');
+            if (hiddenInput && hiddenInput.value) {
+                // Promotion code will be included via hidden input
+            }
+        });
+    }
+    {% endif %}
+    {% endfor %}
+});
+</script>
+
+{% if pending_subscription and pending_subscription.plan_slug == 'business' and extra_condominiums_pricing %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const pricingTiers = {{ extra_condominiums_pricing|json_encode|raw }};
+    const planBasePrice = {{ pending_subscription.price_monthly }};
+    const originalPrice = {{ pending_subscription.original_price_monthly|default(pending_subscription.price_monthly) }};
+    {% set promo = plan_promotions[pending_subscription.plan_id] ?? null %}
+    {% if promo %}
+    const promotion = {
+        discount_type: '{{ promo.discount_type }}',
+        discount_value: {{ promo.discount_value }}
+    };
+    {% else %}
+    const promotion = null;
+    {% endif %}
+    
+    // Calculate discounted base price (promotion applies ONLY to base plan, not extras)
+    let discountedBasePrice = planBasePrice;
+    if (promotion && {{ pending_subscription.promotion_id ? 'true' : 'false' }}) {
+        const priceToDiscount = originalPrice || planBasePrice;
+        if (promotion.discount_type === 'percentage') {
+            const discount = (priceToDiscount * promotion.discount_value) / 100;
+            discountedBasePrice = Math.max(0, priceToDiscount - discount);
+        } else {
+            discountedBasePrice = Math.max(0, priceToDiscount - promotion.discount_value);
+        }
+    }
+    
+    // Sort tiers by min_condominios descending to find the correct tier
+    const sortedTiers = [...pricingTiers].sort((a, b) => b.min_condominios - a.min_condominios);
+    
+    function getPriceForCondominiums(numCondominios) {
+        if (numCondominios <= 0) return 0;
+        
+        // Find the tier that applies to this number of condominiums
+        for (const tier of sortedTiers) {
+            if (tier.is_active && numCondominios >= tier.min_condominios) {
+                // Check if it's within max range (if max exists)
+                if (tier.max_condominios === null || numCondominios <= tier.max_condominios) {
+                    return parseFloat(tier.price_per_condominium);
+                }
+            }
+        }
+        
+        // Fallback: use first tier price if no match found
+        if (sortedTiers.length > 0 && sortedTiers[0].is_active) {
+            return parseFloat(sortedTiers[0].price_per_condominium);
+        }
+        
+        return 0;
+    }
+    
+    function updatePendingPrice() {
+        const input = document.getElementById('pending_extra_condominiums');
+        const extraPriceInfo = document.getElementById('pending_extra_price_info');
+        const extraTotal = document.getElementById('pending_extra_total');
+        const extraTotalAmount = document.getElementById('pending_extra_total_amount');
+        const totalPriceDisplay = document.getElementById('pending_total_price_display');
+        
+        if (!input) {
+            return;
+        }
+        
+        let extraCondominiums = parseInt(input.value, 10) || 0;
+        if (isNaN(extraCondominiums) || extraCondominiums < 0) {
+            extraCondominiums = 0;
+            input.value = '0';
+        }
+        
+        // Format numbers with Portuguese locale (comma as decimal separator)
+        const formatPrice = (price) => {
+            return price.toFixed(2).replace('.', ',');
+        };
+        
+        // Base price is already discounted (if promotion applied)
+        // Extras are NOT discounted - use full price
+        
+        if (extraCondominiums > 0) {
+            const pricePerCondominium = getPriceForCondominiums(extraCondominiums);
+            const extraTotalPrice = pricePerCondominium * extraCondominiums; // Full price, no discount
+            const totalPrice = discountedBasePrice + extraTotalPrice; // Discounted base + full price extras
+            
+            if (extraPriceInfo) {
+                extraPriceInfo.textContent = `Preço por condomínio extra: €${formatPrice(pricePerCondominium)}`;
+            }
+            if (extraTotalAmount) {
+                extraTotalAmount.textContent = `€${formatPrice(extraTotalPrice)}`;
+            }
+            if (extraTotal) {
+                extraTotal.style.display = 'block';
+            }
+            if (totalPriceDisplay) {
+                totalPriceDisplay.textContent = `€${formatPrice(totalPrice)}`;
+            }
+        } else {
+            if (extraTotal) {
+                extraTotal.style.display = 'none';
+            }
+            if (totalPriceDisplay) {
+                totalPriceDisplay.textContent = `€${formatPrice(discountedBasePrice)}`;
+            }
+            
+            if (sortedTiers.length > 0 && sortedTiers[sortedTiers.length - 1].is_active && extraPriceInfo) {
+                const firstTier = sortedTiers[sortedTiers.length - 1];
+                const maxText = firstTier.max_condominios ? `-${firstTier.max_condominios}` : '+';
+                extraPriceInfo.textContent = `Preço por condomínio extra: €${formatPrice(parseFloat(firstTier.price_per_condominium))} (${firstTier.min_condominios}${maxText} condomínios)`;
+            }
+        }
+    }
+    
+    const input = document.getElementById('pending_extra_condominiums');
+    if (input) {
+        input.addEventListener('input', function() {
+            updatePendingPrice();
+        });
+        input.addEventListener('change', function() {
+            updatePendingPrice();
+        });
+        
+        // Initial update
+        setTimeout(function() {
+            updatePendingPrice();
+        }, 100);
+    }
+});
+</script>
+{% endif %}
+
+{% if pending_subscription %}
+{% set pending_plan = plans|filter(p => p.id == pending_subscription.plan_id)|first %}
+{% if pending_plan and pending_plan.plan_type and plan_pricing_tiers[pending_subscription.plan_id] is defined %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const pricingTiers = {{ plan_pricing_tiers[pending_subscription.plan_id]|json_encode|raw }};
+    const planBasePrice = {{ pending_subscription.price_monthly }};
+    const licenseMin = {{ pending_plan.license_min|default(0) }};
+    const pricingMode = '{{ pending_plan.pricing_mode|default("flat") }}';
+    
+    const input = document.getElementById('pending_extra_licenses');
+    const priceInfo = document.getElementById('pending_licenses_price_info');
+    const priceAmount = document.getElementById('pending_licenses_price_amount');
+    const totalDisplay = document.getElementById('pending_licenses_total_display');
+    
+    if (!input) return;
+    
+    function calculatePrice(extraLicenses) {
+        const totalLicenses = licenseMin + extraLicenses;
+        
+        if (totalLicenses <= licenseMin) {
+            return { base: planBasePrice, extra: 0, total: planBasePrice };
+        }
+        
+        // Find tier for total licenses
+        const sortedTiers = [...pricingTiers].sort((a, b) => b.min_licenses - a.min_licenses);
+        let pricePerLicense = 0;
+        
+        for (const tier of sortedTiers) {
+            if (tier.is_active && totalLicenses >= tier.min_licenses) {
+                if (tier.max_licenses === null || totalLicenses <= tier.max_licenses) {
+                    pricePerLicense = parseFloat(tier.price_per_license);
+                    break;
+                }
+            }
+        }
+        
+        if (pricePerLicense === 0 && sortedTiers.length > 0) {
+            pricePerLicense = parseFloat(sortedTiers[sortedTiers.length - 1].price_per_license);
+        }
+        
+        const totalPrice = pricingMode === 'flat' 
+            ? pricePerLicense * totalLicenses
+            : calculateProgressivePrice(totalLicenses, sortedTiers);
+        
+        const extraPrice = totalPrice - planBasePrice;
+        
+        return {
+            base: planBasePrice,
+            extra: extraPrice,
+            total: totalPrice
+        };
+    }
+    
+    function calculateProgressivePrice(totalLicenses, tiers) {
+        let total = 0;
+        let remaining = totalLicenses;
+        const sorted = [...tiers].sort((a, b) => a.min_licenses - b.min_licenses);
+        
+        for (const tier of sorted) {
+            if (remaining <= 0) break;
+            if (totalLicenses >= tier.min_licenses && tier.is_active) {
+                const tierMax = tier.max_licenses || Infinity;
+                const licensesInTier = Math.min(remaining, tierMax - tier.min_licenses + 1);
+                total += parseFloat(tier.price_per_license) * licensesInTier;
+                remaining -= licensesInTier;
+            }
+        }
+        
+        return total;
+    }
+    
+    function updatePrice() {
+        const extraLicenses = parseInt(input.value) || 0;
+        const prices = calculatePrice(extraLicenses);
+        
+        const formatPrice = (price) => price.toFixed(2).replace('.', ',');
+        
+        if (extraLicenses > 0) {
+            priceInfo.style.display = 'block';
+            priceAmount.textContent = '€' + formatPrice(prices.extra);
+        } else {
+            priceInfo.style.display = 'none';
+        }
+        
+        totalDisplay.textContent = '€' + formatPrice(prices.total);
+    }
+    
+    input.addEventListener('input', updatePrice);
+    input.addEventListener('change', updatePrice);
+    updatePrice();
+});
+</script>
+{% endif %}
+{% endif %}
+
+{% if subscription and subscription.plan_type and plan_pricing_tiers[subscription.plan_id] is defined %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const pricingTiers = {{ plan_pricing_tiers[subscription.plan_id]|json_encode|raw }};
+    const currentTotalLicenses = {{ license_limit|default(subscription_plan.license_min|default(0)) }};
+    const licenseMin = {{ subscription_plan.license_min|default(0) }};
+    const pricingMode = '{{ subscription_plan.pricing_mode|default("flat") }}';
+    
+    const input = document.getElementById('active_extra_licenses');
+    const priceInfo = document.getElementById('active_licenses_price_info');
+    const priceAmount = document.getElementById('active_licenses_price_amount');
+    
+    if (!input) return;
+    
+    function calculatePriceForLicenses(totalLicenses) {
+        if (!pricingTiers || pricingTiers.length === 0) {
+            return 0;
+        }
+        
+        if (pricingMode === 'flat') {
+            // Flat pricing: find the tier that applies to this license count
+            // Sort tiers by min_licenses descending to find the highest applicable tier first
+            const sortedTiers = [...pricingTiers]
+                .filter(tier => tier.is_active)
+                .sort((a, b) => b.min_licenses - a.min_licenses);
+            
+            let pricePerLicense = 0;
+            for (const tier of sortedTiers) {
+                if (totalLicenses >= tier.min_licenses) {
+                    if (tier.max_licenses === null || totalLicenses <= tier.max_licenses) {
+                        pricePerLicense = parseFloat(tier.price_per_license);
+                        break;
+                    }
+                }
+            }
+            
+            // If no tier found, use the lowest tier (shouldn't happen)
+            if (pricePerLicense === 0 && sortedTiers.length > 0) {
+                const lowestTier = sortedTiers[sortedTiers.length - 1];
+                pricePerLicense = parseFloat(lowestTier.price_per_license);
+            }
+            
+            return pricePerLicense * totalLicenses;
+        } else {
+            // Progressive pricing: calculate tier by tier
+            const sortedTiers = [...pricingTiers].sort((a, b) => a.min_licenses - b.min_licenses);
+            return calculateProgressivePrice(totalLicenses, sortedTiers);
+        }
+    }
+    
+    function calculateProgressivePrice(totalLicenses, tiers) {
+        let total = 0;
+        let remainingLicenses = totalLicenses;
+        const sorted = [...tiers].sort((a, b) => a.min_licenses - b.min_licenses);
+        
+        for (const tier of sorted) {
+            if (remainingLicenses <= 0) break;
+            
+            const tierMin = tier.min_licenses;
+            const tierMax = tier.max_licenses === null ? Number.MAX_SAFE_INTEGER : tier.max_licenses;
+            
+            if (totalLicenses >= tierMin && tier.is_active) {
+                let licensesInTier = 0;
+                
+                if (tierMax === null || totalLicenses <= tierMax) {
+                    // All remaining licenses fall in this tier
+                    licensesInTier = remainingLicenses;
+                } else {
+                    // Partial: calculate how many licenses in this tier range
+                    // This matches the backend logic: min(remainingLicenses, tierMax - max(tierMin - 1, totalLicenses - remainingLicenses) + 1)
+                    const lowerBound = Math.max(tierMin - 1, totalLicenses - remainingLicenses);
+                    licensesInTier = Math.min(remainingLicenses, tierMax - lowerBound + 1);
+                }
+                
+                if (licensesInTier > 0) {
+                    total += parseFloat(tier.price_per_license) * licensesInTier;
+                    remainingLicenses -= licensesInTier;
+                }
+            }
+        }
+        
+        return total;
+    }
+    
+    function updatePrice() {
+        const additionalLicenses = parseInt(input.value) || 0;
+        
+        if (additionalLicenses <= 0) {
+            priceInfo.style.display = 'none';
+            return;
+        }
+        
+        // Calculate current total licenses
+        const currentTotal = currentTotalLicenses;
+        
+        // For flat pricing: charge additional licenses at the CURRENT tier price
+        // Find the tier that applies to current total licenses
+        const sortedTiers = [...pricingTiers]
+            .filter(tier => tier.is_active)
+            .sort((a, b) => b.min_licenses - a.min_licenses);
+        
+        let pricePerLicense = 0;
+        for (const tier of sortedTiers) {
+            if (currentTotal >= tier.min_licenses) {
+                if (tier.max_licenses === null || currentTotal <= tier.max_licenses) {
+                    pricePerLicense = parseFloat(tier.price_per_license);
+                    break;
+                }
+            }
+        }
+        
+        // If no tier found, use the lowest tier
+        if (pricePerLicense === 0 && sortedTiers.length > 0) {
+            const lowestTier = sortedTiers[sortedTiers.length - 1];
+            pricePerLicense = parseFloat(lowestTier.price_per_license);
+        }
+        
+        // Calculate additional price: additional licenses * current tier price
+        const additionalPrice = additionalLicenses * pricePerLicense;
+        
+        const formatPrice = (price) => price.toFixed(2).replace('.', ',');
+        
+        priceInfo.style.display = 'block';
+        priceAmount.textContent = '€' + formatPrice(additionalPrice);
+    }
+    
+    input.addEventListener('input', updatePrice);
+    input.addEventListener('change', updatePrice);
+    updatePrice();
+});
+</script>
+{% endif %}
+
+<!-- Attach Condominium Modal -->
+{% if subscription and subscription.plan_type != 'condominio' and user.condominiums %}
+<div class="modal fade" id="attachCondominiumModal" tabindex="-1" aria-labelledby="attachCondominiumModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="attachCondominiumModalLabel">
+                    <i class="bi bi-building"></i> Associar Condomínio
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}subscription/attach-condominium">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    
+                    <div class="mb-3">
+                        <label for="modal_condominium_id" class="form-label">Selecione o condomínio:</label>
+                        <select class="form-select" id="modal_condominium_id" name="condominium_id" required>
+                            <option value="">-- Selecione um condomínio --</option>
+                            {% for condo in user.condominiums %}
+                            {% set is_associated = false %}
+                            {% for ac in associated_condominiums %}
+                                {% if ac.condominium_id == condo.id %}
+                                    {% set is_associated = true %}
+                                {% endif %}
+                            {% endfor %}
+                            {% if not is_associated %}
+                            <option value="{{ condo.id }}">{{ condo.name }} - {{ condo.address }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="alert alert-info small mb-0">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Nota:</strong> Ao associar um condomínio, todas as frações ativas desse condomínio serão contabilizadas nas suas licenças.
+                        {% if license_limit %}
+                        <br>Limite atual: {{ used_licenses }}/{{ license_limit }} licenças.
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Associar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 

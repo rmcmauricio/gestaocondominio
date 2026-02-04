@@ -32,50 +32,7 @@
                             {% endif %}
                         </div>
 
-                        <div class="mb-4">
-                            <h5 class="mb-3">Receitas Previstas</h5>
-                            <div id="revenueItems">
-                                <div class="revenue-item mb-3 p-3 border rounded bg-light">
-                                    <div class="row g-3">
-                                        <div class="col-md-12">
-                                            <label class="form-label small text-muted">Descrição</label>
-                                            <input type="text" class="form-control" name="revenue_items[0][description]" placeholder="Ex: Quotas mensais" required>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label small text-muted">Categoria</label>
-                                            <select class="form-select" name="revenue_items[0][category]" required>
-                                                <option value="">Selecione...</option>
-                                                <option value="Quotas">Quotas</option>
-                                                <option value="Multas">Multas</option>
-                                                <option value="Juros">Juros</option>
-                                                <option value="Outras Receitas">Outras Receitas</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-5">
-                                            <label class="form-label small text-muted">Valor (€)</label>
-                                            <div class="input-group">
-                                                <span class="input-group-text">€</span>
-                                                <input type="number" class="form-control revenue-amount" name="revenue_items[0][amount]" step="0.01" min="0" placeholder="0.00" required>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-1 d-flex align-items-end">
-                                            <button type="button" class="btn btn-sm btn-outline-danger w-100" onclick="removeItem(this)" title="Remover">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-success" onclick="addRevenueItem()">
-                                <i class="bi bi-plus-circle"></i> Adicionar Receita
-                            </button>
-                            <div class="mt-3">
-                                <strong>Total Receitas: €<span id="totalRevenue">0.00</span></strong>
-                            </div>
-                        </div>
-
-                        <hr class="my-4">
-
+                        <!-- DESPESAS PRIMEIRO -->
                         <div class="mb-4">
                             <h5 class="mb-3">Despesas Previstas</h5>
                             <div id="expenseItems">
@@ -122,11 +79,88 @@
                             </div>
                         </div>
 
+                        <hr class="my-4">
+
+                        <!-- SEÇÃO DE SUGESTÃO DE QUOTAS -->
+                        <div class="mb-4" id="quotaSuggestionSection" style="display: none;">
+                            <div class="card border-primary">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0"><i class="bi bi-lightbulb"></i> Sugestão de Receitas de Quotas</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row align-items-center">
+                                        <div class="col-md-4">
+                                            <label class="form-label small text-muted">Valor Sugerido:</label>
+                                            <div class="h5 mb-0 text-primary">€<span id="suggestedQuotaValue">0.00</span></div>
+                                            <small class="text-muted">Baseado no total de despesas</small>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <label class="form-label small text-muted mb-2">
+                                                Ajustar Receitas de Quotas: 
+                                                <span id="quotaSliderValue" class="badge bg-primary">100%</span>
+                                            </label>
+                                            <div class="position-relative">
+                                                <input type="range" class="form-range quota-slider" id="quotaSlider" min="50" max="200" value="100" step="1">
+                                                <div class="d-flex justify-content-between small text-muted mt-1" style="position: relative; width: 100%;">
+                                                    <span style="position: absolute; left: 0;">50%</span>
+                                                    <span style="position: absolute; left: 50%; transform: translateX(-50%);">100%</span>
+                                                    <span style="position: absolute; right: 0;">200%</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- RECEITAS DEPOIS -->
+                        <div class="mb-4">
+                            <h5 class="mb-3">Receitas Previstas</h5>
+                            <div id="revenueItems">
+                                <div class="revenue-item mb-3 p-3 border rounded bg-light">
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label class="form-label small text-muted">Descrição</label>
+                                            <input type="text" class="form-control" name="revenue_items[0][description]" placeholder="Ex: Receita anual de quotas" value="Receita anual de quotas" required>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small text-muted">Categoria</label>
+                                            <select class="form-select revenue-category" name="revenue_items[0][category]" required>
+                                                <option value="">Selecione...</option>
+                                                <option value="Quotas" selected>Quotas</option>
+                                                <option value="Multas">Multas</option>
+                                                <option value="Juros">Juros</option>
+                                                <option value="Outras Receitas">Outras Receitas</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label small text-muted">Valor (€)</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">€</span>
+                                                <input type="number" class="form-control revenue-amount quota-revenue" name="revenue_items[0][amount]" step="0.01" min="0" placeholder="0.00" required>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-1 d-flex align-items-end">
+                                            <button type="button" class="btn btn-sm btn-outline-danger w-100" onclick="removeItem(this)" title="Remover">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-success" onclick="addRevenueItem()">
+                                <i class="bi bi-plus-circle"></i> Adicionar Receita
+                            </button>
+                            <div class="mt-3">
+                                <strong>Total Receitas: €<span id="totalRevenue">0.00</span></strong>
+                            </div>
+                        </div>
+
                         <hr>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <div class="alert alert-info">
+                                <div class="alert" id="balanceAlert">
                                     <strong>Saldo Previsto:</strong> €<span id="balance">0.00</span>
                                 </div>
                             </div>
@@ -149,9 +183,96 @@
     </div>
 </div>
 
+<style>
+.quota-slider {
+    width: 100%;
+    height: 8px;
+    border-radius: 5px;
+    background: #e5e7eb;
+    outline: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    pointer-events: auto;
+    position: relative;
+    z-index: 1;
+}
+
+.quota-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    cursor: grab;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    position: relative;
+    z-index: 2;
+}
+
+.quota-slider::-webkit-slider-thumb:active {
+    cursor: grabbing;
+}
+
+.quota-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    cursor: grab;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    position: relative;
+    z-index: 2;
+}
+
+.quota-slider::-moz-range-thumb:active {
+    cursor: grabbing;
+}
+
+.quota-slider:focus {
+    outline: none;
+}
+
+.quota-slider:focus::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px rgba(224, 121, 32, 0.2);
+}
+
+.quota-slider:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#balanceAlert {
+    transition: all 0.3s ease;
+}
+
+#balanceAlert.balance-positive {
+    background-color: #d1fae5;
+    border-color: #10b981;
+    color: #065f46;
+}
+
+#balanceAlert.balance-negative {
+    background-color: #fee2e2;
+    border-color: #ef4444;
+    color: #991b1b;
+}
+
+#balanceAlert.balance-zero {
+    background-color: #e0e7ff;
+    border-color: #3b82f6;
+    color: #1e40af;
+}
+</style>
+
 <script>
 let revenueIndex = 1;
 let expenseIndex = 1;
+let suggestedQuotaValue = 0;
+let isCalculating = false;
+let isSliderBeingUsed = false;
+let lastTotalExpenses = 0;
 
 function addRevenueItem() {
     const html = `
@@ -163,7 +284,7 @@ function addRevenueItem() {
                 </div>
                 <div class="col-md-6">
                     <label class="form-label small text-muted">Categoria</label>
-                    <select class="form-select" name="revenue_items[${revenueIndex}][category]" required>
+                    <select class="form-select revenue-category" name="revenue_items[${revenueIndex}][category]" required>
                         <option value="">Selecione...</option>
                         <option value="Quotas">Quotas</option>
                         <option value="Multas">Multas</option>
@@ -189,6 +310,7 @@ function addRevenueItem() {
     document.getElementById('revenueItems').insertAdjacentHTML('beforeend', html);
     revenueIndex++;
     attachCalculators();
+    attachCategoryListeners();
     calculateTotals();
 }
 
@@ -237,41 +359,305 @@ function addExpenseItem() {
 
 function removeItem(button) {
     button.closest('.revenue-item, .expense-item').remove();
+    updateQuotaClass();
     calculateTotals();
 }
 
-function calculateTotals() {
-    let totalRevenue = 0;
+function calculateTotalExpenses() {
     let totalExpenses = 0;
+    try {
+        document.querySelectorAll('#expenseItems .expense-amount').forEach(input => {
+            if (input && input.value) {
+                const value = parseFloat(input.value);
+                if (!isNaN(value) && value >= 0) {
+                    totalExpenses += value;
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Erro ao calcular despesas:', error);
+    }
+    return totalExpenses;
+}
 
-    // Use class selectors for better performance
-    document.querySelectorAll('#revenueItems .revenue-amount').forEach(input => {
-        totalRevenue += parseFloat(input.value) || 0;
+function calculateTotalRevenue() {
+    let totalRevenue = 0;
+    try {
+        document.querySelectorAll('#revenueItems .revenue-amount').forEach(input => {
+            if (input && input.value) {
+                const value = parseFloat(input.value);
+                if (!isNaN(value) && value >= 0) {
+                    totalRevenue += value;
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Erro ao calcular receitas:', error);
+    }
+    return totalRevenue;
+}
+
+function updateSuggestedQuota() {
+    const totalExpenses = calculateTotalExpenses();
+    suggestedQuotaValue = totalExpenses || 0;
+    
+    const suggestionSection = document.getElementById('quotaSuggestionSection');
+    const suggestedValueElement = document.getElementById('suggestedQuotaValue');
+    
+    if (!suggestionSection || !suggestedValueElement) {
+        return;
+    }
+    
+    if (totalExpenses > 0) {
+        suggestionSection.style.display = 'block';
+        suggestedValueElement.textContent = totalExpenses.toFixed(2);
+        
+        const slider = document.getElementById('quotaSlider');
+        if (slider) {
+            slider.disabled = false;
+            attachSliderListener();
+            
+            // Só resetar o slider se as despesas mudaram E o slider não está sendo usado
+            if (totalExpenses !== lastTotalExpenses && !isSliderBeingUsed) {
+                slider.value = 100;
+                updateQuotaSliderValue();
+            }
+            
+            lastTotalExpenses = totalExpenses;
+        }
+    } else {
+        suggestionSection.style.display = 'none';
+        const slider = document.getElementById('quotaSlider');
+        if (slider) {
+            slider.disabled = true;
+        }
+        lastTotalExpenses = 0;
+    }
+}
+
+function updateQuotaSliderValue() {
+    const slider = document.getElementById('quotaSlider');
+    const sliderValueElement = document.getElementById('quotaSliderValue');
+    
+    if (!slider || !sliderValueElement) {
+        return;
+    }
+    
+    // Habilitar slider se houver valor sugerido
+    if (suggestedQuotaValue && suggestedQuotaValue > 0) {
+        slider.disabled = false;
+        const percentage = parseInt(slider.value) || 100;
+        const calculatedValue = (suggestedQuotaValue * percentage) / 100;
+        
+        sliderValueElement.textContent = percentage + '%';
+        updateQuotaRevenueInputs(calculatedValue);
+    } else {
+        slider.disabled = true;
+        sliderValueElement.textContent = '100%';
+    }
+}
+
+function updateQuotaRevenueInputs(value) {
+    if (!value || isNaN(value) || value < 0) {
+        return;
+    }
+    
+    // Marcar que estamos atualizando via slider para evitar loops
+    isSliderBeingUsed = true;
+    
+    let hasUpdates = false;
+    document.querySelectorAll('.quota-revenue').forEach(input => {
+        // Verificar se a categoria correspondente é "Quotas"
+        const revenueItem = input.closest('.revenue-item');
+        if (!revenueItem) return;
+        
+        const categorySelect = revenueItem.querySelector('.revenue-category');
+        if (categorySelect && categorySelect.value === 'Quotas') {
+            const newValue = parseFloat(value.toFixed(2));
+            const currentValue = parseFloat(input.value) || 0;
+            
+            // Só atualizar se o valor for diferente para evitar loops
+            if (Math.abs(newValue - currentValue) > 0.01) {
+                // Remover listener temporariamente para evitar trigger
+                input.removeEventListener('input', calculateTotals);
+                input.value = newValue;
+                // Re-adicionar listener
+                input.addEventListener('input', calculateTotals);
+                hasUpdates = true;
+            }
+        }
     });
+    
+    // Atualizar totais sem chamar updateSuggestedQuota (que resetaria o slider)
+    if (hasUpdates && !isCalculating) {
+        setTimeout(() => {
+            const totalRevenue = calculateTotalRevenue();
+            const totalExpenses = calculateTotalExpenses();
+            const balance = totalRevenue - totalExpenses;
 
-    document.querySelectorAll('#expenseItems .expense-amount').forEach(input => {
-        totalExpenses += parseFloat(input.value) || 0;
+            const totalRevenueElement = document.getElementById('totalRevenue');
+            const totalExpensesElement = document.getElementById('totalExpenses');
+            const balanceElement = document.getElementById('balance');
+            
+            if (totalRevenueElement) totalRevenueElement.textContent = totalRevenue.toFixed(2);
+            if (totalExpensesElement) totalExpensesElement.textContent = totalExpenses.toFixed(2);
+            if (balanceElement) balanceElement.textContent = balance.toFixed(2);
+
+            // Atualizar cor do balanço
+            const balanceAlert = document.getElementById('balanceAlert');
+            if (balanceAlert) {
+                balanceAlert.classList.remove('balance-positive', 'balance-negative', 'balance-zero');
+                
+                if (balance > 0) {
+                    balanceAlert.classList.add('balance-positive');
+                } else if (balance < 0) {
+                    balanceAlert.classList.add('balance-negative');
+                } else {
+                    balanceAlert.classList.add('balance-zero');
+                }
+            }
+            
+            // Atualizar valor sugerido sem resetar slider
+            const suggestionSection = document.getElementById('quotaSuggestionSection');
+            const suggestedValueElement = document.getElementById('suggestedQuotaValue');
+            if (suggestionSection && suggestedValueElement && totalExpenses > 0) {
+                suggestedValueElement.textContent = totalExpenses.toFixed(2);
+                suggestedQuotaValue = totalExpenses;
+            }
+            
+            isSliderBeingUsed = false;
+        }, 10);
+    } else {
+        isSliderBeingUsed = false;
+    }
+}
+
+
+function updateQuotaClass() {
+    document.querySelectorAll('.revenue-item').forEach(item => {
+        const categorySelect = item.querySelector('.revenue-category');
+        const amountInput = item.querySelector('.revenue-amount');
+        
+        if (categorySelect && amountInput) {
+            if (categorySelect.value === 'Quotas') {
+                amountInput.classList.add('quota-revenue');
+            } else {
+                amountInput.classList.remove('quota-revenue');
+            }
+        }
     });
+}
 
-    document.getElementById('totalRevenue').textContent = totalRevenue.toFixed(2);
-    document.getElementById('totalExpenses').textContent = totalExpenses.toFixed(2);
-    document.getElementById('balance').textContent = (totalRevenue - totalExpenses).toFixed(2);
+function attachCategoryListeners() {
+    document.querySelectorAll('.revenue-category').forEach(select => {
+        if (!select.hasAttribute('data-category-listener')) {
+            select.addEventListener('change', function() {
+                updateQuotaClass();
+                calculateTotals();
+            });
+            select.setAttribute('data-category-listener', 'true');
+        }
+    });
+}
+
+function calculateTotals() {
+    // Prevenir loops infinitos
+    if (isCalculating) {
+        return;
+    }
+    
+    isCalculating = true;
+    
+    try {
+        const totalRevenue = calculateTotalRevenue();
+        const totalExpenses = calculateTotalExpenses();
+        const balance = totalRevenue - totalExpenses;
+
+        const totalRevenueElement = document.getElementById('totalRevenue');
+        const totalExpensesElement = document.getElementById('totalExpenses');
+        const balanceElement = document.getElementById('balance');
+        
+        if (totalRevenueElement) totalRevenueElement.textContent = totalRevenue.toFixed(2);
+        if (totalExpensesElement) totalExpensesElement.textContent = totalExpenses.toFixed(2);
+        if (balanceElement) balanceElement.textContent = balance.toFixed(2);
+
+        // Atualizar cor do balanço
+        const balanceAlert = document.getElementById('balanceAlert');
+        if (balanceAlert) {
+            balanceAlert.classList.remove('balance-positive', 'balance-negative', 'balance-zero');
+            
+            if (balance > 0) {
+                balanceAlert.classList.add('balance-positive');
+            } else if (balance < 0) {
+                balanceAlert.classList.add('balance-negative');
+            } else {
+                balanceAlert.classList.add('balance-zero');
+            }
+        }
+
+        // Atualizar sugestão de quotas quando despesas mudam
+        updateSuggestedQuota();
+    } catch (error) {
+        console.error('Erro ao calcular totais:', error);
+    } finally {
+        isCalculating = false;
+    }
 }
 
 function attachCalculators() {
     // Add listeners to all amount inputs (avoid duplicates)
     document.querySelectorAll('#revenueItems .revenue-amount, #expenseItems .expense-amount').forEach(input => {
         if (!input.hasAttribute('data-listener-attached')) {
-            input.addEventListener('input', calculateTotals);
-            input.addEventListener('change', calculateTotals);
+            input.addEventListener('input', function() {
+                // Não recalcular se o slider estiver sendo usado (evita loop)
+                if (!isSliderBeingUsed) {
+                    calculateTotals();
+                }
+            });
+            input.addEventListener('change', function() {
+                // Não recalcular se o slider estiver sendo usado (evita loop)
+                if (!isSliderBeingUsed) {
+                    calculateTotals();
+                }
+            });
             input.setAttribute('data-listener-attached', 'true');
         }
     });
 }
 
+function attachSliderListener() {
+    const quotaSlider = document.getElementById('quotaSlider');
+    if (quotaSlider && !quotaSlider.hasAttribute('data-slider-listener')) {
+        quotaSlider.addEventListener('input', function() {
+            isSliderBeingUsed = true;
+            updateQuotaSliderValue();
+        });
+        quotaSlider.addEventListener('change', function() {
+            isSliderBeingUsed = true;
+            updateQuotaSliderValue();
+            // Liberar flag após um pequeno delay
+            setTimeout(() => {
+                isSliderBeingUsed = false;
+            }, 100);
+        });
+        quotaSlider.addEventListener('mousedown', function() {
+            isSliderBeingUsed = true;
+        });
+        quotaSlider.addEventListener('mouseup', function() {
+            setTimeout(() => {
+                isSliderBeingUsed = false;
+            }, 100);
+        });
+        quotaSlider.setAttribute('data-slider-listener', 'true');
+    }
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     attachCalculators();
+    attachCategoryListeners();
+    updateQuotaClass();
+    attachSliderListener();
     calculateTotals();
 });
 
@@ -279,10 +665,16 @@ document.addEventListener('DOMContentLoaded', function() {
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
         attachCalculators();
+        attachCategoryListeners();
+        updateQuotaClass();
+        attachSliderListener();
         calculateTotals();
     });
 } else {
     attachCalculators();
+    attachCategoryListeners();
+    updateQuotaClass();
+    attachSliderListener();
     calculateTotals();
 }
 </script>

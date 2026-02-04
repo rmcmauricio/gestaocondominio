@@ -1,0 +1,175 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Gestão de Planos</h2>
+            <p class="text-muted mb-0">Gerir planos de subscrição disponíveis</p>
+        </div>
+        <div>
+            <a href="{{ BASE_URL }}admin/plans/create" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Criar Novo Plano
+            </a>
+            <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-list-ul"></i> Planos</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome</th>
+                            <th>Slug</th>
+                            <th>Preço Mensal</th>
+                            <th>Preço Anual</th>
+                            <th>Limites</th>
+                            <th>Status</th>
+                            <th>Ordem</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for plan in plans %}
+                        <tr>
+                            <td>{{ plan.id }}</td>
+                            <td>
+                                <strong>{{ plan.name }}</strong>
+                                {% if plan.description %}
+                                <br><small class="text-muted">{{ plan.description|slice(0, 50) }}{% if plan.description|length > 50 %}...{% endif %}</small>
+                                {% endif %}
+                            </td>
+                            <td><code>{{ plan.slug }}</code></td>
+                            <td>€{{ plan.price_monthly|number_format(2, ',', '.') }}</td>
+                            <td>
+                                {% if plan.price_yearly %}
+                                    €{{ plan.price_yearly|number_format(2, ',', '.') }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>
+                                    {% if plan.plan_type %}
+                                        <strong>Tipo:</strong> {{ plan.plan_type|title }}<br>
+                                    {% endif %}
+                                    {% if plan.license_min %}
+                                        <strong>Mín. Licenças:</strong> {{ plan.license_min }}<br>
+                                    {% endif %}
+                                    {% if plan.license_limit %}
+                                        <strong>Limite:</strong> {{ plan.license_limit }}<br>
+                                    {% elseif plan.plan_type %}
+                                        <strong>Limite:</strong> Ilimitado<br>
+                                    {% endif %}
+                                    {% if plan.allow_multiple_condos %}
+                                        <span class="badge bg-info">Múltiplos Condomínios</span>
+                                    {% endif %}
+                                    {% if plan.allow_overage %}
+                                        <span class="badge bg-warning">Overage Permitido</span>
+                                    {% endif %}
+                                    {% if not plan.plan_type %}
+                                        <!-- Fallback para planos legados -->
+                                        {% if plan.limit_condominios %}
+                                            Condomínios: {{ plan.limit_condominios }}<br>
+                                        {% endif %}
+                                        {% if plan.limit_fracoes %}
+                                            Frações: {{ plan.limit_fracoes }}
+                                        {% endif %}
+                                        {% if not plan.limit_condominios and not plan.limit_fracoes %}
+                                            <span class="text-muted">Sem limites</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </small>
+                            </td>
+                            <td>
+                                {% if plan.is_active %}
+                                    <span class="badge bg-success">Ativo</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Inativo</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ plan.sort_order }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ BASE_URL }}admin/plans/{{ plan.id }}/edit" class="btn btn-sm btn-info" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="{{ BASE_URL }}admin/plans/{{ plan.id }}/pricing-tiers" class="btn btn-sm btn-success" title="Gerir Escalões de Pricing">
+                                        <i class="bi bi-graph-up"></i> Preços
+                                    </a>
+                                    {% if plan.slug == 'business' %}
+                                    <a href="{{ BASE_URL }}admin/plans/{{ plan.id }}/extra-condominiums-pricing" class="btn btn-sm btn-secondary" title="Gerir Preços de Condomínios Extras (Legado)">
+                                        <i class="bi bi-tag"></i>
+                                    </a>
+                                    {% endif %}
+                                    <form method="POST" action="{{ BASE_URL }}admin/plans/{{ plan.id }}/toggle-active" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-sm {% if plan.is_active %}btn-warning{% else %}btn-success{% endif %}" title="{% if plan.is_active %}Desativar{% else %}Ativar{% endif %}">
+                                            <i class="bi {% if plan.is_active %}bi-toggle-on{% else %}bi-toggle-off{% endif %}"></i>
+                                        </button>
+                                    </form>
+                                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ plan.id }}" title="Deletar">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">
+                                Nenhum plano encontrado. <a href="{{ BASE_URL }}admin/plans/create">Criar primeiro plano</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modais de Delete (fora da tabela para evitar problemas de posicionamento) -->
+{% for plan in plans %}
+<div class="modal fade" id="deleteModal{{ plan.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ plan.id }}" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel{{ plan.id }}">Deletar Plano</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/plans/{{ plan.id }}/delete">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <p>Tem certeza que deseja deletar o plano <strong>{{ plan.name }}</strong>?</p>
+                    <div class="alert alert-warning">
+                        <small><i class="bi bi-exclamation-triangle"></i> Esta ação não pode ser desfeita. O plano só pode ser deletado se não houver subscrições ativas associadas.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Deletar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}

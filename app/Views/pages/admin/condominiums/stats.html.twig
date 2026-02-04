@@ -1,0 +1,207 @@
+{% if is_modal|default(false) %}
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estatísticas - {{ condominium.name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body { padding: 20px; background-color: #f8f9fa; }
+    </style>
+</head>
+<body>
+{% endif %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Estatísticas do Condomínio</h2>
+            <p class="text-muted mb-0">{{ condominium.name }}</p>
+        </div>
+        {% if not is_modal|default(false) %}
+        <a href="{{ BASE_URL }}admin/condominiums" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Informações Básicas -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informações do Condomínio</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Nome:</strong> {{ condominium.name }}</p>
+                    <p><strong>Morada:</strong> {{ condominium.address }}</p>
+                    <p><strong>NIF:</strong> {{ condominium.nif|default('N/A') }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Administrador:</strong> {{ condominium.admin_name }}</p>
+                    <p><strong>Email:</strong> {{ condominium.admin_email }}</p>
+                    <p><strong>Criado em:</strong> {{ condominium.created_at|date('d/m/Y H:i') }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Frações e Residentes -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-building"></i> Frações e Residentes</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-primary mb-1">{{ stats.total_fractions|default(0) }}</h3>
+                        <p class="text-muted mb-0">Total Frações</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-success mb-1">{{ stats.active_fractions|default(0) }}</h3>
+                        <p class="text-muted mb-0">Frações Ativas</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-info mb-1">{{ stats.total_residents|default(0) }}</h3>
+                        <p class="text-muted mb-0">Total Residentes</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-secondary mb-1">{{ stats.total_spaces|default(0) }}</h3>
+                        <p class="text-muted mb-0">Espaços Comuns</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ocorrências -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Ocorrências</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-primary mb-1">{{ stats.total_occurrences|default(0) }}</h3>
+                        <p class="text-muted mb-0">Total Ocorrências</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-warning mb-1">{{ stats.open_occurrences|default(0) }}</h3>
+                        <p class="text-muted mb-0">Ocorrências Abertas</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-success mb-1">{{ stats.completed_occurrences|default(0) }}</h3>
+                        <p class="text-muted mb-0">Ocorrências Resolvidas</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Documentos e Comunicação -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Documentos e Comunicação</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-primary mb-1">{{ stats.total_documents|default(0) }}</h3>
+                        <p class="text-muted mb-0">Total Documentos</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-info mb-1">{{ stats.total_minutes|default(0) }}</h3>
+                        <p class="text-muted mb-0">Atas</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-success mb-1">{{ stats.total_receipts|default(0) }}</h3>
+                        <p class="text-muted mb-0">Recibos</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-primary mb-1">{{ stats.total_messages|default(0) }}</h3>
+                        <p class="text-muted mb-0">Mensagens</p>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-warning mb-1">{{ stats.total_notifications|default(0) }}</h3>
+                        <p class="text-muted mb-0">Notificações</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-info mb-1">{{ stats.total_assemblies|default(0) }}</h3>
+                        <p class="text-muted mb-0">Assembleias</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-secondary mb-1">{{ stats.total_budgets|default(0) }}</h3>
+                        <p class="text-muted mb-0">Orçamentos</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Outros -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0"><i class="bi bi-grid"></i> Outros</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-success mb-1">{{ stats.total_suppliers|default(0) }}</h3>
+                        <p class="text-muted mb-0">Fornecedores</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-info mb-1">{{ stats.total_reservations|default(0) }}</h3>
+                        <p class="text-muted mb-0">Total Reservas</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-primary mb-1">{{ stats.active_reservations|default(0) }}</h3>
+                        <p class="text-muted mb-0">Reservas Ativas</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <h3 class="text-primary mb-1">{{ stats.storage_space_formatted|default('0 B') }}</h3>
+                        <p class="text-muted mb-0">Espaço em Disco</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% if is_modal|default(false) %}
+</body>
+</html>
+{% endif %}

@@ -1,0 +1,26 @@
+{% if not isModal %}
+<div class="help-navigation mb-4">
+    {% if navigation.prev %}
+    <a href="{{ BASE_URL }}help/{{ navigation.prev.section }}" class="help-nav-link">
+        <i class="bi bi-chevron-left"></i>
+        <span>Anterior: {{ navigation.prev.title }}</span>
+    </a>
+    {% else %}
+    <div></div>
+    {% endif %}
+    
+    <a href="{{ BASE_URL }}help" class="help-nav-link">
+        <i class="bi bi-house"></i>
+        <span>Voltar ao Índice</span>
+    </a>
+    
+    {% if navigation.next %}
+    <a href="{{ BASE_URL }}help/{{ navigation.next.section }}" class="help-nav-link">
+        <span>Próximo: {{ navigation.next.title }}</span>
+        <i class="bi bi-chevron-right"></i>
+    </a>
+    {% else %}
+    <div></div>
+    {% endif %}
+</div>
+{% endif %}

@@ -1,0 +1,176 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Gestão de Promoções</h2>
+            <p class="text-muted mb-0">Gerir promoções e descontos disponíveis</p>
+        </div>
+        <div>
+            <a href="{{ BASE_URL }}admin/promotions/create" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Criar Nova Promoção
+            </a>
+            <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-tag"></i> Promoções</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome</th>
+                            <th>Código</th>
+                            <th>Tipo</th>
+                            <th>Desconto</th>
+                            <th>Plano</th>
+                            <th>Período</th>
+                            <th>Usos</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for promotion in promotions %}
+                        {% set now = 'now'|date('U') %}
+                        {% set startDate = promotion.start_date|date('U') %}
+                        {% set endDate = promotion.end_date|date('U') %}
+                        {% set isExpired = endDate < now %}
+                        {% set isUpcoming = startDate > now %}
+                        {% set isActive = promotion.is_active and not isExpired and not isUpcoming %}
+                        <tr class="{% if isExpired %}table-secondary{% elseif isUpcoming %}table-info{% endif %}">
+                            <td>{{ promotion.id }}</td>
+                            <td>
+                                <strong>{{ promotion.name }}</strong>
+                                {% if promotion.description %}
+                                <br><small class="text-muted">{{ promotion.description|slice(0, 50) }}{% if promotion.description|length > 50 %}...{% endif %}</small>
+                                {% endif %}
+                            </td>
+                            <td><code>{{ promotion.code }}</code></td>
+                            <td>
+                                {% if promotion.discount_type == 'percentage' %}
+                                    <span class="badge bg-info">Percentual</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Fixo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if promotion.discount_type == 'percentage' %}
+                                    {{ promotion.discount_value|number_format(2, ',', '.') }}%
+                                {% else %}
+                                    €{{ promotion.discount_value|number_format(2, ',', '.') }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if promotion.plan_name %}
+                                    <span class="badge bg-primary">{{ promotion.plan_name }}</span>
+                                {% else %}
+                                    <span class="badge bg-success">Todos</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>
+                                    <strong>Início:</strong> {{ promotion.start_date|date('d/m/Y H:i') }}<br>
+                                    <strong>Fim:</strong> {{ promotion.end_date|date('d/m/Y H:i') }}
+                                    {% if isExpired %}
+                                        <br><span class="text-danger"><i class="bi bi-exclamation-circle"></i> Expirada</span>
+                                    {% elseif isUpcoming %}
+                                        <br><span class="text-info"><i class="bi bi-clock"></i> Em breve</span>
+                                    {% endif %}
+                                </small>
+                            </td>
+                            <td>
+                                {% if promotion.max_uses %}
+                                    {{ promotion.used_count }} / {{ promotion.max_uses }}
+                                    {% if promotion.used_count >= promotion.max_uses %}
+                                        <br><span class="text-danger"><i class="bi bi-exclamation-circle"></i> Limite atingido</span>
+                                    {% endif %}
+                                {% else %}
+                                    {{ promotion.used_count }} / <span class="text-muted">∞</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if isActive %}
+                                    <span class="badge bg-success">Ativa</span>
+                                {% elseif isExpired %}
+                                    <span class="badge bg-secondary">Expirada</span>
+                                {% elseif isUpcoming %}
+                                    <span class="badge bg-info">Em breve</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Inativa</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ BASE_URL }}admin/promotions/{{ promotion.id }}/edit" class="btn btn-sm btn-info" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form method="POST" action="{{ BASE_URL }}admin/promotions/{{ promotion.id }}/toggle-active" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-sm {% if promotion.is_active %}btn-warning{% else %}btn-success{% endif %}" title="{% if promotion.is_active %}Desativar{% else %}Ativar{% endif %}">
+                                            <i class="bi {% if promotion.is_active %}bi-toggle-on{% else %}bi-toggle-off{% endif %}"></i>
+                                        </button>
+                                    </form>
+                                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ promotion.id }}" title="Deletar">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+
+                        <!-- Delete Modal -->
+                        <div class="modal fade" id="deleteModal{{ promotion.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ promotion.id }}" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-danger text-white">
+                                        <h5 class="modal-title" id="deleteModalLabel{{ promotion.id }}">Deletar Promoção</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <form method="POST" action="{{ BASE_URL }}admin/promotions/{{ promotion.id }}/delete">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <div class="modal-body">
+                                            <p>Tem certeza que deseja deletar a promoção <strong>{{ promotion.name }}</strong> ({{ promotion.code }})?</p>
+                                            <div class="alert alert-warning">
+                                                <small><i class="bi bi-exclamation-triangle"></i> Esta ação não pode ser desfeita.</small>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-danger">Deletar</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <tr>
+                            <td colspan="10" class="text-center text-muted">
+                                Nenhuma promoção encontrada. <a href="{{ BASE_URL }}admin/promotions/create">Criar primeira promoção</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

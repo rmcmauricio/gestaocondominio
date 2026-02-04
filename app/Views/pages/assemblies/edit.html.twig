@@ -64,6 +64,93 @@
                             <input type="text" class="form-control" id="location" name="location" value="{{ assembly.location }}" placeholder="Ex: Salão de Festas, Online">
                         </div>
 
+                        <div class="mb-4">
+                            <label class="form-label">Pontos de ordem</label>
+                            <p class="text-muted small">Adicione os pontos da ordem de trabalhos. Em cada ponto pode associar uma votação existente ou <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies/{{ assembly.id }}/votes/create-topic?return=edit" class="alert-link">criar uma nova votação</a>.</p>
+                            <div id="agenda-points-container">
+                                {% for point in agenda_points %}
+                                <div class="agenda-point-row card mb-2">
+                                    <div class="card-body py-3">
+                                        <div class="row g-2">
+                                            <div class="col-12">
+                                                <input type="text" class="form-control form-control-sm" name="agenda_points[{{ loop.index0 }}][title]" value="{{ point.title }}" placeholder="Título do ponto">
+                                            </div>
+                                            <div class="col-12">
+                                                <textarea class="form-control form-control-sm" name="agenda_points[{{ loop.index0 }}][body]" rows="2" placeholder="Texto livre / deliberação">{{ point.body ?? '' }}</textarea>
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label form-label-sm mb-1">Votações associadas</label>
+                                                <div class="point-votes-list mb-1" data-idx="{{ loop.index0 }}">
+                                                    {% set pidx = loop.index0 %}
+                                                    {% for tid in point.vote_topic_ids|default([]) %}
+                                                    {% for t in topics %}
+                                                    {% if t.id == tid %}
+                                                    <span class="vote-tag d-inline-flex align-items-center gap-1 me-1 mb-1">
+                                                        <span class="badge bg-secondary">{{ t.title }} <button type="button" class="btn-close btn-close-white btn-sm p-0 ms-1 rm-vote" style="font-size:0.6rem" aria-label="Remover"></button></span>
+                                                        <input type="hidden" name="agenda_points[{{ pidx }}][vote_topic_ids][]" value="{{ tid }}">
+                                                    </span>
+                                                    {% endif %}
+                                                    {% endfor %}
+                                                    {% endfor %}
+                                                </div>
+                                                <div class="d-flex gap-1 flex-wrap">
+                                                    <select class="form-select form-select-sm add-vote-select" style="max-width:220px">
+                                                        <option value="">— Adicionar votação —</option>
+                                                        {% for t in topics %}
+                                                        <option value="{{ t.id }}">{{ t.title }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary add-vote-btn">+</button>
+                                                </div>
+                                            </div>
+                                            <div class="col-12">
+                                                <button type="button" class="btn btn-sm btn-outline-danger rm-point">Remover ponto</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="add-agenda-point">
+                                    <i class="bi bi-plus-circle"></i> Adicionar ponto
+                                </button>
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies/{{ assembly.id }}/votes/create-topic?return=edit" class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-bar-chart-steps"></i> Nova votação
+                                </a>
+                            </div>
+                            <template id="agenda-point-tpl">
+                                <div class="agenda-point-row card mb-2">
+                                    <div class="card-body py-3">
+                                        <div class="row g-2">
+                                            <div class="col-12">
+                                                <input type="text" class="form-control form-control-sm" name="agenda_points[__IX__][title]" placeholder="Título do ponto">
+                                            </div>
+                                            <div class="col-12">
+                                                <textarea class="form-control form-control-sm" name="agenda_points[__IX__][body]" rows="2" placeholder="Texto livre / deliberação"></textarea>
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label form-label-sm mb-1">Votações associadas</label>
+                                                <div class="point-votes-list mb-1"></div>
+                                                <div class="d-flex gap-1 flex-wrap">
+                                                    <select class="form-select form-select-sm add-vote-select" style="max-width:220px">
+                                                        <option value="">— Adicionar votação —</option>
+                                                        {% for t in topics %}
+                                                        <option value="{{ t.id }}">{{ t.title }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary add-vote-btn">+</button>
+                                                </div>
+                                            </div>
+                                            <div class="col-12">
+                                                <button type="button" class="btn btn-sm btn-outline-danger rm-point">Remover ponto</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
                         <div class="d-flex justify-content-between">
                             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies/{{ assembly.id }}" class="btn btn-secondary">Cancelar</a>
                             <button type="submit" class="btn btn-primary">Atualizar Assembleia</button>
@@ -74,3 +161,59 @@
         </div>
     </div>
 </div>
+<script>
+(function() {
+    var container = document.getElementById('agenda-points-container');
+    var tpl = document.getElementById('agenda-point-tpl');
+    if (!container || !tpl) return;
+    function getRowIndex(row) {
+        var el = row.querySelector('[name^="agenda_points["]');
+        if (!el || !el.name) return 0;
+        var m = el.name.match(/agenda_points\[(\d+)\]/);
+        return m ? parseInt(m[1], 10) : 0;
+    }
+    function renumber() {
+        var rows = container.querySelectorAll('.agenda-point-row');
+        rows.forEach(function(row, i) {
+            row.querySelectorAll('[name^="agenda_points["]').forEach(function(el) {
+                el.name = el.name.replace(/^agenda_points\[\d+\]/, 'agenda_points[' + i + ']');
+            });
+        });
+    }
+    document.getElementById('add-agenda-point')?.addEventListener('click', function() {
+        var n = container.querySelectorAll('.agenda-point-row').length;
+        var html = tpl.innerHTML.replace(/__IX__/g, n);
+        container.insertAdjacentHTML('beforeend', html);
+        renumber();
+    });
+    container.addEventListener('click', function(e) {
+        if (e.target.closest('.rm-vote')) {
+            e.target.closest('.vote-tag')?.remove();
+            return;
+        }
+        if (e.target.closest('.rm-point')) {
+            e.target.closest('.agenda-point-row')?.remove();
+            renumber();
+            return;
+        }
+        if (!e.target.closest('.add-vote-btn')) return;
+        var row = e.target.closest('.agenda-point-row');
+        if (!row) return;
+        var sel = row.querySelector('.add-vote-select');
+        var list = row.querySelector('.point-votes-list');
+        if (!sel || !list) return;
+        var tid = sel.value;
+        if (!tid) return;
+        var exists = list.querySelector('input[value="' + tid.replace(/"/g, '&quot;') + '"]');
+        if (exists) return;
+        var idx = getRowIndex(row);
+        var title = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : tid;
+        var tag = '<span class="vote-tag d-inline-flex align-items-center gap-1 me-1 mb-1">' +
+            '<span class="badge bg-secondary">' + title.replace(/</g,'&lt;').replace(/>/g,'&gt;') + ' <button type="button" class="btn-close btn-close-white btn-sm p-0 ms-1 rm-vote" style="font-size:0.6rem" aria-label="Remover"></button></span>' +
+            '<input type="hidden" name="agenda_points[' + idx + '][vote_topic_ids][]" value="' + tid.replace(/"/g, '&quot;') + '">' +
+            '</span>';
+        list.insertAdjacentHTML('beforeend', tag);
+        sel.value = '';
+    });
+})();
+</script>

@@ -16,7 +16,7 @@ class InvoiceService
     /**
      * Create invoice for subscription
      */
-    public function createInvoice(int $subscriptionId, float $amount): int
+    public function createInvoice(int $subscriptionId, float $amount, array $metadata = []): int
     {
         return $this->invoiceModel->create([
             'subscription_id' => $subscriptionId,
@@ -24,7 +24,8 @@ class InvoiceService
             'tax_amount' => 0, // IVA is included in price
             'total_amount' => $amount,
             'status' => 'pending',
-            'due_date' => date('Y-m-d', strtotime('+7 days'))
+            'due_date' => date('Y-m-d', strtotime('+7 days')),
+            'metadata' => !empty($metadata) ? $metadata : null
         ]);
     }
 }

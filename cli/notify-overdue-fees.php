@@ -5,29 +5,42 @@
  * Sends email notifications to condominium owners with overdue fees.
  * Can be run via cron job daily.
  * 
- * Usage: php cli/notify-overdue-fees.php [--dry-run]
+ * Usage: php cli/notify-overdue-fees.php [--days-after=X] [--dry-run]
  * 
  * Options:
- *   --dry-run    Show what would be sent without actually sending emails
+ *   --days-after=X    Notify only X days after due date (default: 0, notify all overdue)
+ *   --dry-run         Show what would be sent without actually sending emails
  */
 
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/../config.php';
+require __DIR__ . '/../database.php';
 
 use App\Services\NotificationService;
+use App\Core\EmailService;
 use App\Models\Fee;
 use App\Models\FeePayment;
 
 // Set timezone
 date_default_timezone_set('Europe/Lisbon');
 
-// Check for dry-run flag
-$dryRun = in_array('--dry-run', $argv);
+// Parse command line arguments
+$daysAfter = 0;
+$dryRun = false;
+
+foreach ($argv as $arg) {
+    if (strpos($arg, '--days-after=') === 0) {
+        $daysAfter = (int)substr($arg, strlen('--days-after='));
+    } elseif ($arg === '--dry-run') {
+        $dryRun = true;
+    }
+}
 
 echo "========================================\n";
 echo "Overdue Fees Notification System\n";
 echo "========================================\n";
 echo "Mode: " . ($dryRun ? "DRY RUN (no emails will be sent)" : "LIVE") . "\n";
+echo "Days after due date: " . ($daysAfter > 0 ? "{$daysAfter} (only fees overdue by {$daysAfter}+ days)" : "0 (all overdue fees)") . "\n";
 echo "Started at: " . date('Y-m-d H:i:s') . "\n";
 echo "========================================\n\n";
 
@@ -85,7 +98,7 @@ try {
     ";
     
     $stmt = $db->prepare($sql);
-    $stmt->execute();
+    $stmt->execute([':cutoff_date' => $cutoffDate]);
     $overdueFees = $stmt->fetchAll() ?: [];
     
     if (empty($overdueFees)) {
@@ -140,28 +153,68 @@ try {
             continue;
         }
         
+        // Check if notification was already sent today for this user/condominium
+        $checkStmt = $db->prepare("
+            SELECT id FROM notifications
+            WHERE user_id = :user_id
+            AND condominium_id = :condominium_id
+            AND type = 'fee_overdue'
+            AND DATE(created_at) = CURDATE()
+        ");
+        $checkStmt->execute([
+            ':user_id' => $userId,
+            ':condominium_id' => $condominiumId
+        ]);
+        
+        if ($checkStmt->fetch()) {
+            echo "  ⚠ Skipped: Notification already sent today\n";
+            $totalSkipped++;
+            continue;
+        }
+        
+        // Check user email preferences
+        $prefStmt = $db->prepare("
+            SELECT receive_fee_notifications 
+            FROM user_email_preferences 
+            WHERE user_id = :user_id
+        ");
+        $prefStmt->execute([':user_id' => $userId]);
+        $prefs = $prefStmt->fetch();
+        
+        $shouldSendEmail = !$prefs || $prefs['receive_fee_notifications'] == 1;
+        
         if ($dryRun) {
-            echo "  [DRY RUN] Would send notification email\n";
+            echo "  [DRY RUN] Would send notification email";
+            if (!$shouldSendEmail) {
+                echo " (but user has disabled email notifications)";
+            }
+            echo "\n";
             $totalSent++;
         } else {
             try {
-                $success = $notificationService->sendOverdueFeeEmail($userId, $fees, $condominiumId);
+                // Always create in-app notification
+                foreach ($fees as $fee) {
+                    $notificationService->notifyFeeOverdue($fee['fee_id'], $userId, $condominiumId);
+                }
                 
-                if ($success) {
-                    echo "  ✓ Email sent successfully\n";
-                    $totalSent++;
+                // Send email if preferences allow
+                if ($shouldSendEmail) {
+                    $success = $notificationService->sendOverdueFeeEmail($userId, $fees, $condominiumId);
                     
-                    // Also create in-app notification
-                    foreach ($fees as $fee) {
-                        $notificationService->notifyFeeOverdue($fee['fee_id'], $userId, $condominiumId);
+                    if ($success) {
+                        echo "  ✓ Email sent successfully\n";
+                        $totalSent++;
+                    } else {
+                        echo "  ⚠ In-app notification created, but email failed\n";
+                        $errors[] = "Failed to send email to {$userEmail}";
+                        $totalSkipped++;
                     }
                 } else {
-                    echo "  ✗ Failed to send email\n";
-                    $errors[] = "Failed to send email to {$userEmail}";
-                    $totalSkipped++;
+                    echo "  ✓ In-app notification created (email disabled by user preferences)\n";
+                    $totalSent++;
                 }
             } catch (\Exception $e) {
-                $errorMsg = "Error sending email to {$userEmail}: " . $e->getMessage();
+                $errorMsg = "Error sending notification to {$userEmail}: " . $e->getMessage();
                 echo "  ✗ {$errorMsg}\n";
                 $errors[] = $errorMsg;
                 $totalSkipped++;

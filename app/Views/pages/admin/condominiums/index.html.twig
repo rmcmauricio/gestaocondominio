@@ -1,0 +1,594 @@
+<style>
+th.sortable {
+    user-select: none;
+    position: relative;
+}
+
+th.sortable:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+th.sortable .sort-icon {
+    margin-left: 5px;
+    font-size: 0.8em;
+    opacity: 0.5;
+}
+
+th.sortable:hover .sort-icon {
+    opacity: 1;
+}
+
+th.sortable[style*="color: rgb(13, 110, 253)"] .sort-icon {
+    opacity: 1;
+}
+</style>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Gestão de Condomínios</h2>
+            <p class="text-muted mb-0">Visualizar condomínios e estatísticas por administrador</p>
+        </div>
+        <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    <!-- Ranking Top 20 -->
+    {% if top20|length > 0 %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-trophy"></i> Ranking de Atividade - Top 20 Condomínios</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th>Condomínio</th>
+                            <th class="text-center">Score</th>
+                            <th class="text-center">Mensagens (30d)</th>
+                            <th class="text-center">Ocorrências (30d)</th>
+                            <th class="text-center">Documentos (30d)</th>
+                            <th class="text-center">Reservas (30d)</th>
+                            <th class="text-center">Assembleias (30d)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for condominium in top20 %}
+                        <tr>
+                            <td>
+                                {% if loop.index == 1 %}
+                                    <span class="badge bg-warning text-dark">🥇</span>
+                                {% elseif loop.index == 2 %}
+                                    <span class="badge bg-secondary">🥈</span>
+                                {% elseif loop.index == 3 %}
+                                    <span class="badge bg-warning text-dark">🥉</span>
+                                {% else %}
+                                    <strong class="text-muted">#{{ loop.index }}</strong>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong>{{ condominium.name }}</strong><br>
+                                <small class="text-muted">{{ condominium.admin_name }}</small>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-primary">{{ condominium.activity_score|number_format(1) }}</span>
+                            </td>
+                            <td class="text-center">{{ condominium.recent_messages }}</td>
+                            <td class="text-center">{{ condominium.recent_occurrences }}</td>
+                            <td class="text-center">{{ condominium.recent_documents }}</td>
+                            <td class="text-center">{{ condominium.recent_reservations }}</td>
+                            <td class="text-center">{{ condominium.recent_assemblies }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráfico Comparativo -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Gráfico Comparativo - Top 20 Condomínios</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="activityChart" height="80"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Lista Completa -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-building"></i> Todos os Condomínios</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="condominiumsTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="id" style="cursor: pointer;">
+                                # <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                            <th class="sortable" data-sort="name" style="cursor: pointer;">
+                                Nome <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                            <th>Administrador</th>
+                            <th class="text-center sortable" data-sort="fractions" style="cursor: pointer;">
+                                Frações <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                            <th class="text-center">Residentes</th>
+                            <th class="text-center sortable" data-sort="score" style="cursor: pointer;">
+                                Score <i class="bi bi-arrow-down-up sort-icon"></i>
+                            </th>
+                            <th class="text-center">Atividade (30d)</th>
+                            <th>Criado em</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for condominium in condominiums %}
+                        <tr>
+                            <td data-sort-value="{{ condominium.id }}">{{ condominium.id }}</td>
+                            <td data-sort-value="{{ condominium.name|lower }}">
+                                <strong>{{ condominium.name }}</strong>
+                                {% if loop.index <= 3 %}
+                                    {% if loop.index == 1 %}
+                                        <span class="badge bg-warning text-dark ms-2">🥇</span>
+                                    {% elseif loop.index == 2 %}
+                                        <span class="badge bg-secondary ms-2">🥈</span>
+                                    {% elseif loop.index == 3 %}
+                                        <span class="badge bg-warning text-dark ms-2">🥉</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ condominium.admin_name }}<br>
+                                <small class="text-muted">{{ condominium.admin_email }}</small>
+                            </td>
+                            <td class="text-center" data-sort-value="{{ condominium.total_fractions }}">{{ condominium.total_fractions }}</td>
+                            <td class="text-center">{{ condominium.total_residents }}</td>
+                            <td class="text-center" data-sort-value="{{ condominium.activity_score }}">
+                                <span class="badge {% if condominium.activity_score > 50 %}bg-success{% elseif condominium.activity_score > 20 %}bg-warning{% else %}bg-secondary{% endif %}">
+                                    {{ condominium.activity_score|number_format(1) }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <small>
+                                    <i class="bi bi-envelope"></i> {{ condominium.recent_messages }}
+                                    <i class="bi bi-exclamation-triangle ms-2"></i> {{ condominium.recent_occurrences }}
+                                    <i class="bi bi-file-text ms-2"></i> {{ condominium.recent_documents }}
+                                </small>
+                            </td>
+                            <td>{{ condominium.created_at|date('d/m/Y') }}</td>
+                            <td>
+                                <a href="{{ BASE_URL }}admin/condominiums/{{ condominium.id }}/stats" class="btn btn-sm btn-info">
+                                    <i class="bi bi-graph-up"></i> Estatísticas
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">
+                                Nenhum condomínio encontrado.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination Controls -->
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div class="d-flex align-items-center">
+                    <label for="itemsPerPage" class="me-2 mb-0">Itens por página:</label>
+                    <select id="itemsPerPage" class="form-select form-select-sm" style="width: auto;">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="0">Todos</option>
+                    </select>
+                </div>
+                <div class="d-flex align-items-center">
+                    <span id="paginationInfo" class="text-muted me-3"></span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0" id="paginationControls">
+                            <!-- Pagination buttons will be inserted here by JavaScript -->
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Table sorting and pagination functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const table = document.getElementById('condominiumsTable');
+    if (!table) return;
+    
+    const sortableHeaders = table.querySelectorAll('th.sortable');
+    let currentSort = { column: null, direction: 'asc' };
+    let currentPage = 1;
+    let itemsPerPage = 25;
+    let allRows = [];
+    
+    // Initialize: store all rows
+    const tbody = table.querySelector('tbody');
+    allRows = Array.from(tbody.querySelectorAll('tr'));
+    
+    // Remove empty row if exists
+    const emptyRow = allRows.find(row => row.querySelector('td[colspan]'));
+    if (emptyRow) {
+        allRows = allRows.filter(row => row !== emptyRow);
+    }
+    
+    // If no rows, hide pagination and return
+    if (allRows.length === 0) {
+        const paginationContainer = document.querySelector('.d-flex.justify-content-between.align-items-center.mt-3');
+        if (paginationContainer) paginationContainer.style.display = 'none';
+        return;
+    }
+    
+    // Get column index from header
+    function getColumnIndex(sortType) {
+        const headers = Array.from(table.querySelectorAll('thead th'));
+        return headers.findIndex(h => h.dataset.sort === sortType);
+    }
+    
+    // Pagination functions
+    function updatePagination() {
+        const totalItems = allRows.length;
+        const paginationContainer = document.querySelector('.d-flex.justify-content-between.align-items-center.mt-3');
+        
+        // Hide pagination if no items
+        if (totalItems === 0) {
+            if (paginationContainer) paginationContainer.style.display = 'none';
+            return;
+        }
+        
+        if (paginationContainer) paginationContainer.style.display = 'flex';
+        
+        const totalPages = itemsPerPage === 0 ? 1 : Math.ceil(totalItems / itemsPerPage);
+        
+        // Update info text
+        const infoEl = document.getElementById('paginationInfo');
+        if (itemsPerPage === 0) {
+            infoEl.textContent = `Mostrando todos os ${totalItems} condomínios`;
+        } else {
+            const start = (currentPage - 1) * itemsPerPage + 1;
+            const end = Math.min(currentPage * itemsPerPage, totalItems);
+            infoEl.textContent = `Mostrando ${start}-${end} de ${totalItems} condomínios`;
+        }
+        
+        // Generate pagination buttons
+        const controlsEl = document.getElementById('paginationControls');
+        controlsEl.innerHTML = '';
+        
+        if (itemsPerPage === 0 || totalPages <= 1) {
+            return; // No pagination needed
+        }
+        
+        // Previous button
+        const prevLi = document.createElement('li');
+        prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+        prevLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage - 1}">Anterior</a>`;
+        controlsEl.appendChild(prevLi);
+        
+        // Page number buttons
+        const maxVisible = 7;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+        
+        if (endPage - startPage < maxVisible - 1) {
+            startPage = Math.max(1, endPage - maxVisible + 1);
+        }
+        
+        if (startPage > 1) {
+            const firstLi = document.createElement('li');
+            firstLi.className = 'page-item';
+            firstLi.innerHTML = `<a class="page-link" href="#" data-page="1">1</a>`;
+            controlsEl.appendChild(firstLi);
+            
+            if (startPage > 2) {
+                const ellipsisLi = document.createElement('li');
+                ellipsisLi.className = 'page-item disabled';
+                ellipsisLi.innerHTML = `<span class="page-link">...</span>`;
+                controlsEl.appendChild(ellipsisLi);
+            }
+        }
+        
+        for (let i = startPage; i <= endPage; i++) {
+            const li = document.createElement('li');
+            li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+            li.innerHTML = `<a class="page-link" href="#" data-page="${i}">${i}</a>`;
+            controlsEl.appendChild(li);
+        }
+        
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                const ellipsisLi = document.createElement('li');
+                ellipsisLi.className = 'page-item disabled';
+                ellipsisLi.innerHTML = `<span class="page-link">...</span>`;
+                controlsEl.appendChild(ellipsisLi);
+            }
+            
+            const lastLi = document.createElement('li');
+            lastLi.className = 'page-item';
+            lastLi.innerHTML = `<a class="page-link" href="#" data-page="${totalPages}">${totalPages}</a>`;
+            controlsEl.appendChild(lastLi);
+        }
+        
+        // Next button
+        const nextLi = document.createElement('li');
+        nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+        nextLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage + 1}">Próximo</a>`;
+        controlsEl.appendChild(nextLi);
+        
+        // Add click handlers
+        controlsEl.querySelectorAll('a[data-page]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const page = parseInt(this.dataset.page);
+                if (page >= 1 && page <= totalPages && page !== currentPage) {
+                    currentPage = page;
+                    displayRows();
+                    updatePagination();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
+        });
+    }
+    
+    function displayRows() {
+        tbody.innerHTML = '';
+        
+        if (itemsPerPage === 0) {
+            // Show all rows
+            allRows.forEach(row => tbody.appendChild(row));
+        } else {
+            // Show paginated rows
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const rowsToShow = allRows.slice(start, end);
+            rowsToShow.forEach(row => tbody.appendChild(row));
+        }
+    }
+    
+    // Items per page change handler
+    document.getElementById('itemsPerPage').addEventListener('change', function() {
+        itemsPerPage = parseInt(this.value);
+        currentPage = 1;
+        displayRows();
+        updatePagination();
+    });
+    
+    // Sorting functionality
+    sortableHeaders.forEach(header => {
+        header.addEventListener('click', function() {
+            const sortType = this.dataset.sort;
+            
+            // Skip if no rows
+            if (allRows.length === 0) return;
+            
+            // Determine sort direction
+            if (currentSort.column === sortType) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = sortType;
+                currentSort.direction = 'asc';
+            }
+            
+            // Get column index
+            const columnIndex = getColumnIndex(sortType);
+            
+            // Sort rows
+            allRows.sort((a, b) => {
+                const aCells = a.querySelectorAll('td');
+                const bCells = b.querySelectorAll('td');
+                
+                if (!aCells[columnIndex] || !bCells[columnIndex]) return 0;
+                
+                let aValue, bValue;
+                const aCell = aCells[columnIndex];
+                const bCell = bCells[columnIndex];
+                
+                if (sortType === 'id') {
+                    aValue = parseInt(aCell.dataset.sortValue || aCell.textContent.trim()) || 0;
+                    bValue = parseInt(bCell.dataset.sortValue || bCell.textContent.trim()) || 0;
+                } else if (sortType === 'name') {
+                    aValue = (aCell.dataset.sortValue || aCell.textContent.trim()).toLowerCase();
+                    bValue = (bCell.dataset.sortValue || bCell.textContent.trim()).toLowerCase();
+                } else if (sortType === 'fractions') {
+                    aValue = parseFloat(aCell.dataset.sortValue || aCell.textContent.trim()) || 0;
+                    bValue = parseFloat(bCell.dataset.sortValue || bCell.textContent.trim()) || 0;
+                } else if (sortType === 'score') {
+                    aValue = parseFloat(aCell.dataset.sortValue || aCell.textContent.trim()) || 0;
+                    bValue = parseFloat(bCell.dataset.sortValue || bCell.textContent.trim()) || 0;
+                }
+                
+                if (typeof aValue === 'string') {
+                    return currentSort.direction === 'asc' 
+                        ? aValue.localeCompare(bValue)
+                        : bValue.localeCompare(aValue);
+                } else {
+                    return currentSort.direction === 'asc' 
+                        ? aValue - bValue
+                        : bValue - aValue;
+                }
+            });
+            
+            // Reset to first page after sorting
+            currentPage = 1;
+            displayRows();
+            updatePagination();
+            
+            // Update sort icons
+            sortableHeaders.forEach(h => {
+                const icon = h.querySelector('.sort-icon');
+                if (h.dataset.sort === sortType) {
+                    icon.className = currentSort.direction === 'asc' 
+                        ? 'bi bi-arrow-up sort-icon' 
+                        : 'bi bi-arrow-down sort-icon';
+                    h.style.color = '#0d6efd';
+                } else {
+                    icon.className = 'bi bi-arrow-down-up sort-icon';
+                    h.style.color = '';
+                }
+            });
+        });
+        
+        // Add hover effect
+        header.style.transition = 'color 0.2s';
+        header.addEventListener('mouseenter', function() {
+            if (this.dataset.sort !== currentSort.column) {
+                this.style.color = '#0d6efd';
+            }
+        });
+        header.addEventListener('mouseleave', function() {
+            if (this.dataset.sort !== currentSort.column) {
+                this.style.color = '';
+            }
+        });
+    });
+    
+    // Initialize pagination
+    displayRows();
+    updatePagination();
+});
+</script>
+
+{% if top20|length > 0 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('activityChart').getContext('2d');
+    
+    // Prepare data
+    const labels = [
+        {% for condominium in top20 %}
+        "{{ condominium.name|e('js') }}"{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+    
+    const activityScores = [
+        {% for condominium in top20 %}
+        {{ condominium.activity_score }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+    
+    const recentMessages = [
+        {% for condominium in top20 %}
+        {{ condominium.recent_messages }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+    
+    const recentOccurrences = [
+        {% for condominium in top20 %}
+        {{ condominium.recent_occurrences }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+    
+    const chartData = {
+        labels: labels,
+        datasets: [
+            {
+                label: 'Score de Atividade',
+                data: activityScores,
+                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 2,
+                yAxisID: 'y'
+            },
+            {
+                label: 'Mensagens (30d)',
+                data: recentMessages,
+                backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 2,
+                yAxisID: 'y1',
+                type: 'line'
+            },
+            {
+                label: 'Ocorrências (30d)',
+                data: recentOccurrences,
+                backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                borderColor: 'rgba(255, 99, 132, 1)',
+                borderWidth: 2,
+                yAxisID: 'y1',
+                type: 'line'
+            }
+        ]
+    };
+    
+    const config = {
+        type: 'bar',
+        data: chartData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.parsed.y;
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                        font: {
+                            size: 10
+                        }
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Score de Atividade'
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Atividades Recentes'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                }
+            }
+        }
+    };
+    
+    new Chart(ctx, config);
+});
+</script>
+{% endif %}

@@ -1,0 +1,46 @@
+<div class="container py-4 help-page">
+    <div class="help-page-header">
+        <h1 class="help-page-title">
+            <i class="bi bi-grid-3x3 text-primary me-2"></i>
+            Mapa de Quotas
+        </h1>
+        <p class="help-page-description">
+            Aprenda a visualizar e interpretar o mapa de quotas completo do condomínio.
+        </p>
+    </div>
+
+    {% include 'blocks/help-navigation.html.twig' %}
+
+    <div class="help-section">
+        <h2 class="help-section-title">Visão Geral</h2>
+        <p class="help-step-content">
+            O mapa de quotas mostra uma visão completa de todas as frações e seus estados de pagamento em formato de tabela, 
+            facilitando a identificação de quotas pendentes ou em atraso.
+        </p>
+    </div>
+
+    <div class="help-section">
+        <h2 class="help-section-title">Interpretação das Cores</h2>
+
+        <div class="help-step">
+            <h3 class="help-step-title">Verde</h3>
+            <div class="help-step-content">
+                <p>Quota totalmente paga</p>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <h3 class="help-step-title">Amarelo</h3>
+            <div class="help-step-content">
+                <p>Quota parcialmente paga</p>
+            </div>
+        </div>
+
+        <div class="help-step">
+            <h3 class="help-step-title">Vermelho</h3>
+            <div class="help-step-content">
+                <p>Quota em atraso ou não paga</p>
+            </div>
+        </div>
+    </div>
+</div>

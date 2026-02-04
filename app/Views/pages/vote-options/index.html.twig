@@ -1,0 +1,110 @@
+<div class="container py-4">
+    {% set page_actions %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Opções de Resposta',
+        'actions': page_actions
+    } %}
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Adicionar Nova Opção</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/vote-options">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="row">
+                    <div class="col-md-8">
+                        <input type="text" class="form-control" name="option_label" placeholder="Ex: A favor, Contra, Abstenção..." required maxlength="255">
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-plus-circle"></i> Adicionar
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Opções Configuradas</h5>
+        </div>
+        <div class="card-body">
+            {% if options %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Ordem</th>
+                            <th>Rótulo</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for option in options %}
+                        <tr>
+                            <td>{{ option.order_index }}</td>
+                            <td><strong>{{ option.option_label }}</strong></td>
+                            <td>
+                                {% if option.is_default %}
+                                <span class="badge bg-info">Padrão</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Personalizada</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if option.is_active %}
+                                <span class="badge bg-success">Ativa</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inativa</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if not option.is_default %}
+                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/vote-options/{{ option.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar esta opção?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="_method" value="DELETE">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                {% else %}
+                                <span class="text-muted small">Não pode ser eliminada</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Nenhuma opção configurada. As opções padrão serão criadas automaticamente.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

@@ -1,15 +1,17 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2>Assembleias</h2>
-            <p class="text-muted mb-0">{{ condominium.name }}</p>
-        </div>
+    {% set page_actions %}
         {% if is_admin %}
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies/create" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Nova Assembleia
-        </a>
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies/create" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle"></i> Nova Assembleia
+            </a>
+        </div>
         {% endif %}
-    </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Assembleias',
+        'actions': page_actions
+    } %}
 
     {% if error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -26,19 +28,42 @@
     {% endif %}
 
     <div class="mb-3">
-        <div class="btn-group" role="group">
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies" class="btn btn-outline-secondary {% if not current_status %}active{% endif %}">
-                Todas
-            </a>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies?status=scheduled" class="btn btn-outline-primary {% if current_status == 'scheduled' %}active{% endif %}">
-                Agendadas
-            </a>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies?status=in_progress" class="btn btn-outline-info {% if current_status == 'in_progress' %}active{% endif %}">
-                Em Curso
-            </a>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies?status=closed" class="btn btn-outline-success {% if current_status == 'closed' %}active{% endif %}">
-                Encerradas
-            </a>
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="assemblyStatusFilter" data-bs-toggle="dropdown" aria-expanded="false">
+                {% if not current_status %}
+                    Todas
+                {% elseif current_status == 'scheduled' %}
+                    Agendadas
+                {% elseif current_status == 'in_progress' %}
+                    Em Curso
+                {% elseif current_status == 'closed' %}
+                    Encerradas
+                {% else %}
+                    Todas
+                {% endif %}
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="assemblyStatusFilter">
+                <li>
+                    <a class="dropdown-item {% if not current_status %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies">
+                        Todas
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if current_status == 'scheduled' %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies?status=scheduled">
+                        Agendadas
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if current_status == 'in_progress' %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies?status=in_progress">
+                        Em Curso
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if current_status == 'closed' %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies?status=closed">
+                        Encerradas
+                    </a>
+                </li>
+            </ul>
         </div>
     </div>
 

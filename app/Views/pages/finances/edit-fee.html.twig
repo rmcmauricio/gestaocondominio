@@ -1,0 +1,96 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0">Editar Quota Extra</h4>
+                    <small>{{ condominium.name }} - Fração {{ fraction.identifier }}</small>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Nota:</strong> Apenas quotas extras sem pagamentos podem ser editadas. 
+                        Após editar, o valor e a descrição serão atualizados.
+                    </div>
+
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/{{ fee.id }}/update" id="editFeeForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Fração</label>
+                            <input type="text" class="form-control" value="{{ fraction.identifier }}" disabled>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Período</label>
+                            <input type="text" class="form-control" 
+                                   value="{% if fee.period_month %}{{ fee.period_month }}/{{ fee.period_year }}{% else %}{{ fee.period_year }}{% endif %}" 
+                                   disabled>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="amount" class="form-label">Valor da Quota para esta Fração (€) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">€</span>
+                                <input type="number" class="form-control" id="amount" name="amount" 
+                                       step="0.01" min="0.01" value="{{ fee.amount }}" required>
+                            </div>
+                            <small class="text-muted">Valor individual desta fração. Para recalcular todas as frações, elimine e crie novamente com o valor total.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="due_date" class="form-label">Data de Vencimento <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="due_date" name="due_date" 
+                                   value="{{ fee.due_date }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Motivo/Descrição</label>
+                            <textarea class="form-control" id="description" name="description" rows="3" 
+                                      placeholder="Ex: Obras no telhado, Reparação do elevador, etc.">{{ fee.notes|default('') }}</textarea>
+                            <small class="text-muted">Descrição do motivo da quota extra</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Referência</label>
+                            <input type="text" class="form-control" value="{{ fee.reference|default('') }}" disabled>
+                            <small class="text-muted">A referência não pode ser alterada</small>
+                        </div>
+
+                        <div class="d-flex gap-2 justify-content-end">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="btn btn-secondary">
+                                <i class="bi bi-x-lg"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-check-lg"></i> Atualizar Quota
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('editFeeForm');
+    
+    form.addEventListener('submit', function(e) {
+        const amount = parseFloat(document.getElementById('amount').value);
+        if (!amount || amount <= 0) {
+            e.preventDefault();
+            alert('O valor da quota deve ser maior que zero.');
+            document.getElementById('amount').focus();
+            return false;
+        }
+    });
+});
+</script>

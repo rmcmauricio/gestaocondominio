@@ -1,18 +1,18 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2>Histórico de Versões</h2>
-            <p class="text-muted mb-0">{{ document.title }} - {{ condominium.name }}</p>
-        </div>
-        <div>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/upload-version" class="btn btn-primary">
+    {% set page_actions %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/upload-version" class="btn btn-primary btn-sm">
                 <i class="bi bi-upload"></i> Upload Nova Versão
             </a>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/view" class="btn btn-outline-secondary">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/view" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-arrow-left"></i> Voltar
             </a>
         </div>
-    </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Histórico de Versões',
+        'actions': page_actions
+    } %}
 
     {% if versions|length > 0 %}
     <div class="card shadow-sm">
@@ -57,11 +57,11 @@
                             <td>{{ version.uploaded_by_name|default('N/A') }}</td>
                             <td>{{ version.created_at|date('d/m/Y H:i') }}</td>
                             <td>
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/view" class="btn btn-outline-info" title="Visualizar">
+                                <div class="d-flex gap-1">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/view" class="btn btn-outline-info btn-sm" title="Visualizar">
                                         <i class="bi bi-eye"></i>
                                     </a>
-                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/download" class="btn btn-outline-primary" title="Download">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ version.id }}/download" class="btn btn-outline-primary btn-sm" title="Download">
                                         <i class="bi bi-download"></i>
                                     </a>
                                 </div>

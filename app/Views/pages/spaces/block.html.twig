@@ -1,0 +1,87 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0"><i class="bi bi-lock"></i> Bloquear Espaço</h4>
+                    <small>{{ condominium.name }} - {{ space.name }}</small>
+                </div>
+                <div class="card-body p-4">
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces/{{ space.id }}/block">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label class="form-label">Tipo de Bloqueio <span class="text-danger">*</span></label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="block_type" id="block_indefinite" value="indefinite" checked onchange="toggleBlockDate()">
+                                <label class="form-check-label" for="block_indefinite">
+                                    Indeterminado
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="block_type" id="block_temporary" value="temporary" onchange="toggleBlockDate()">
+                                <label class="form-check-label" for="block_temporary">
+                                    Temporário (com data de fim)
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3" id="block_date_container" style="display: none;">
+                            <label for="blocked_until_date" class="form-label">Data de Fim do Bloqueio <span class="text-danger">*</span></label>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <input type="date" class="form-control" id="blocked_until_date" name="blocked_until_date" min="{{ 'now'|date('Y-m-d') }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <input type="time" class="form-control" id="blocked_until_time" name="blocked_until_time" value="23:59">
+                                </div>
+                            </div>
+                            <div class="form-text">O espaço ficará disponível automaticamente após esta data</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="block_reason" class="form-label">Motivo do Bloqueio</label>
+                            <textarea class="form-control" id="block_reason" name="block_reason" rows="4" placeholder="Ex: Manutenção programada, Reparações necessárias, etc."></textarea>
+                            <div class="form-text">Este motivo será exibido aos utilizadores quando tentarem reservar o espaço</div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> <strong>Nota:</strong> Espaços bloqueados não podem ser reservados. Se definir uma data de fim, o espaço será desbloqueado automaticamente após essa data.
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-lock"></i> Bloquear Espaço
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleBlockDate() {
+    const temporaryRadio = document.getElementById('block_temporary');
+    const dateContainer = document.getElementById('block_date_container');
+    const dateInput = document.getElementById('blocked_until_date');
+    
+    if (temporaryRadio.checked) {
+        dateContainer.style.display = 'block';
+        dateInput.required = true;
+    } else {
+        dateContainer.style.display = 'none';
+        dateInput.required = false;
+        dateInput.value = '';
+    }
+}
+</script>

@@ -1,0 +1,16 @@
+{% set section = section|default('') %}
+{% set title = title|default('Ajuda') %}
+{% set size = size|default('sm') %}
+{% set icon = icon|default('bi-question-circle') %}
+{% set class = class|default('') %}
+
+<button type="button" 
+        class="btn btn-outline-info btn-{{ size }} {{ class }}" 
+        onclick="openHelpModal('{{ section }}'); return false;"
+        title="{{ title }}"
+        aria-label="{{ title }}">
+    <i class="bi {{ icon }}"></i>
+    {% if show_text|default(false) %}
+    <span class="ms-1">{{ title }}</span>
+    {% endif %}
+</button>

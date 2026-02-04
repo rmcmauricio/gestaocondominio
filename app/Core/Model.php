@@ -1,10 +1,13 @@
 <?php
 namespace App\Core;
 
+use App\Core\Traits\Auditable;
+
 /**
  * @property \App\Core\Utils $utils
  */
 class Model {
+    use Auditable;
 
     protected $db;
     protected Utils $utils;

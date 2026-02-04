@@ -1,0 +1,1253 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Preview da Importação</h2>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/import" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="bi bi-eye"></i> Revisão dos Dados
+            </h5>
+        </div>
+        <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 
+                    <strong>Modo:</strong> 
+                    {% if mode == 'separate' %}
+                        Colunas separadas (Crédito/Débito)
+                    {% else %}
+                        Coluna única de valor
+                    {% endif %}
+                    <br>
+                    Revise os dados abaixo e corrija quaisquer erros antes de confirmar a importação.
+                    Pode editar campos diretamente na tabela e marcar movimentos como transferências.
+                </div>
+
+            <form id="previewForm" method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/import/process">
+                <div class="mb-3">
+                    <label for="preview_bank_account_id" class="form-label">
+                        <strong>Conta Bancária para Importação</strong>
+                    </label>
+                    <select class="form-select" id="preview_bank_account_id" name="preview_bank_account_id">
+                        {% for account in accounts %}
+                        <option value="{{ account.id }}" {% if account.id == bank_account_id %}selected{% endif %}>
+                            {{ account.name }} 
+                            {% if account.account_type == 'cash' %}(Caixa){% endif %}
+                            - Saldo: €{{ account.current_balance|number_format(2, ',', '.') }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text text-muted">
+                        Todos os movimentos serão importados para esta conta. Pode alterar a conta antes de confirmar a importação.
+                    </small>
+                </div>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="edited_data" id="edited_data_input">
+
+                <div class="table-responsive" id="import-preview-table-container" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                    <table class="table-excel" id="import-preview-table" style="min-width: 100%; width: max-content;">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px; text-align: center;" title="Tipo">Tipo</th>
+                                <th style="width: 110px;">Data</th>
+                                {% if mode == 'separate' %}
+                                <th style="min-width: 120px;">Crédito</th>
+                                <th style="min-width: 120px;">Débito</th>
+                                {% else %}
+                                <th style="min-width: 120px;">Valor</th>
+                                {% endif %}
+                                <th style="min-width: 200px;">Descrição</th>
+                                <th>Categoria</th>
+                                <th>Referência</th>
+                                <th style="width: 45px; text-align: center;" title="Transferência"><i class="bi bi-arrow-left-right"></i></th>
+                                <th>Liquidação de Quotas</th>
+                                <th style="width: 30px; text-align: center;" title="Duplicados"><i class="bi bi-copy"></i></th>
+                                <th style="width: 30px; text-align: center;" title="Erros"><i class="bi bi-exclamation-circle"></i></th>
+                                <th style="width: 40px; text-align: center;" title="Apagar"><i class="bi bi-trash"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in parsedData %}
+                            <tr data-row-index="{{ loop.index0 }}">
+                                <td style="text-align: center;">
+                                    <i class="bi {% if row.transaction_type == 'income' %}bi-arrow-up-circle-fill text-success{% else %}bi-arrow-down-circle-fill text-danger{% endif %}" 
+                                       id="type_badge_{{ loop.index0 }}" 
+                                       title="{% if row.transaction_type == 'income' %}Entrada{% else %}Saída{% endif %}"
+                                       style="font-size: 0.9rem;"></i>
+                                </td>
+                                <td style="width: 110px;">
+                                    {{ row.transaction_date|date('d/m/Y') }}
+                                    <input type="hidden" 
+                                           class="editable-field" 
+                                           data-field="transaction_date" 
+                                           data-index="{{ loop.index0 }}"
+                                           value="{{ row.transaction_date }}" 
+                                           {% if row._has_errors %}required{% endif %}>
+                                </td>
+                                {% if mode == 'separate' %}
+                                <td class="text-end" style="min-width: 120px; white-space: nowrap;">
+                                    {% if row.amount_credit %}
+                                        {{ row.amount_credit|number_format(2, ',', '.') }} €
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td class="text-end" style="min-width: 120px; white-space: nowrap;">
+                                    {% if row.amount_debit %}
+                                        {{ row.amount_debit|number_format(2, ',', '.') }} €
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                {% else %}
+                                <td class="text-end" style="min-width: 120px; white-space: nowrap;">
+                                    {% if row.amount %}
+                                        {{ row.amount|number_format(2, ',', '.') }} €
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                {% endif %}
+                                <td style="min-width: 200px;">
+                                    <input type="text" 
+                                           class="form-control form-control-sm editable-field" 
+                                           data-field="description" 
+                                           data-index="{{ loop.index0 }}"
+                                           value="{{ row.description|default('') }}" 
+                                           {% if row._has_errors %}required{% endif %}
+                                           style="min-width: 180px;">
+                                </td>
+                                <td>
+                                    <input type="text" 
+                                           class="form-control form-control-sm editable-field" 
+                                           data-field="category" 
+                                           data-index="{{ loop.index0 }}"
+                                           value="{{ row.category|default('') }}">
+                                </td>
+                                <td>
+                                    <input type="text" 
+                                           class="form-control form-control-sm editable-field" 
+                                           data-field="reference" 
+                                           data-index="{{ loop.index0 }}"
+                                           value="{{ row.reference|default('') }}">
+                                </td>
+                                <td style="text-align: center; width: 45px;">
+                                    <div class="form-check d-inline-flex justify-content-center" title="Transferência entre contas do condomínio">
+                                        <input class="form-check-input transfer-checkbox" 
+                                               type="checkbox" 
+                                               name="transfer_{{ loop.index0 }}" 
+                                               id="transfer_{{ loop.index0 }}"
+                                               data-index="{{ loop.index0 }}">
+                                    </div>
+                                    <select class="form-select form-select-sm mt-1 transfer-account" 
+                                            name="transfer_to_account_{{ loop.index0 }}" 
+                                            id="transfer_to_account_{{ loop.index0 }}"
+                                            style="display: none;">
+                                        <option value="">Selecione conta...</option>
+                                        {% for account in accounts %}
+                                        <option value="{{ account.id }}">{{ account.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td style="text-align: center;">
+                                    {% if row.transaction_type == 'income' %}
+                                    <button type="button" 
+                                            class="btn btn-sm btn-outline-primary quota-liquidation-btn" 
+                                            data-index="{{ loop.index0 }}">
+                                        <i class="bi bi-cash-coin"></i> Liquidar quotas
+                                    </button>
+                                    {% endif %}
+                                    
+                                    <!-- Hidden inputs for form submission -->
+                                    <input type="hidden" name="quota_liquidation_{{ loop.index0 }}" id="quota_liquidation_{{ loop.index0 }}" value="0">
+                                    <input type="hidden" name="quota_fraction_{{ loop.index0 }}" id="quota_fraction_{{ loop.index0 }}" value="">
+                                    <input type="hidden" name="quota_selected_{{ loop.index0 }}" id="quota_selected_{{ loop.index0 }}" value="">
+                                </td>
+                                <td style="text-align: center; width: 30px; padding: 0.3rem 0.25rem !important;">
+                                    {% if row._has_duplicates %}
+                                    <span class="text-warning d-inline-flex justify-content-center" 
+                                          title="Possível duplicado encontrado{% if row._duplicates|length > 1 %} ({{ row._duplicates|length }} movimentos){% endif %}"
+                                          data-bs-toggle="tooltip" 
+                                          data-bs-html="true"
+                                          data-bs-placement="left"
+                                          data-duplicate-info="{{ row._duplicates|json_encode|escape('html_attr') }}">
+                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted d-inline-flex justify-content-center" title="Sem duplicados">
+                                        <i class="bi bi-check-circle"></i>
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td style="text-align: center; width: 30px; padding: 0.3rem 0.25rem !important;">
+                                    {% if row._has_errors %}
+                                    <span class="text-danger d-inline-flex justify-content-center" title="{% for error in row._errors %}{{ error }}{% if not loop.last %}, {% endif %}{% endfor %}">
+                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                    </span>
+                                    {% else %}
+                                    <span class="text-success d-inline-flex justify-content-center" title="Sem erros">
+                                        <i class="bi bi-check-circle-fill"></i>
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td style="text-align: center; width: 40px; padding: 0.3rem 0.25rem !important;">
+                                    <button type="button" 
+                                            class="btn btn-sm btn-outline-danger delete-row-btn" 
+                                            data-row-index="{{ loop.index0 }}"
+                                            title="Apagar esta linha">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+                        <div>
+                            <strong>Total de registos:</strong> <span id="totalCount">{{ parsedData|length }}</span> | 
+                            <span class="text-success">Válidos: <span id="validCount">{{ parsedData|length }}</span></span> | 
+                            <span class="text-warning">Possíveis duplicados: <span id="duplicateCount">{{ parsedData|filter(row => row._has_duplicates is defined and row._has_duplicates)|length }}</span></span> | 
+                            <span class="text-danger">Com erros: <span id="errorCount">0</span></span>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/import" class="btn btn-secondary btn-sm">
+                                <i class="bi bi-arrow-left"></i> Voltar ao Mapeamento
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-sm" id="submitBtn">
+                                <i class="bi bi-check-circle"></i> Confirmar Importação
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Pagination Controls -->
+                    <div class="d-flex justify-content-between align-items-center mt-3" id="previewPaginationContainer">
+                        <div class="d-flex align-items-center">
+                            <label for="previewItemsPerPage" class="me-2 mb-0">Itens por página:</label>
+                            <select id="previewItemsPerPage" class="form-select form-select-sm" style="width: auto;">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                                <option value="0">Todos</option>
+                            </select>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span id="previewPaginationInfo" class="text-muted me-3"></span>
+                            <nav>
+                                <ul class="pagination pagination-sm mb-0" id="previewPaginationControls">
+                                    <!-- Pagination buttons will be inserted here by JavaScript -->
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Liquidação de Quotas -->
+<div class="modal fade" id="quotaLiquidationModal" tabindex="-1" aria-labelledby="quotaLiquidationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="quotaLiquidationModalLabel">Liquidação de Quotas</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="modal_quota_liquidation_checkbox">
+                        <label class="form-check-label" for="modal_quota_liquidation_checkbox">
+                            <strong>Liquidar quotas para este movimento</strong>
+                        </label>
+                    </div>
+                </div>
+                
+                <div id="modal_quota_config" style="display: none;">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Liquidação automática:</strong> O valor será aplicado às quotas mais antigas primeiro, sequencialmente. 
+                        Se selecionar quotas específicas abaixo, essas serão liquidadas primeiro e o valor restante será aplicado às mais antigas.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="modal_quota_fraction" class="form-label">Fração <span class="text-danger">*</span></label>
+                        <select class="form-select" id="modal_quota_fraction">
+                            <option value="">Selecione fração...</option>
+                            {% for fraction in fractions|default([]) %}
+                            <option value="{{ fraction.id }}">{{ fraction.identifier }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                
+                <div id="modal_quota_list" style="display: none;">
+                    <label class="form-label"><strong>Selecione quotas específicas (opcional):</strong></label>
+                    <div class="quota-checkboxes-modal" style="max-height: 300px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.25rem; padding: 0.75rem; margin-top: 0.5rem;"></div>
+                    <div class="quota-summary-modal mt-2" style="display: none;">
+                        <small class="text-muted">
+                            <span class="quota-selected-total-modal">0.00</span> € selecionado | 
+                            Restante: <span class="quota-remaining-modal">0.00</span> € será aplicado às mais antigas
+                        </small>
+                    </div>
+                </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="saveQuotaLiquidation">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.table-success-light {
+    background-color: rgba(25, 135, 84, 0.1) !important;
+}
+.table-danger-light {
+    background-color: rgba(220, 53, 69, 0.1) !important;
+}
+.table-warning {
+    background-color: rgba(255, 193, 7, 0.15) !important;
+}
+
+/* Zebra striping simples - linhas pares cinzento claro, ímpares branco */
+body #import-preview-table-container #import-preview-table tbody tr:nth-child(even) td {
+    background-color: #e9ecef !important;
+}
+
+body #import-preview-table-container #import-preview-table tbody tr:nth-child(odd) td {
+    background-color: #ffffff !important;
+}
+
+/* Hover effect - amarelo pastel claro para todas as linhas */
+body #import-preview-table-container #import-preview-table tbody tr:hover td {
+    background-color: #fff9e6 !important;
+}
+
+/* Cursor pointer */
+body #import-preview-table-container #import-preview-table tbody tr {
+    cursor: pointer !important;
+}
+
+/* Scroll horizontal sempre visível em todos os dispositivos */
+#import-preview-table-container,
+#financial-transactions-table-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+}
+
+#import-preview-table,
+#financial-transactions-table {
+    width: max-content;
+    min-width: 100%;
+}
+
+#import-preview-table th,
+#import-preview-table td,
+#financial-transactions-table th,
+#financial-transactions-table td {
+    white-space: nowrap;
+}
+
+/* Permitir quebra de linha apenas em descrição */
+#import-preview-table td:nth-child(5),
+#financial-transactions-table td:nth-child(3) {
+    white-space: normal;
+    min-width: 150px;
+    max-width: 200px;
+}
+
+/* Resizable columns */
+#import-preview-table th {
+    position: relative;
+    user-select: none;
+}
+
+#import-preview-table th .resize-handle {
+    position: absolute;
+    top: 0;
+    right: -2px;
+    width: 5px;
+    height: 100%;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 10;
+    transition: background 0.2s;
+}
+
+#import-preview-table th .resize-handle:hover {
+    background: #007bff;
+    opacity: 0.7;
+}
+
+#import-preview-table th .resize-handle.resizing {
+    background: #0056b3;
+    opacity: 1;
+}
+</style>
+
+<script>
+const editedData = {};
+const deletedRows = new Set(); // Track deleted row indices
+const mode = '{{ mode }}';
+
+// Pagination for preview table
+let previewCurrentPage = 1;
+let previewItemsPerPage = 25;
+
+function updatePreviewPagination() {
+    // Get all rows (including hidden ones) and filter out deleted ones
+    const allRows = Array.from(document.querySelectorAll('#import-preview-table tbody tr'));
+    const visibleRows = allRows.filter(row => {
+        const rowIndex = parseInt(row.dataset.rowIndex);
+        return !deletedRows.has(rowIndex);
+    });
+    
+    const totalItems = visibleRows.length;
+    const paginationContainer = document.getElementById('previewPaginationContainer');
+    
+    if (totalItems === 0) {
+        if (paginationContainer) paginationContainer.style.display = 'none';
+        return;
+    }
+    
+    // Always show pagination if there are items
+    if (paginationContainer) {
+        paginationContainer.style.display = 'flex';
+    }
+    
+    const totalPages = previewItemsPerPage === 0 ? 1 : Math.ceil(totalItems / previewItemsPerPage);
+    
+    // Update info text
+    const infoEl = document.getElementById('previewPaginationInfo');
+    if (previewItemsPerPage === 0) {
+        infoEl.textContent = `Mostrando todos os ${totalItems} registos`;
+    } else {
+        const start = (previewCurrentPage - 1) * previewItemsPerPage + 1;
+        const end = Math.min(previewCurrentPage * previewItemsPerPage, totalItems);
+        infoEl.textContent = `Mostrando ${start}-${end} de ${totalItems} registos`;
+    }
+    
+    // Generate pagination buttons
+    const controlsEl = document.getElementById('previewPaginationControls');
+    controlsEl.innerHTML = '';
+    
+    if (previewItemsPerPage === 0 || totalPages <= 1) {
+        // Show all visible rows
+        visibleRows.forEach(row => row.style.display = '');
+        // Still show pagination info
+        if (totalPages <= 1 && previewItemsPerPage > 0) {
+            controlsEl.innerHTML = '<li class="page-item disabled"><span class="page-link">Página 1 de 1</span></li>';
+        }
+        return;
+    }
+    
+    // Previous button
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${previewCurrentPage === 1 ? 'disabled' : ''}`;
+    prevLi.innerHTML = `<a class="page-link" href="#" data-page="${previewCurrentPage - 1}">Anterior</a>`;
+    controlsEl.appendChild(prevLi);
+    
+    // Page number buttons
+    const maxVisible = 7;
+    let startPage = Math.max(1, previewCurrentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    
+    if (endPage - startPage < maxVisible - 1) {
+        startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    
+    if (startPage > 1) {
+        const firstLi = document.createElement('li');
+        firstLi.className = 'page-item';
+        firstLi.innerHTML = `<a class="page-link" href="#" data-page="1">1</a>`;
+        controlsEl.appendChild(firstLi);
+        if (startPage > 2) {
+            const dotsLi = document.createElement('li');
+            dotsLi.className = 'page-item disabled';
+            dotsLi.innerHTML = `<span class="page-link">...</span>`;
+            controlsEl.appendChild(dotsLi);
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        const li = document.createElement('li');
+        li.className = `page-item ${i === previewCurrentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#" data-page="${i}">${i}</a>`;
+        controlsEl.appendChild(li);
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            const dotsLi = document.createElement('li');
+            dotsLi.className = 'page-item disabled';
+            dotsLi.innerHTML = `<span class="page-link">...</span>`;
+            controlsEl.appendChild(dotsLi);
+        }
+        const lastLi = document.createElement('li');
+        lastLi.className = 'page-item';
+        lastLi.innerHTML = `<a class="page-link" href="#" data-page="${totalPages}">${totalPages}</a>`;
+        controlsEl.appendChild(lastLi);
+    }
+    
+    // Next button
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${previewCurrentPage === totalPages ? 'disabled' : ''}`;
+    nextLi.innerHTML = `<a class="page-link" href="#" data-page="${previewCurrentPage + 1}">Próxima</a>`;
+    controlsEl.appendChild(nextLi);
+    
+    // Show/hide rows based on current page
+    const startIndex = (previewCurrentPage - 1) * previewItemsPerPage;
+    const endIndex = previewCurrentPage * previewItemsPerPage;
+    
+    // Hide all visible rows first, then show only the ones for current page
+    visibleRows.forEach((row, index) => {
+        if (index >= startIndex && index < endIndex) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    // Ensure deleted rows stay hidden
+    allRows.forEach(row => {
+        const rowIndex = parseInt(row.dataset.rowIndex);
+        if (deletedRows.has(rowIndex)) {
+            row.style.display = 'none';
+        }
+    });
+}
+
+// Handle pagination clicks
+document.addEventListener('click', function(e) {
+    const pageLink = e.target.closest('#previewPaginationControls .page-link');
+    if (pageLink && pageLink.dataset.page) {
+        e.preventDefault();
+        const page = parseInt(pageLink.dataset.page);
+        if (page > 0 && !pageLink.closest('.disabled')) {
+            previewCurrentPage = page;
+            updatePreviewPagination();
+        }
+    }
+});
+
+// Handle items per page change
+document.getElementById('previewItemsPerPage').addEventListener('change', function() {
+    previewItemsPerPage = parseInt(this.value) || 0;
+    previewCurrentPage = 1;
+    updatePreviewPagination();
+});
+
+// Handle row deletion
+document.addEventListener('click', function(e) {
+    const deleteBtn = e.target.closest('.delete-row-btn');
+    if (deleteBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const rowIndex = deleteBtn.dataset.rowIndex;
+        const row = document.querySelector(`tr[data-row-index="${rowIndex}"]`);
+        
+        if (row && confirm('Tem a certeza que deseja apagar esta linha?')) {
+            // Mark row as deleted
+            deletedRows.add(parseInt(rowIndex));
+            
+            // Remove row from DOM
+            row.remove();
+            
+            // Update counts
+            updateCounts();
+            
+            // Update row numbers
+            updateRowNumbers();
+            
+            // Update pagination
+            updatePreviewPagination();
+        }
+    }
+});
+
+// Update row numbers after deletion (no longer needed since we removed the # column)
+function updateRowNumbers() {
+    // Function kept for compatibility but no longer updates row numbers
+    // Row numbers column has been removed
+}
+
+// Track edited fields (excluding transaction_date which is now read-only)
+document.querySelectorAll('.editable-field').forEach(field => {
+    // Skip transaction_date fields (they're hidden inputs, not editable)
+    if (field.dataset.field === 'transaction_date') {
+        return;
+    }
+    
+    field.addEventListener('change', function() {
+        const index = this.dataset.index;
+        const fieldName = this.dataset.field;
+        
+        if (!editedData[index]) {
+            editedData[index] = {};
+        }
+        
+        let value = this.value;
+        editedData[index][fieldName] = value;
+        
+        updateCounts();
+    });
+});
+
+// Handle transfer checkboxes
+document.querySelectorAll('.transfer-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+        const index = this.dataset.index;
+        const accountSelect = document.getElementById('transfer_to_account_' + index);
+        
+        if (this.checked) {
+            accountSelect.style.display = 'block';
+            accountSelect.required = true;
+        } else {
+            accountSelect.style.display = 'none';
+            accountSelect.required = false;
+            accountSelect.value = '';
+        }
+        
+        updateCounts();
+    });
+});
+
+// Removed updateTransactionType function - values are now read-only
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function updateCounts() {
+    const rows = document.querySelectorAll('tbody tr');
+    let validCount = 0;
+    let errorCount = 0;
+    let duplicateCount = 0;
+    
+    rows.forEach(row => {
+        const hasErrors = row.classList.contains('table-danger');
+        const hasDuplicates = row.classList.contains('table-warning');
+        
+        if (hasErrors) {
+            errorCount++;
+        } else {
+            validCount++;
+        }
+        
+        if (hasDuplicates) {
+            duplicateCount++;
+        }
+    });
+    
+    const totalCount = rows.length;
+    const totalCountElement = document.getElementById('totalCount');
+    if (totalCountElement) {
+        totalCountElement.textContent = totalCount;
+    }
+    document.getElementById('validCount').textContent = validCount;
+    document.getElementById('errorCount').textContent = errorCount;
+    document.getElementById('duplicateCount').textContent = duplicateCount;
+}
+
+// Initialize tooltips for duplicate indicators
+function initDuplicateTooltips() {
+    document.querySelectorAll('[data-duplicate-info]').forEach(element => {
+        const duplicateInfo = JSON.parse(element.getAttribute('data-duplicate-info') || '[]');
+        if (duplicateInfo.length > 0) {
+            let tooltipContent = '<strong>Movimentos similares encontrados:</strong><ul class="mb-0 mt-2">';
+            duplicateInfo.forEach((dup, idx) => {
+                tooltipContent += '<li>ID: ' + dup.id + 
+                    ' | Data: ' + dup.transaction_date + 
+                    ' | Valor: €' + parseFloat(dup.amount).toFixed(2) + 
+                    ' | Descrição: ' + escapeHtml(dup.description) + '</li>';
+            });
+            tooltipContent += '</ul>';
+            element.setAttribute('data-bs-title', tooltipContent);
+        }
+    });
+    
+    // Initialize Bootstrap tooltips
+    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    }
+}
+
+
+// Submit form
+document.getElementById('previewForm').addEventListener('submit', function(e) {
+    // Store edited data
+    document.getElementById('edited_data_input').value = JSON.stringify(editedData);
+    
+    // Store deleted row indices
+    const deletedRowsInput = document.createElement('input');
+    deletedRowsInput.type = 'hidden';
+    deletedRowsInput.name = 'deleted_rows';
+    deletedRowsInput.value = JSON.stringify(Array.from(deletedRows));
+    this.appendChild(deletedRowsInput);
+    
+    // Ensure bank account ID is included in form submission
+    const bankAccountSelect = document.getElementById('preview_bank_account_id');
+    if (bankAccountSelect) {
+        const bankAccountInput = document.createElement('input');
+        bankAccountInput.type = 'hidden';
+        bankAccountInput.name = 'preview_bank_account_id';
+        bankAccountInput.value = bankAccountSelect.value;
+        this.appendChild(bankAccountInput);
+    }
+});
+
+// Removed - no longer needed
+
+// Simplified function - CSS handles all styling
+function applyTableStyles() {
+    // CSS handles everything, this function is kept for compatibility
+}
+
+// Initial counts
+updateCounts();
+
+// Initialize pagination
+updatePreviewPagination();
+
+// Column resizing functionality for preview table
+(function() {
+    const table = document.getElementById('import-preview-table');
+    if (!table) return;
+    
+    const storageKey = 'import-preview-table-column-widths';
+    
+    // Load saved widths
+    function loadColumnWidths() {
+        try {
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+                const widths = JSON.parse(saved);
+                const headers = table.querySelectorAll('thead th');
+                headers.forEach((th, index) => {
+                    if (widths[index]) {
+                        th.style.width = widths[index] + 'px';
+                        th.style.minWidth = widths[index] + 'px';
+                        th.style.maxWidth = widths[index] + 'px';
+                        
+                        // Update corresponding cells
+                        const cells = table.querySelectorAll(`tbody td:nth-child(${index + 1})`);
+                        cells.forEach(cell => {
+                            cell.style.width = widths[index] + 'px';
+                            cell.style.minWidth = widths[index] + 'px';
+                            cell.style.maxWidth = widths[index] + 'px';
+                        });
+                    }
+                });
+            }
+        } catch (e) {
+            console.error('Error loading column widths:', e);
+        }
+    }
+    
+    // Save column widths
+    function saveColumnWidths() {
+        try {
+            const headers = table.querySelectorAll('thead th');
+            const widths = Array.from(headers).map(th => {
+                const width = th.style.width || th.getAttribute('data-original-width') || 'auto';
+                return width === 'auto' ? null : parseInt(width);
+            });
+            localStorage.setItem(storageKey, JSON.stringify(widths));
+        } catch (e) {
+            console.error('Error saving column widths:', e);
+        }
+    }
+    
+    // Initialize resize handles
+    function initResizeHandles() {
+        const headers = table.querySelectorAll('thead th');
+        
+        headers.forEach((th, index) => {
+            // Store original width
+            const originalWidth = th.style.width || window.getComputedStyle(th).width;
+            th.setAttribute('data-original-width', originalWidth);
+            
+            // Create resize handle
+            const handle = document.createElement('div');
+            handle.className = 'resize-handle';
+            handle.setAttribute('data-column-index', index);
+            th.appendChild(handle);
+            
+            // Make header position relative if not already
+            if (window.getComputedStyle(th).position === 'static') {
+                th.style.position = 'relative';
+            }
+            
+            // Resize functionality
+            let startX, startWidth, columnIndex;
+            
+            handle.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                startX = e.pageX;
+                startWidth = parseInt(window.getComputedStyle(th).width);
+                columnIndex = index;
+                
+                handle.classList.add('resizing');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+                
+                function onMouseMove(e) {
+                    const diff = e.pageX - startX;
+                    const newWidth = Math.max(50, startWidth + diff); // Minimum 50px
+                    
+                    th.style.width = newWidth + 'px';
+                    th.style.minWidth = newWidth + 'px';
+                    
+                    // Update corresponding cells
+                    const cells = table.querySelectorAll(`tbody td:nth-child(${index + 1})`);
+                    cells.forEach(cell => {
+                        cell.style.width = newWidth + 'px';
+                        cell.style.minWidth = newWidth + 'px';
+                    });
+                }
+                
+                function onMouseUp() {
+                    handle.classList.remove('resizing');
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                    saveColumnWidths();
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                }
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+        });
+    }
+    
+    // Initialize after table is ready
+    setTimeout(function() {
+        loadColumnWidths();
+        initResizeHandles();
+    }, 100);
+})();
+
+// Create dynamic stylesheet with maximum specificity - insert at the END of head
+function createDynamicStyles() {
+    const styleId = 'import-preview-dynamic-styles';
+    let styleSheet = document.getElementById(styleId);
+    
+    if (styleSheet) {
+        styleSheet.remove(); // Remove existing to recreate
+    }
+    
+    styleSheet = document.createElement('style');
+    styleSheet.id = styleId;
+    styleSheet.setAttribute('data-priority', '9999'); // High priority
+    
+    const css = `
+        /* Zebra striping simples - linhas pares cinzento claro, ímpares branco */
+        body #import-preview-table-container #import-preview-table tbody tr:nth-child(even) td {
+            background-color: #e9ecef !important;
+        }
+        
+        body #import-preview-table-container #import-preview-table tbody tr:nth-child(odd) td {
+            background-color: #ffffff !important;
+        }
+        
+        /* Hover effect - amarelo pastel claro para todas as linhas */
+        body #import-preview-table-container #import-preview-table tbody tr:hover td {
+            background-color: #fff9e6 !important;
+        }
+        
+        /* Cursor pointer */
+        body #import-preview-table-container #import-preview-table tbody tr {
+            cursor: pointer !important;
+        }
+    `;
+    
+    styleSheet.textContent = css;
+    
+    // Insert at the END of head to ensure it loads last
+    document.head.appendChild(styleSheet);
+}
+
+// Apply table styles - simplified
+function initTableStyles() {
+    // Create dynamic stylesheet
+    createDynamicStyles();
+    
+    // Initialize tooltips
+    setTimeout(function() {
+        initDuplicateTooltips();
+    }, 300);
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTableStyles);
+} else {
+    initTableStyles();
+}
+
+// Also reapply after any dynamic changes (like row deletion)
+const originalUpdateRowNumbers = updateRowNumbers;
+updateRowNumbers = function() {
+    originalUpdateRowNumbers();
+    setTimeout(function() {
+        applyTableStyles();
+    }, 50);
+};
+
+// Quota liquidation handlers
+const condominiumId = {{ condominium.id }};
+let quotaModal = null;
+let currentQuotaIndex = null;
+
+// Initialize quota liquidation buttons state based on transaction type
+function initializeQuotaButtons() {
+    document.querySelectorAll('.quota-liquidation-btn').forEach(btn => {
+        const index = btn.dataset.index;
+        
+        // Update button style if quota liquidation is already configured
+        const quotaLiquidation = document.getElementById('quota_liquidation_' + index).value;
+        if (quotaLiquidation === '1') {
+            btn.classList.remove('btn-outline-primary');
+            btn.classList.add('btn-primary');
+        }
+    });
+}
+
+// Initialize on page load - wait for DOM to be ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeQuotaButtons);
+} else {
+    // DOM is already loaded
+    initializeQuotaButtons();
+}
+
+// Initialize modal
+function initQuotaModal() {
+    const modalElement = document.getElementById('quotaLiquidationModal');
+    if (modalElement) {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            quotaModal = new bootstrap.Modal(modalElement);
+            
+            // Clear modal when hidden
+            modalElement.addEventListener('hidden.bs.modal', function() {
+                const checkbox = document.getElementById('modal_quota_liquidation_checkbox');
+                const config = document.getElementById('modal_quota_config');
+                const fraction = document.getElementById('modal_quota_fraction');
+                const list = document.getElementById('modal_quota_list');
+                const checkboxesDiv = document.querySelector('.quota-checkboxes-modal');
+                const summaryDiv = document.querySelector('.quota-summary-modal');
+                
+                if (checkbox) checkbox.checked = false;
+                if (config) config.style.display = 'none';
+                if (fraction) fraction.value = '';
+                if (list) list.style.display = 'none';
+                if (checkboxesDiv) checkboxesDiv.innerHTML = '';
+                if (summaryDiv) summaryDiv.style.display = 'none';
+                currentQuotaIndex = null;
+            });
+        }
+    }
+}
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initQuotaModal);
+} else {
+    initQuotaModal();
+}
+
+
+// Helper function to extract amount from text (e.g., "1.234,56 €" -> 1234.56)
+function extractAmountFromText(text) {
+    if (!text || text === '-') return 0;
+    // Remove € symbol and spaces, replace comma with dot, remove dots (thousands separator)
+    const cleaned = text.replace(/€/g, '').replace(/\s/g, '').trim();
+    if (!cleaned) return 0;
+    // Portuguese format: 1.234,56 -> 1234.56
+    const parts = cleaned.split(',');
+    if (parts.length === 2) {
+        // Has decimal separator
+        const integerPart = parts[0].replace(/\./g, '');
+        const decimalPart = parts[1];
+        return parseFloat(integerPart + '.' + decimalPart) || 0;
+    } else {
+        // No decimal separator, might have thousands separator
+        const cleaned2 = cleaned.replace(/\./g, '');
+        return parseFloat(cleaned2) || 0;
+    }
+}
+
+// Handle quota liquidation button click - open modal
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.quota-liquidation-btn');
+    if (btn) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        currentQuotaIndex = btn.dataset.index;
+        const row = document.querySelector(`tr[data-row-index="${currentQuotaIndex}"]`);
+        
+        // Get amount from text cells (values are now read-only text)
+        let transactionAmount = 0;
+        if (mode === 'separate') {
+            const creditCell = row.querySelector('td:nth-child(4)'); // Crédito column
+            const debitCell = row.querySelector('td:nth-child(5)'); // Débito column
+            if (creditCell) {
+                transactionAmount = extractAmountFromText(creditCell.textContent);
+            } else if (debitCell) {
+                transactionAmount = extractAmountFromText(debitCell.textContent);
+            }
+        } else {
+            const amountCell = row.querySelector('td:nth-child(4)'); // Valor column
+            if (amountCell) {
+                transactionAmount = extractAmountFromText(amountCell.textContent);
+            }
+        }
+        
+        // Load saved values if any
+        const savedLiquidation = document.getElementById('quota_liquidation_' + currentQuotaIndex).value === '1';
+        const savedFraction = document.getElementById('quota_fraction_' + currentQuotaIndex).value;
+        const savedSelected = document.getElementById('quota_selected_' + currentQuotaIndex).value;
+        
+        // Reset modal
+        const modalCheckbox = document.getElementById('modal_quota_liquidation_checkbox');
+        const modalConfig = document.getElementById('modal_quota_config');
+        const modalFraction = document.getElementById('modal_quota_fraction');
+        const modalList = document.getElementById('modal_quota_list');
+        
+        if (modalCheckbox) modalCheckbox.checked = savedLiquidation;
+        if (modalFraction) modalFraction.value = savedFraction || '';
+        if (modalConfig) modalConfig.style.display = savedLiquidation ? 'block' : 'none';
+        if (modalList) modalList.style.display = 'none';
+        
+        const checkboxesDiv = document.querySelector('.quota-checkboxes-modal');
+        const summaryDiv = document.querySelector('.quota-summary-modal');
+        if (checkboxesDiv) checkboxesDiv.innerHTML = '';
+        if (summaryDiv) summaryDiv.style.display = 'none';
+        
+        // Load quotas if fraction is already selected
+        if (savedLiquidation && savedFraction && modalFraction) {
+            modalFraction.value = savedFraction;
+            loadQuotasForModal(savedFraction, currentQuotaIndex, transactionAmount, savedSelected);
+        }
+        
+        // Show modal
+        const modalElement = document.getElementById('quotaLiquidationModal');
+        if (modalElement) {
+            if (!quotaModal) {
+                initQuotaModal();
+            }
+            if (quotaModal) {
+                quotaModal.show();
+            } else {
+                // Fallback: show modal manually using Bootstrap 5
+                const bsModal = new bootstrap.Modal(modalElement);
+                bsModal.show();
+            }
+        }
+    }
+});
+
+// Handle checkbox in modal - show/hide config section
+document.getElementById('modal_quota_liquidation_checkbox').addEventListener('change', function() {
+    const configSection = document.getElementById('modal_quota_config');
+    if (this.checked) {
+        configSection.style.display = 'block';
+    } else {
+        configSection.style.display = 'none';
+        // Clear values
+        document.getElementById('modal_quota_fraction').value = '';
+        document.getElementById('modal_quota_list').style.display = 'none';
+        document.querySelector('.quota-checkboxes-modal').innerHTML = '';
+        document.querySelector('.quota-summary-modal').style.display = 'none';
+    }
+});
+
+// Handle fraction selection in modal - load pending fees
+document.getElementById('modal_quota_fraction').addEventListener('change', function() {
+    const fractionId = this.value;
+    const row = document.querySelector(`tr[data-row-index="${currentQuotaIndex}"]`);
+    
+    // Get amount from text cells (values are now read-only text)
+    let transactionAmount = 0;
+    if (mode === 'separate') {
+        const creditCell = row.querySelector('td:nth-child(4)'); // Crédito column
+        const debitCell = row.querySelector('td:nth-child(5)'); // Débito column
+        if (creditCell) {
+            transactionAmount = extractAmountFromText(creditCell.textContent);
+        } else if (debitCell) {
+            transactionAmount = extractAmountFromText(debitCell.textContent);
+        }
+    } else {
+        const amountCell = row.querySelector('td:nth-child(4)'); // Valor column
+        if (amountCell) {
+            transactionAmount = extractAmountFromText(amountCell.textContent);
+        }
+    }
+    
+    if (fractionId) {
+        loadQuotasForModal(fractionId, currentQuotaIndex, transactionAmount);
+    } else {
+        document.getElementById('modal_quota_list').style.display = 'none';
+        document.querySelector('.quota-checkboxes-modal').innerHTML = '';
+        document.querySelector('.quota-summary-modal').style.display = 'none';
+    }
+});
+
+function loadQuotasForModal(fractionId, index, transactionAmount, savedSelected = '') {
+    const quotaListDiv = document.getElementById('modal_quota_list');
+    const checkboxesDiv = document.querySelector('.quota-checkboxes-modal');
+    const summaryDiv = document.querySelector('.quota-summary-modal');
+    
+    fetch(`{{ BASE_URL }}condominiums/${condominiumId}/financial-transactions/import/pending-fees/${fractionId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.fees) {
+                let html = '';
+                const selectedIds = savedSelected ? savedSelected.split(',').map(id => parseInt(id)) : [];
+                
+                data.fees.forEach(fee => {
+                    const isChecked = selectedIds.includes(fee.id);
+                    html += `
+                        <div class="form-check mb-2">
+                            <input class="form-check-input quota-fee-checkbox-modal" 
+                                   type="checkbox" 
+                                   value="${fee.id}"
+                                   data-pending="${fee.pending_amount}"
+                                   ${isChecked ? 'checked' : ''}>
+                            <label class="form-check-label">
+                                ${escapeHtml(fee.label)} - Pendente: €${fee.pending_amount.toFixed(2)}
+                            </label>
+                        </div>
+                    `;
+                });
+                checkboxesDiv.innerHTML = html;
+                quotaListDiv.style.display = 'block';
+                
+                // Add event listeners to fee checkboxes
+                document.querySelectorAll('.quota-fee-checkbox-modal').forEach(cb => {
+                    cb.addEventListener('change', () => updateQuotaSummaryModal(transactionAmount));
+                });
+                
+                updateQuotaSummaryModal(transactionAmount);
+            } else {
+                checkboxesDiv.innerHTML = '<small class="text-muted">Nenhuma quota pendente encontrada.</small>';
+                quotaListDiv.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao carregar quotas:', error);
+            checkboxesDiv.innerHTML = '<small class="text-danger">Erro ao carregar quotas pendentes.</small>';
+        });
+}
+
+function updateQuotaSummaryModal(transactionAmount) {
+    let selectedTotal = 0;
+    document.querySelectorAll('.quota-fee-checkbox-modal:checked').forEach(checkbox => {
+        selectedTotal += parseFloat(checkbox.dataset.pending || 0);
+    });
+    
+    const remaining = Math.max(0, transactionAmount - selectedTotal);
+    const selectedTotalSpan = document.querySelector('.quota-selected-total-modal');
+    const remainingSpan = document.querySelector('.quota-remaining-modal');
+    const summaryDiv = document.querySelector('.quota-summary-modal');
+    
+    if (selectedTotalSpan) selectedTotalSpan.textContent = selectedTotal.toFixed(2);
+    if (remainingSpan) remainingSpan.textContent = remaining.toFixed(2);
+    
+    if (summaryDiv && transactionAmount > 0) {
+        summaryDiv.style.display = 'block';
+    }
+}
+
+// Save quota liquidation configuration
+document.getElementById('saveQuotaLiquidation').addEventListener('click', function() {
+    if (!currentQuotaIndex) return;
+    
+    const isLiquidation = document.getElementById('modal_quota_liquidation_checkbox').checked;
+    
+    if (isLiquidation) {
+        const fractionId = document.getElementById('modal_quota_fraction').value;
+        if (!fractionId) {
+            alert('Por favor, selecione uma fração.');
+            return;
+        }
+        
+        // Get selected fee IDs
+        const selectedFees = [];
+        document.querySelectorAll('.quota-fee-checkbox-modal:checked').forEach(cb => {
+            selectedFees.push(cb.value);
+        });
+        
+        // Save to hidden inputs
+        document.getElementById('quota_liquidation_' + currentQuotaIndex).value = '1';
+        document.getElementById('quota_fraction_' + currentQuotaIndex).value = fractionId;
+        document.getElementById('quota_selected_' + currentQuotaIndex).value = selectedFees.join(',');
+        
+        // Update button style
+        const btn = document.querySelector(`.quota-liquidation-btn[data-index="${currentQuotaIndex}"]`);
+        if (btn) {
+            btn.classList.remove('btn-outline-primary');
+            btn.classList.add('btn-primary');
+        }
+    } else {
+        // Clear all values
+        document.getElementById('quota_liquidation_' + currentQuotaIndex).value = '0';
+        document.getElementById('quota_fraction_' + currentQuotaIndex).value = '';
+        document.getElementById('quota_selected_' + currentQuotaIndex).value = '';
+        
+        // Update button style
+        const btn = document.querySelector(`.quota-liquidation-btn[data-index="${currentQuotaIndex}"]`);
+        if (btn) {
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-outline-primary');
+        }
+    }
+    
+    // Hide modal
+    if (quotaModal) {
+        quotaModal.hide();
+    } else {
+        // Fallback: hide modal manually
+        const modalElement = document.getElementById('quotaLiquidationModal');
+        if (modalElement) {
+            modalElement.classList.remove('show');
+            modalElement.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            const backdrop = document.getElementById('quotaModalBackdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+        }
+    }
+});
+
+
+</script>

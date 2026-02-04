@@ -80,7 +80,67 @@ class FeePayment extends Model
             ':created_by' => $data['created_by'] ?? null
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $paymentId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($paymentId, $data);
+        
+        return $paymentId;
+    }
+
+    /**
+     * Find payment by ID
+     */
+    public function findById(int $id): ?array
+    {
+        if (!$this->db) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("SELECT * FROM fee_payments WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * Update payment
+     */
+    public function update(int $id, array $data): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $fields = [];
+        $params = [':id' => $id];
+
+        $allowedFields = ['amount', 'payment_method', 'payment_date', 'notes'];
+        
+        foreach ($allowedFields as $field) {
+            if (isset($data[$field])) {
+                $fields[] = "$field = :$field";
+                $params[":$field"] = $data[$field];
+            }
+        }
+
+        if (empty($fields)) {
+            return false;
+        }
+
+        // Get old data for audit
+        $oldData = $this->findById($id);
+
+        $sql = "UPDATE fee_payments SET " . implode(', ', $fields) . ", updated_at = NOW() WHERE id = :id";
+        $stmt = $this->db->prepare($sql);
+        
+        $result = $stmt->execute($params);
+        
+        // Log audit
+        if ($result) {
+            $this->auditUpdate($id, $data, $oldData);
+        }
+        
+        return $result;
     }
 
     /**
@@ -92,8 +152,18 @@ class FeePayment extends Model
             return false;
         }
 
+        // Get old data for audit before deletion
+        $oldData = $this->findById($id);
+
         $stmt = $this->db->prepare("DELETE FROM fee_payments WHERE id = :id");
-        return $stmt->execute([':id' => $id]);
+        $result = $stmt->execute([':id' => $id]);
+        
+        // Log audit
+        if ($result && $oldData) {
+            $this->auditDelete($id, $oldData);
+        }
+        
+        return $result;
     }
 }
 

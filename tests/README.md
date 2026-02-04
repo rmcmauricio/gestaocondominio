@@ -111,6 +111,37 @@ A classe `TestCase` fornece os seguintes métodos auxiliares:
 - `assertGuest(): void` - Verifica se o utilizador não está autenticado
 - `assertUserRole(string $role): void` - Verifica o role do utilizador
 - `cleanUpDatabase(): void` - Limpa dados de teste da base de dados
+- `getMockPDO(): PDO` - Retorna uma conexão PDO SQLite em memória
+
+### DatabaseMockHelper
+
+A classe `Tests\Helpers\DatabaseMockHelper` fornece utilitários para criar mocks de base de dados:
+
+- `createInMemoryDatabase(): PDO` - Cria uma base de dados SQLite em memória
+- `createMockPlan(array $attributes = []): array` - Cria dados mock de um plano
+- `createMockPricingTier(int $planId, array $attributes = []): array` - Cria dados mock de um pricing tier
+- `createMockSubscription(int $userId, int $planId, array $attributes = []): array` - Cria dados mock de uma subscrição
+- `setupBasicTables(PDO $pdo): void` - Cria tabelas básicas na base de dados
+- `insertMockData(PDO $pdo, string $table, array $data): int` - Insere dados mock na base de dados
+
+**Exemplo de uso:**
+
+```php
+use Tests\Helpers\DatabaseMockHelper;
+
+// Criar base de dados em memória
+$pdo = DatabaseMockHelper::createInMemoryDatabase();
+DatabaseMockHelper::setupBasicTables($pdo);
+
+// Criar dados mock
+$plan = DatabaseMockHelper::createMockPlan(['slug' => 'condominio']);
+$planId = DatabaseMockHelper::insertMockData($pdo, 'plans', $plan);
+
+// Usar na base de dados
+$stmt = $pdo->prepare("SELECT * FROM plans WHERE id = ?");
+$stmt->execute([$planId]);
+$result = $stmt->fetch();
+```
 
 ### Testes Unitários
 
@@ -213,6 +244,37 @@ Certifique-se de que `session_start()` é chamado no `setUp()` quando necessári
 - Verifique se a base de dados de teste existe
 - Verifique as credenciais no `phpunit.xml`
 - Use `markTestSkipped()` se a base de dados não estiver disponível
+
+### Erro "PDOException: could not find driver" ou "PDO SQLite driver is not available"
+
+Alguns testes (especialmente `SubscriptionAcceptanceCriteriaTest`) requerem a extensão PDO SQLite para criar bases de dados em memória.
+
+**Para habilitar SQLite:**
+
+1. **Verificar se está instalado:**
+   ```bash
+   php -m | grep -i sqlite
+   ```
+
+2. **No Linux/Unix:**
+   - Instalar: `sudo apt-get install php-sqlite3` (Debian/Ubuntu) ou `sudo yum install php-pdo_sqlite` (CentOS/RHEL)
+   - Habilitar no `php.ini`: descomente `extension=pdo_sqlite` e `extension=sqlite3`
+
+3. **No Windows (XAMPP):**
+   - Abra `php.ini` (geralmente em `C:\xampp\php\php.ini`)
+   - Descomente as linhas:
+     ```ini
+     extension=pdo_sqlite
+     extension=sqlite3
+     ```
+   - Reinicie o servidor Apache
+
+4. **Verificar se está habilitado:**
+   ```bash
+   php -r "echo in_array('sqlite', PDO::getAvailableDrivers()) ? 'SQLite OK' : 'SQLite NOT AVAILABLE';"
+   ```
+
+Se SQLite não estiver disponível, os testes serão automaticamente ignorados (skipped) com uma mensagem clara.
 
 ### Testes não encontram classes
 

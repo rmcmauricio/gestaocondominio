@@ -1,0 +1,233 @@
+<div class="container py-4">
+    {% set page_actions %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fraction-accounts" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Contas por fração
+            </a>
+        </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Conta da fração ' ~ fraction.identifier,
+        'actions': page_actions
+    } %}
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+    </div>
+    {% endif %}
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <h6 class="text-muted mb-1">Saldo conta</h6>
+                    <p class="mb-0 fs-4 {% if balance > 0 %}text-success{% elseif balance < 0 %}text-danger{% else %}text-muted{% endif %}">€{{ balance|number_format(2, ',', '.') }}</p>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="text-muted mb-1">Em falta</h6>
+                    <p class="mb-0 fs-4 {% if em_falta > 0 %}text-danger{% else %}text-muted{% endif %}">€{{ em_falta|number_format(2, ',', '.') }}</p>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="text-muted mb-1">Situação</h6>
+                    <p class="mb-0 fs-4 {% if situacao > 0 %}text-success{% elseif situacao < 0 %}text-danger{% else %}text-muted{% endif %}">€{{ situacao|number_format(2, ',', '.') }}</p>
+                </div>
+            </div>
+            <small class="text-muted">Saldo = créditos − débitos. Em falta = quotas por pagar (todos os anos e dívidas históricas). Situação = saldo − em falta.</small>
+        </div>
+    </div>
+
+    <h5 class="mb-3">Quotas em falta</h5>
+    <div class="card shadow-sm mb-4">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Quota</th>
+                            <th>Vencimento</th>
+                            <th class="text-end">Total</th>
+                            <th class="text-end">Pago</th>
+                            <th class="text-end">Em falta</th>
+                            <th>Ref. pagamentos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for q in fees_em_falta %}
+                        <tr>
+                            <td>
+                                {% if q.fee_type == 'extra' %}
+                                Quota extra: {{ q.reference|default('-') }}
+                                {% else %}
+                                Quota {{ q.period_month ? ("%02d"|format(q.period_month)) ~ '/' ~ q.period_year : q.period_year }}
+                                {% endif %}
+                            </td>
+                            <td>{{ q.due_date ? (q.due_date|date('d/m/Y')) : '—' }}</td>
+                            <td class="text-end">€{{ (q.amount|default(0))|number_format(2, ',', '.') }}</td>
+                            <td class="text-end text-muted">€{{ (q.paid|default(0))|number_format(2, ',', '.') }}</td>
+                            <td class="text-end text-danger fw-bold">€{{ (q.remaining|default(0))|number_format(2, ',', '.') }}</td>
+                            <td><small>{{ (q.payment_refs|default([]))|length > 0 ? (q.payment_refs|join(', ')) : '—' }}</small></td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">Nenhuma quota em falta. Todas as quotas desta fração estão liquidadas.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <h5 class="mb-3">Movimentos</h5>
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Data</th>
+                            <th>Tipo</th>
+                            <th class="text-end">Valor</th>
+                            <th>Descrição / Quota liquidada</th>
+                            <th>Ref. pagamento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in movements %}
+                        <tr>
+                            <td>{{ m.created_at|date('d/m/Y H:i') }}</td>
+                            <td>
+                                {% if m.type == 'credit' %}
+                                <span class="badge bg-success">Crédito</span>
+                                {% elseif m.source_type == 'quota_application' %}
+                                <span class="badge bg-info">Liquidado</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Débito</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end {% if m.type == 'credit' %}text-success{% else %}text-danger{% endif %} fw-bold">
+                                {% if m.type == 'credit' %}+{% else %}-{% endif %} €{{ m.amount|number_format(2, ',', '.') }}
+                            </td>
+                            <td>{{ m.quota_label|default(m.description)|default('-') }}{% if m.is_partial %} (parcial){% endif %}</td>
+                            <td>
+                                {% if (m.payment_refs|default([]))|length > 0 %}
+                                {% for pr in m.payment_refs %}
+                                <a href="#" class="payment-ref-link" data-financial-transaction-id="{{ pr.ft_id }}" title="Ver movimento">{{ pr.ref }}</a>{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                                {% elseif m.payment_reference and (m.financial_transaction_id or (m.fee_id and m.fee_payment_id)) %}
+                                <a href="#" class="payment-ref-link" {% if m.financial_transaction_id %}data-financial-transaction-id="{{ m.financial_transaction_id }}"{% endif %} {% if m.fee_id %}data-fee-id="{{ m.fee_id }}"{% endif %} {% if m.fee_payment_id %}data-payment-id="{{ m.fee_payment_id }}"{% endif %} title="Ver movimento / pagamento">{{ m.payment_reference }}</a>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">Nenhum movimento. Os pagamentos e as quotas liquidadas aparecem aqui.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: movimento financeiro ou pagamento -->
+    <div class="modal fade" id="paymentInfoModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="paymentInfoModalTitle">Detalhe</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="paymentInfoBody">
+                    <p class="text-muted">A carregar…</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4 d-flex gap-2 flex-wrap">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fraction-accounts" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Contas por fração
+        </a>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees?fraction_id={{ fraction.id }}" class="btn btn-outline-primary">
+            <i class="bi bi-receipt"></i> Quotas
+        </a>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var condominiumId = {{ condominium.id }};
+    var baseUrl = '{{ BASE_URL }}';
+    var paymentBase = baseUrl + 'condominiums/' + condominiumId + '/fraction-accounts/{{ fraction.id }}/payments/';
+    var ftBase = baseUrl + 'condominiums/' + condominiumId + '/financial-transactions/';
+    var modal = document.getElementById('paymentInfoModal');
+    var modalTitle = document.getElementById('paymentInfoModalTitle');
+    var body = document.getElementById('paymentInfoBody');
+
+    document.querySelectorAll('.payment-ref-link').forEach(function(a) {
+        a.addEventListener('click', function(e) {
+            e.preventDefault();
+            var ftId = a.getAttribute('data-financial-transaction-id');
+            var paymentId = a.getAttribute('data-payment-id');
+            body.innerHTML = '<p class="text-muted">A carregar…</p>';
+            modalTitle.textContent = 'Detalhe';
+            var m = new bootstrap.Modal(modal);
+            m.show();
+
+            if (ftId) {
+                modalTitle.textContent = 'Movimento financeiro';
+                fetch(ftBase + ftId + '/info')
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        if (d.error) {
+                            body.innerHTML = '<p class="text-danger">' + (d.error || 'Erro ao carregar.') + '</p>';
+                            return;
+                        }
+                        var t = d.transaction || {};
+                        var html = '<p><strong>Descrição:</strong> ' + (t.description || '-') + '</p>';
+                        html += '<p><strong>Valor:</strong> €' + (parseFloat(t.amount||0).toFixed(2).replace('.',',')) + '</p>';
+                        html += '<p><strong>Data:</strong> ' + (t.transaction_date ? new Date(t.transaction_date + 'T12:00:00').toLocaleDateString('pt-PT') : '-') + '</p>';
+                        html += '<p><strong>Referência:</strong> ' + (t.reference || '-') + '</p>';
+                        html += '<p><strong>Categoria:</strong> ' + (t.category || '-') + '</p>';
+                        body.innerHTML = html || '<p class="text-muted">Sem detalhes.</p>';
+                    })
+                    .catch(function() { body.innerHTML = '<p class="text-danger">Erro ao carregar.</p>'; });
+                return;
+            }
+
+            if (paymentId) {
+                modalTitle.textContent = 'Detalhe do pagamento';
+                fetch(paymentBase + paymentId)
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        if (d.error) {
+                            body.innerHTML = '<p class="text-danger">' + (d.error || 'Erro ao carregar.') + '</p>';
+                            return;
+                        }
+                        var p = d.payment || {};
+                        var q = d.quota_label || 'Quota';
+                        var html = '<p><strong>Quota:</strong> ' + (q || '-') + '</p>';
+                        html += '<p><strong>Valor:</strong> €' + (parseFloat(p.amount||0).toFixed(2).replace('.',',')) + '</p>';
+                        html += '<p><strong>Data:</strong> ' + (p.payment_date ? new Date(p.payment_date + 'T12:00:00').toLocaleDateString('pt-PT') : '-') + '</p>';
+                        html += '<p><strong>Método:</strong> ' + (p.payment_method || '-') + '</p>';
+                        html += '<p><strong>Referência:</strong> ' + (p.reference || '-') + '</p>';
+                        html += (p.notes ? '<p><strong>Notas:</strong> ' + (p.notes || '-') + '</p>' : '');
+                        body.innerHTML = html || '<p class="text-muted">Sem detalhes.</p>';
+                    })
+                    .catch(function() { body.innerHTML = '<p class="text-danger">Erro ao carregar.</p>'; });
+            }
+        });
+    });
+});
+</script>

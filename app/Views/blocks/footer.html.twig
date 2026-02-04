@@ -1,30 +1,88 @@
-<footer id="footer" class="footer bg-light py-4 mt-5">
+
+<footer id="footer" class="footer-homepage">
   <div class="container">
-    <div class="row">
-      <div class="col-md-4 mb-3 mb-md-0">
-        <h5 class="fw-bold">MeuPrédio</h5>
-        <p class="text-muted small">A solução completa para gestão de condomínios em Portugal.</p>
-      </div>
-      <div class="col-md-4 mb-3 mb-md-0">
-        <h6 class="fw-bold">Links Rápidos</h6>
-        <ul class="list-unstyled small">
-          <li><a href="{{ BASE_URL }}" class="text-decoration-none text-muted">Início</a></li>
-          <li><a href="{{ BASE_URL }}register" class="text-decoration-none text-muted">Criar Conta</a></li>
-          <li><a href="{{ BASE_URL }}login" class="text-decoration-none text-muted">Login</a></li>
+    <div class="row footer-main-content">
+      <div class="col-12 col-md-4 col-lg-3 mb-4 mb-md-0 mb-lg-0 footer-link-column">
+        <h6 class="footer-column-title">Informação</h6>
+        <ul class="footer-column-links">
+          <li>
+            <i class="bi bi-check-circle-fill"></i>
+            <a href="#funcionalidades">Funcionalidades</a>
+          </li>
+          <li>
+            <i class="bi bi-check-circle-fill"></i>
+            <a href="#pricing">Preços</a>
+          </li>
+          <li>
+            <i class="bi bi-check-circle-fill"></i>
+            <a href="{{ BASE_URL }}demo/access">Demonstração</a>
+          </li>
+          <li>
+            <i class="bi bi-check-circle-fill"></i>
+            <a href="{{ BASE_URL }}faq">FAQ</a>
+          </li>
+          <li>
+            <i class="bi bi-check-circle-fill"></i>
+            <a href="{{ BASE_URL }}help">Ajuda</a>
+          </li>
         </ul>
       </div>
-      <div class="col-md-4">
-        <h6 class="fw-bold">Suporte</h6>
-        <ul class="list-unstyled small">
-          <li><a href="#" class="text-decoration-none text-muted">Ajuda</a></li>
-          <li><a href="#" class="text-decoration-none text-muted">Contactos</a></li>
-          <li><a href="#" class="text-decoration-none text-muted">Termos e Condições</a></li>
+      <div class="col-12 col-md-4 col-lg-3 mb-4 mb-md-0 mb-lg-0 footer-link-column">
+        <h6 class="footer-column-title">Aplicação</h6>
+        <ul class="footer-column-links">
+          <li>
+            <i class="bi bi-check-circle-fill"></i>
+            <a href="{{ BASE_URL }}demo/access">Acesso Demo</a>
+          </li>
+          <li>
+            <i class="bi bi-check-circle-fill"></i>
+            <a href="{{ BASE_URL }}help">Como Usar</a>
+          </li>
+          <li>
+            <i class="bi bi-check-circle-fill"></i>
+            <a href="{{ BASE_URL }}#funcionalidades">Funcionalidades</a>
+          </li>
         </ul>
+      </div>
+      <div class="col-12 col-md-4 col-lg-3 mb-4 mb-md-0 mb-lg-0 footer-link-column">
+        <h6 class="footer-column-title">Legal</h6>
+        <ul class="footer-column-links">
+          <li>
+            <i class="bi bi-check-circle-fill"></i>
+            <a href="{{ BASE_URL }}termos">Termos de uso</a>
+          </li>
+          <li>
+            <i class="bi bi-check-circle-fill"></i>
+            <a href="{{ BASE_URL }}privacidade">Privacidade</a>
+          </li>
+          <li>
+            <i class="bi bi-check-circle-fill"></i>
+            <a href="{{ BASE_URL }}cookies">Cookies</a>
+          </li>
+        </ul>
+      </div>
+      <div class="col-12 col-md-12 col-lg-3">
+        <div class="footer-logo"><img src="{{ BASE_URL }}assets/images/logo.svg" alt="O Meu Prédio" class="footer-logo-img"></div>
+        <p class="footer-description">
+          A solução completa para gestão de condomínios. Simplifique a sua administração e melhore a vida dos moradores.
+        </p>
+        <div class="footer-contact-item">
+          <i class="bi bi-envelope"></i>
+          <span>contacto@omeupredio.com</span>
+        </div>
+        <div class="footer-social">
+          <a href="#" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+          <a href="#" aria-label="LinkedIn"><i class="bi bi-linkedin"></i></a>
+        </div>
       </div>
     </div>
-    <hr class="my-3">
-    <div class="text-center">
-      <p class="text-muted small mb-0">&copy; {{ "now"|date("Y") }} MeuPrédio.com. Todos os direitos reservados.</p>
+    <div class="footer-bottom">
+      <div class="footer-copyright">
+        <p>&copy; {{ "now"|date("Y") }} O Meu Prédio. Todos os direitos reservados.</p>
+        <p class="footer-developed-by">
+          Desenvolvido por <a href="https://ricardomauricio.pt" target="_blank" rel="noopener noreferrer">@ricardomauricio</a>
+        </p>
+      </div>
     </div>
   </div>
 </footer>

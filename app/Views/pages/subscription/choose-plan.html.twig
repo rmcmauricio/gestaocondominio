@@ -1,4 +1,12 @@
 <div class="container py-5">
+    {% if show_launch_warning %}
+    <div class="alert alert-info alert-dismissible fade show mb-4" role="alert">
+        <i class="bi bi-info-circle"></i> <strong>Fase de Lançamento</strong>
+        <p class="mb-0">Estamos em fase de lançamento e testes. Obrigado pela sua compreensão.</p>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
     <div class="text-center mb-5">
         <h1 class="display-4 fw-bold mb-3">Escolha o seu Plano</h1>
         <p class="lead text-muted">Todos os planos incluem 14 dias grátis para experimentar</p>
@@ -7,16 +15,65 @@
     <div class="row g-4 justify-content-center">
         {% for plan in plans %}
         <div class="col-md-6 col-lg-4">
-            <div class="card h-100 border-2 {% if plan.slug == 'pro' %}border-primary shadow{% endif %}">
+            {% set plan_promotion = plan_promotions[plan.id] ?? null %}
+            <div class="card h-100 border-2 {% if plan.slug == 'pro' %}border-primary shadow{% elseif plan_promotion %}border-warning border-3 shadow-lg{% endif %}">
                 {% if plan.slug == 'pro' %}
                 <div class="card-header bg-primary text-white text-center py-3">
-                    <span class="badge bg-light text-primary mb-2">Mais Popular</span>
+                    <span class="badge bg-white fw-bold mb-2 d-inline-block px-3 py-1" style="font-size: 0.9rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); color: #fd7e14 !important;">Mais Popular</span>
+                    {% if plan_promotion %}
+                    <div class="mt-2">
+                        <span class="badge bg-danger text-white mb-2">
+                            <i class="bi bi-fire"></i> PROMOÇÃO ATIVA
+                        </span>
+                        <div class="mt-2">
+                            <strong>{{ plan_promotion.name }}</strong>
+                            {% if plan_promotion.discount_type == 'percentage' %}
+                                <span class="badge bg-danger">{{ plan_promotion.discount_value }}% OFF</span>
+                            {% else %}
+                                <span class="badge bg-danger">€{{ plan_promotion.discount_value }} OFF</span>
+                            {% endif %}
+                            {% if plan_promotion.duration_months %}
+                                <div class="mt-1">
+                                    <small class="text-white-50">Válida por {{ plan_promotion.duration_months }} {% if plan_promotion.duration_months == 1 %}mês{% else %}meses{% endif %}</small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% elseif plan_promotion %}
+                <div class="card-header bg-warning text-dark text-center py-3 position-relative">
+                    <span class="badge bg-danger text-white mb-2">
+                        <i class="bi bi-fire"></i> PROMOÇÃO ATIVA
+                    </span>
+                    <div class="mt-2">
+                        <strong>{{ plan_promotion.name }}</strong>
+                        {% if plan_promotion.discount_type == 'percentage' %}
+                            <span class="badge bg-danger">{{ plan_promotion.discount_value }}% OFF</span>
+                        {% else %}
+                            <span class="badge bg-danger">€{{ plan_promotion.discount_value }} OFF</span>
+                        {% endif %}
+                        {% if plan_promotion.duration_months %}
+                            <div class="mt-1">
+                                <small class="text-dark">Válida por {{ plan_promotion.duration_months }} {% if plan_promotion.duration_months == 1 %}mês{% else %}meses{% endif %}</small>
+                            </div>
+                        {% endif %}
+                    </div>
                 </div>
                 {% endif %}
                 <div class="card-body text-center p-4">
                     <h3 class="fw-bold mb-3">{{ plan.name }}</h3>
                     <div class="mb-4">
-                        <span class="display-3 fw-bold">€{{ plan.price_monthly|number_format(2, ',', '.') }}</span>
+                        {% if plan_promotion %}
+                            {% set discount_amount = (plan_promotion.discount_type == 'percentage') ? (plan.price_monthly * plan_promotion.discount_value / 100) : plan_promotion.discount_value %}
+                            {% set final_price = plan.price_monthly - discount_amount %}
+                            <div>
+                                <span class="text-muted text-decoration-line-through" style="font-size: 1.5rem;">€{{ plan.price_monthly|number_format(2, ',', '.') }}</span>
+                                <span class="display-3 fw-bold text-danger" id="price_{{ plan.id }}">€{{ final_price|number_format(2, ',', '.') }}</span>
+                            </div>
+                        {% else %}
+                            <span class="display-3 fw-bold" id="price_{{ plan.id }}">€{{ plan.price_monthly|number_format(2, ',', '.') }}</span>
+                        {% endif %}
                         <span class="text-muted">/mês</span>
                     </div>
                     {% if plan.price_yearly %}
@@ -28,9 +85,51 @@
                     
                     <p class="text-muted mb-4">{{ plan.description }}</p>
                     
+                    {% if plan.plan_type %}
+                    <!-- License-based plan information -->
+                    <div class="border-top border-bottom py-3 mb-4">
+                        {% if plan.license_min %}
+                        <div class="mb-3">
+                            <small class="text-muted d-block mb-1">
+                                <i class="bi bi-key"></i> <strong>Frações Incluídas:</strong>
+                            </small>
+                            <span class="h4 text-primary">{{ plan.license_min }}</span>
+                            <span class="text-muted small"> frações</span>
+                        </div>
+                        {% endif %}
+                        
+                        {% if plan_pricing_tiers[plan.id] is defined and plan_pricing_tiers[plan.id]|length > 0 %}
+                        <div class="mt-3">
+                            <small class="text-muted d-block mb-2 fw-bold">
+                                <i class="bi bi-calculator"></i> Preços por Fração Extra:
+                            </small>
+                            <div class="small">
+                                {% for tier in plan_pricing_tiers[plan.id] %}
+                                {% if tier.is_active %}
+                                <div class="mb-1">
+                                    <span class="text-muted">
+                                        {% if tier.max_licenses %}
+                                            {{ tier.min_licenses }}-{{ tier.max_licenses }} frações:
+                                        {% else %}
+                                            {{ tier.min_licenses }}+ frações:
+                                        {% endif %}
+                                    </span>
+                                    <strong class="text-success ms-1">€{{ tier.price_per_license|number_format(2, ',', '.') }}/fração</strong>
+                                </div>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted d-block mt-2">
+                                <i class="bi bi-info-circle"></i> Preços mensais por fração extra
+                            </small>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
                     <ul class="list-unstyled text-start mb-4">
                         {% if plan.limit_condominios %}
-                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> {{ plan.limit_condominios }} condomínio(s)</li>
+                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> {% if plan.slug == 'business' %}Até {{ plan.limit_condominios }} condomínios (sem extras){% else %}{{ plan.limit_condominios }} condomínio(s){% endif %}</li>
                         {% else %}
                         <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Condomínios ilimitados</li>
                         {% endif %}
@@ -41,25 +140,77 @@
                         <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Frações ilimitadas</li>
                         {% endif %}
                         
-                        {% if plan.features.financas_basicas or plan.features.financas_completas %}
-                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Gestão financeira</li>
-                        {% endif %}
-                        {% if plan.features.votacoes_online %}
-                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Votações online</li>
-                        {% endif %}
-                        {% if plan.features.reservas_espacos %}
-                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> Reservas de espaços</li>
-                        {% endif %}
-                        {% if plan.features.api %}
-                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> API e integrações</li>
-                        {% endif %}
+                        {% for feature in plan.features %}
+                        <li class="mb-2"><i class="bi bi-check-circle text-success"></i> {{ feature }}</li>
+                        {% endfor %}
                     </ul>
+
+                    {% if plan.slug == 'business' and extra_condominiums_pricing %}
+                    <div class="border-top pt-3 mt-3">
+                        <h6 class="mb-3">Condomínios Extras</h6>
+                        <div class="mb-3">
+                            <label for="extra_condominiums_{{ plan.id }}" class="form-label small">Número de condomínios extras:</label>
+                            <input type="number" 
+                                   class="form-control form-control-sm" 
+                                   id="extra_condominiums_{{ plan.id }}" 
+                                   name="extra_condominiums_{{ plan.id }}"
+                                   value="0" 
+                                   min="0" 
+                                   data-plan-id="{{ plan.id }}"
+                                   data-base-price="{{ plan.price_monthly }}">
+                            <small class="text-muted d-block mt-1">
+                                <span id="extra_price_info_{{ plan.id }}">Preço por condomínio extra: €0,00</span>
+                            </small>
+                        </div>
+                        <div class="alert alert-info small mb-0" id="extra_total_{{ plan.id }}" style="display: none;">
+                            <strong>Total extras:</strong> <span id="extra_total_amount_{{ plan.id }}">€0,00</span>/mês
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="card-footer bg-white text-center p-4">
-                    <form method="POST" action="{{ BASE_URL }}subscription/start-trial">
+                    <form method="POST" action="{{ BASE_URL }}subscription/start-trial" id="plan_form_{{ plan.id }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <input type="hidden" name="plan_id" value="{{ plan.id }}">
-                        <button type="submit" class="btn {% if plan.slug == 'pro' %}btn-primary{% else %}btn-outline-primary{% endif %} w-100 btn-lg">
+                        {% if plan.slug == 'business' %}
+                        <input type="hidden" name="extra_condominiums" id="extra_condominiums_hidden_{{ plan.id }}" value="0">
+                        {% endif %}
+                        
+                        <!-- Promotion Code Input -->
+                        {% if not plan_promotion %}
+                        <div class="mb-3">
+                            <label for="promotion_code_{{ plan.id }}" class="form-label small text-muted">Tem um código de promoção?</label>
+                            <div class="input-group input-group-sm">
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="promotion_code_{{ plan.id }}" 
+                                       name="promotion_code_{{ plan.id }}"
+                                       placeholder="Código de promoção"
+                                       data-plan-id="{{ plan.id }}">
+                                <button type="button" 
+                                        class="btn btn-outline-secondary" 
+                                        onclick="validatePromotionCode({{ plan.id }})">
+                                    Aplicar
+                                </button>
+                            </div>
+                            <div id="promo_feedback_{{ plan.id }}" class="mt-2"></div>
+                            <input type="hidden" name="promotion_code" id="promotion_code_hidden_{{ plan.id }}" value="">
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mb-3">
+                            <strong class="d-block mb-2">Total Mensal:</strong>
+                            <span class="h4 text-primary" id="total_price_{{ plan.id }}">
+                                {% if plan_promotion %}
+                                    {% set discount_amount = (plan_promotion.discount_type == 'percentage') ? (plan.price_monthly * plan_promotion.discount_value / 100) : plan_promotion.discount_value %}
+                                    {% set final_price = plan.price_monthly - discount_amount %}
+                                    €{{ final_price|number_format(2, ',', '.') }}
+                                {% else %}
+                                    €{{ plan.price_monthly|number_format(2, ',', '.') }}
+                                {% endif %}
+                            </span>
+                        </div>
+                        <button type="submit" class="btn {% if plan.slug == 'pro' %}btn-primary{% elseif plan_promotion %}btn-warning{% else %}btn-outline-primary{% endif %} w-100 btn-lg">
                             Começar Trial Grátis
                         </button>
                     </form>
@@ -77,3 +228,190 @@
     </div>
 </div>
 
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const planPromotions = {{ plan_promotions|json_encode }};
+    const plans = {{ plans|json_encode }};
+    
+    {% if business_plan and extra_condominiums_pricing %}
+    const pricingTiers = {{ extra_condominiums_pricing|json_encode }};
+    const businessPlanId = {{ business_plan.id }};
+    
+    // Create pricing lookup
+    const pricingMap = {};
+    pricingTiers.forEach(tier => {
+        for (let i = tier.min_condominios; i <= (tier.max_condominios || 999999); i++) {
+            pricingMap[i] = parseFloat(tier.price_per_condominium);
+        }
+    });
+    
+    function getPriceForCondominiums(numCondominios) {
+        // Find the highest tier that applies
+        let price = null;
+        for (let i = numCondominios; i >= 1; i--) {
+            if (pricingMap[i] !== undefined) {
+                price = pricingMap[i];
+                break;
+            }
+        }
+        return price || 0;
+    }
+    
+    function updatePlanPrice(planId) {
+        const input = document.getElementById('extra_condominiums_' + planId);
+        const hiddenInput = document.getElementById('extra_condominiums_hidden_' + planId);
+        const basePriceEl = document.getElementById('price_' + planId);
+        const totalPriceEl = document.getElementById('total_price_' + planId);
+        const extraTotalEl = document.getElementById('extra_total_' + planId);
+        const extraTotalAmountEl = document.getElementById('extra_total_amount_' + planId);
+        const extraPriceInfoEl = document.getElementById('extra_price_info_' + planId);
+        
+        if (!input || !hiddenInput || !basePriceEl || !totalPriceEl) return;
+        
+        const extraCondominiums = parseInt(input.value) || 0;
+        let basePrice = parseFloat(input.dataset.basePrice) || 0;
+        
+        // Apply promotion discount if exists
+        const appliedPromo = window.appliedPromotions && window.appliedPromotions[planId];
+        if (appliedPromo) {
+            basePrice = appliedPromo.final_price;
+        } else if (planPromotions[planId]) {
+            const promo = planPromotions[planId];
+            if (promo.discount_type === 'percentage') {
+                basePrice = basePrice - (basePrice * promo.discount_value / 100);
+            } else {
+                basePrice = basePrice - promo.discount_value;
+            }
+        }
+        
+        hiddenInput.value = extraCondominiums;
+        
+        if (extraCondominiums > 0) {
+            const totalCondominiums = extraCondominiums;
+            const pricePerCondominium = getPriceForCondominiums(totalCondominiums);
+            const extraTotal = pricePerCondominium * extraCondominiums;
+            const totalPrice = basePrice + extraTotal;
+            
+            extraPriceInfoEl.textContent = `Preço por condomínio extra: €${pricePerCondominium.toFixed(2)}`;
+            extraTotalAmountEl.textContent = `€${extraTotal.toFixed(2)}`;
+            extraTotalEl.style.display = 'block';
+            
+            totalPriceEl.textContent = `€${totalPrice.toFixed(2)}`;
+        } else {
+            extraTotalEl.style.display = 'none';
+            totalPriceEl.textContent = `€${basePrice.toFixed(2)}`;
+            
+            if (pricingTiers.length > 0) {
+                const firstTier = pricingTiers[0];
+                extraPriceInfoEl.textContent = `Preço por condomínio extra: €${parseFloat(firstTier.price_per_condominium).toFixed(2)} (1-10 condomínios)`;
+            }
+        }
+    }
+    
+    // Initialize for Business plan
+    const businessInput = document.getElementById('extra_condominiums_' + businessPlanId);
+    if (businessInput) {
+        businessInput.addEventListener('input', function() {
+            updatePlanPrice(businessPlanId);
+        });
+        
+        // Initial update
+        updatePlanPrice(businessPlanId);
+    }
+    
+    // Update form submission to include extra condominiums
+    const businessForm = document.getElementById('plan_form_' + businessPlanId);
+    if (businessForm) {
+        businessForm.addEventListener('submit', function(e) {
+            const hiddenInput = document.getElementById('extra_condominiums_hidden_' + businessPlanId);
+            if (hiddenInput) {
+                const input = document.getElementById('extra_condominiums_' + businessPlanId);
+                hiddenInput.value = parseInt(input.value) || 0;
+            }
+        });
+    }
+    {% endif %}
+    
+    // Store applied promotions globally
+    window.appliedPromotions = {};
+    
+    // Promotion code validation function
+    window.validatePromotionCode = function(planId) {
+        const codeInput = document.getElementById('promotion_code_' + planId);
+        const hiddenInput = document.getElementById('promotion_code_hidden_' + planId);
+        const feedbackEl = document.getElementById('promo_feedback_' + planId);
+        const code = codeInput.value.trim();
+        
+        if (!code) {
+            feedbackEl.innerHTML = '<small class="text-danger">Por favor, insira um código</small>';
+            return;
+        }
+        
+        // Show loading
+        feedbackEl.innerHTML = '<small class="text-muted"><i class="bi bi-hourglass-split"></i> A validar...</small>';
+        
+        // AJAX request
+        const formData = new FormData();
+        formData.append('plan_id', planId);
+        formData.append('code', code);
+        formData.append('csrf_token', '{{ csrf_token }}');
+        
+        fetch('{{ BASE_URL }}subscription/validate-promotion-code', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.valid) {
+                // Store applied promotion
+                window.appliedPromotions[planId] = data.promotion;
+                hiddenInput.value = code;
+                
+                // Update price display
+                const basePriceEl = document.getElementById('price_' + planId);
+                const totalPriceEl = document.getElementById('total_price_' + planId);
+                
+                if (basePriceEl) {
+                    const originalPrice = data.promotion.original_price;
+                    const finalPrice = data.promotion.final_price;
+                    basePriceEl.innerHTML = `<span class="text-muted text-decoration-line-through" style="font-size: 1.5rem;">€${originalPrice.toFixed(2)}</span> <span class="display-3 fw-bold text-danger">€${finalPrice.toFixed(2)}</span>`;
+                }
+                
+                if (totalPriceEl) {
+                    totalPriceEl.innerHTML = `<span class="text-muted text-decoration-line-through">€${data.promotion.original_price.toFixed(2)}</span> <span class="h4 text-danger">€${data.promotion.final_price.toFixed(2)}</span>`;
+                }
+                
+                feedbackEl.innerHTML = `<small class="text-success"><i class="bi bi-check-circle"></i> ${data.promotion.name} aplicada! Desconto: €${data.promotion.discount_amount.toFixed(2)}</small>`;
+                
+                // Update Business plan price if applicable
+                {% if business_plan %}
+                if (planId === {{ business_plan.id }}) {
+                    updatePlanPrice(planId);
+                }
+                {% endif %}
+            } else {
+                window.appliedPromotions[planId] = null;
+                hiddenInput.value = '';
+                feedbackEl.innerHTML = `<small class="text-danger"><i class="bi bi-x-circle"></i> ${data.error || 'Código inválido'}</small>`;
+            }
+        })
+        .catch(error => {
+            feedbackEl.innerHTML = '<small class="text-danger">Erro ao validar código</small>';
+            console.error('Error:', error);
+        });
+    };
+    
+    // Allow Enter key to trigger validation
+    document.querySelectorAll('[id^="promotion_code_"]').forEach(input => {
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const planId = this.dataset.planId;
+                window.validatePromotionCode(planId);
+            }
+        });
+    });
+});
+</script>
+{% if business_plan and extra_condominiums_pricing %}
+{% endif %}

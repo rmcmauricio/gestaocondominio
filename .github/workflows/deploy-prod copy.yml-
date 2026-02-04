@@ -1,0 +1,66 @@
+name: Deploy omeupredio.com (PROD)
+
+on:
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: deploy-omeupredio-prod
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      SSH_HOST: omeupredio.com
+      SSH_PORT: "22"
+      SSH_USER: jamscroll
+      APP_DIR: /home/jamscroll/web/omeupredio.com/public_html
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup SSH (Base64)
+        shell: bash
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | base64 -d > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
+          ssh-keyscan -p "${SSH_PORT}" -H "${SSH_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Deploy via rsync (PROD)
+        shell: bash
+        run: |
+          set -e
+          rsync -az --delete \
+            --exclude=".env" \
+            --exclude="/vendor/" \
+            --exclude=".user.ini" \
+            --exclude=".htaccess" \
+            --exclude=".git/" \
+            --exclude=".github/" \
+            -e "ssh -p ${SSH_PORT} -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
+            ./ \
+            "${SSH_USER}@${SSH_HOST}:${APP_DIR}"
+
+      - name: Composer + migrate + seed + demo (PROD)
+        shell: bash
+        run: |
+          set -e
+          ssh -p "${SSH_PORT}" -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" << 'EOF'
+            set -euo pipefail
+            APP_DIR="/home/jamscroll/web/omeupredio.com/public_html"
+
+            cd "$APP_DIR"
+
+            # produção: sem deps de desenvolvimento
+            composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+
+            php cli/migrate.php
+            php cli/seed.php
+            php cli/restore-demo.php
+          EOF

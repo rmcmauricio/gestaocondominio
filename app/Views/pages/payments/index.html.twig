@@ -17,6 +17,29 @@
     </div>
     {% endif %}
 
+    {% if pending_invoices_for_extras %}
+    <div class="alert alert-warning mb-4">
+        <h5 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Pagamentos Pendentes para Condomínios Extras</h5>
+        <p class="mb-2">Tem invoices pendentes relacionadas com atualização de condomínios extras que ainda não têm pagamentos associados:</p>
+        <ul class="mb-3">
+            {% for invoice_id, invoice_data in pending_invoices_for_extras %}
+            <li>
+                <strong>Invoice {{ invoice_data.invoice_number }}</strong>: 
+                €{{ invoice_data.amount|number_format(2, ',', '.') }} 
+                ({{ invoice_data.new_extra_condominiums }} condomínios extras)
+                <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-extras" class="d-inline ms-2" onsubmit="return confirm('Tem a certeza que deseja cancelar este pagamento pendente?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        <p class="mb-0"><small>Pode cancelar estas invoices pendentes ou completar o pagamento através da página de subscrição.</small></p>
+    </div>
+    {% endif %}
+
     {% if payments %}
     <div class="card shadow-sm">
         <div class="card-body">

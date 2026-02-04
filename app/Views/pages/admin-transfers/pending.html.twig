@@ -1,0 +1,97 @@
+<div class="container py-4">
+    {% set page_actions %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Convites para Administração',
+        'actions': page_actions
+    } %}
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if pending_transfers %}
+    <div class="row">
+        {% for transfer in pending_transfers %}
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="bi bi-exclamation-triangle"></i> Convite Pendente
+                        {% if transfer.is_professional_transfer %}
+                        <span class="badge bg-info ms-2">Transferência Profissional</span>
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="card-title">{{ transfer.condominium_name }}</h6>
+                    {% if transfer.address %}
+                    <p class="text-muted mb-2">
+                        <i class="bi bi-geo-alt"></i> {{ transfer.address }}
+                    </p>
+                    {% endif %}
+                    
+                    <p class="mb-3">
+                        <strong>Convidado por:</strong> {{ transfer.assigned_by_name }}<br>
+                        <small class="text-muted">{{ transfer.assigned_by_email }}</small>
+                    </p>
+
+                    {% if transfer.message %}
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle"></i> {{ transfer.message }}
+                    </div>
+                    {% endif %}
+
+                    {% if transfer.is_professional_transfer %}
+                    <div class="alert alert-primary mb-3">
+                        <i class="bi bi-shield-check"></i> <strong>Transferência Profissional:</strong><br>
+                        Ao aceitar este convite, as licenças deste condomínio serão transferidas para a sua subscrição profissional.
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex gap-2">
+                        <form method="POST" action="{{ BASE_URL }}admin-transfers/accept" class="flex-fill">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="transfer_id" value="{{ transfer.id }}">
+                            <button type="submit" class="btn btn-success w-100" onclick="return confirm('Tem certeza que deseja aceitar o convite para administrar este condomínio?');">
+                                <i class="bi bi-check-circle"></i> Aceitar
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ BASE_URL }}admin-transfers/reject" class="flex-fill">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="transfer_id" value="{{ transfer.id }}">
+                            <button type="submit" class="btn btn-outline-danger w-100" onclick="return confirm('Tem certeza que deseja rejeitar este convite?');">
+                                <i class="bi bi-x-circle"></i> Rejeitar
+                            </button>
+                        </form>
+                    </div>
+
+                    <small class="text-muted d-block mt-2">
+                        <i class="bi bi-clock"></i> Recebido em {{ transfer.created_at|date('d/m/Y H:i') }}
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Não tem convites pendentes para administração de condomínios.
+    </div>
+    {% endif %}
+</div>

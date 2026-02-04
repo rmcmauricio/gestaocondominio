@@ -13,7 +13,7 @@
                     </div>
                     {% endif %}
 
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <input type="hidden" name="_method" value="PUT">
 
@@ -92,6 +92,14 @@
                             </div>
                         </div>
 
+                        <hr class="my-4">
+
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> <strong>Personalização:</strong> Para alterar o template e gerir o logotipo, utilize a página de <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/customize" class="alert-link">Personalização</a>.
+                        </div>
+
+                        <hr class="my-4">
+
                         <div class="mb-3">
                             <label for="notes" class="form-label">Notas</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3">{{ condominium.notes }}</textarea>
@@ -99,7 +107,12 @@
 
                         <div class="d-flex justify-content-between">
                             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="btn btn-secondary">Cancelar</a>
-                            <button type="submit" class="btn btn-primary">Guardar Alterações</button>
+                            <div>
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/customize" class="btn btn-outline-info me-2">
+                                    <i class="bi bi-palette"></i> Personalizar
+                                </a>
+                                <button type="submit" class="btn btn-primary">Guardar Alterações</button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -107,6 +120,7 @@
         </div>
     </div>
 </div>
+
 
 
 

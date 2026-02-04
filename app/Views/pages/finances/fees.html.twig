@@ -1,21 +1,35 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2>Quotas</h2>
-            <p class="text-muted mb-0">{{ condominium.name }}</p>
-        </div>
+    {% set page_actions %}
         {% if is_admin %}
-        <div>
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateFeesModal">
-                <i class="bi bi-calculator"></i> Gerar Quotas
+        <div class="page-header-actions">
+            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#liquidateQuotasModal">
+                <i class="bi bi-cash-coin"></i> <span class="d-none d-sm-inline">Liquidar Quotas</span>
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#generateFeesModal">
+                <i class="bi bi-calculator"></i> <span class="d-none d-sm-inline">Gerar Quotas</span>
             </button>
         </div>
         {% endif %}
-    </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Quotas',
+        'help_section': 'finances-fees',
+        'help_title': 'Ajuda com Quotas',
+        'actions': page_actions
+    } %}
 
     {% if error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ error }}
+        {% if "Orçamento não encontrado" in error and "Crie um orçamento primeiro" in error %}
+            {% set error_year = error_budget_year ?: (selected_year ?: current_year) %}
+            {{ error|replace({"Crie um orçamento primeiro.": ""})|trim }}
+            <br>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create?year={{ error_year }}" class="btn btn-sm btn-primary mt-2">
+                <i class="bi bi-calendar-check"></i> Criar Orçamento {{ error_year }}
+            </a>
+        {% else %}
+            {{ error }}
+        {% endif %}
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     {% endif %}
@@ -27,21 +41,27 @@
     </div>
     {% endif %}
 
+    <!-- Mapa de Quotas - Primeiro Item -->
+    <div class="row g-3 mb-4">
+        {% include 'blocks/fees-map.html.twig' %}
+    </div>
+
     <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="row g-3" id="filtersForm">
-                <div class="col-md-3">
+            <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="row g-3" id="filtersForm" onsubmit="event.preventDefault(); filterFees(); return false;">
+                <div class="col-12 col-sm-6 col-md-3">
                     <label for="year" class="form-label">Ano</label>
-                    <select class="form-select" id="year" name="year">
-                        <option value="" {% if selected_year == '' or selected_year is empty %}selected{% endif %}>Todos</option>
-                        {% for y in range(current_year - 2, current_year + 1) %}
-                        <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+                    <select class="form-select form-select-sm" id="year" name="year">
+                        <option value="">Todos</option>
+                        {% for y in available_filter_years|default([])|sort|reverse %}
+                        {% set is_selected = (selected_year is not empty and selected_year == y) or (selected_year is empty and y == current_year) %}
+                        <option value="{{ y }}" {% if is_selected %}selected{% endif %}>{{ y }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                     <label for="month" class="form-label">Mês</label>
-                    <select class="form-select" id="month" name="month">
+                    <select class="form-select form-select-sm" id="month" name="month">
                         <option value="">Todos</option>
                         <option value="1" {% if selected_month == 1 %}selected{% endif %}>Janeiro</option>
                         <option value="2" {% if selected_month == 2 %}selected{% endif %}>Fevereiro</option>
@@ -57,62 +77,91 @@
                         <option value="12" {% if selected_month == 12 %}selected{% endif %}>Dezembro</option>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-12 col-sm-6 col-md-2">
                     <label for="status" class="form-label">Status</label>
-                    <select class="form-select" id="status" name="status">
+                    <select class="form-select form-select-sm" id="status" name="status">
                         <option value="">Todos</option>
                         <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Pendentes</option>
                         <option value="paid" {% if selected_status == 'paid' %}selected{% endif %}>Pagas</option>
                         <option value="overdue" {% if selected_status == 'overdue' %}selected{% endif %}>Em Atraso</option>
                     </select>
                 </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <div class="form-check form-switch">
+                <div class="col-12 col-sm-6 col-md-2">
+                    <label for="fraction_id" class="form-label">Fração</label>
+                    <select class="form-select form-select-sm" id="fraction_id" name="fraction_id">
+                        {% if is_admin %}
+                        <option value="">Todas</option>
+                        {% endif %}
+                        {% for fraction in fractions %}
+                        <option value="{{ fraction.id }}" {% if selected_fraction == fraction.id %}selected{% endif %}>
+                            {{ fraction.identifier }}
+                            {% if not is_admin and fraction.id not in user_fraction_ids %}(Outras){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-2 d-flex align-items-end">
+                    <div class="form-check form-switch w-100">
                         <input class="form-check-input" type="checkbox" id="show_historical" name="show_historical" value="1" {% if show_historical %}checked{% endif %} onchange="document.getElementById('filtersForm').submit()">
                         <label class="form-check-label" for="show_historical">Incluir Dívidas</label>
                     </div>
                 </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-outline-primary w-100">Filtrar</button>
+                <div class="col-12 col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-outline-primary w-100 btn-sm">Filtrar</button>
                 </div>
             </form>
         </div>
     </div>
 
-    {% if fees %}
-    <div class="card shadow-sm">
+    <!-- Resumo - Logo após os filtros -->
+    {% if summary %}
+    <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <!-- Bulk Actions -->
-            <div class="mb-3 d-none" id="bulkActions">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="text-muted" id="selectedCount">0 selecionadas</span>
-                    <button type="button" class="btn btn-sm btn-success" onclick="bulkMarkAsPaid()">
-                        <i class="bi bi-check-circle"></i> Marcar como Pagas
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
-                        <i class="bi bi-x-circle"></i> Limpar Seleção
-                    </button>
+            <h5 class="mb-3">Resumo</h5>
+            <div class="row g-3">
+                <div class="col-6 col-sm-4 col-md-3">
+                    <div class="text-muted small">Total</div>
+                    <div class="fw-bold">€{{ summary.total|number_format(2, ',', '.') }}</div>
+                </div>
+                <div class="col-6 col-sm-4 col-md-3">
+                    <div class="text-muted small">Pagas</div>
+                    <div class="fw-bold text-success">€{{ summary.paid|number_format(2, ',', '.') }}</div>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <div class="text-muted small">Pendentes</div>
+                    <div class="fw-bold text-warning">€{{ summary.pending|number_format(2, ',', '.') }}</div>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <div class="text-muted small">Parciais</div>
+                    <div class="fw-bold text-info">€{{ summary.partial|default(0)|number_format(2, ',', '.') }}</div>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <div class="text-muted small">Em Atraso</div>
+                    <div class="fw-bold text-danger">€{{ summary.overdue|number_format(2, ',', '.') }}</div>
                 </div>
             </div>
-            
+        </div>
+    </div>
+    {% endif %}
+
+    {% if fees %}
+    <!-- Desktop Table View -->
+    <div class="card shadow-sm d-none d-md-block">
+        <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover">
+                <table class="table table-hover mb-0">
                     <thead>
                         <tr>
-                            {% if is_admin %}
-                            <th width="40">
-                                <input type="checkbox" id="selectAll" onchange="toggleAllSelection()">
-                            </th>
-                            {% endif %}
-                            <th>Tipo</th>
                             <th>Fração</th>
                             <th>Período</th>
                             <th>Valor Total</th>
                             <th>Pago</th>
                             <th>Pendente</th>
                             <th>Vencimento</th>
-                            <th>Status</th>
-                            <th>Ações</th>
+                            <th class="text-center">Status</th>
+                            {% if is_admin %}
+                            <th style="width: 80px;">Ações</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -120,24 +169,8 @@
                         {% set paid_amount = fee.paid_amount|default(0) %}
                         {% set pending_amount = fee.pending_amount|default(fee.amount) %}
                         {% set calculated_status = fee.calculated_status|default(fee.status) %}
-                        <tr>
-                            {% if is_admin %}
-                            <td>
-                                {% if calculated_status == 'pending' or calculated_status == 'overdue' %}
-                                <input type="checkbox" class="fee-checkbox" value="{{ fee.id }}" onchange="updateBulkActions()">
-                                {% endif %}
-                            </td>
-                            {% endif %}
-                            <td>
-                                {% if fee.is_historical %}
-                                    <span class="badge bg-warning text-dark" title="Dívida Histórica">
-                                        <i class="bi bi-clock-history"></i> Dívida
-                                    </span>
-                                {% else %}
-                                    <span class="badge bg-primary">Quota</span>
-                                {% endif %}
-                            </td>
-                            <td><strong>{{ fee.fraction_identifier }}</strong></td>
+                        <tr style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})" title="Clique para ver detalhes">
+                            <td><strong>{% include 'blocks/fraction-popover.html.twig' with { identifier: fee.fraction_identifier, owner_name: fee.owner_name, floor: fee.fraction_floor, stop_propagation: true } only %}</strong></td>
                             <td>
                                 {% if fee.period_month %}
                                     {{ fee.period_month }}/{{ fee.period_year }}
@@ -161,43 +194,46 @@
                                 {% endif %}
                             </td>
                             <td>{{ fee.due_date|date('d/m/Y') }}</td>
-                            <td>
-                                <span class="badge 
-                                    {% if calculated_status == 'paid' %}bg-success
-                                    {% elseif calculated_status == 'overdue' %}bg-danger
-                                    {% elseif calculated_status == 'partial' %}bg-info
-                                    {% else %}bg-warning{% endif %}">
-                                    {% if calculated_status == 'paid' %}Paga
-                                    {% elseif calculated_status == 'overdue' %}Em Atraso
-                                    {% elseif calculated_status == 'partial' %}Parcial
-                                    {% else %}Pendente{% endif %}
-                                </span>
-                            </td>
-                            <td>
-                                {% if is_admin %}
-                                <div class="btn-group btn-group-sm">
-                                    {% if calculated_status != 'paid' %}
-                                    <button type="button" class="btn btn-outline-primary" 
-                                            onclick="showPaymentModal({{ fee.id }})" 
-                                            title="Registar Pagamento">
-                                        <i class="bi bi-cash-coin"></i>
-                                    </button>
-                                    {% endif %}
-                                    <button type="button" class="btn btn-outline-info" 
-                                            onclick="showFeeDetails({{ fee.id }})" 
-                                            title="Ver Detalhes">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                    {% if calculated_status == 'paid' %}
-                                    <span class="text-success"><i class="bi bi-check-circle"></i></span>
-                                    {% endif %}
-                                </div>
+                            <td class="text-center">
+                                {% if calculated_status == 'paid' %}
+                                    <i class="bi bi-check-circle-fill text-success" style="font-size: 1.2rem;" title="Pago"></i>
+                                {% elseif calculated_status == 'overdue' %}
+                                    <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 1.2rem;" title="Em Atraso"></i>
+                                {% elseif calculated_status == 'partial' %}
+                                    <i class="bi bi-circle-half text-info" style="font-size: 1.2rem;" title="Parcial"></i>
                                 {% else %}
-                                <button type="button" class="btn btn-sm btn-outline-info" 
-                                        onclick="showFeeDetails({{ fee.id }})" 
-                                        title="Ver Detalhes">
-                                    <i class="bi bi-eye"></i>
-                                </button>
+                                    <i class="bi bi-clock-history text-warning" style="font-size: 1.2rem;" title="Pendente"></i>
+                                {% endif %}
+                            </td>
+                            <td onclick="event.stopPropagation();">
+                                {% if is_admin %}
+                                    <div class="d-flex gap-1">
+                                        {% if calculated_status != 'paid' %}
+                                        <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                onclick="event.stopPropagation(); showPaymentModal({{ fee.id }})" 
+                                                title="Registar Pagamento">
+                                            <i class="bi bi-cash-coin"></i>
+                                        </button>
+                                        {% endif %}
+                                        {% if (fee.fee_type|default('regular')) == 'extra' and paid_amount == 0 %}
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/{{ fee.id }}/edit" 
+                                           class="btn btn-sm btn-outline-warning" 
+                                           onclick="event.stopPropagation();"
+                                           title="Editar Quota Extra">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/{{ fee.id }}/delete" 
+                                              class="d-inline" 
+                                              onsubmit="return confirm('Tem certeza que deseja eliminar esta quota extra? Esta ação não pode ser desfeita.');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                                    onclick="event.stopPropagation();"
+                                                    title="Eliminar Quota Extra">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
                                 {% endif %}
                             </td>
                         </tr>
@@ -207,31 +243,90 @@
             </div>
         </div>
     </div>
-    
-    {% if summary %}
-    <div class="card shadow-sm mt-4">
-        <div class="card-body">
-            <h5>Resumo</h5>
-            <div class="row">
-                <div class="col-md-3">
-                    <strong>Total:</strong> €{{ summary.total|number_format(2, ',', '.') }}
+
+    <!-- Mobile/Tablet Card View -->
+    <div class="d-md-none">
+        {% for fee in fees %}
+        {% set paid_amount = fee.paid_amount|default(0) %}
+        {% set pending_amount = fee.pending_amount|default(fee.amount) %}
+        {% set calculated_status = fee.calculated_status|default(fee.status) %}
+        <div class="card shadow-sm mb-3" style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})" title="Clique para ver detalhes">
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6 class="mb-1 d-flex align-items-center gap-2">
+                        {% include 'blocks/fraction-popover.html.twig' with { identifier: fee.fraction_identifier, owner_name: fee.owner_name, floor: fee.fraction_floor, extra_class: 'badge bg-secondary', stop_propagation: true } only %}
+                        {% if calculated_status == 'paid' %}
+                            <i class="bi bi-check-circle-fill text-success" style="font-size: 1.2rem;" title="Pago"></i>
+                        {% elseif calculated_status == 'overdue' %}
+                            <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 1.2rem;" title="Em Atraso"></i>
+                        {% elseif calculated_status == 'partial' %}
+                            <i class="bi bi-circle-half text-info" style="font-size: 1.2rem;" title="Parcial"></i>
+                        {% else %}
+                            <i class="bi bi-clock-history text-warning" style="font-size: 1.2rem;" title="Pendente"></i>
+                        {% endif %}
+                        <span class="ms-auto">
+                            {% if fee.period_month %}
+                                {{ fee.period_month }}/{{ fee.period_year }}
+                            {% else %}
+                                {{ fee.period_year }}
+                            {% endif %}
+                        </span>
+                    </h6>
+                    <small class="text-muted">Vencimento: {{ fee.due_date|date('d/m/Y') }}</small>
                 </div>
-                <div class="col-md-3">
-                    <strong>Pagas:</strong> €{{ summary.paid|number_format(2, ',', '.') }}
+                
+                <div class="row g-2 mb-3">
+                    <div class="col-4">
+                        <div class="text-muted small">Total</div>
+                        <div class="fw-bold">€{{ fee.amount|number_format(2, ',', '.') }}</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-muted small">Pago</div>
+                        <div class="{% if paid_amount > 0 %}text-success fw-bold{% else %}text-muted{% endif %}">
+                            €{{ paid_amount|number_format(2, ',', '.') }}
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-muted small">Pendente</div>
+                        <div class="{% if pending_amount > 0 %}text-danger fw-bold{% else %}text-success{% endif %}">
+                            €{{ pending_amount|number_format(2, ',', '.') }}
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-2">
-                    <strong>Pendentes:</strong> €{{ summary.pending|number_format(2, ',', '.') }}
+                
+                {% if is_admin %}
+                <div class="d-flex gap-2">
+                    {% if calculated_status != 'paid' %}
+                    <button type="button" class="btn btn-sm btn-outline-primary {% if (fee.fee_type|default('regular')) == 'extra' and paid_amount == 0 %}flex-fill{% else %}w-100{% endif %}" 
+                            onclick="event.stopPropagation(); showPaymentModal({{ fee.id }})" 
+                            title="Registar Pagamento">
+                        <i class="bi bi-cash-coin"></i> Pagar
+                    </button>
+                    {% endif %}
+                    {% if (fee.fee_type|default('regular')) == 'extra' and paid_amount == 0 %}
+                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/{{ fee.id }}/edit" 
+                       class="btn btn-sm btn-outline-warning flex-fill" 
+                       onclick="event.stopPropagation();"
+                       title="Editar Quota Extra">
+                        <i class="bi bi-pencil"></i> Editar
+                    </a>
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/{{ fee.id }}/delete" 
+                          class="d-inline flex-fill" 
+                          onsubmit="return confirm('Tem certeza que deseja eliminar esta quota extra? Esta ação não pode ser desfeita.');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger w-100" 
+                                onclick="event.stopPropagation();"
+                                title="Eliminar Quota Extra">
+                            <i class="bi bi-trash"></i> Eliminar
+                        </button>
+                    </form>
+                    {% endif %}
                 </div>
-                <div class="col-md-2">
-                    <strong>Parciais:</strong> €{{ summary.partial|default(0)|number_format(2, ',', '.') }}
-                </div>
-                <div class="col-md-2">
-                    <strong>Em Atraso:</strong> €{{ summary.overdue|number_format(2, ',', '.') }}
-                </div>
+                {% endif %}
             </div>
         </div>
+        {% endfor %}
     </div>
-    {% endif %}
     {% else %}
     <div class="card shadow">
         <div class="card-body text-center py-5">
@@ -244,12 +339,12 @@
 
     <!-- Modal para Gerar Quotas -->
     <div class="modal fade" id="generateFeesModal" tabindex="-1">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/generate">
+                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/generate" id="generateFeesForm">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <div class="modal-header">
-                        <h5 class="modal-title">Gerar Quotas Mensais</h5>
+                        <h5 class="modal-title">Gerar Quotas</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
@@ -257,26 +352,83 @@
                             <label for="year" class="form-label">Ano <span class="text-danger">*</span></label>
                             <input type="number" class="form-control" id="year" name="year" value="{{ current_year }}" min="2020" max="2100" required>
                         </div>
+                        
                         <div class="mb-3">
-                            <label for="month" class="form-label">Mês <span class="text-danger">*</span></label>
-                            <select class="form-select" id="month" name="month" required>
-                                <option value="1" {% if 1 == current_month %}selected{% endif %}>1 - Janeiro</option>
-                                <option value="2" {% if 2 == current_month %}selected{% endif %}>2 - Fevereiro</option>
-                                <option value="3" {% if 3 == current_month %}selected{% endif %}>3 - Março</option>
-                                <option value="4" {% if 4 == current_month %}selected{% endif %}>4 - Abril</option>
-                                <option value="5" {% if 5 == current_month %}selected{% endif %}>5 - Maio</option>
-                                <option value="6" {% if 6 == current_month %}selected{% endif %}>6 - Junho</option>
-                                <option value="7" {% if 7 == current_month %}selected{% endif %}>7 - Julho</option>
-                                <option value="8" {% if 8 == current_month %}selected{% endif %}>8 - Agosto</option>
-                                <option value="9" {% if 9 == current_month %}selected{% endif %}>9 - Setembro</option>
-                                <option value="10" {% if 10 == current_month %}selected{% endif %}>10 - Outubro</option>
-                                <option value="11" {% if 11 == current_month %}selected{% endif %}>11 - Novembro</option>
-                                <option value="12" {% if 12 == current_month %}selected{% endif %}>12 - Dezembro</option>
-                            </select>
+                            <label class="form-label">Meses <span class="text-danger">*</span></label>
+                            <div class="row g-2" id="monthsContainer">
+                                {% set month_names = {
+                                    1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
+                                    5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
+                                    9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+                                } %}
+                                {% for month_num in 1..12 %}
+                                <div class="col-6 col-md-4 col-lg-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="months[]" value="{{ month_num }}" id="month_{{ month_num }}" {% if month_num == current_month %}checked{% endif %}>
+                                        <label class="form-check-label" for="month_{{ month_num }}">
+                                            {{ month_num }} - {{ month_names[month_num] }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted d-block mt-1">Selecione um ou mais meses para gerar as quotas</small>
                         </div>
-                        <div class="alert alert-info">
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="is_extra" name="is_extra" value="1">
+                                <label class="form-check-label" for="is_extra">
+                                    <strong>Quota Extra</strong> (para obras ou outros motivos)
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="extraFields" style="display: none;">
+                            <div class="mb-3">
+                                <label for="extra_amount" class="form-label">Valor Total da Quota Extra (€) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="extra_amount" name="extra_amount" step="0.01" min="0.01" placeholder="0.00">
+                                <small class="text-muted">Valor total da quota extra para todo o condomínio. O valor será distribuído por cada fração conforme a permilagem.</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="extra_description" class="form-label">Motivo/Descrição</label>
+                                <textarea class="form-control" id="extra_description" name="extra_description" rows="2" placeholder="Ex: Obras no telhado, Reparação do elevador, etc."></textarea>
+                                <small class="text-muted">Descrição do motivo da quota extra</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Frações</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="select_all_fractions" checked>
+                                    <label class="form-check-label" for="select_all_fractions">
+                                        <strong>Todas as frações</strong>
+                                    </label>
+                                </div>
+                                <hr class="my-2">
+                                <div class="row g-2" id="fractionsContainer" style="max-height: 200px; overflow-y: auto;">
+                                    {% for fraction in fractions %}
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input fraction-checkbox" type="checkbox" name="extra_fractions[]" value="{{ fraction.id }}" id="fraction_{{ fraction.id }}" checked>
+                                            <label class="form-check-label" for="fraction_{{ fraction.id }}">
+                                                {{ fraction.identifier }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <small class="text-muted d-block mt-1">Selecione as frações para aplicar a quota extra (deixe todas selecionadas para aplicar a todas)</small>
+                            </div>
+                        </div>
+
+                        <div id="regularInfo" class="alert alert-info">
                             <i class="bi bi-info-circle"></i> As quotas serão calculadas automaticamente com base nas <strong>receitas</strong> do orçamento e permilagem de cada fração.
                             <br><small>Certifique-se de que o orçamento está aprovado e tem receitas definidas.</small>
+                        </div>
+
+                        <div id="extraInfo" class="alert alert-warning" style="display: none;">
+                            <i class="bi bi-exclamation-triangle"></i> <strong>Quota Extra:</strong> O valor total será distribuído automaticamente por cada fração conforme a permilagem. Selecione as frações que devem receber a quota extra (deixe todas selecionadas para aplicar a todo o condomínio).
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -287,6 +439,142 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal Liquidar Quotas -->
+    <div class="modal fade" id="liquidateQuotasModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Liquidar Quotas</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    {% include 'blocks/liquidate-quotas-form.html.twig' with {
+                        'condominium': condominium,
+                        'fractions': fractions,
+                        'bank_accounts': bank_accounts,
+                        'csrf_token': csrf_token,
+                        'form_id_prefix': 'lq_',
+                        'is_modal': true
+                    } %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" form="lq_form" class="btn btn-primary"><i class="bi bi-cash-coin"></i> Liquidar Quotas</button>
+                </div>
+                
+                {% include 'blocks/liquidate-quotas-script.html.twig' with {
+                    'condominium_id': condominium.id,
+                    'form_id_prefix': 'lq_',
+                    'modal_id': 'liquidateQuotasModal'
+                } %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Function to filter fees and scroll to filters
+        function filterFees() {
+            const form = document.getElementById('filtersForm');
+            const formData = new FormData(form);
+            const params = new URLSearchParams();
+            
+            // Add all form fields to params
+            for (const [key, value] of formData.entries()) {
+                if (value) {
+                    params.append(key, value);
+                }
+            }
+            
+            // Build URL with filters
+            const url = form.action + (params.toString() ? '?' + params.toString() : '');
+            
+            // Submit form normally but scroll to filters after load
+            window.location.href = url + '#filtersForm';
+        }
+        
+        // Scroll to filters if hash is present
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.location.hash === '#filtersForm') {
+                setTimeout(function() {
+                    const filtersForm = document.getElementById('filtersForm');
+                    if (filtersForm) {
+                        filtersForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }, 100);
+            }
+        });
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const isExtraCheckbox = document.getElementById('is_extra');
+            const extraFields = document.getElementById('extraFields');
+            const regularInfo = document.getElementById('regularInfo');
+            const extraInfo = document.getElementById('extraInfo');
+            const extraAmountInput = document.getElementById('extra_amount');
+            const selectAllFractions = document.getElementById('select_all_fractions');
+            const fractionCheckboxes = document.querySelectorAll('.fraction-checkbox');
+            const form = document.getElementById('generateFeesForm');
+
+            // Toggle extra fields
+            isExtraCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    extraFields.style.display = 'block';
+                    regularInfo.style.display = 'none';
+                    extraInfo.style.display = 'block';
+                    extraAmountInput.setAttribute('required', 'required');
+                } else {
+                    extraFields.style.display = 'none';
+                    regularInfo.style.display = 'block';
+                    extraInfo.style.display = 'none';
+                    extraAmountInput.removeAttribute('required');
+                }
+            });
+
+            // Select all fractions toggle
+            selectAllFractions.addEventListener('change', function() {
+                fractionCheckboxes.forEach(function(checkbox) {
+                    checkbox.checked = selectAllFractions.checked;
+                });
+            });
+
+            // Update "select all" when individual checkboxes change
+            fractionCheckboxes.forEach(function(checkbox) {
+                checkbox.addEventListener('change', function() {
+                    const allChecked = Array.from(fractionCheckboxes).every(cb => cb.checked);
+                    const someChecked = Array.from(fractionCheckboxes).some(cb => cb.checked);
+                    selectAllFractions.checked = allChecked;
+                    selectAllFractions.indeterminate = someChecked && !allChecked;
+                });
+            });
+
+            // Form validation
+            form.addEventListener('submit', function(e) {
+                const monthsChecked = document.querySelectorAll('input[name="months[]"]:checked');
+                if (monthsChecked.length === 0) {
+                    e.preventDefault();
+                    alert('Selecione pelo menos um mês para gerar as quotas.');
+                    return false;
+                }
+
+                if (isExtraCheckbox.checked) {
+                    const extraAmount = parseFloat(extraAmountInput.value);
+                    if (!extraAmount || extraAmount <= 0) {
+                        e.preventDefault();
+                        alert('O valor da quota extra deve ser maior que zero.');
+                        extraAmountInput.focus();
+                        return false;
+                    }
+
+                    const fractionsChecked = document.querySelectorAll('input[name="extra_fractions[]"]:checked');
+                    if (fractionsChecked.length === 0) {
+                        e.preventDefault();
+                        alert('Selecione pelo menos uma fração para aplicar a quota extra.');
+                        return false;
+                    }
+                }
+            });
+        });
+    </script>
 
     <div class="mt-3">
         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary">
@@ -306,7 +594,7 @@
             <form method="POST" id="paymentForm">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <div class="modal-body">
-                    <div id="feeInfo" class="alert alert-info mb-3">
+                    <div id="feeInfo" class="alert alert-info mb-3" style="display: block !important;">
                         <small>Carregando informações...</small>
                     </div>
                     
@@ -322,14 +610,10 @@
 
                     <div class="mb-3">
                         <label for="payment_method" class="form-label">Método de Pagamento <span class="text-danger">*</span></label>
-                        <select class="form-select" id="payment_method" name="payment_method" required>
+                        <select class="form-select" id="payment_method" name="payment_method" required onchange="handlePaymentMethodChange()">
                             <option value="">Selecione...</option>
-                            <option value="multibanco">Multibanco</option>
-                            <option value="mbway">MBWay</option>
                             <option value="transfer">Transferência</option>
                             <option value="cash">Dinheiro</option>
-                            <option value="card">Cartão</option>
-                            <option value="sepa">Débito Direto SEPA</option>
                         </select>
                     </div>
 
@@ -342,7 +626,8 @@
                     <div class="mb-3">
                         <label for="payment_reference" class="form-label">Referência</label>
                         <input type="text" class="form-control" id="payment_reference" name="reference" 
-                               placeholder="Ex: Referência Multibanco, número de transferência, etc.">
+                               readonly style="background-color: #e9ecef; cursor: not-allowed;">
+                        <small class="form-text text-muted">Referência gerada automaticamente</small>
                     </div>
 
                     <div class="mb-3">
@@ -373,14 +658,28 @@
                         <div class="mb-3">
                             <label for="bank_account_id" class="form-label">Conta Bancária</label>
                             <select class="form-select" id="bank_account_id" name="bank_account_id">
-                                <option value="">Usar Caixa (padrão)</option>
+                                <option value="">Selecione...</option>
                                 {% if bank_accounts %}
+                                {% set main_bank_account = null %}
+                                {% set cash_account = null %}
                                 {% for account in bank_accounts %}
-                                <option value="{{ account.id }}">{{ account.name }} {% if account.account_type == 'cash' %}(Caixa){% endif %}</option>
+                                    {% if account.account_type == 'bank' and main_bank_account == null %}
+                                        {% set main_bank_account = account %}
+                                    {% endif %}
+                                    {% if account.account_type == 'cash' and cash_account == null %}
+                                        {% set cash_account = account %}
+                                    {% endif %}
+                                {% endfor %}
+                                {% for account in bank_accounts %}
+                                <option value="{{ account.id }}" 
+                                        {% if account.account_type == 'bank' and main_bank_account and account.id == main_bank_account.id %}data-is-main-bank="true"{% endif %}
+                                        {% if account.account_type == 'cash' %}data-is-cash="true"{% endif %}>
+                                    {{ account.name }} {% if account.account_type == 'cash' %}(Caixa){% endif %}
+                                </option>
                                 {% endfor %}
                                 {% endif %}
                             </select>
-                            <small class="form-text text-muted">Se não selecionar, será usado o caixa por padrão</small>
+                            <small class="form-text text-muted">Selecionada automaticamente conforme o método de pagamento</small>
                         </div>
                     </div>
 
@@ -415,27 +714,6 @@
     </div>
 </div>
 
-<!-- Modal para Ver Detalhes -->
-<div class="modal fade" id="detailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Detalhes da Quota/Dívida</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="feeDetailsContent">
-                <div class="text-center py-3">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">A carregar...</span>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <script>
 let currentFeeId = null;
@@ -453,6 +731,8 @@ function toggleTransactionFields() {
         bankAccountSelect.removeAttribute('required');
         transactionSelect.removeAttribute('required');
         transactionSelect.value = '';
+        // Trigger payment method change to auto-select account
+        handlePaymentMethodChange();
     } else {
         createFields.style.display = 'none';
         associateFields.style.display = 'block';
@@ -462,141 +742,126 @@ function toggleTransactionFields() {
     }
 }
 
-function showPaymentModal(feeId) {
-    currentFeeId = feeId;
-    const modal = new bootstrap.Modal(document.getElementById('paymentModal'));
+function handlePaymentMethodChange() {
+    const paymentMethod = document.getElementById('payment_method');
+    const bankAccountSelect = document.getElementById('bank_account_id');
     
-    // Reset form
-    document.getElementById('transaction_create').checked = true;
-    toggleTransactionFields();
+    if (!paymentMethod || !bankAccountSelect) {
+        return;
+    }
     
-    // Load fee info
-    fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)
-        .then(response => response.json())
-        .then(data => {
-            const pendingAmount = data.pending_amount;
-            const totalAmount = data.total_amount;
-            const paidAmount = data.total_paid;
-            
-            document.getElementById('feeInfo').innerHTML = `
-                <strong>Fração:</strong> ${data.fraction.identifier}<br>
-                <strong>Valor Total:</strong> €${parseFloat(totalAmount).toFixed(2).replace('.', ',')}<br>
-                <strong>Já Pago:</strong> €${parseFloat(paidAmount).toFixed(2).replace('.', ',')}<br>
-                <strong>Pendente:</strong> <span class="text-danger">€${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}</span>
-            `;
-            
-            document.getElementById('payment_amount').max = pendingAmount;
-            document.getElementById('payment_amount').value = '';
-            document.getElementById('maxAmountHint').textContent = `Valor máximo: €${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}`;
-            
-            document.getElementById('paymentForm').action = `{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/add-payment`;
-        })
-        .catch(error => {
-            console.error('Erro ao carregar informações:', error);
-            document.getElementById('feeInfo').innerHTML = '<div class="alert alert-danger">Erro ao carregar informações</div>';
-        });
+    const selectedMethod = paymentMethod.value;
     
-    modal.show();
+    if (selectedMethod === 'transfer') {
+        // Select main bank account (first bank account that is not cash)
+        const mainBankOption = bankAccountSelect.querySelector('option[data-is-main-bank="true"]');
+        if (mainBankOption) {
+            bankAccountSelect.value = mainBankOption.value;
+        } else {
+            // Fallback: select first bank account
+            const bankOptions = Array.from(bankAccountSelect.options).filter(opt => {
+                const option = bankAccountSelect.querySelector(`option[value="${opt.value}"]`);
+                return option && !option.hasAttribute('data-is-cash');
+            });
+            if (bankOptions.length > 0) {
+                bankAccountSelect.value = bankOptions[0].value;
+            }
+        }
+    } else if (selectedMethod === 'cash') {
+        // Select cash account
+        const cashOption = bankAccountSelect.querySelector('option[data-is-cash="true"]');
+        if (cashOption) {
+            bankAccountSelect.value = cashOption.value;
+        }
+    }
 }
 
-function showFeeDetails(feeId) {
-    const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+function showPaymentModal(feeId) {
+    currentFeeId = feeId;
+    const modalElement = document.getElementById('paymentModal');
+    if (!modalElement) {
+        console.error('Modal element not found');
+        return;
+    }
     
-    fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)
-        .then(response => response.json())
-        .then(data => {
-            const pendingAmount = data.pending_amount;
-            const totalAmount = data.total_amount;
-            const paidAmount = data.total_paid;
-            const payments = data.payments || [];
-            
-            let paymentsHtml = '';
-            if (payments.length > 0) {
-                paymentsHtml = `
-                    <h6 class="mt-4">Histórico de Pagamentos</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Data</th>
-                                    <th>Valor</th>
-                                    <th>Método</th>
-                                    <th>Referência</th>
-                                    <th>Movimento Financeiro</th>
-                                    <th>Registado por</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${payments.map(p => `
-                                    <tr>
-                                        <td>${new Date(p.payment_date).toLocaleDateString('pt-PT')}</td>
-                                        <td><strong>€${parseFloat(p.amount).toFixed(2).replace('.', ',')}</strong></td>
-                                        <td>${p.payment_method}</td>
-                                        <td>${p.reference || '-'}</td>
-                                        <td>
-                                            ${p.transaction_id ? `
-                                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" 
-                                                   class="text-decoration-none" 
-                                                   title="Ver movimento financeiro #${p.transaction_id}">
-                                                    <i class="bi bi-link-45deg"></i> 
-                                                    ${p.account_name ? p.account_name + ' (#' + p.transaction_id + ')' : 'Movimento #' + p.transaction_id}
-                                                </a>
-                                            ` : '<span class="text-muted">-</span>'}
-                                        </td>
-                                        <td>${p.created_by_name || '-'}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                `;
-            } else {
-                paymentsHtml = '<p class="text-muted">Nenhum pagamento registado ainda.</p>';
-            }
-            
-            document.getElementById('feeDetailsContent').innerHTML = `
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Fração:</strong> ${data.fraction.identifier}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Tipo:</strong> ${data.fee.is_historical ? '<span class="badge bg-warning text-dark">Dívida Histórica</span>' : '<span class="badge bg-primary">Quota</span>'}
-                    </div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Período:</strong> ${data.fee.period_month ? data.fee.period_month + '/' + data.fee.period_year : data.fee.period_year}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Vencimento:</strong> ${new Date(data.fee.due_date).toLocaleDateString('pt-PT')}
-                    </div>
-                </div>
-                <hr>
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <strong>Valor Total:</strong><br>
-                        <h5>€${parseFloat(totalAmount).toFixed(2).replace('.', ',')}</h5>
-                    </div>
-                    <div class="col-md-4">
-                        <strong>Já Pago:</strong><br>
-                        <h5 class="text-success">€${parseFloat(paidAmount).toFixed(2).replace('.', ',')}</h5>
-                    </div>
-                    <div class="col-md-4">
-                        <strong>Pendente:</strong><br>
-                        <h5 class="text-danger">€${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}</h5>
-                    </div>
-                </div>
-                ${paymentsHtml}
-                ${data.fee.notes ? `<hr><div><strong>Notas:</strong><br>${data.fee.notes}</div>` : ''}
-            `;
-        })
-        .catch(error => {
-            console.error('Erro ao carregar detalhes:', error);
-            document.getElementById('feeDetailsContent').innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes</div>';
-        });
+    const modal = new bootstrap.Modal(modalElement);
     
+    // Reset form
+    const transactionCreate = document.getElementById('transaction_create');
+    if (transactionCreate) {
+        transactionCreate.checked = true;
+    }
+    toggleTransactionFields();
+    
+    // Open modal first to ensure elements are available
     modal.show();
+    
+    // Wait for modal to be shown, then update elements
+    modalElement.addEventListener('shown.bs.modal', function onModalShown() {
+        // Remove listener after first use
+        modalElement.removeEventListener('shown.bs.modal', onModalShown);
+        
+        // Show loading state
+        const feeInfoElement = document.getElementById('feeInfo');
+        if (feeInfoElement) {
+            feeInfoElement.style.display = 'block';
+            feeInfoElement.innerHTML = '<small>Carregando informações...</small>';
+        }
+        
+        // Load fee info
+        fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)
+            .then(response => response.json())
+            .then(data => {
+                const pendingAmount = data.pending_amount;
+                const totalAmount = data.total_amount;
+                const paidAmount = data.total_paid;
+                
+                // Update fee info - keep it visible permanently
+                if (feeInfoElement) {
+                    feeInfoElement.innerHTML = `
+                        <strong>Fração:</strong> ${data.fraction.identifier}<br>
+                        <strong>Valor Total:</strong> €${parseFloat(totalAmount).toFixed(2).replace('.', ',')}<br>
+                        <strong>Já Pago:</strong> €${parseFloat(paidAmount).toFixed(2).replace('.', ',')}<br>
+                        <strong>Pendente:</strong> <span class="text-danger">€${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}</span>
+                    `;
+                    feeInfoElement.style.display = 'block';
+                }
+                
+                const paymentAmountInput = document.getElementById('payment_amount');
+                if (paymentAmountInput) {
+                    paymentAmountInput.max = pendingAmount;
+                    paymentAmountInput.value = parseFloat(pendingAmount).toFixed(2);
+                }
+                
+                const maxAmountHint = document.getElementById('maxAmountHint');
+                if (maxAmountHint) {
+                    maxAmountHint.textContent = `Valor máximo: €${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}`;
+                }
+                
+                const paymentForm = document.getElementById('paymentForm');
+                if (paymentForm) {
+                    paymentForm.action = `{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/add-payment`;
+                }
+                
+                // Generate automatic reference: REF + condominium_id + fraction_id + fee_id
+                const paymentReferenceInput = document.getElementById('payment_reference');
+                if (paymentReferenceInput) {
+                    const condominiumId = {{ condominium.id }};
+                    const fractionId = data.fraction.id;
+                    const reference = `REF${condominiumId}${fractionId}${feeId}`;
+                    paymentReferenceInput.value = reference;
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao carregar informações:', error);
+                if (feeInfoElement) {
+                    feeInfoElement.innerHTML = '<div class="alert alert-danger">Erro ao carregar informações</div>';
+                    feeInfoElement.style.display = 'block';
+                }
+            });
+    }, { once: true });
 }
+
 
 // Update max amount when input changes
 document.getElementById('payment_amount')?.addEventListener('input', function() {
@@ -609,77 +874,79 @@ document.getElementById('payment_amount')?.addEventListener('input', function() 
 });
 
 // Bulk actions functions
-function toggleAllSelection() {
-    const selectAll = document.getElementById('selectAll');
-    const checkboxes = document.querySelectorAll('.fee-checkbox');
-    checkboxes.forEach(cb => cb.checked = selectAll.checked);
-    updateBulkActions();
-}
+</script>
 
-function updateBulkActions() {
-    const checkboxes = document.querySelectorAll('.fee-checkbox:checked');
-    const bulkActions = document.getElementById('bulkActions');
-    const selectedCount = document.getElementById('selectedCount');
-    
-    if (checkboxes.length > 0) {
-        bulkActions.classList.remove('d-none');
-        selectedCount.textContent = checkboxes.length + ' selecionada(s)';
-    } else {
-        bulkActions.classList.add('d-none');
-    }
-    
-    // Update select all checkbox
-    const allCheckboxes = document.querySelectorAll('.fee-checkbox');
-    const allChecked = allCheckboxes.length > 0 && Array.from(allCheckboxes).every(cb => cb.checked);
-    const selectAll = document.getElementById('selectAll');
-    if (selectAll) {
-        selectAll.checked = allChecked;
-    }
-}
+<!-- Modal e Script para Detalhes da Quota (Mapa) -->
+{% include 'blocks/fees-map-modal.html.twig' with {'is_admin': is_admin, 'csrf_token': csrf_token} %}
 
-function clearSelection() {
-    document.querySelectorAll('.fee-checkbox').forEach(cb => cb.checked = false);
-    const selectAll = document.getElementById('selectAll');
-    if (selectAll) {
-        selectAll.checked = false;
-    }
-    updateBulkActions();
-}
+<!-- Modal para Editar Pagamento -->
+<div class="modal fade" id="editPaymentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Pagamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="editPaymentForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" id="edit_payment_id" name="payment_id">
+                <input type="hidden" id="edit_payment_fee_id" name="fee_id">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_payment_amount" class="form-label">Valor do Pagamento (€) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">€</span>
+                            <input type="number" class="form-control" id="edit_payment_amount" name="amount" 
+                                   step="0.01" min="0.01" required>
+                        </div>
+                    </div>
 
-function bulkMarkAsPaid() {
-    const selected = Array.from(document.querySelectorAll('.fee-checkbox:checked')).map(cb => cb.value);
-    
-    if (selected.length === 0) {
-        alert('Selecione pelo menos uma quota.');
-        return;
-    }
-    
-    if (!confirm('Tem certeza que deseja marcar ' + selected.length + ' quota(s) como paga(s)?')) {
-        return;
-    }
-    
-    // Create form and submit
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/bulk-mark-paid';
-    
-    const csrfInput = document.createElement('input');
-    csrfInput.type = 'hidden';
-    csrfInput.name = 'csrf_token';
-    csrfInput.value = '{{ csrf_token }}';
-    form.appendChild(csrfInput);
-    
-    selected.forEach(id => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'fee_ids[]';
-        input.value = id;
-        form.appendChild(input);
-    });
-    
-    document.body.appendChild(form);
-    form.submit();
-}
+                    <div class="mb-3">
+                        <label for="edit_payment_method" class="form-label">Método de Pagamento <span class="text-danger">*</span></label>
+                        <select class="form-select" id="edit_payment_method" name="payment_method" required>
+                            <option value="">Selecione...</option>
+                            <option value="transfer">Transferência</option>
+                            <option value="cash">Dinheiro</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_payment_date" class="form-label">Data do Pagamento <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="edit_payment_date" name="payment_date" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_payment_reference" class="form-label">Referência</label>
+                        <input type="text" class="form-control" id="edit_payment_reference" name="reference" readonly 
+                               style="background-color: #e9ecef; cursor: not-allowed;">
+                        <small class="form-text text-muted">Referência não pode ser alterada</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_payment_notes" class="form-label">Notas</label>
+                        <textarea class="form-control" id="edit_payment_notes" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Set form action when modal is shown
+document.getElementById('editPaymentModal')?.addEventListener('show.bs.modal', function() {
+    const feeId = document.getElementById('edit_payment_fee_id').value;
+    const paymentId = document.getElementById('edit_payment_id').value;
+    document.getElementById('editPaymentForm').action = `{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/payments/${paymentId}/update`;
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.fraction-popover').forEach(function(el) { new bootstrap.Popover(el, { trigger: 'focus' }); });
+});
 </script>
 
 

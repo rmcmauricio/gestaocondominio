@@ -226,7 +226,12 @@ class Occurrence extends Model
             ':attachments' => !empty($data['attachments']) ? json_encode($data['attachments']) : null
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $occurrenceId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($occurrenceId, $data);
+        
+        return $occurrenceId;
     }
 
     /**
@@ -255,10 +260,20 @@ class Occurrence extends Model
             return false;
         }
 
+        // Get old data for audit
+        $oldData = $this->findById($id);
+
         $sql = "UPDATE occurrences SET " . implode(', ', $fields) . ", updated_at = NOW() WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
-        return $stmt->execute($params);
+        $result = $stmt->execute($params);
+        
+        // Log audit
+        if ($result) {
+            $this->auditUpdate($id, $data, $oldData);
+        }
+        
+        return $result;
     }
 
     /**

@@ -1,0 +1,105 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>{% if tier %}Editar{% else %}Criar{% endif %} Escalão de Pricing</h2>
+            <p class="text-muted mb-0">Plano: <strong>{{ plan.name }}</strong></p>
+        </div>
+        <a href="{{ BASE_URL }}admin/plans/{{ plan.id }}/pricing-tiers" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-{% if tier %}pencil{% else %}plus-circle{% endif %}"></i> {% if tier %}Editar{% else %}Criar{% endif %} Escalão</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ BASE_URL }}admin/plans/{{ plan.id }}/pricing-tiers{% if tier %}/{{ tier.id }}{% endif %}" id="tierForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="min_licenses" class="form-label">Mínimo de Licenças <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="min_licenses" name="min_licenses" value="{{ tier.min_licenses|default('') }}" min="0" required>
+                        <small class="form-text text-muted">Número mínimo de licenças para este escalão</small>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label for="max_licenses" class="form-label">Máximo de Licenças</label>
+                        <input type="number" class="form-control" id="max_licenses" name="max_licenses" value="{{ tier.max_licenses|default('') }}" min="0">
+                        <small class="form-text text-muted">Deixe em branco para ilimitado (último escalão)</small>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="price_per_license" class="form-label">Preço por Licença (€) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">€</span>
+                            <input type="number" class="form-control" id="price_per_license" name="price_per_license" value="{{ tier.price_per_license|default('') }}" step="0.01" min="0" required>
+                        </div>
+                        <small class="form-text text-muted">Preço cobrado por cada licença neste escalão</small>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label for="sort_order" class="form-label">Ordem de Exibição</label>
+                        <input type="number" class="form-control" id="sort_order" name="sort_order" value="{{ tier.sort_order|default('0') }}" min="0">
+                        <small class="form-text text-muted">Escalões são ordenados por ordem crescente</small>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="is_active" name="is_active" value="1" {% if tier.is_active|default(true) %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">
+                            Escalão Ativo
+                        </label>
+                        <small class="form-text text-muted d-block">Escalões inativos não são usados no cálculo de preços</small>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> <strong>Exemplo:</strong> Se definir mínimo=10, máximo=20, preço=1.00€, então:
+                    <ul class="mb-0 mt-2">
+                        <li>10-20 licenças serão cobradas a €1.00 por licença</li>
+                        <li>Com 15 licenças: 15 × €1.00 = €15.00</li>
+                    </ul>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="{{ BASE_URL }}admin/plans/{{ plan.id }}/pricing-tiers" class="btn btn-secondary">Cancelar</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-{% if tier %}check{% else %}plus-circle{% endif %}"></i> {% if tier %}Atualizar{% else %}Criar{% endif %} Escalão
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('tierForm');
+    const minLicensesInput = document.getElementById('min_licenses');
+    const maxLicensesInput = document.getElementById('max_licenses');
+    
+    form.addEventListener('submit', function(e) {
+        const minLicenses = parseInt(minLicensesInput.value) || 0;
+        const maxLicenses = maxLicensesInput.value ? parseInt(maxLicensesInput.value) : null;
+        
+        if (maxLicenses !== null && maxLicenses < minLicenses) {
+            e.preventDefault();
+            alert('O máximo de licenças deve ser maior ou igual ao mínimo.');
+            maxLicensesInput.focus();
+            return false;
+        }
+    });
+});
+</script>

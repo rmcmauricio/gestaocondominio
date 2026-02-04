@@ -105,33 +105,19 @@
                 </form>
                 {% elseif assembly.status == 'closed' or assembly.status == 'completed' %}
                 <div class="row g-2">
-                    {% if minutes_template or approved_minutes %}
-                    <div class="col-md-6 col-lg-3">
-                        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes/view" class="btn btn-outline-primary w-100" target="_blank">
-                            <i class="bi bi-file-text"></i> Ver Ata
-                        </a>
-                    </div>
-                    {% endif %}
-                    
                     {% if minutes_template %}
                     <div class="col-md-6 col-lg-3">
                         <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/edit" class="btn btn-outline-primary w-100">
-                            <i class="bi bi-pencil-square"></i> Editar Template
-                        </a>
-                    </div>
-                    <div class="col-md-6 col-lg-3">
-                        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/signatures" class="btn btn-outline-primary w-100">
-                            <i class="bi bi-pen"></i> Gerir Assinaturas
+                            <i class="bi bi-pencil-square"></i> Ver/Editar ata
                         </a>
                     </div>
                     {% else %}
                     <div class="col-md-6 col-lg-3">
-                        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/generate" class="btn btn-outline-primary w-100" onclick="return confirm('Deseja gerar o template de atas para esta assembleia?');">
-                            <i class="bi bi-file-earmark-plus"></i> Gerar Template
+                        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/generate" class="btn btn-outline-primary w-100" onclick="return confirm('Deseja gerar a acta para esta assembleia?');">
+                            <i class="bi bi-file-earmark-plus"></i> Gerar Acta
                         </a>
                     </div>
                     {% endif %}
-                    
                     {% if approved_minutes %}
                     <div class="col-md-6 col-lg-3">
                         <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/documents/{{ approved_minutes.id }}/download" class="btn btn-outline-success w-100" target="_blank">
@@ -140,29 +126,71 @@
                     </div>
                     {% endif %}
                 </div>
-                
+                {% if minutes_template and is_admin %}
+                <div class="row g-2 mt-2">
+                    {% if minutes_template.status == 'draft' %}
+                    <div class="col-md-6 col-lg-3">
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/approve" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-success w-100" onclick="return confirm('Tem certeza que deseja aprovar estas atas? O PDF será gerado e ficará disponível para todos os condóminos.');">
+                                <i class="bi bi-check-circle"></i> Aprovar e Gerar PDF
+                            </button>
+                        </form>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <button type="button" class="btn btn-outline-primary w-100" data-bs-toggle="collapse" data-bs-target="#sendReviewForm" aria-expanded="false">
+                            <i class="bi bi-send"></i> Enviar para Revisão
+                        </button>
+                        <div class="collapse mt-2" id="sendReviewForm">
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/send-for-review" class="card card-body">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <label for="review_deadline" class="form-label">Prazo para revisão</label>
+                                <input type="date" id="review_deadline" name="review_deadline" class="form-control form-control-sm" min="{{ today_ymd }}" required>
+                                <button type="submit" class="btn btn-sm btn-primary mt-2">Enviar</button>
+                            </form>
+                        </div>
+                    </div>
+                    {% elseif minutes_template.status == 'in_review' %}
+                    <div class="col-md-6 col-lg-3">
+                        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/revisions" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-list-ul"></i> Ver revisões
+                        </a>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/cancel-review" class="d-inline w-100">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-outline-secondary w-100" onclick="return confirm('Cancelar a revisão? A ata voltará a rascunho.');">
+                                <i class="bi bi-x-circle"></i> Cancelar revisão
+                            </button>
+                        </form>
+                    </div>
+                    {% if review_deadline and "now"|date("Y-m-d") > review_deadline %}
+                    <div class="col-md-6 col-lg-3">
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/approve" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-success w-100" onclick="return confirm('Tem certeza que deseja aprovar estas atas?');">
+                                <i class="bi bi-check-circle"></i> Aprovar e Gerar PDF
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+                {% endif %}
                 {% if minutes_template %}
                 <div class="mt-3 pt-3 border-top">
                     <div class="row g-2 align-items-center">
                         <div class="col-md-6">
                             <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <span class="badge {% if minutes_template.status == 'approved' %}bg-success{% else %}bg-warning text-dark{% endif %}">
-                                    {% if minutes_template.status == 'approved' %}Aprovado{% else %}Rascunho{% endif %}
+                                <span class="badge {% if minutes_template.status == 'approved' %}bg-success{% elseif minutes_template.status == 'in_review' %}bg-info{% else %}bg-warning text-dark{% endif %}">
+                                    {% if minutes_template.status == 'approved' %}Aprovado{% elseif minutes_template.status == 'in_review' %}Em revisão{% else %}Rascunho{% endif %}
                                 </span>
-                                {% if signature_stats %}
-                                <span class="text-muted">
-                                    <i class="bi bi-pen"></i> 
-                                    Assinaturas: <strong>{{ signature_stats.signed }}/{{ signature_stats.total }}</strong>
-                                    {% if signature_stats.pending > 0 %}
-                                        <span class="badge bg-warning text-dark ms-1">{{ signature_stats.pending }} pendente(s)</span>
-                                    {% else %}
-                                        <span class="badge bg-success ms-1">Todas assinadas</span>
-                                    {% endif %}
-                                </span>
+                                {% if minutes_template.status == 'in_review' and review_deadline %}
+                                <span class="text-muted">Prazo: {{ review_deadline|date('d/m/Y') }}</span>
                                 {% endif %}
                             </div>
                         </div>
-                        {% if (not signature_stats or signature_stats.signed == 0) %}
+                        {% if minutes_template.status != 'in_review' %}
                         <div class="col-md-6">
                             <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/change-status" class="d-inline w-100">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -177,6 +205,44 @@
                 </div>
                 {% endif %}
                 {% endif %}
+            </div>
+            {% endif %}
+
+            {# Revisão da Ata (opcional) — condóminos com frações presentes #}
+            {% if not is_admin and review_deadline and my_fractions_for_revision|length > 0 %}
+            <div class="card mb-4 border-info">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="bi bi-chat-square-text"></i> Revisão da Ata (opcional)</h6>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Pode enviar comentários ou marcar como revisão aceite; não é obrigatório. Objetivo: reduzir adendas.</p>
+                    <p><strong>Prazo:</strong> {{ review_deadline|date('d/m/Y') }}</p>
+                    <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes/view" class="btn btn-sm btn-outline-primary mb-3" target="_blank"><i class="bi bi-file-text"></i> Ver ata</a>
+                    {% for frac in my_fractions_for_revision %}
+                    {% set rev = my_revision[frac.id] ?? null %}
+                    <div class="border rounded p-2 mb-2">
+                        <strong>Fração {{ frac.identifier }}</strong>
+                        {% if rev %}
+                        <div class="mt-1">
+                            {% if rev.accepted %}<span class="badge bg-success">Aceite</span>{% endif %}
+                            {% if rev.comment %}<p class="mb-1 small">{{ rev.comment }}</p>{% endif %}
+                            <small class="text-muted">Atualizado em {{ rev.updated_at|date('d/m/Y H:i') }}</small>
+                        </div>
+                        {% endif %}
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/minutes-template/submit-revision" class="mt-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="document_id" value="{{ minutes_template.id }}">
+                            <input type="hidden" name="fraction_id" value="{{ frac.id }}">
+                            <textarea name="comment" class="form-control form-control-sm mb-1" rows="2" placeholder="Comentário (opcional)">{{ rev and rev.comment ? rev.comment : '' }}</textarea>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" name="accepted" id="acc_{{ frac.id }}" value="1" {% if rev and rev.accepted %}checked{% endif %}>
+                                <label class="form-check-label" for="acc_{{ frac.id }}">Marcar como revisão aceite</label>
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-primary d-block mt-2">Guardar</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
             {% endif %}
 
@@ -206,6 +272,221 @@
             <div class="alert alert-info mb-0">
                 <strong>Quórum Atual:</strong> {{ quorum.percentage }}% 
                 ({{ quorum.attended_millage }}‰ de {{ quorum.total_millage }}‰)
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Aprovação de Contas #}
+    {% if is_admin and assembly.status == 'completed' %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-check-circle"></i> Aprovação de Contas</h5>
+        </div>
+        <div class="card-body">
+            {% if not approved_minutes %}
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> 
+                <strong>Atenção:</strong> Para aprovar as contas de um ano, é necessário primeiro aprovar as atas desta assembleia.
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> 
+                <strong>Importante:</strong> Ao aprovar as contas de um ano, não será possível editar/apagar movimentos financeiros desse ano.
+            </div>
+
+            {# Lista de anos já aprovados #}
+            {% if approved_years|length > 0 %}
+            <div class="mb-4">
+                <h6>Anos Aprovados:</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Ano</th>
+                                <th>Assembleia</th>
+                                <th>Aprovado por</th>
+                                <th>Data de Aprovação</th>
+                                {% if approved_years[0].notes %}<th>Observações</th>{% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for approval in approved_years %}
+                            <tr>
+                                <td><strong>{{ approval.approved_year }}</strong></td>
+                                <td>{{ approval.assembly_title }}</td>
+                                <td>{{ approval.approved_by_name }}</td>
+                                <td>{{ approval.approved_at|date('d/m/Y H:i') }}</td>
+                                {% if approval.notes %}
+                                <td><small class="text-muted">{{ approval.notes }}</small></td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            {# Formulário para aprovar contas #}
+            {% if approved_minutes %}
+            <div class="border rounded p-3 bg-light">
+                <h6 class="mb-3">Aprovar Contas de um Ano</h6>
+                <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/approve-accounts">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="approved_year" class="form-label">Ano a Aprovar <span class="text-danger">*</span></label>
+                            <select class="form-select" id="approved_year" name="approved_year" required>
+                                <option value="">Selecione um ano...</option>
+                                {% for year in (current_year - 1)..(current_year - 10) %}
+                                    {% set isApproved = false %}
+                                    {% for approval in approved_years %}
+                                        {% if approval.approved_year == year %}
+                                            {% set isApproved = true %}
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% if not isApproved %}
+                                    <option value="{{ year }}">{{ year }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Apenas anos passados podem ser aprovados</small>
+                        </div>
+                        <div class="col-md-8">
+                            <label for="notes" class="form-label">Observações (opcional)</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="Observações sobre a aprovação das contas..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-success" onclick="return confirm('Tem certeza que deseja aprovar as contas deste ano? Esta ação não pode ser revertida e bloqueará a edição/apagação de movimentos financeiros desse ano.');">
+                            <i class="bi bi-check-circle"></i> Aprovar Contas do Ano
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# Pontos de ordem #}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Pontos de ordem</h5>
+        </div>
+        <div class="card-body">
+            {% if agenda_points|length > 0 %}
+                {% for point in agenda_points %}
+                <div class="border rounded p-3 mb-3">
+                    <h6 class="mb-2">{{ point.title }}</h6>
+                    {% if point.body %}
+                    <p class="text-muted mb-2">{{ point.body|nl2br }}</p>
+                    {% endif %}
+                    {% for item in point.vote_items|default([]) %}
+                    {% set topic = item.topic %}
+                    {% set results = item.results %}
+                    <p class="small text-muted mb-2"><i class="bi bi-bar-chart"></i> Votação: {{ topic.title }}</p>
+                    <div class="ms-0 mb-3">
+                        {% if topic.voting_started_at and not topic.voting_ended_at %}
+                            {% if item.present_fractions|length > 0 %}
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/bulk" class="mb-3">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover">
+                                        <thead><tr><th>Fração</th><th>Permilagem</th><th>Voto</th><th>Observações</th></tr></thead>
+                                        <tbody>
+                                        {% for fraction in item.present_fractions %}
+                                        {% set existingVote = item.fraction_votes[fraction.id] ?? null %}
+                                        <tr class="{% if existingVote %}table-info{% endif %}">
+                                            <td><strong>{{ fraction.identifier }}</strong></td>
+                                            <td>{{ fraction.permillage }}‰</td>
+                                            <td>
+                                                <select class="form-select form-select-sm" name="bulk_votes[{{ fraction.id }}][vote_option]">
+                                                    <option value="">-- Selecionar --</option>
+                                                    {% for option in topic.options %}<option value="{{ option }}" {% if existingVote and existingVote.vote_option == option %}selected{% endif %}>{{ option }}</option>{% endfor %}
+                                                </select>
+                                            </td>
+                                            <td><textarea class="form-control form-control-sm" name="bulk_votes[{{ fraction.id }}][notes]" rows="1">{{ existingVote ? existingVote.notes : '' }}</textarea></td>
+                                        </tr>
+                                        {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-primary">Guardar Votos</button>
+                            </form>
+                            {% endif %}
+                        {% endif %}
+                        {% if results.total_votes > 0 %}
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead><tr><th>Opção</th><th>Votos</th><th>Permilagem</th><th>%</th></tr></thead>
+                                <tbody>
+                                {% for option, data in results.options %}<tr><td>{{ option }}</td><td>{{ data.count }}</td><td>{{ data.millage }}‰</td><td>{{ data.percentage_by_millage }}%</td></tr>{% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% if results.winning_option %}<div class="alert alert-success py-2"><strong>Resultado:</strong> {{ results.winning_option }} com {{ results.winning_percentage_by_millage }}%.</div>{% endif %}
+                        {% else %}<p class="text-muted mb-0">Ainda não há votos registados.</p>{% endif %}
+                        {% if assembly.status != 'closed' and assembly.status != 'completed' and is_admin %}
+                        <div class="mt-2 d-flex gap-2 flex-wrap">
+                            {% if not topic.voting_started_at %}
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/start" class="d-inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-sm btn-success">Iniciar Votação</button></form>
+                            {% elseif topic.voting_started_at and not topic.voting_ended_at %}
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/end" class="d-inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-sm btn-warning">Encerrar Votação</button></form>
+                            {% endif %}
+                            <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/{{ topic.id }}/results" class="btn btn-sm btn-outline-info">Ver Detalhes</a>
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/agenda-points/{{ point.id }}/unlink-vote/{{ topic.id }}" class="d-inline" onsubmit="return confirm('Remover esta votação do ponto?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Remover</button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <p class="small text-muted mb-0">Sem votação associada.</p>
+                    {% endfor %}
+                    {% if is_admin and assembly.status != 'closed' and assembly.status != 'completed' %}
+                    <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
+                        <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/create-topic?point_id={{ point.id }}&return=show" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus"></i> Nova votação</a>
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/agenda-points/{{ point.id }}/link-vote" class="d-inline d-flex align-items-center gap-2 flex-wrap">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <label class="form-label mb-0">Associar existente:</label>
+                            <select class="form-select form-select-sm" name="vote_topic_id" style="max-width:220px;">
+                                <option value="">— Nenhuma —</option>
+                                {% for t in all_topics %}{% if t.id not in used_topic_ids %}<option value="{{ t.id }}">{{ t.title }}</option>{% endif %}{% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">Guardar</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+            <p class="text-muted mb-0">Nenhum ponto de ordem.</p>
+            {% endif %}
+            {% if is_admin and assembly.status != 'closed' and assembly.status != 'completed' %}
+            <hr class="my-3">
+            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#addAgendaPointForm" aria-expanded="false">
+                <i class="bi bi-plus-circle"></i> Adicionar ponto
+            </button>
+            <div class="collapse mt-2" id="addAgendaPointForm">
+                <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/agenda-points" class="p-3 border rounded bg-light">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="mb-2">
+                        <label for="ap_title" class="form-label form-label-sm">Título <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm" id="ap_title" name="title" required placeholder="Ex: Aprovação das contas">
+                    </div>
+                    <div class="mb-2">
+                        <label for="ap_body" class="form-label form-label-sm">Texto / deliberação</label>
+                        <textarea class="form-control form-control-sm" id="ap_body" name="body" rows="2" placeholder="Opcional"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary">Adicionar</button>
+                    <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/edit" class="btn btn-sm btn-link">ou editar a assembleia</a>
+                </form>
             </div>
             {% endif %}
         </div>
@@ -329,10 +610,10 @@
                 </div>
             </div>
 
-            {# Vote Topics Section #}
+            {# Outras votações (tópicos não associados a pontos de ordem) #}
             <div class="card shadow-sm mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Tópicos de Votação</h5>
+                    <h5 class="mb-0">Outras votações</h5>
                     {% if assembly.status != 'closed' and assembly.status != 'completed' and is_admin %}
                     <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/votes/create-topic" class="btn btn-sm btn-primary">
                         <i class="bi bi-plus-circle"></i> Novo Tópico
@@ -340,7 +621,7 @@
                     {% endif %}
                 </div>
                 <div class="card-body">
-                    {% if topics %}
+                    {% if topics|length > 0 %}
                         {% for item in topics %}
                         {% set topic = item.topic %}
                         {% set results = item.results %}
@@ -476,7 +757,11 @@
                                             </tfoot>
                                         </table>
                                     </div>
-                                    
+                                    {% if results.winning_option %}
+                                    <div class="alert alert-success py-2 mt-2 mb-0">
+                                        <strong>Resultado (por permilagem):</strong> <strong>{{ results.winning_option }}</strong> ganhou com {{ results.winning_percentage_by_millage }}% da permilagem dos votos expressos.
+                                    </div>
+                                    {% endif %}
                                     {# Chart #}
                                     <div class="mt-3">
                                         <canvas id="chart_{{ topic.id }}" height="100"></canvas>
@@ -513,9 +798,7 @@
                         </div>
                         {% endfor %}
                     {% else %}
-                        <div class="card-body">
-                            <p class="text-muted mb-0">Nenhum tópico de votação criado ainda.</p>
-                        </div>
+                        <p class="text-muted mb-0">Nenhum tópico de votação sem associação. Crie um tópico para o associar a um ponto de ordem ou para figurar aqui.</p>
                     {% endif %}
                 </div>
             </div>

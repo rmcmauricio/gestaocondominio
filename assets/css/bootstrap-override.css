@@ -1,0 +1,209 @@
+/**
+ * Bootstrap Override Styles
+ * Custom colors and styles that override Bootstrap defaults
+ * Uses CSS variables for easy customization
+ */
+
+/* ============================================
+   CSS Variables for Bootstrap Override
+   ============================================ */
+:root {
+  /* Card Header Colors - Custom brand colors */
+  --bs-card-header-bg: hsl(210 92% 20%); /* Dark blue from homepage secondary */
+  --bs-card-header-text: hsl(0 0% 100%); /* White text */
+  --bs-card-header-border: hsl(210 92% 25%); /* Slightly lighter blue for border */
+  
+  /* Alternative header colors (can be used for different card types) */
+  --bs-card-header-bg-alt: hsl(27 98% 48%); /* Orange from primary */
+  --bs-card-header-bg-success: hsl(142 76% 36%); /* Green */
+  --bs-card-header-bg-info: hsl(199 89% 48%); /* Light blue */
+  --bs-card-header-bg-warning: hsl(45 93% 47%); /* Yellow */
+  --bs-card-header-bg-danger: hsl(0 84% 60%); /* Red */
+  
+  /* Card body colors */
+  --bs-card-bg: hsl(0 0% 100%); /* White */
+  --bs-card-border: hsl(210 20% 90%); /* Light gray border */
+  
+  /* Text colors */
+  --bs-card-text: hsl(210 50% 15%); /* Dark text */
+  --bs-card-text-muted: hsl(210 20% 45%); /* Muted text */
+}
+
+/* ============================================
+   Card Header Overrides
+   ============================================ */
+.card-header.bg-primary {
+  background-color: var(--bs-card-header-bg) !important;
+  color: var(--bs-card-header-text) !important;
+  border-color: var(--bs-card-header-border) !important;
+}
+
+.card-header.bg-primary h1,
+.card-header.bg-primary h2,
+.card-header.bg-primary h3,
+.card-header.bg-primary h4,
+.card-header.bg-primary h5,
+.card-header.bg-primary h6,
+.card-header.bg-primary p,
+.card-header.bg-primary span,
+.card-header.bg-primary i {
+  color: var(--bs-card-header-text) !important;
+}
+
+/* Alternative header colors */
+.card-header.bg-success {
+  background-color: var(--bs-card-header-bg-success) !important;
+  color: var(--bs-card-header-text) !important;
+}
+
+.card-header.bg-info {
+  background-color: var(--bs-card-header-bg-info) !important;
+  color: var(--bs-card-header-text) !important;
+}
+
+.card-header.bg-warning {
+  background-color: var(--bs-card-header-bg-warning) !important;
+  color: var(--bs-card-text) !important; /* Dark text on yellow */
+}
+
+.card-header.bg-danger {
+  background-color: var(--bs-card-header-bg-danger) !important;
+  color: var(--bs-card-header-text) !important;
+}
+
+/* Ensure bg-light headers have proper contrast - default light theme */
+.card-header.bg-light {
+  background-color: #f8f9fa !important;
+  color: #212529 !important;
+  border-color: #dee2e6 !important;
+}
+
+.card-header.bg-light h1,
+.card-header.bg-light h2,
+.card-header.bg-light h3,
+.card-header.bg-light h4,
+.card-header.bg-light h5,
+.card-header.bg-light h6,
+.card-header.bg-light p,
+.card-header.bg-light span,
+.card-header.bg-light i,
+.card-header.bg-light .badge {
+  color: #212529 !important;
+}
+
+/* Card body styling */
+.card {
+  background-color: var(--bs-card-bg);
+  border-color: var(--bs-card-border);
+}
+
+.card-body {
+  color: var(--bs-card-text);
+}
+
+.text-muted {
+  color: var(--bs-card-text-muted) !important;
+}
+
+/* ============================================
+   Button Overrides (if needed)
+   ============================================ */
+.btn-primary {
+  background-color: hsl(27 98% 48%);
+  border-color: hsl(27 98% 48%);
+  color: hsl(0 0% 100%);
+}
+
+.btn-primary:hover {
+  background-color: hsl(27 98% 42%);
+  border-color: hsl(27 98% 42%);
+  color: hsl(0 0% 100%);
+}
+
+.btn-outline-primary {
+  color: hsl(27 98% 48%);
+  border-color: hsl(27 98% 48%);
+}
+
+.btn-outline-primary:hover {
+  background-color: hsl(27 98% 48%);
+  border-color: hsl(27 98% 48%);
+  color: hsl(0 0% 100%);
+}
+
+/* ============================================
+   Badge Overrides (if needed)
+   ============================================ */
+.badge.bg-primary {
+  background-color: hsl(27 98% 48%) !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.badge.bg-white {
+  background-color: hsl(0 0% 100%) !important;
+  color: hsl(210 92% 20%) !important;
+}
+
+/* ============================================
+   Alert Overrides (if needed)
+   ============================================ */
+.alert-primary {
+  background-color: hsl(27 98% 95%);
+  border-color: hsl(27 98% 85%);
+  color: hsl(27 98% 35%);
+}
+
+.alert-success {
+  background-color: hsl(142 76% 95%);
+  border-color: hsl(142 76% 85%);
+  color: hsl(142 76% 25%);
+}
+
+.alert-danger {
+  background-color: hsl(0 84% 95%);
+  border-color: hsl(0 84% 85%);
+  color: hsl(0 84% 35%);
+}
+
+.alert-warning {
+  background-color: hsl(45 93% 95%);
+  border-color: hsl(45 93% 85%);
+  color: hsl(45 93% 35%);
+}
+
+.alert-info {
+  background-color: hsl(199 89% 95%);
+  border-color: hsl(199 89% 85%);
+  color: hsl(199 89% 35%);
+}
+
+/* ============================================
+   Welcome Banner (Dashboard/Admin)
+   ============================================ */
+.welcome-banner {
+  background: hsl(0 0% 100%) !important;
+  color: hsl(210 50% 15%) !important;
+  border: 1px solid hsl(210 20% 90%) !important;
+  border-left: 4px solid hsl(210 92% 20%) !important;
+}
+
+.welcome-banner-icon {
+  font-size: 2.5rem !important;
+  color: hsl(210 92% 20%) !important;
+}
+
+.welcome-banner h4 {
+  color: hsl(210 50% 15%) !important;
+  margin-bottom: 0.25rem;
+}
+
+.welcome-banner-text {
+  color: hsl(210 20% 45%) !important;
+  margin-bottom: 0;
+}
+
+.welcome-banner i,
+.welcome-banner strong,
+.welcome-banner span {
+  color: hsl(210 50% 15%) !important;
+}

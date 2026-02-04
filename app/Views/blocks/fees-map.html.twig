@@ -1,0 +1,186 @@
+{# Mapa de Quotas - Bloco Reutilizável #}
+{# Variáveis necessárias:
+   - condominium: objeto do condomínio (deve ter 'id')
+   - fractions: array de frações
+   - fees_map: array associativo [month][fraction_id] = fee
+   - month_names: array com nomes dos meses (índice 1-12)
+   - selected_fees_year: ano selecionado
+   - available_years: array de anos disponíveis
+   - BASE_URL: URL base (geralmente já disponível globalmente)
+#}
+
+<div class="col-12">
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-success text-white">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0 text-light">Quotas</h5>
+                <div class="d-flex align-items-center gap-2">
+                    <form method="GET" action="{{ fees_map_form_action|default(BASE_URL ~ 'condominiums/' ~ condominium.id) }}" class="d-inline" id="feesYearForm">
+                        {% if selected_year is defined and selected_year %}
+                        <input type="hidden" name="year" value="{{ selected_year }}">
+                        {% endif %}
+                        {% if selected_month is defined and selected_month %}
+                        <input type="hidden" name="month" value="{{ selected_month }}">
+                        {% endif %}
+                        {% if selected_status is defined and selected_status %}
+                        <input type="hidden" name="status" value="{{ selected_status }}">
+                        {% endif %}
+                        {% if show_historical is defined and show_historical %}
+                        <input type="hidden" name="show_historical" value="1">
+                        {% endif %}
+                        <select name="fees_year" id="fees_year" class="form-select form-select-sm" onchange="this.form.submit()" style="width: auto; display: inline-block;">
+                            {% for year in available_years %}
+                            <option value="{{ year }}" {% if selected_fees_year == year %}selected{% endif %}>{{ year }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees?year={{ selected_fees_year }}" class="btn btn-sm btn-outline-light" title="Ver todas as quotas deste ano">
+                        <i class="bi bi-list-ul"></i> Ver
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            {% if fractions %}
+            <div class="table-responsive fees-map-table">
+                <table class="table table-sm table-bordered table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-center fw-bold" style="min-width: 80px;">Fração</th>
+                            {% for month in 1..12 %}
+                            <th class="text-center" style="min-width: 50px;">{{ month_names[month][:3] }}</th>
+                            {% endfor %}
+                            <th class="text-center fw-bold" style="min-width: 80px;">Total</th>
+                            <th class="text-center fw-bold" style="min-width: 80px;">Pago</th>
+                            <th class="text-center fw-bold" style="min-width: 80px;">Em Falta</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for fraction in fractions %}
+                        <tr>
+                            <td class="fw-bold text-center">
+                                {% include 'blocks/fraction-popover.html.twig' with { identifier: fraction.identifier, owner_name: fraction.owner_name, floor: fraction.floor, extra_class: 'badge bg-secondary' } only %}
+                            </td>
+                            {% set fraction_total = 0 %}
+                            {% set fraction_paid = 0 %}
+                            {% set fraction_pending = 0 %}
+                            {% for month in 1..12 %}
+                                {% set month_data = fees_map[month]|default({}) %}
+                                {% set fee = month_data[fraction.id]|default(null) %}
+                                {% set is_overdue = fee and fee.is_overdue|default(false) %}
+                                {% set has_multiple_fees = fee and fee.all_fees|default([])|length > 1 %}
+                                {% if fee %}
+                                    {% set fraction_total = fraction_total + fee.amount %}
+                                    {% set fraction_paid = fraction_paid + (fee.paid_amount|default(0)) %}
+                                    {% set fraction_pending = fraction_pending + (fee.remaining_amount|default(fee.amount)) %}
+                                {% endif %}
+                                
+                                {# Build tooltip with all fees details #}
+                                {% set tooltip_parts = [] %}
+                                {% if fee %}
+                                    {% if is_overdue %}
+                                        {% set tooltip_parts = tooltip_parts|merge(['⚠️ Em Atraso']) %}
+                                    {% endif %}
+                                    {% set tooltip_parts = tooltip_parts|merge(['Fração: ' ~ fee.fraction_identifier, month_names[month] ~ '/' ~ selected_fees_year]) %}
+                                    {% if fee.due_date %}
+                                        {% set tooltip_parts = tooltip_parts|merge(['Vencimento: ' ~ (fee.due_date|date('d/m/Y'))]) %}
+                                    {% endif %}
+                                    {% if fee.paid_amount > 0 %}
+                                        {% set tooltip_parts = tooltip_parts|merge(['Pago: €' ~ (fee.paid_amount|number_format(2, ',', '.'))]) %}
+                                    {% endif %}
+                                    {% set tooltip_parts = tooltip_parts|merge(['Total: €' ~ (fee.amount|number_format(2, ',', '.'))]) %}
+                                    
+                                    {# Add details of all fees if multiple #}
+                                    {% if has_multiple_fees %}
+                                        {% set tooltip_parts = tooltip_parts|merge(['', 'Detalhes:']) %}
+                                        {% for fee_detail in fee.all_fees %}
+                                            {% if fee_detail.fee_type == 'extra' %}
+                                                {% set tooltip_parts = tooltip_parts|merge(['• Extra: €' ~ (fee_detail.amount|number_format(2, ',', '.')) ~ (fee_detail.notes ? ' (' ~ fee_detail.notes ~ ')' : '')]) %}
+                                            {% else %}
+                                                {% set tooltip_parts = tooltip_parts|merge(['• Regular: €' ~ (fee_detail.amount|number_format(2, ',', '.'))]) %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                {% endif %}
+                                
+                            <td class="text-center align-middle {% if fee %}fee-cell{% if is_overdue %} table-danger{% elseif fee.status == 'paid' %} table-success{% elseif fee.status == 'pending' %} table-warning{% endif %}{% endif %}"
+                                {% if fee %}
+                                    {% set extra_fee_id = null %}
+                                    {% set regular_fee_id = null %}
+                                    {% if fee.all_fees|default([])|length > 0 %}
+                                        {% for fee_detail in fee.all_fees %}
+                                            {% if fee_detail.fee_type == 'extra' and extra_fee_id == null %}
+                                                {% set extra_fee_id = fee_detail.id %}
+                                            {% elseif fee_detail.fee_type == 'regular' and regular_fee_id == null %}
+                                                {% set regular_fee_id = fee_detail.id %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                    {% set fee_id_to_show = extra_fee_id ?: (regular_fee_id ?: fee.id) %}
+                                    style="cursor: pointer;" onclick="showFeeDetails({{ fee_id_to_show }})"
+                                {% endif %}
+                                {% if fee %}title="{{ tooltip_parts|join(' | ') }}"{% endif %}>
+                                {% if fee %}
+                                    <div class="d-flex flex-column align-items-center" style="gap: 0.2rem;">
+                                        {% if fee.status == 'paid' %}
+                                            <i class="bi bi-check-circle-fill text-success" style="font-size: 1rem;" title="Pago"></i>
+                                        {% elseif is_overdue %}
+                                            <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 1rem;" title="Em Atraso"></i>
+                                        {% elseif fee.status == 'pending' %}
+                                            <i class="bi bi-clock-history text-warning" style="font-size: 1rem;" title="Pendente"></i>
+                                        {% else %}
+                                            <i class="bi bi-circle text-muted" style="font-size: 1rem;" title="Sem status"></i>
+                                        {% endif %}
+                                        {% if fee.has_extra|default(false) %}
+                                            <span class="badge bg-info" style="font-size: 0.55rem; padding: 0.15rem 0.3rem;" title="Contém quota extra">Extra</span>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                            <td class="text-center fw-bold align-middle">
+                                {% if fraction_total > 0 %}
+                                €{{ fraction_total|number_format(2, ',', '.') }}
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center fw-bold align-middle">
+                                {% if fraction_paid > 0 %}
+                                <span class="text-success">€{{ fraction_paid|number_format(2, ',', '.') }}</span>
+                                {% else %}
+                                <span class="text-muted">€0,00</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center fw-bold align-middle">
+                                {% if fraction_pending > 0 %}
+                                <span class="text-danger">€{{ fraction_pending|number_format(2, ',', '.') }}</span>
+                                {% else %}
+                                <span class="text-success">€0,00</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-3">
+                <p class="text-muted mb-0">Nenhuma fração cadastrada.</p>
+            </div>
+            {% endif %}
+            <div class="px-3 py-2">
+                <small class="text-muted" style="font-size: 0.7rem;">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Legenda:</strong>
+                    <span class="badge bg-success" style="font-size: 0.65rem; padding: 0.15rem 0.35rem;">Pago</span>
+                    <span class="badge bg-warning" style="font-size: 0.65rem; padding: 0.15rem 0.35rem;">Pendente</span>
+                    <span class="badge bg-danger" style="font-size: 0.65rem; padding: 0.15rem 0.35rem;">Em Atraso</span>
+                    | Clique numa célula para ver detalhes da quota
+                </small>
+            </div>
+        </div>
+    </div>
+</div>

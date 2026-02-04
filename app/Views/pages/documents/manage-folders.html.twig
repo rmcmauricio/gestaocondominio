@@ -1,13 +1,15 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2>Gerir Pastas</h2>
-            <p class="text-muted mb-0">{{ condominium.name }}</p>
+    {% set page_actions %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
         </div>
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Voltar
-        </a>
-    </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Gerir Pastas',
+        'actions': page_actions
+    } %}
 
     {% if error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -23,6 +25,34 @@
     </div>
     {% endif %}
 
+    <!-- Breadcrumb Navigation -->
+    {% if current_folder %}
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/manage-folders">
+                    <i class="bi bi-house-door"></i> Gerir Pastas
+                </a>
+            </li>
+            {% set folderParts = current_folder|split('/') %}
+            {% for part in folderParts %}
+                {% if loop.last %}
+                <li class="breadcrumb-item active" aria-current="page">
+                    <i class="bi bi-folder-fill"></i> {{ part }}
+                </li>
+                {% else %}
+                {% set pathSoFar = folderParts|slice(0, loop.index)|join('/') %}
+                <li class="breadcrumb-item">
+                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/manage-folders?folder={{ pathSoFar|url_encode }}">
+                        {{ part }}
+                    </a>
+                </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+    {% endif %}
+
     <div class="row">
         <div class="col-md-6 mb-4">
             <div class="card shadow-sm">
@@ -33,8 +63,28 @@
                     <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/folders/create">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <div class="mb-3">
+                            <label for="parent_folder" class="form-label">Pasta Pai (opcional)</label>
+                            <select class="form-select" id="parent_folder" name="parent_folder">
+                                {% if current_folder %}
+                                <option value="{{ current_folder }}" selected>Pasta atual: {{ current_folder }}</option>
+                                <option value="">Raiz (criar pasta principal)</option>
+                                {% else %}
+                                <option value="" selected>Raiz (criar pasta principal)</option>
+                                {% endif %}
+                                {% if all_folders %}
+                                    {% for folder in all_folders %}
+                                        {% if not current_folder or folder.path != current_folder %}
+                                        <option value="{{ folder.path }}">{{ folder.path }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            </select>
+                            <small class="form-text text-muted">Deixe em branco para criar uma pasta principal, ou selecione uma pasta para criar uma subpasta.</small>
+                        </div>
+                        <div class="mb-3">
                             <label for="folder_name" class="form-label">Nome da Pasta</label>
                             <input type="text" class="form-control" id="folder_name" name="folder_name" required placeholder="Ex: Assembleias, Contratos, Finanças">
+                            <small class="form-text text-muted">Não use os caracteres: &lt; &gt; : " | ? * \</small>
                         </div>
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-folder-plus"></i> Criar Pasta
@@ -53,69 +103,27 @@
                     {% if folders %}
                     <div class="list-group">
                         {% for folder in folders %}
+                        {% set modalId = folder.id %}
                         <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>{{ folder.folder }}</strong>
-                                <br>
-                                <small class="text-muted">{{ folder.document_count }} documento(s)</small>
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center gap-2">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/manage-folders?folder={{ folder.path|url_encode }}" class="text-decoration-none flex-grow-1">
+                                        <i class="bi bi-folder-fill text-warning"></i>
+                                        <strong>{{ folder.name }}</strong>
+                                    </a>
+                                </div>
+                                <small class="text-muted">{{ folder.document_count|default(0) }} documento(s)</small>
                             </div>
-                            <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#renameModal{{ loop.index }}" title="Renomear">
+                            <div class="d-flex gap-1">
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/manage-folders?folder={{ folder.path|url_encode }}" class="btn btn-outline-info btn-sm" title="Abrir pasta">
+                                    <i class="bi bi-folder2-open"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#renameModal{{ modalId }}" title="Renomear">
                                     <i class="bi bi-pencil"></i>
                                 </button>
-                                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ loop.index }}" title="Eliminar">
+                                <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal{{ modalId }}" title="Eliminar">
                                     <i class="bi bi-trash"></i>
                                 </button>
-                            </div>
-                        </div>
-
-                        <!-- Rename Modal -->
-                        <div class="modal fade" id="renameModal{{ loop.index }}" tabindex="-1">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/folders/rename">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <input type="hidden" name="old_folder_name" value="{{ folder.folder }}">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Renomear Pasta</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <div class="mb-3">
-                                                <label for="new_folder_name{{ loop.index }}" class="form-label">Novo Nome</label>
-                                                <input type="text" class="form-control" id="new_folder_name{{ loop.index }}" name="new_folder_name" value="{{ folder.folder }}" required>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                            <button type="submit" class="btn btn-primary">Renomear</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Delete Modal -->
-                        <div class="modal fade" id="deleteModal{{ loop.index }}" tabindex="-1">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/folders/delete">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <input type="hidden" name="folder_name" value="{{ folder.folder }}">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Eliminar Pasta</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <p>Tem certeza que deseja eliminar a pasta <strong>{{ folder.folder }}</strong>?</p>
-                                            <p class="text-muted">Os documentos nesta pasta serão movidos para a pasta raiz.</p>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                            <button type="submit" class="btn btn-danger">Eliminar</button>
-                                        </div>
-                                    </form>
-                                </div>
                             </div>
                         </div>
                         {% endfor %}
@@ -128,3 +136,62 @@
         </div>
     </div>
 </div>
+
+<!-- Modals (moved outside cards to prevent rendering issues) -->
+{% if folders %}
+{% for folder in folders %}
+{% set modalId = folder.id %}
+
+<!-- Rename Modal -->
+<div class="modal fade" id="renameModal{{ modalId }}" tabindex="-1" aria-labelledby="renameModalLabel{{ modalId }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/folders/rename">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="old_folder_name" value="{{ folder.path }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="renameModalLabel{{ modalId }}">Renomear Pasta</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Pasta atual:</strong> {{ folder.path }}</p>
+                    <div class="mb-3">
+                        <label for="new_folder_name{{ modalId }}" class="form-label">Novo Nome da Pasta</label>
+                        <input type="text" class="form-control" id="new_folder_name{{ modalId }}" name="new_folder_name" value="{{ folder.name }}" required>
+                        <small class="form-text text-muted">Apenas o nome da pasta (última parte do caminho). Não use os caracteres: &lt; &gt; : " | ? * \</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Renomear</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal{{ modalId }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ modalId }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/folders/delete">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="folder_name" value="{{ folder.path }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteModalLabel{{ modalId }}">Eliminar Pasta</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Tem certeza que deseja eliminar a pasta <strong>{{ folder.path }}</strong>?</p>
+                    <p class="text-muted">Os documentos nesta pasta serão movidos para a pasta raiz.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endif %}

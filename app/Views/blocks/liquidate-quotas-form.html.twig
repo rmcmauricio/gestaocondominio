@@ -1,0 +1,111 @@
+{#
+    Bloco reutilizável para formulário de liquidar quotas
+    Parâmetros:
+    - condominium: objeto do condomínio
+    - fractions: array de frações
+    - bank_accounts: array de contas bancárias
+    - csrf_token: token CSRF
+    - form_action: URL de ação do formulário (opcional, padrão: condominiums/{id}/fees/liquidate-quotas)
+    - form_id_prefix: prefixo para IDs dos campos (opcional, padrão: 'lq_')
+    - is_modal: se é um modal (opcional, padrão: false)
+#}
+{% set form_id_prefix = form_id_prefix|default('lq_') %}
+{% set is_modal = is_modal|default(false) %}
+{% set form_action = form_action|default(BASE_URL ~ 'condominiums/' ~ condominium.id ~ '/fees/liquidate-quotas') %}
+
+<form method="POST" action="{{ form_action }}" id="{% if form_id_prefix %}{{ form_id_prefix }}form{% else %}form{% endif %}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    
+    {% if not is_modal %}
+    <p class="text-muted mb-4">Regista um pagamento na conta da fração e aplica-o às quotas em atraso (o mesmo que um movimento de entrada «Quotas» para a fração).</p>
+    {% else %}
+    <p class="text-muted small">Regista um pagamento na conta da fração e aplica-o às quotas em atraso (o mesmo que um movimento de entrada «Quotas» para a fração).</p>
+    {% endif %}
+    
+    <div class="mb-3">
+        <label for="{{ form_id_prefix }}fraction_id" class="form-label">Fração <span class="text-danger">*</span></label>
+        <select class="form-select" id="{{ form_id_prefix }}fraction_id" name="fraction_id" required {% if not is_modal %}autofocus{% endif %}>
+            <option value="">Selecione a fração...</option>
+            {% for fraction in fractions %}
+            <option value="{{ fraction.id }}">{{ fraction.identifier }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div id="{{ form_id_prefix }}quota_info_section" style="display: none;" class="mb-3">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> 
+            <strong>Liquidação automática:</strong> O valor será aplicado às quotas mais antigas primeiro, sequencialmente. 
+            Se selecionar quotas específicas abaixo, essas serão liquidadas primeiro e o valor restante será aplicado às mais antigas.
+        </div>
+        
+        <div id="{{ form_id_prefix }}quota_list" style="display: none;">
+            <label class="form-label"><strong>Selecione quotas específicas (opcional):</strong></label>
+            <div class="{{ form_id_prefix }}quota-checkboxes" style="max-height: 300px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.25rem; padding: 0.75rem; margin-top: 0.5rem;"></div>
+            <div class="{{ form_id_prefix }}quota-summary mt-2" style="display: none;">
+                <small class="text-muted">
+                    <span class="{{ form_id_prefix }}quota-selected-total">0.00</span> € selecionado | 
+                    Restante: <span class="{{ form_id_prefix }}quota-remaining">0.00</span> € será aplicado às mais antigas
+                </small>
+            </div>
+        </div>
+    </div>
+    
+    <div id="{{ form_id_prefix }}fraction_balance_info" style="display: none;" class="mb-3">
+        <div class="alert alert-success">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="{{ form_id_prefix }}use_fraction_balance" name="use_fraction_balance" value="1">
+                <label class="form-check-label" for="{{ form_id_prefix }}use_fraction_balance">
+                    <strong>Usar apenas saldo da fração (aplicar crédito existente às quotas)</strong>
+                </label>
+            </div>
+            <small class="text-muted d-block mt-1">
+                Saldo disponível: <strong id="{{ form_id_prefix }}fraction_balance_amount">0.00</strong> €
+            </small>
+        </div>
+    </div>
+    
+    <div id="{{ form_id_prefix }}payment_fields">
+        <div class="mb-3">
+            <label for="{{ form_id_prefix }}amount" class="form-label">Valor (€) <span id="{{ form_id_prefix }}amount_required" class="text-danger">*</span></label>
+            <div class="input-group">
+                <span class="input-group-text">€</span>
+                <input type="number" class="form-control" id="{{ form_id_prefix }}amount" name="amount" step="0.01" min="0" placeholder="0.00">
+            </div>
+            <small class="text-muted">Deixe em branco se usar apenas o saldo da fração</small>
+        </div>
+        
+        <div class="mb-3">
+            <label for="{{ form_id_prefix }}payment_method" class="form-label">Método de Pagamento <span id="{{ form_id_prefix }}payment_method_required" class="text-danger">*</span></label>
+            <select class="form-select" id="{{ form_id_prefix }}payment_method" name="payment_method">
+                <option value="">Selecione...</option>
+                <option value="transfer">Transferência</option>
+                <option value="cash">Dinheiro</option>
+                <option value="multibanco">Multibanco</option>
+                <option value="mbway">MB Way</option>
+                <option value="card">Cartão</option>
+                <option value="sepa">SEPA</option>
+            </select>
+        </div>
+        
+        <div class="mb-3">
+            <label for="{{ form_id_prefix }}bank_account_id" class="form-label">Conta Bancária <span id="{{ form_id_prefix }}bank_account_required" class="text-danger">*</span></label>
+            <select class="form-select" id="{{ form_id_prefix }}bank_account_id" name="bank_account_id">
+                <option value="">Selecione...</option>
+                {% for account in bank_accounts %}
+                <option value="{{ account.id }}" {% if account.account_type == 'bank' and loop.first %}data-is-main-bank="true"{% endif %} {% if account.account_type == 'cash' %}data-is-cash="true"{% endif %}>{{ account.name }}{% if account.account_type == 'cash' %} (Caixa){% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    
+    <div class="mb-3">
+        <label for="{{ form_id_prefix }}payment_date" class="form-label">Data <span class="text-danger">*</span></label>
+        <input type="date" class="form-control" id="{{ form_id_prefix }}payment_date" name="payment_date" value="{{ "now"|date("Y-m-d") }}" required>
+    </div>
+    
+    <div class="mb-3">
+        <label for="{{ form_id_prefix }}notes" class="form-label">Notas</label>
+        <textarea class="form-control" id="{{ form_id_prefix }}notes" name="notes" rows="2" placeholder="Opcional"></textarea>
+    </div>
+</form>

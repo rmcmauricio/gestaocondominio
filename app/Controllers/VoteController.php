@@ -10,6 +10,8 @@ use App\Models\Vote;
 use App\Models\Assembly;
 use App\Models\VoteTopic;
 use App\Models\Fraction;
+use App\Models\AssemblyAgendaPoint;
+use App\Services\AuditService;
 
 class VoteController extends Controller
 {
@@ -17,6 +19,8 @@ class VoteController extends Controller
     protected $assemblyModel;
     protected $topicModel;
     protected $fractionModel;
+    protected $agendaPointModel;
+    protected $auditService;
 
     public function __construct()
     {
@@ -25,13 +29,15 @@ class VoteController extends Controller
         $this->assemblyModel = new Assembly();
         $this->topicModel = new VoteTopic();
         $this->fractionModel = new Fraction();
+        $this->agendaPointModel = new AssemblyAgendaPoint();
+        $this->auditService = new AuditService();
     }
 
     public function createTopic(int $condominiumId, int $assemblyId)
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         $assembly = $this->assemblyModel->findById($assemblyId);
         if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
@@ -49,14 +55,50 @@ class VoteController extends Controller
             exit;
         }
 
+        // Get vote options for condominium
+        $voteOptionModel = new \App\Models\VoteOption();
+        $voteOptions = $voteOptionModel->getByCondominium($condominiumId);
+        $defaultOptions = array_map(function($opt) {
+            return $opt['option_label'];
+        }, $voteOptions);
+
+        $pointId = isset($_GET['point_id']) ? (int) $_GET['point_id'] : 0;
+        $return = $_GET['return'] ?? '';
+        $returnToEdit = ($return === 'edit');
+        $returnToShow = ($return === 'show' || $pointId > 0);
+        $pointTitle = '';
+        if ($pointId > 0) {
+            $pt = $this->agendaPointModel->findById($pointId);
+            $pointTitle = ($pt && (int)($pt['assembly_id'] ?? 0) === (int)$assemblyId) ? ($pt['title'] ?? '') : '';
+        }
+        $backUrl = $returnToShow
+            ? BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId
+            : ($returnToEdit
+                ? BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId . '/edit'
+                : BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
+
         $this->loadPageTranslations('votes');
+        
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
         
         $this->data += [
             'viewName' => 'pages/votes/create-topic.html.twig',
             'page' => ['titulo' => 'Criar Tópico de Votação'],
             'condominium' => $condominium,
             'assembly' => $assembly,
-            'csrf_token' => Security::generateCSRFToken()
+            'vote_options' => $voteOptions,
+            'default_options' => $defaultOptions,
+            'csrf_token' => Security::generateCSRFToken(),
+            'return_to_edit' => $returnToEdit,
+            'return_to_show' => $returnToShow,
+            'point_id' => $pointId,
+            'point_title' => $pointTitle,
+            'back_url' => $backUrl,
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -66,7 +108,7 @@ class VoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
@@ -92,9 +134,37 @@ class VoteController extends Controller
                 }
             }
 
-            // Default options if none provided
+            // Default options from condominium vote_options if none provided
             if (empty($options)) {
-                $options = ['Sim', 'Não', 'Abstenção'];
+                $voteOptionModel = new \App\Models\VoteOption();
+                $voteOptions = $voteOptionModel->getByCondominium($condominiumId);
+                if (!empty($voteOptions)) {
+                    $options = array_map(function($opt) {
+                        return $opt['option_label'];
+                    }, $voteOptions);
+                } else {
+                    // Fallback to old defaults
+                    $options = ['A favor', 'Contra', 'Abstenção'];
+                }
+            }
+
+            // Validate options against condominium vote_options
+            $voteOptionModel = new \App\Models\VoteOption();
+            $validOptions = $voteOptionModel->getByCondominium($condominiumId);
+            $validOptionLabels = array_map(function($opt) {
+                return $opt['option_label'];
+            }, $validOptions);
+            
+            // Check if all provided options are valid
+            foreach ($options as $option) {
+                if (!in_array($option, $validOptionLabels)) {
+                    $_SESSION['error'] = 'Opção de voto inválida: ' . $option . '. Use apenas as opções configuradas para este condomínio.';
+                    $ret = $_POST['return'] ?? '';
+                    $pid = (int) ($_POST['point_id'] ?? 0);
+                    $suffix = ($ret === 'edit') ? '?return=edit' : (($ret === 'show' || $pid > 0) ? '?return=show&point_id=' . $pid : '');
+                    header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId . '/votes/create-topic' . $suffix);
+                    exit;
+                }
             }
 
             // Get max order_index
@@ -104,7 +174,7 @@ class VoteController extends Controller
                 $maxOrder = max($maxOrder, $topic['order_index'] ?? 0);
             }
 
-            $this->topicModel->create([
+            $newTopicId = $this->topicModel->create([
                 'assembly_id' => $assemblyId,
                 'title' => Security::sanitize($_POST['title'] ?? ''),
                 'description' => Security::sanitize($_POST['description'] ?? ''),
@@ -113,12 +183,42 @@ class VoteController extends Controller
                 'created_by' => $userId
             ]);
 
-            $_SESSION['success'] = 'Tópico de votação criado com sucesso!';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
+            // Log audit
+            if ($newTopicId) {
+                $this->auditService->log([
+                    'action' => 'vote_topic_created',
+                    'model' => 'vote_topic',
+                    'model_id' => $newTopicId,
+                    'description' => "Tópico de votação criado na assembleia ID {$assemblyId}. Título: " . Security::sanitize($_POST['title'] ?? '')
+                ]);
+            }
+
+            $pointId = isset($_POST['point_id']) ? (int) $_POST['point_id'] : 0;
+            if ($pointId > 0) {
+                $point = $this->agendaPointModel->findById($pointId);
+                if ($point && (int) $point['assembly_id'] === (int) $assemblyId) {
+                    $this->agendaPointModel->addVoteTopicToPoint($pointId, $newTopicId, (int) $assemblyId);
+                    $_SESSION['success'] = 'Tópico de votação criado e associado ao ponto.';
+                } else {
+                    $_SESSION['success'] = 'Tópico de votação criado com sucesso!';
+                }
+            } else {
+                $_SESSION['success'] = 'Tópico de votação criado com sucesso!';
+            }
+
+            $ret = $_POST['return'] ?? '';
+            $redirect = BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId;
+            if ($ret === 'edit') {
+                $redirect = BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId . '/edit';
+            }
+            header('Location: ' . $redirect);
             exit;
         } catch (\Exception $e) {
             $_SESSION['error'] = 'Erro ao criar tópico: ' . $e->getMessage();
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
+            $ret = $_POST['return'] ?? '';
+            $pid = (int) ($_POST['point_id'] ?? 0);
+            $suffix = ($ret === 'edit') ? '?return=edit' : (($ret === 'show' || $pid > 0) ? '?return=show&point_id=' . $pid : '');
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId . '/votes/create-topic' . $suffix);
             exit;
         }
     }
@@ -186,6 +286,14 @@ class VoteController extends Controller
                 'user_id' => $userId,
                 'vote_option' => $voteOption,
                 'notes' => Security::sanitizeNullable($_POST['notes'] ?? null)
+            ]);
+
+            // Log audit
+            $this->auditService->log([
+                'action' => 'vote_cast',
+                'model' => 'vote',
+                'model_id' => $topicId,
+                'description' => "Voto registado na fração ID {$fractionId} para o tópico '{$topic['title']}' na assembleia ID {$assemblyId}. Opção: {$voteOption}"
             ]);
 
             $_SESSION['success'] = 'Voto registado com sucesso!';
@@ -277,6 +385,14 @@ class VoteController extends Controller
             }
 
             if ($votesProcessed > 0) {
+                // Log audit
+                $this->auditService->log([
+                    'action' => 'vote_bulk_cast',
+                    'model' => 'vote',
+                    'model_id' => $topicId,
+                    'description' => "Votos em massa registados para o tópico '{$topic['title']}' na assembleia ID {$assemblyId}. Total de votos: {$votesProcessed}"
+                ]);
+                
                 $_SESSION['success'] = "Votos registados com sucesso! ({$votesProcessed} frações)";
             }
             if (!empty($errors)) {
@@ -321,6 +437,11 @@ class VoteController extends Controller
 
         $this->loadPageTranslations('votes');
         
+        // Get and clear session messages
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+        
         $this->data += [
             'viewName' => 'pages/votes/results.html.twig',
             'page' => ['titulo' => 'Resultados da Votação'],
@@ -329,7 +450,9 @@ class VoteController extends Controller
             'topic' => $topic,
             'results' => $results,
             'votes' => $votes,
-            'condominium_id' => $condominiumId
+            'condominium_id' => $condominiumId,
+            'error' => $error,
+            'success' => $success
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
@@ -339,7 +462,7 @@ class VoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         $assembly = $this->assemblyModel->findById($assemblyId);
         if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
@@ -387,7 +510,7 @@ class VoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
@@ -436,6 +559,14 @@ class VoteController extends Controller
                 'order_index' => (int)($_POST['order_index'] ?? $topic['order_index'] ?? 0)
             ]);
 
+            // Log audit
+            $this->auditService->log([
+                'action' => 'vote_topic_updated',
+                'model' => 'vote_topic',
+                'model_id' => $topicId,
+                'description' => "Tópico de votação atualizado na assembleia ID {$assemblyId}. Título: " . Security::sanitize($_POST['title'] ?? '')
+            ]);
+
             $_SESSION['success'] = 'Tópico atualizado com sucesso!';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
             exit;
@@ -450,8 +581,8 @@ class VoteController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdmin();
-        RoleMiddleware::requireAdmin();
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $assemblyId);
@@ -480,6 +611,14 @@ class VoteController extends Controller
         }
 
         if ($this->topicModel->delete($topicId)) {
+            // Log audit
+            $this->auditService->log([
+                'action' => 'vote_topic_deleted',
+                'model' => 'vote_topic',
+                'model_id' => $topicId,
+                'description' => "Tópico de votação eliminado da assembleia ID {$assemblyId}. Título: {$topic['title']}"
+            ]);
+            
             $_SESSION['success'] = 'Tópico eliminado com sucesso!';
         } else {
             $_SESSION['error'] = 'Erro ao eliminar tópico.';
@@ -507,6 +646,15 @@ class VoteController extends Controller
         }
 
         if ($this->topicModel->startVoting($topicId)) {
+            // Log audit
+            $topic = $this->topicModel->findById($topicId);
+            $this->auditService->log([
+                'action' => 'vote_started',
+                'model' => 'vote_topic',
+                'model_id' => $topicId,
+                'description' => "Votação iniciada para o tópico '{$topic['title']}' na assembleia ID {$assemblyId}"
+            ]);
+            
             $_SESSION['success'] = 'Votação iniciada!';
         } else {
             $_SESSION['error'] = 'Erro ao iniciar votação.';
@@ -534,6 +682,15 @@ class VoteController extends Controller
         }
 
         if ($this->topicModel->endVoting($topicId)) {
+            // Log audit
+            $topic = $this->topicModel->findById($topicId);
+            $this->auditService->log([
+                'action' => 'vote_ended',
+                'model' => 'vote_topic',
+                'model_id' => $topicId,
+                'description' => "Votação encerrada para o tópico '{$topic['title']}' na assembleia ID {$assemblyId}"
+            ]);
+            
             $_SESSION['success'] = 'Votação encerrada!';
         } else {
             $_SESSION['error'] = 'Erro ao encerrar votação.';

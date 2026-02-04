@@ -1,20 +1,20 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2>Fornecedores</h2>
-            <p class="text-muted mb-0">{{ condominium.name }}</p>
-        </div>
-        <div>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/contracts" class="btn btn-outline-primary me-2">
+    {% set page_actions %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/contracts" class="btn btn-outline-primary btn-sm">
                 <i class="bi bi-file-text"></i> Contratos
             </a>
             {% if is_admin %}
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/create" class="btn btn-primary">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/create" class="btn btn-primary btn-sm">
                 <i class="bi bi-plus-circle"></i> Novo Fornecedor
             </a>
             {% endif %}
         </div>
-    </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Fornecedores',
+        'actions': page_actions
+    } %}
 
     {% if error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -56,9 +56,22 @@
                             <td>{{ supplier.nif|default('-') }}</td>
                             <td>
                                 {% if is_admin %}
-                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/{{ supplier.id }}/edit" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/{{ supplier.id }}/edit" 
+                                       class="btn btn-outline-primary" 
+                                       title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form method="POST" 
+                                          action="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/{{ supplier.id }}/delete" 
+                                          class="d-inline"
+                                          onsubmit="return confirm('Tem certeza que deseja remover este fornecedor? Esta ação não pode ser desfeita.');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-outline-danger" title="Remover">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
                                 {% else %}
                                 <span class="text-muted">-</span>
                                 {% endif %}

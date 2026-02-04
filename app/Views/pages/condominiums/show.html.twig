@@ -1,10 +1,20 @@
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h2 class="mb-2 mb-md-0">{{ condominium.name }}</h2>
-        <div class="d-flex flex-column flex-sm-row gap-2 w-100 w-md-auto">
+        <div class="d-flex flex-column flex-sm-row gap-2 w-100 w-md-auto align-items-start align-items-md-center">
+            {% include 'blocks/quick-actions.html.twig' %}
+            {% set can_edit = (current_condominium_role == 'admin' or user.role == 'super_admin') and (demo_profile != 'condomino') %}
+            {% if can_edit %}
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assign-admin" class="btn btn-outline-warning">
+                <i class="bi bi-shield-check"></i> Designar Administradores
+            </a>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/customize" class="btn btn-outline-info">
+                <i class="bi bi-palette"></i> Personalizar
+            </a>
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/edit" class="btn btn-outline-primary">
                 <i class="bi bi-pencil"></i> Editar
             </a>
+            {% endif %}
             <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Voltar
             </a>
@@ -26,107 +36,169 @@
     {% endif %}
 
     <div class="row g-3">
-        <div class="col-12 col-lg-8">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Informações do Condomínio</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <strong>Morada:</strong><br>
-                            {{ condominium.address }}<br>
-                            {% if condominium.postal_code %}{{ condominium.postal_code }} {% endif %}{{ condominium.city }}
-                            {% if condominium.district %}, {{ condominium.district }}{% endif %}
+        <div class="col-12">
+            <div class="row g-3">
+                <!-- Informações do Condomínio -->
+                <div class="col-12 col-lg-6">
+                    <div class="card shadow-sm mb-4 h-100">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Informações do Condomínio</h5>
                         </div>
-                        <div class="col-md-6">
-                            <strong>Contactos:</strong><br>
-                            {% if condominium.phone %}<i class="bi bi-telephone"></i> {{ condominium.phone }}<br>{% endif %}
-                            {% if condominium.email %}<i class="bi bi-envelope"></i> {{ condominium.email }}<br>{% endif %}
-                            {% if condominium.nif %}<i class="bi bi-card-text"></i> NIF: {{ condominium.nif }}{% endif %}
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <strong>Morada:</strong><br>
+                                {{ condominium.address }}<br>
+                                {% if condominium.postal_code %}{{ condominium.postal_code }} {% endif %}{{ condominium.city }}
+                                {% if condominium.district %}, {{ condominium.district }}{% endif %}
+                            </div>
+                            <div class="mb-3">
+                                <strong>Contactos:</strong><br>
+                                {% if condominium.phone %}<i class="bi bi-telephone"></i> {{ condominium.phone }}<br>{% endif %}
+                                {% if condominium.email %}<i class="bi bi-envelope"></i> {{ condominium.email }}<br>{% endif %}
+                                {% if condominium.nif %}<i class="bi bi-card-text"></i> NIF: {{ condominium.nif }}{% endif %}
+                            </div>
+                            {% if main_account_iban %}
+                            <div class="mb-3">
+                                <strong><i class="bi bi-bank"></i> IBAN (Conta Principal):</strong><br>
+                                <code class="text-primary">{{ main_account_iban }}</code>
+                            </div>
+                            {% elseif condominium.iban %}
+                            <div class="mb-3">
+                                <strong><i class="bi bi-bank"></i> IBAN:</strong><br>
+                                <code class="text-primary">{{ condominium.iban }}</code>
+                            </div>
+                            {% endif %}
+                            {% if condominium.notes %}
+                            <div class="mb-3">
+                                <strong>Notas:</strong><br>
+                                <p class="mb-0">{{ condominium.notes }}</p>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
-                    {% if main_account_iban %}
-                    <div class="mb-3">
-                        <strong><i class="bi bi-bank"></i> IBAN (Conta Principal):</strong><br>
-                        <code class="text-primary">{{ main_account_iban }}</code>
-                    </div>
-                    {% elseif condominium.iban %}
-                    <div class="mb-3">
-                        <strong><i class="bi bi-bank"></i> IBAN:</strong><br>
-                        <code class="text-primary">{{ condominium.iban }}</code>
-                    </div>
-                    {% endif %}
-                    {% if condominium.notes %}
-                    <div class="mb-3">
-                        <strong>Notas:</strong><br>
-                        <p class="mb-0">{{ condominium.notes }}</p>
-                    </div>
-                    {% endif %}
                 </div>
-            </div>
-            
-            <!-- Contas Bancárias e Caixa -->
-            {% if bank_accounts %}
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">Contas Bancárias e Caixa</h5>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Conta</th>
-                                    <th>Banco</th>
-                                    <th>Tipo</th>
-                                    <th class="text-end">Saldo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+
+                <!-- Contas Bancárias e Caixa -->
+                {% if current_condominium_role == 'admin' %}
+                <div class="col-12 col-lg-6">
+                    {% if bank_accounts %}
+                    <div class="card shadow-sm mb-4 h-100 bank-accounts-summary-card">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0">Contas Bancárias e Caixa</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="bank-accounts-list">
                                 {% for account in bank_accounts %}
-                                <tr>
-                                    <td><strong>{{ account.name }}</strong></td>
-                                    <td>{{ account.bank_name|default('-') }}</td>
-                                    <td>
-                                        {% if account.account_type == 'bank' %}
-                                        <span class="badge bg-primary">Bancária</span>
-                                        {% elseif account.account_type == 'cash' %}
-                                        <span class="badge bg-secondary">Caixa</span>
-                                        {% else %}
-                                        <span class="badge bg-info">{{ account.account_type|title }}</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-end">
+                                <div class="bank-account-item">
+                                    <div class="bank-account-header">
+                                        <strong class="bank-account-name">{{ account.name }}</strong>
                                         {% set account_balance = account.current_balance|default(0) %}
-                                        <strong class="{% if account_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                        <strong class="bank-account-balance {% if account_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
                                             €{{ account_balance|number_format(2, ',', '.') }}
                                         </strong>
-                                    </td>
-                                </tr>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">{{ account.bank_name|default('-') }}</small>
+                                </div>
+                                {% if not loop.last %}
+                                <hr class="my-2">
+                                {% endif %}
                                 {% endfor %}
-                            </tbody>
-                            <tfoot>
-                                <tr>
-                                    <td colspan="3" class="text-end"><strong>Total:</strong></td>
-                                    <td class="text-end">
-                                        <strong class="{% if stats.total_bank_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                
+                                <hr class="my-3">
+                                
+                                <div class="bank-account-item bank-account-total">
+                                    <div class="bank-account-header">
+                                        <strong class="bank-account-name">Total:</strong>
+                                        <strong class="bank-account-balance {% if stats.total_bank_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
                                             €{{ stats.total_bank_balance|number_format(2, ',', '.') }}
                                         </strong>
-                                    </td>
-                                </tr>
-                            </tfoot>
-                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts" class="btn btn-sm btn-outline-info w-100">
+                                    <i class="bi bi-bank"></i> Gerir Contas
+                                </a>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mt-2">
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts" class="btn btn-sm btn-outline-info">
-                            <i class="bi bi-bank"></i> Gerir Contas
-                        </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Estatísticas -->
+            <div class="row g-3 mt-4">
+                <div class="col-12">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">Estatísticas</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-6 col-md-3">
+                                    <div class="text-center">
+                                        <div class="text-muted small">Frações</div>
+                                        <div class="h5 mb-0">{{ condominium.active_fractions_count|default(condominium.total_fractions|default(0)) }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="text-center">
+                                        <div class="text-muted small">Condóminos</div>
+                                        <div class="h5 mb-0">{{ stats.total_residents }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="text-center">
+                                        <div class="text-muted small">Conta à Ordem</div>
+                                        <div class="h5 mb-0 {% if stats.current_account_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            €{{ stats.current_account_balance|number_format(2, ',', '.') }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="text-center">
+                                        <div class="text-muted small">Saldo Total</div>
+                                        <div class="h5 mb-0 {% if stats.total_bank_balance >= 0 %}text-primary{% else %}text-danger{% endif %}">
+                                            €{{ stats.total_bank_balance|number_format(2, ',', '.') }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="text-center">
+                                        <div class="text-muted small">Quotas Pendentes</div>
+                                        <div class="h5 mb-0 text-warning">€{{ stats.pending_fees_amount|number_format(2, ',', '.') }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="text-center">
+                                        <div class="text-muted small">Quotas Pagas</div>
+                                        <div class="h5 mb-0 text-success">€{{ stats.paid_fees_amount|number_format(2, ',', '.') }}</div>
+                                    </div>
+                                </div>
+                                {% if stats.overdue_fees > 0 %}
+                                <div class="col-6 col-md-3">
+                                    <div class="text-center">
+                                        <div class="text-muted small">Em Atraso</div>
+                                        <div class="h5 mb-0 text-danger">{{ stats.overdue_fees }}<br><small>(€{{ stats.overdue_fees_amount|number_format(2, ',', '.') }})</small></div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                {% if stats.open_occurrences > 0 %}
+                                <div class="col-6 col-md-3">
+                                    <div class="text-center">
+                                        <div class="text-muted small">Ocorrências</div>
+                                        <div class="h5 mb-0 text-info">{{ stats.open_occurrences }}</div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            {% endif %}
-            
+
             <!-- Condóminos -->
             {% if condominium_users %}
             <div class="card shadow-sm mb-4">
@@ -160,7 +232,7 @@
                                     <td>{{ resident.email }}</td>
                                     <td>{{ resident.phone|default('-') }}</td>
                                     <td>
-                                        <span class="badge 
+                                        <span class="badge
                                             {% if resident.role == 'admin' %}bg-danger
                                             {% elseif resident.role == 'proprietario' %}bg-primary
                                             {% elseif resident.role == 'arrendatario' %}bg-info
@@ -183,360 +255,14 @@
                 </div>
             </div>
             {% endif %}
-            
-            <!-- Mapa de Quotas -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-success text-white">
-                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <h5 class="mb-0">Mapa de Quotas</h5>
-                        <div class="d-flex align-items-center gap-2">
-                            <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}" class="d-inline" id="feesYearForm">
-                                <select name="fees_year" id="fees_year" class="form-select form-select-sm" onchange="this.form.submit()" style="width: auto; display: inline-block;">
-                                    {% for year in available_years %}
-                                    <option value="{{ year }}" {% if selected_fees_year == year %}selected{% endif %}>{{ year }}</option>
-                                    {% endfor %}
-                                </select>
-                            </form>
-                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees?year={{ selected_fees_year }}" class="btn btn-sm btn-outline-light" title="Ver todas as quotas deste ano">
-                                <i class="bi bi-list-ul"></i> Ver Quotas
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    {% if fractions %}
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered table-hover">
-                            <thead class="table-light">
-                                <tr>
-                                    <th class="text-center" style="min-width: 100px;">Mês</th>
-                                    {% for fraction in fractions %}
-                                    <th class="text-center" style="min-width: 80px;">{{ fraction.identifier }}</th>
-                                    {% endfor %}
-                                    <th class="text-center" style="min-width: 100px;">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for month in 1..12 %}
-                                <tr>
-                                    <td class="fw-bold">{{ month_names[month] }}</td>
-                                    {% set month_total = 0 %}
-                                    {% set month_data = fees_map[month]|default({}) %}
-                                    {% for fraction in fractions %}
-                                    {% set fee = month_data[fraction.id]|default(null) %}
-                                    {% set is_overdue = fee and fee.is_overdue|default(false) %}
-                                    <td class="text-center {% if fee %}fee-cell{% if is_overdue %} table-danger{% elseif fee.status == 'paid' %} table-success{% elseif fee.status == 'pending' %} table-warning{% endif %}{% endif %}" 
-                                        {% if fee %}style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})"{% endif %}
-                                        {% if fee %}title="{% if is_overdue %}⚠️ Em Atraso - {% endif %}Fração: {{ fee.fraction_identifier }} | {{ month_names[month] }}/{{ selected_fees_year }}{% if fee.due_date %} | Vencimento: {{ fee.due_date|date('d/m/Y') }}{% endif %}{% if fee.paid_amount > 0 %} | Pago: €{{ fee.paid_amount|number_format(2, ',', '.') }}{% endif %}"{% endif %}>
-                                        {% if fee %}
-                                            {% set month_total = month_total + fee.amount %}
-                                            <div class="d-flex flex-column align-items-center">
-                                                <span class="{% if fee.status == 'paid' %}text-success fw-bold{% elseif is_overdue %}text-danger fw-bold{% elseif fee.status == 'pending' %}text-warning{% else %}text-muted{% endif %}">
-                                                    {% if is_overdue %}<i class="bi bi-exclamation-triangle-fill"></i> {% endif %}€{{ fee.amount|number_format(2, ',', '.') }}
-                                                </span>
-                                                {% if fee.paid_amount > 0 and fee.paid_amount < fee.amount %}
-                                                <small class="text-info">(€{{ fee.paid_amount|number_format(2, ',', '.') }} pago)</small>
-                                                {% elseif fee.status == 'paid' %}
-                                                <small class="text-success"><i class="bi bi-check-circle-fill"></i> Pago</small>
-                                                {% elseif is_overdue %}
-                                                <small class="text-danger"><i class="bi bi-exclamation-circle"></i> Em Atraso</small>
-                                                {% endif %}
-                                            </div>
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    {% endfor %}
-                                    <td class="text-center fw-bold">
-                                        {% if month_total > 0 %}
-                                        €{{ month_total|number_format(2, ',', '.') }}
-                                        {% else %}
-                                        <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                            <tfoot class="table-light">
-                                <tr>
-                                    <td class="fw-bold">Total Anual</td>
-                                    {% set grand_total = 0 %}
-                                    {% for fraction in fractions %}
-                                        {% set fraction_total = 0 %}
-                                        {% for month in 1..12 %}
-                                            {% set month_data = fees_map[month]|default({}) %}
-                                            {% if month_data[fraction.id]|default(null) %}
-                                                {% set fraction_total = fraction_total + month_data[fraction.id].amount %}
-                                            {% endif %}
-                                        {% endfor %}
-                                        {% set grand_total = grand_total + fraction_total %}
-                                    <td class="text-center fw-bold">
-                                        {% if fraction_total > 0 %}
-                                        €{{ fraction_total|number_format(2, ',', '.') }}
-                                        {% else %}
-                                        <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    {% endfor %}
-                                    <td class="text-center fw-bold">
-                                        {% if grand_total > 0 %}
-                                        €{{ grand_total|number_format(2, ',', '.') }}
-                                        {% else %}
-                                        <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                    {% else %}
-                    <p class="text-muted mb-0">Nenhuma fração cadastrada.</p>
-                    {% endif %}
-                    <div class="mt-3">
-                        <small class="text-muted">
-                            <i class="bi bi-info-circle"></i> 
-                            <strong>Legenda:</strong> 
-                            <span class="badge bg-success">Pago</span> 
-                            <span class="badge bg-warning">Pendente</span> 
-                            <span class="badge bg-danger">Em Atraso</span> 
-                            | Clique numa célula para ver detalhes da quota
-                        </small>
-                    </div>
-                </div>
-            </div>
         </div>
 
-        <div class="col-12 col-lg-4">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header">
-                    <h6 class="mb-0">Estatísticas</h6>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <strong>Frações:</strong> {{ condominium.active_fractions_count|default(condominium.total_fractions|default(0)) }}
-                    </div>
-                    <div class="mb-3">
-                        <strong>Condóminos:</strong> {{ stats.total_residents }}
-                    </div>
-                    <div class="mb-3">
-                        <strong>Status:</strong>
-                        <span class="badge {% if condominium.is_active %}bg-success{% else %}bg-secondary{% endif %}">
-                            {% if condominium.is_active %}Ativo{% else %}Inativo{% endif %}
-                        </span>
-                    </div>
-                    <hr>
-                    <div class="mb-3">
-                        <strong>Conta à Ordem:</strong><br>
-                        <span class="h5 {% if stats.current_account_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
-                            €{{ stats.current_account_balance|number_format(2, ',', '.') }}
-                        </span>
-                    </div>
-                    <div class="mb-3">
-                        <strong>Saldo Total:</strong><br>
-                        <span class="h6 {% if stats.total_bank_balance >= 0 %}text-primary{% else %}text-danger{% endif %}">
-                            €{{ stats.total_bank_balance|number_format(2, ',', '.') }}
-                        </span>
-                        {% if stats.total_bank_accounts > 0 %}
-                        <br><small class="text-muted">{{ stats.total_bank_accounts }} conta(s)</small>
-                        {% endif %}
-                    </div>
-                    <hr>
-                    <div class="mb-3">
-                        <strong>Quotas Pendentes:</strong><br>
-                        <span class="text-warning">€{{ stats.pending_fees_amount|number_format(2, ',', '.') }}</span>
-                    </div>
-                    <div class="mb-3">
-                        <strong>Quotas Pagas:</strong><br>
-                        <span class="text-success">€{{ stats.paid_fees_amount|number_format(2, ',', '.') }}</span>
-                    </div>
-                    {% if stats.overdue_fees > 0 %}
-                    <div class="mb-3">
-                        <strong>Quotas em Atraso:</strong><br>
-                        <span class="text-danger">{{ stats.overdue_fees }} (€{{ stats.overdue_fees_amount|number_format(2, ',', '.') }})</span>
-                    </div>
-                    {% endif %}
-                    {% if stats.open_occurrences > 0 %}
-                    <div class="mb-3">
-                        <strong>Ocorrências Abertas:</strong><br>
-                        <span class="text-info">{{ stats.open_occurrences }}</span>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="card shadow-sm">
-                <div class="card-header">
-                    <h6 class="mb-0">Ações Rápidas</h6>
-                </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-house-door"></i> Gerir Frações
-                        </a>
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-calculator"></i> Finanças
-                        </a>
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts" class="btn btn-outline-info btn-sm">
-                            <i class="bi bi-bank"></i> Contas Bancárias
-                        </a>
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-building"></i> Espaços Comuns
-                        </a>
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/reservations" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-calendar-check"></i> Reservas
-                        </a>
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-folder"></i> Documentos
-                        </a>
-                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/occurrences" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-exclamation-triangle"></i> Ocorrências
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Mapa de Quotas - Full Width -->
+        {% include 'blocks/fees-map.html.twig' %}
     </div>
 </div>
 
-<!-- Modal para detalhes da quota -->
-<div class="modal fade" id="feeDetailsModal" tabindex="-1" aria-labelledby="feeDetailsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="feeDetailsModalLabel">Detalhes da Quota</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="feeDetailsContent">
-                <div class="text-center">
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">A carregar...</span>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-function showFeeDetails(feeId) {
-    const modal = new bootstrap.Modal(document.getElementById('feeDetailsModal'));
-    const contentDiv = document.getElementById('feeDetailsContent');
-    
-    // Show loading
-    contentDiv.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">A carregar...</span></div></div>';
-    modal.show();
-    
-    fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                contentDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
-                return;
-            }
-            
-            const pendingAmount = data.pending_amount;
-            const totalAmount = data.total_amount;
-            const paidAmount = data.total_paid;
-            const payments = data.payments || [];
-            
-            let paymentsHtml = '';
-            if (payments.length > 0) {
-                paymentsHtml = `
-                    <hr>
-                    <h6 class="mt-3">Histórico de Pagamentos</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Data</th>
-                                    <th>Valor</th>
-                                    <th>Método</th>
-                                    <th>Referência</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${payments.map(payment => `
-                                    <tr>
-                                        <td>${new Date(payment.payment_date).toLocaleDateString('pt-PT')}</td>
-                                        <td>€${parseFloat(payment.amount).toFixed(2).replace('.', ',')}</td>
-                                        <td>${payment.payment_method || '-'}</td>
-                                        <td>${payment.reference || '-'}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                `;
-            } else {
-                paymentsHtml = '<p class="text-muted">Nenhum pagamento registado.</p>';
-            }
-            
-            const dueDate = data.fee.due_date ? new Date(data.fee.due_date).toLocaleDateString('pt-PT') : '-';
-            const period = data.fee.period_month ? 
-                `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][data.fee.period_month - 1]}/${data.fee.period_year}` : 
-                data.fee.period_year;
-            
-            contentDiv.innerHTML = `
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Fração:</strong> ${data.fraction.identifier}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Período:</strong> ${period}
-                    </div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Vencimento:</strong> ${dueDate}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Tipo:</strong> ${data.fee.is_historical ? '<span class="badge bg-warning text-dark">Dívida Histórica</span>' : '<span class="badge bg-primary">Quota</span>'}
-                    </div>
-                </div>
-                <hr>
-                <div class="row mb-3">
-                    <div class="col-md-4 text-center">
-                        <strong>Valor Total</strong><br>
-                        <h4 class="mb-0">€${parseFloat(totalAmount).toFixed(2).replace('.', ',')}</h4>
-                    </div>
-                    <div class="col-md-4 text-center">
-                        <strong>Já Pago</strong><br>
-                        <h4 class="mb-0 text-success">€${parseFloat(paidAmount).toFixed(2).replace('.', ',')}</h4>
-                    </div>
-                    <div class="col-md-4 text-center">
-                        <strong>Pendente</strong><br>
-                        <h4 class="mb-0 ${pendingAmount > 0 ? 'text-danger' : 'text-success'}">€${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}</h4>
-                    </div>
-                </div>
-                ${paymentsHtml}
-                ${data.fee.notes ? `<hr><div><strong>Notas:</strong><br><p class="mb-0">${data.fee.notes}</p></div>` : ''}
-            `;
-        })
-        .catch(error => {
-            console.error('Erro ao carregar detalhes:', error);
-            contentDiv.innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes da quota.</div>';
-        });
-}
-
-// Add hover effect to fee cells
-document.addEventListener('DOMContentLoaded', function() {
-    const feeCells = document.querySelectorAll('.fee-cell');
-    feeCells.forEach(cell => {
-        cell.addEventListener('mouseenter', function() {
-            if (!this.classList.contains('table-danger') && !this.classList.contains('table-success')) {
-                this.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
-            }
-        });
-        cell.addEventListener('mouseleave', function() {
-            if (!this.classList.contains('table-danger') && !this.classList.contains('table-success')) {
-                this.style.backgroundColor = '';
-            }
-        });
-    });
-});
-</script>
+<!-- Modal e Script para Detalhes da Quota -->
+{% include 'blocks/fees-map-modal.html.twig' %}
 
 

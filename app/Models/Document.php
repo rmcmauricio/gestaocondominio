@@ -10,6 +10,8 @@ class Document extends Model
 
     /**
      * Get documents by condominium
+     * @param int $condominiumId
+     * @param array $filters - Can include 'user_fraction_ids' array and 'is_admin' boolean for access control
      */
     public function getByCondominium(int $condominiumId, array $filters = []): array
     {
@@ -25,9 +27,47 @@ class Document extends Model
 
         $params = [':condominium_id' => $condominiumId];
 
+        // Access control: filter documents based on visibility and user's fractions
+        $isAdmin = $filters['is_admin'] ?? false;
+        $userFractionIds = $filters['user_fraction_ids'] ?? [];
+        
+        if (!$isAdmin && !empty($userFractionIds)) {
+            // Non-admin users can only see:
+            // 1. Documents with visibility = 'condominos' (public to all condominos)
+            // 2. Documents with visibility = 'fraction' AND fraction_id IN (user's fractions)
+            // 3. Documents with visibility = 'fraction' AND fraction_id IS NULL (shouldn't happen, but handle it)
+            // 4. Documents with visibility = 'admin' are excluded (only admins see them)
+            $fractionPlaceholders = [];
+            foreach ($userFractionIds as $index => $fractionId) {
+                $key = ':fraction_id_' . $index;
+                $fractionPlaceholders[] = $key;
+                $params[$key] = $fractionId;
+            }
+            $fractionPlaceholdersStr = implode(',', $fractionPlaceholders);
+            
+            $sql .= " AND (
+                (d.visibility = 'condominos')
+                OR (d.visibility = 'fraction' AND d.fraction_id IS NOT NULL AND d.fraction_id IN ($fractionPlaceholdersStr))
+            )";
+        } elseif (!$isAdmin) {
+            // User has no fractions in this condominium - only show public documents
+            $sql .= " AND d.visibility = 'condominos'";
+        }
+        // If isAdmin is true, show all documents (no additional filter)
+
         if (isset($filters['folder'])) {
-            $sql .= " AND d.folder = :folder";
-            $params[':folder'] = $filters['folder'];
+            if ($filters['folder'] === null || $filters['folder'] === '') {
+                // Show only documents without folder (root level)
+                $sql .= " AND d.folder IS NULL";
+            } else {
+                // Show only documents in the exact folder (not in subfolders)
+                // Documents in subfolders will be shown when navigating into those subfolders
+                $sql .= " AND d.folder = :folder";
+                $params[':folder'] = $filters['folder'];
+            }
+        } else {
+            // If folder filter is not set, default to showing only root documents
+            $sql .= " AND d.folder IS NULL";
         }
 
         if (isset($filters['document_type'])) {
@@ -104,9 +144,120 @@ class Document extends Model
     }
 
     /**
-     * Get folders for condominium
+     * Count total documents in a folder (without access control)
      */
-    public function getFolders(int $condominiumId): array
+    public function countByFolder(int $condominiumId, ?string $folder = null): int
+    {
+        if (!$this->db) {
+            return 0;
+        }
+
+        $sql = "SELECT COUNT(*) as count FROM documents WHERE condominium_id = :condominium_id";
+        $params = [':condominium_id' => $condominiumId];
+
+        if ($folder === null || $folder === '') {
+            $sql .= " AND folder IS NULL";
+        } else {
+            $sql .= " AND folder = :folder";
+            $params[':folder'] = $folder;
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetch();
+        return (int)($result['count'] ?? 0);
+    }
+
+    /**
+     * Get folders for condominium
+     * @param int $condominiumId
+     * @param string|null $parentFolder If null, returns root folders only. If 'all', returns all folders.
+     */
+    public function getFolders(int $condominiumId, ?string $parentFolder = null): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        if ($parentFolder === null) {
+            // Get root folders - extract first part of folder path
+            // This includes folders that have subfolders even if no direct documents
+            $sql = "
+                SELECT 
+                    CASE 
+                        WHEN folder LIKE '%/%' THEN SUBSTRING_INDEX(folder, '/', 1)
+                        ELSE folder
+                    END as folder,
+                    COUNT(DISTINCT CASE 
+                        WHEN (document_type != 'folder_placeholder' OR document_type IS NULL) 
+                             AND (title != '.folder_placeholder' OR title IS NULL)
+                        THEN id ELSE NULL END) as document_count
+                FROM documents
+                WHERE condominium_id = :condominium_id 
+                AND folder IS NOT NULL
+                AND folder != ''
+                GROUP BY CASE 
+                    WHEN folder LIKE '%/%' THEN SUBSTRING_INDEX(folder, '/', 1)
+                    ELSE folder
+                END
+                ORDER BY folder ASC
+            ";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([':condominium_id' => $condominiumId]);
+            $results = $stmt->fetchAll() ?: [];
+            return $results;
+        } elseif ($parentFolder === 'all') {
+            // Get all folders (for dropdowns)
+            $sql = "
+                SELECT DISTINCT folder, 
+                       SUM(CASE WHEN (document_type != 'folder_placeholder' OR document_type IS NULL) 
+                                 AND title != '.folder_placeholder' 
+                            THEN 1 ELSE 0 END) as document_count
+                FROM documents
+                WHERE condominium_id = :condominium_id 
+                AND folder IS NOT NULL
+                GROUP BY folder
+                ORDER BY folder ASC
+            ";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([':condominium_id' => $condominiumId]);
+            return $stmt->fetchAll() ?: [];
+        } else {
+            // Get direct subfolders of parent folder (only immediate children, not grandchildren)
+            // Example: if parent is "Contratos", get "Contratos/2026" but not "Contratos/2026/01"
+            // We extract the immediate subfolder by taking parent + '/' + first segment after parent
+            $parentPattern = $parentFolder . '/%';
+            $parentLength = strlen($parentFolder);
+            $sql = "
+                SELECT DISTINCT 
+                    CONCAT(:parent_folder, '/', SUBSTRING_INDEX(SUBSTRING(folder, :parent_length_plus_2), '/', 1)) as folder,
+                    SUM(CASE WHEN (document_type != 'folder_placeholder' OR document_type IS NULL) 
+                              AND (title != '.folder_placeholder' OR title IS NULL)
+                         THEN 1 ELSE 0 END) as document_count
+                FROM documents
+                WHERE condominium_id = :condominium_id 
+                AND folder IS NOT NULL
+                AND folder LIKE :parent_pattern 
+                AND folder != :parent_folder
+                GROUP BY CONCAT(:parent_folder, '/', SUBSTRING_INDEX(SUBSTRING(folder, :parent_length_plus_2), '/', 1))
+                ORDER BY folder ASC
+            ";
+            $params = [
+                ':condominium_id' => $condominiumId,
+                ':parent_pattern' => $parentPattern,
+                ':parent_folder' => $parentFolder,
+                ':parent_length_plus_2' => $parentLength + 2
+            ];
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetchAll() ?: [];
+        }
+    }
+
+    /**
+     * Get all folders organized hierarchically
+     */
+    public function getFoldersHierarchical(int $condominiumId): array
     {
         if (!$this->db) {
             return [];
@@ -121,7 +272,59 @@ class Document extends Model
         ");
 
         $stmt->execute([':condominium_id' => $condominiumId]);
-        return $stmt->fetchAll() ?: [];
+        $allFolders = $stmt->fetchAll() ?: [];
+
+        // Organize hierarchically
+        $hierarchical = [];
+        foreach ($allFolders as $folder) {
+            $parts = explode('/', $folder['folder']);
+            $current = &$hierarchical;
+            
+            foreach ($parts as $index => $part) {
+                $path = implode('/', array_slice($parts, 0, $index + 1));
+                
+                if (!isset($current[$path])) {
+                    $current[$path] = [
+                        'folder' => $path,
+                        'name' => $part,
+                        'level' => $index,
+                        'document_count' => 0,
+                        'children' => []
+                    ];
+                }
+                
+                // If this is the final part, set document count
+                if ($index === count($parts) - 1) {
+                    $current[$path]['document_count'] = $folder['document_count'];
+                }
+                
+                $current = &$current[$path]['children'];
+            }
+        }
+
+        return $hierarchical;
+    }
+
+    /**
+     * Get parent folder path
+     */
+    public function getParentFolder(string $folderPath): ?string
+    {
+        $parts = explode('/', $folderPath);
+        if (count($parts) <= 1) {
+            return null;
+        }
+        array_pop($parts);
+        return implode('/', $parts);
+    }
+
+    /**
+     * Get folder name (last part of path)
+     */
+    public function getFolderName(string $folderPath): string
+    {
+        $parts = explode('/', $folderPath);
+        return end($parts);
     }
 
     /**
@@ -167,22 +370,13 @@ class Document extends Model
         $hasAssemblyId = $stmt->rowCount() > 0;
         $stmt = $this->db->query("SHOW COLUMNS FROM documents LIKE 'status'");
         $hasStatus = $stmt->rowCount() > 0;
+        $stmt = $this->db->query("SHOW COLUMNS FROM documents LIKE 'review_deadline'");
+        $hasReview = $stmt->rowCount() > 0;
 
         if ($hasAssemblyId && $hasStatus) {
-            $stmt = $this->db->prepare("
-                INSERT INTO documents (
-                    condominium_id, assembly_id, fraction_id, folder, title, description,
-                    file_path, file_name, file_size, mime_type, visibility,
-                    document_type, status, version, parent_document_id, uploaded_by
-                )
-                VALUES (
-                    :condominium_id, :assembly_id, :fraction_id, :folder, :title, :description,
-                    :file_path, :file_name, :file_size, :mime_type, :visibility,
-                    :document_type, :status, :version, :parent_document_id, :uploaded_by
-                )
-            ");
-
-            $stmt->execute([
+            $cols = "condominium_id, assembly_id, fraction_id, folder, title, description, file_path, file_name, file_size, mime_type, visibility, document_type, status, version, parent_document_id, uploaded_by";
+            $vals = ":condominium_id, :assembly_id, :fraction_id, :folder, :title, :description, :file_path, :file_name, :file_size, :mime_type, :visibility, :document_type, :status, :version, :parent_document_id, :uploaded_by";
+            $exec = [
                 ':condominium_id' => $data['condominium_id'],
                 ':assembly_id' => $data['assembly_id'] ?? null,
                 ':fraction_id' => $data['fraction_id'] ?? null,
@@ -199,7 +393,15 @@ class Document extends Model
                 ':version' => $version,
                 ':parent_document_id' => $parentDocumentId,
                 ':uploaded_by' => $data['uploaded_by']
-            ]);
+            ];
+            if ($hasReview) {
+                $cols .= ", review_deadline, review_sent_at";
+                $vals .= ", :review_deadline, :review_sent_at";
+                $exec[':review_deadline'] = $data['review_deadline'] ?? null;
+                $exec[':review_sent_at'] = $data['review_sent_at'] ?? null;
+            }
+            $stmt = $this->db->prepare("INSERT INTO documents ({$cols}) VALUES ({$vals})");
+            $stmt->execute($exec);
         } else {
             $stmt = $this->db->prepare("
                 INSERT INTO documents (
@@ -232,7 +434,12 @@ class Document extends Model
             ]);
         }
 
-        return (int)$this->db->lastInsertId();
+        $documentId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($documentId, $data);
+        
+        return $documentId;
     }
 
     /**
@@ -295,13 +502,19 @@ class Document extends Model
         $fields = [];
         $params = [':id' => $id];
 
-        // Check if status column exists
+        // Check if status and review columns exist
         $stmt = $this->db->query("SHOW COLUMNS FROM documents LIKE 'status'");
         $hasStatus = $stmt->rowCount() > 0;
+        $stmt = $this->db->query("SHOW COLUMNS FROM documents LIKE 'review_deadline'");
+        $hasReview = $stmt->rowCount() > 0;
 
         $allowedFields = ['title', 'description', 'folder', 'document_type', 'visibility', 'fraction_id'];
         if ($hasStatus) {
             $allowedFields[] = 'status';
+        }
+        if ($hasReview) {
+            $allowedFields[] = 'review_deadline';
+            $allowedFields[] = 'review_sent_at';
         }
         
         foreach ($allowedFields as $field) {
@@ -315,9 +528,20 @@ class Document extends Model
             return false;
         }
 
+        // Get old data for audit
+        $oldData = $this->findById($id);
+
         $sql = "UPDATE documents SET " . implode(', ', $fields) . " WHERE id = :id";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute($params);
+        
+        $result = $stmt->execute($params);
+        
+        // Log audit
+        if ($result) {
+            $this->auditUpdate($id, $data, $oldData);
+        }
+        
+        return $result;
     }
 
     /**
@@ -351,6 +575,9 @@ class Document extends Model
 
     /**
      * Search documents
+     * @param int $condominiumId
+     * @param string $query
+     * @param array $filters - Can include 'user_fraction_ids' array and 'is_admin' boolean for access control
      */
     public function search(int $condominiumId, string $query, array $filters = []): array
     {
@@ -370,9 +597,39 @@ class Document extends Model
             ':query' => '%' . $query . '%'
         ];
 
+        // Access control: filter documents based on visibility and user's fractions
+        $isAdmin = $filters['is_admin'] ?? false;
+        $userFractionIds = $filters['user_fraction_ids'] ?? [];
+        
+        if (!$isAdmin && !empty($userFractionIds)) {
+            // Non-admin users can only see:
+            // 1. Documents with visibility = 'condominos' (public to all condominos)
+            // 2. Documents with visibility = 'fraction' AND fraction_id IN (user's fractions)
+            $fractionPlaceholders = [];
+            foreach ($userFractionIds as $index => $fractionId) {
+                $key = ':search_fraction_id_' . $index;
+                $fractionPlaceholders[] = $key;
+                $params[$key] = $fractionId;
+            }
+            $fractionPlaceholdersStr = implode(',', $fractionPlaceholders);
+            
+            $sql .= " AND (
+                (d.visibility = 'condominos')
+                OR (d.visibility = 'fraction' AND d.fraction_id IS NOT NULL AND d.fraction_id IN ($fractionPlaceholdersStr))
+            )";
+        } elseif (!$isAdmin) {
+            // User has no fractions in this condominium - only show public documents
+            $sql .= " AND d.visibility = 'condominos'";
+        }
+        // If isAdmin is true, show all documents (no additional filter)
+
         if (isset($filters['folder'])) {
-            $sql .= " AND d.folder = :folder";
-            $params[':folder'] = $filters['folder'];
+            if ($filters['folder'] === null) {
+                $sql .= " AND d.folder IS NULL";
+            } else {
+                $sql .= " AND d.folder = :folder";
+                $params[':folder'] = $filters['folder'];
+            }
         }
 
         if (isset($filters['document_type'])) {
@@ -405,17 +662,47 @@ class Document extends Model
             return false;
         }
 
+        // Count affected documents
+        $countStmt = $this->db->prepare("
+            SELECT COUNT(*) as count 
+            FROM documents 
+            WHERE condominium_id = :condominium_id AND folder = :old_folder
+        ");
+        $countStmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':old_folder' => $oldFolderName
+        ]);
+        $countResult = $countStmt->fetch();
+        $affectedCount = (int)($countResult['count'] ?? 0);
+
         $stmt = $this->db->prepare("
             UPDATE documents
             SET folder = :new_folder
             WHERE condominium_id = :condominium_id AND folder = :old_folder
         ");
 
-        return $stmt->execute([
+        $result = $stmt->execute([
             ':condominium_id' => $condominiumId,
             ':old_folder' => $oldFolderName,
             ':new_folder' => $newFolderName
         ]);
+        
+        // Log audit for folder rename operation
+        if ($result) {
+            $this->auditCustom(
+                'folder_rename',
+                "Pasta renomeada de '{$oldFolderName}' para '{$newFolderName}' ({$affectedCount} documentos afetados)",
+                [
+                    'condominium_id' => $condominiumId,
+                    'old_folder' => $oldFolderName,
+                    'new_folder' => $newFolderName,
+                    'affected_documents_count' => $affectedCount
+                ],
+                'documents'
+            );
+        }
+        
+        return $result;
     }
 
     /**
@@ -448,16 +735,43 @@ class Document extends Model
             return false;
         }
 
+        // Get old data for audit
+        $document = $this->findById($documentId);
+        if (!$document) {
+            return false;
+        }
+        
+        $oldFolder = $document['folder'] ?? null;
+        $newFolder = $folderName ?: null;
+
         $stmt = $this->db->prepare("
             UPDATE documents
             SET folder = :folder
             WHERE id = :id
         ");
 
-        return $stmt->execute([
+        $result = $stmt->execute([
             ':id' => $documentId,
-            ':folder' => $folderName ?: null
+            ':folder' => $newFolder
         ]);
+        
+        // Log audit for document move operation
+        if ($result) {
+            $this->auditCustom(
+                'document_move',
+                "Documento #{$documentId} movido de '{$oldFolder}' para '{$newFolder}'",
+                [
+                    'document_id' => $documentId,
+                    'old_folder' => $oldFolder,
+                    'new_folder' => $newFolder,
+                    'document_title' => $document['title'] ?? null
+                ],
+                'documents',
+                $documentId
+            );
+        }
+        
+        return $result;
     }
 
     /**
@@ -474,6 +788,9 @@ class Document extends Model
             return false;
         }
 
+        // Get old data for audit before deletion
+        $oldData = $document;
+
         // Delete file from storage
         $filePath = __DIR__ . '/../../storage/documents/' . $document['file_path'];
         if (file_exists($filePath)) {
@@ -482,7 +799,14 @@ class Document extends Model
 
         // Delete from database
         $stmt = $this->db->prepare("DELETE FROM documents WHERE id = :id");
-        return $stmt->execute([':id' => $id]);
+        $result = $stmt->execute([':id' => $id]);
+        
+        // Log audit
+        if ($result && $oldData) {
+            $this->auditDelete($id, $oldData);
+        }
+        
+        return $result;
     }
 }
 

@@ -9,7 +9,11 @@ if (file_exists($envFile)) {
     foreach ($lines as $line) {
         if (strpos($line, '=') !== false && strpos($line, '#') !== 0) {
             list($key, $value) = explode('=', $line, 2);
-            $config[trim($key)] = trim($value);
+            $key = trim($key);
+            $value = trim($value);
+            $config[$key] = $value;
+            // Also populate $_ENV for EmailService and other components
+            $_ENV[$key] = $value;
         }
     }
 }
@@ -27,11 +31,34 @@ global $userInfo;
 global $db;
 
 // Framework version
-define("VERSION", "1.0.0");
+define("VERSION", "1.0.12");
 
 // Application environment
 if (!defined('APP_ENV')) {
     define('APP_ENV', $config['APP_ENV'] ?? 'development');
+}
+
+// Configure error handling based on environment
+$logDir = __DIR__ . '/logs';
+if (!is_dir($logDir)) {
+    @mkdir($logDir, 0750, true);
+}
+
+if (APP_ENV === 'production') {
+    // Production: Hide errors from users, log everything
+    ini_set('display_errors', '0');
+    ini_set('display_startup_errors', '0');
+    ini_set('log_errors', '1');
+    ini_set('error_log', $logDir . '/php_error.log');
+    error_reporting(E_ALL); // Still log all errors
+} else {
+    // Development: Show errors but also log them
+    $logFile = $logDir . '/php_error.log';
+    ini_set('log_errors', '1');
+    ini_set('error_log', $logFile);
+    // Display errors in development for debugging
+    ini_set('display_errors', '1');
+    ini_set('display_startup_errors', '1');
 }
 
 // Base path configuration (set in .env or default to empty)
@@ -101,6 +128,16 @@ if (($config['APP_ENV'] ?? 'development') !== 'production') {
 
 // Add global variables to Twig
 $twig->addGlobal('BASE_URL', BASE_URL);
+$twig->addGlobal('VERSION', VERSION);
+$twig->addGlobal('DISABLE_AUTH_REGISTRATION', defined('DISABLE_AUTH_REGISTRATION') ? DISABLE_AUTH_REGISTRATION : false);
+
+// Breadcrumbs: needs_context to receive full Twig context
+$twig->addFunction(new \Twig\TwigFunction('get_breadcrumbs', [\App\Services\BreadcrumbService::class, 'getBreadcrumbs'], ['needs_context' => true]));
+
+// Add HTML sanitization filter for safe HTML rendering
+$twig->addFilter(new \Twig\TwigFilter('sanitize_html', function($html) {
+    return \App\Core\Security::sanitizeHtml($html);
+}, ['is_safe' => ['html']]));
 
 // Make Twig available globally
 $GLOBALS['twig'] = $twig;
@@ -124,3 +161,6 @@ if (isset($config['RECAPTCHA_SECRET'])) {
 
 // Maintenance mode
 define('MAINTENANCE_MODE', isset($config['MAINTENANCE_MODE']) && $config['MAINTENANCE_MODE'] === 'true');
+
+// Disable auth/registration mode
+define('DISABLE_AUTH_REGISTRATION', isset($config['DISABLE_AUTH_REGISTRATION']) && $config['DISABLE_AUTH_REGISTRATION'] === 'true');

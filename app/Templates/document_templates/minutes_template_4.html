@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <title>Minuta de Acta de Assembleia de Condomínio</title>
+    <style>
+        @page { margin: 2.5cm; }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 30px;
+            line-height: 2;
+            color: #333;
+            font-size: 12pt;
+            background: #ffffff;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            padding: 40px 20px;
+        }
+        .header-logo {
+            max-width: 120px;
+            max-height: 60px;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            color: #333;
+            font-size: 22pt;
+            margin: 0;
+            font-weight: 300;
+            letter-spacing: 4px;
+        }
+        .info-section {
+            margin: 40px 0;
+            padding: 30px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .info-line {
+            margin: 15px 0;
+            font-size: 12pt;
+        }
+        .info-label {
+            display: inline-block;
+            min-width: 150px;
+            font-weight: 300;
+            color: #999;
+            letter-spacing: 1px;
+        }
+        .info-value {
+            display: inline-block;
+            border-bottom: 1px solid #e0e0e0;
+            min-width: 300px;
+            padding-bottom: 2px;
+            color: #333;
+        }
+        .section {
+            margin: 40px 0;
+            page-break-inside: avoid;
+            padding: 30px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .section-number {
+            font-size: 16pt;
+            font-weight: 300;
+            margin-bottom: 15px;
+            color: #333;
+            letter-spacing: 2px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 30px 0;
+        }
+        table th, table td {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            text-align: left;
+            font-size: 11pt;
+        }
+        table th {
+            background-color: transparent;
+            font-weight: 300;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .underline {
+            border-bottom: 1px solid #e0e0e0;
+            display: inline-block;
+            min-width: 200px;
+            padding-bottom: 2px;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .mt-20 {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class='header'>
+        {{LOGO_HTML}}
+        <h1>ACTA DE ASSEMBLEIA DE CONDOMÍNIO</h1>
+    </div>
+
+    <div class='info-section'>
+        <div class='info-line'>
+            <span class='info-label'>Condomínio:</span>
+            <span class='info-value'>{{condominium_name}}</span>
+        </div>
+        <div class='info-line'>
+            <span class='info-label'>Morada:</span>
+            <span class='info-value'>{{condominium_address}}</span>
+        </div>
+        <div class='info-line'>
+            <span class='info-label'>Data:</span>
+            <span class='info-value'>{{assembly_date}}</span>
+        </div>
+        <div class='info-line'>
+            <span class='info-label'>Hora de início:</span>
+            <span class='info-value'>{{assembly_time}}</span>
+        </div>
+        <div class='info-line'>
+            <span class='info-label'>Local:</span>
+            <span class='info-value'>{{assembly_location}}</span>
+        </div>
+    </div>
+
+    <div class='section'>
+        <div class='section-number'>1️⃣ Constituição da Assembleia</div>
+        <p>
+            Aos <span class='underline'>{{assembly_day}}</span> dias do mês de <span class='underline'>{{assembly_month}}</span> de <span class='underline'>{{assembly_year}}</span>,
+            pelas <span class='underline'>{{assembly_time}}</span> horas, reuniu-se em Assembleia
+            <span class='underline'>{{assembly_type}}</span> o Condomínio do prédio sito em
+            <span class='underline'>{{condominium_address}}</span>, devidamente convocada nos termos legais.
+        </p>
+
+        <p class='mt-20'>A mesa da assembleia foi constituída por:</p>
+
+        <div class='info-line mt-20'>
+            <span class='info-label'>Presidente:</span>
+            <span class='info-value'>__________________________________________</span>
+        </div>
+
+        <div class='info-line'>
+            <span class='info-label'>Secretário:</span>
+            <span class='info-value'>__________________________________________</span>
+        </div>
+
+        <p class='mt-20'>
+            Estiveram presentes ou representados os condóminos constantes da lista de presenças anexa,
+            perfazendo <span class='underline'>{{quorum_percentage}}%</span> do valor total do prédio
+            (<span class='underline'>{{quorum_millage}}‰</span> de <span class='underline'>{{total_millage}}‰</span>),
+            pelo que a assembleia se encontra legalmente constituída.
+        </p>
+    </div>
+
+    <div class='section'>
+        <div class='section-number'>2️⃣ Ordem de Trabalhos</div>
+        {{assembly_agenda}}
+    </div>
+
+    {{topics_sections}}
+
+    <div class='section mt-20'>
+        <div class='section-number'>Anexo: Lista de Presenças</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Fração</th>
+                    <th>Condómino</th>
+                    <th>Permilagem</th>
+                    <th>Observações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{attendees_list}}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan='2'><strong>Total</strong></td>
+                    <td><strong>{{total_millage}}‰</strong></td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class='text-center mt-20' style='font-size: 10pt; color: #999; margin-top: 60px; font-weight: 300;'>
+        <p>Acta gerada automaticamente pelo sistema de gestão de condomínios.</p>
+        <p>Data de geração: {{generation_date}}</p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!-- Cookie Preferences Modal -->
+<div class="modal fade" id="cookiePreferencesModal" tabindex="-1" aria-labelledby="cookiePreferencesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold" id="cookiePreferencesModalLabel">
+                    <i class="bi bi-sliders text-primary me-2"></i>
+                    Gestão de Preferências de Cookies
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body p-4" style="color: #1f2937 !important;">
+                <p class="mb-4" style="color: #4b5563 !important;">
+                    Pode escolher quais cookies deseja aceitar. Os cookies essenciais são necessários para o funcionamento do website e não podem ser desativados.
+                </p>
+
+                <!-- Essential Cookies -->
+                <div class="cookie-category">
+                    <div class="cookie-category-header">
+                        <div>
+                            <h6 class="cookie-category-title mb-1">
+                                <i class="bi bi-shield-check text-success me-2"></i>
+                                Cookies Essenciais
+                            </h6>
+                            <p class="cookie-category-description mb-0">
+                                Estes cookies são necessários para o funcionamento básico do website e não podem ser desativados. Incluem cookies de sessão que permitem que navegue no site e utilize as suas funcionalidades básicas.
+                            </p>
+                        </div>
+                        <label class="cookie-toggle">
+                            <input type="checkbox" id="cookieEssential" checked disabled>
+                            <span class="cookie-toggle-slider"></span>
+                        </label>
+                    </div>
+                    <p class="cookie-category-required mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Sempre ativo - necessário para o funcionamento do site
+                    </p>
+                </div>
+
+                <!-- Functional Cookies -->
+                <div class="cookie-category">
+                    <div class="cookie-category-header">
+                        <div>
+                            <h6 class="cookie-category-title mb-1">
+                                <i class="bi bi-gear text-primary me-2"></i>
+                                Cookies de Funcionalidade
+                            </h6>
+                            <p class="cookie-category-description mb-0">
+                                Estes cookies permitem que o website se lembre das suas escolhas (como o seu idioma preferido) e fornecem funcionalidades melhoradas e mais personalizadas.
+                            </p>
+                        </div>
+                        <label class="cookie-toggle">
+                            <input type="checkbox" id="cookieFunctional">
+                            <span class="cookie-toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Analytics Cookies -->
+                <div class="cookie-category">
+                    <div class="cookie-category-header">
+                        <div>
+                            <h6 class="cookie-category-title mb-1">
+                                <i class="bi bi-graph-up text-info me-2"></i>
+                                Cookies de Análise
+                            </h6>
+                            <p class="cookie-category-description mb-0">
+                                Estes cookies ajudam-nos a entender como os visitantes interagem com o nosso website, fornecendo informações sobre as áreas visitadas, o tempo gasto no site e quaisquer problemas encontrados.
+                            </p>
+                        </div>
+                        <label class="cookie-toggle">
+                            <input type="checkbox" id="cookieAnalytics">
+                            <span class="cookie-toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-3 mb-0">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Nota:</strong> Pode alterar estas preferências a qualquer momento através do link na nossa 
+                    <a href="{{ BASE_URL }}cookies" target="_blank" class="alert-link">Política de Cookies</a>.
+                </div>
+            </div>
+            <div class="modal-footer border-top bg-light d-flex justify-content-end gap-2">
+                <button type="button" id="cookieSavePreferences" class="btn btn-primary">
+                    <i class="bi bi-check-lg me-1"></i>Salvar Preferências
+                </button>
+                <button type="button" id="cookieAcceptSelected" class="btn btn-success">
+                    <i class="bi bi-check-all me-1"></i>Aceitar Selecionados
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

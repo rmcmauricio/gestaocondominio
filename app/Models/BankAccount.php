@@ -253,4 +253,17 @@ class BankAccount extends Model
         
         return ($result['count'] ?? 0) > 0;
     }
+
+    /**
+     * Delete bank account
+     */
+    public function delete(int $id): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("DELETE FROM bank_accounts WHERE id = :id");
+        return $stmt->execute([':id' => $id]);
+    }
 }

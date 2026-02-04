@@ -1,5 +1,12 @@
 {
-  "titulo": "Meu Perfil",
-  "description": "Gerir dados pessoais e palavra-passe",
-  "keywords": "perfil, utilizador, conta, palavra-passe"
+    "t": {
+        "email_preferences_title": "Preferências de Email",
+        "email_preferences_description": "Configure quais tipos de emails deseja receber.",
+        "email_notifications_label": "Receber emails de notificações",
+        "email_notifications_description": "Receba emails quando houver novas notificações no sistema (ocorrências, quotas, assembleias, etc.)",
+        "email_messages_label": "Receber emails de mensagens",
+        "email_messages_description": "Receba emails quando receber mensagens privadas ou anúncios do condomínio",
+        "save_preferences_button": "Guardar Preferências",
+        "preferences_saved_success": "Preferências de email atualizadas com sucesso!"
+    }
 }

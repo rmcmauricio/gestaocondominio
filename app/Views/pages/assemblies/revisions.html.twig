@@ -1,0 +1,64 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Revisões da Ata</h2>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assemblies/{{ assembly.id }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">{{ assembly.title }}</h5>
+            <small class="text-muted">Ata em revisão até {{ template.review_deadline|date('d/m/Y') }}</small>
+        </div>
+        <div class="card-body">
+            {% if stats %}
+            <div class="mb-4">
+                <span class="badge bg-success">Aceites: {{ stats.accepted }}</span>
+                <span class="badge bg-info">Com comentário: {{ stats.commented }}</span>
+                <span class="badge bg-secondary">Pendentes: {{ stats.pending }}</span>
+                <span class="text-muted">(Total: {{ stats.total }} frações presentes)</span>
+            </div>
+            {% endif %}
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Fração</th>
+                            <th>Condómino</th>
+                            <th>Aceite</th>
+                            <th>Comentário</th>
+                            <th>Atualizado em</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in revisions %}
+                        <tr>
+                            <td>{{ r.fraction_identifier }}</td>
+                            <td>{{ r.user_name|default('-') }}</td>
+                            <td>{% if r.accepted %}<span class="badge bg-success">Sim</span>{% else %}-{% endif %}</td>
+                            <td>{{ r.comment|default('-') }}</td>
+                            <td>{{ r.updated_at|date('d/m/Y H:i') }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="text-muted">Nenhuma revisão submetida.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

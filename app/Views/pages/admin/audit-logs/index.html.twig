@@ -1,0 +1,1190 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-journal-text"></i> Logs de Auditoria</h2>
+            <p class="text-muted mb-0">Visualizar e filtrar todos os registos de auditoria do sistema</p>
+        </div>
+        <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4" style="position: relative; z-index: 1050;">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ BASE_URL }}admin/audit-logs" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label for="audit_type" class="form-label">Tipo de Auditoria</label>
+                        <select class="form-select" id="audit_type" name="audit_type">
+                            <option value="all" {% if filters.audit_type == 'all' or filters.audit_type == '' %}selected{% endif %}>Todos</option>
+                            <option value="general" {% if filters.audit_type == 'general' %}selected{% endif %}>Geral</option>
+                            <option value="payments" {% if filters.audit_type == 'payments' %}selected{% endif %}>Pagamentos</option>
+                            <option value="financial" {% if filters.audit_type == 'financial' %}selected{% endif %}>Financeiro</option>
+                            <option value="subscriptions" {% if filters.audit_type == 'subscriptions' %}selected{% endif %}>Subscrições</option>
+                            <option value="documents" {% if filters.audit_type == 'documents' %}selected{% endif %}>Documentos</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="search" class="form-label">Pesquisar</label>
+                        <input type="text" class="form-control" id="search" name="search" 
+                               value="{{ filters.search }}" placeholder="Descrição, nome ou email...">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="action" class="form-label">Ação</label>
+                        <select class="form-select" id="action" name="action">
+                            <option value="">Todas</option>
+                            {% for action in actions %}
+                            <option value="{{ action }}" {% if filters.action == action %}selected{% endif %}>
+                                {{ action }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="model" class="form-label">Modelo</label>
+                        <select class="form-select" id="model" name="model">
+                            <option value="">Todos</option>
+                            {% for model in models %}
+                            <option value="{{ model }}" {% if filters.model == model %}selected{% endif %}>
+                                {{ model }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="user_id" class="form-label">Utilizador</label>
+                        <div class="position-relative" style="z-index: 1050;">
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="user_search" 
+                                   name="user_search"
+                                   autocomplete="off"
+                                   placeholder="Pesquisar utilizador..."
+                                   value="{% if filters.user_id %}{% for u in users %}{% if u.id == filters.user_id %}{{ u.name }} ({{ u.email }}){% endif %}{% endfor %}{% endif %}">
+                            <input type="hidden" id="user_id" name="user_id" value="{{ filters.user_id }}">
+                            <div id="user_autocomplete_results" class="list-group position-absolute w-100" style="z-index: 1051; display: none; max-height: 300px; overflow-y: auto; background-color: white;"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-1">
+                        <label for="date_from" class="form-label">Data Desde</label>
+                        <input type="date" class="form-control" id="date_from" name="date_from" 
+                               value="{{ filters.date_from }}">
+                    </div>
+                    <div class="col-md-1">
+                        <label for="date_to" class="form-label">Data Até</label>
+                        <input type="date" class="form-control" id="date_to" name="date_to" 
+                               value="{{ filters.date_to }}">
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-search"></i> Filtrar
+                        </button>
+                        <a href="{{ BASE_URL }}admin/audit-logs" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Limpar Filtros
+                        </a>
+                    </div>
+                </div>
+                <input type="hidden" name="sort_by" id="sort_by" value="{{ filters.sort_by }}">
+                <input type="hidden" name="sort_order" id="sort_order" value="{{ filters.sort_order }}">
+                <input type="hidden" name="per_page" id="per_page" value="{{ pagination.per_page }}">
+            </form>
+        </div>
+    </div>
+
+    <!-- Results Info -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <span class="text-muted">
+                {% set startRecord = (pagination.current_page - 1) * pagination.per_page + 1 %}
+                {% set endRecord = min(pagination.current_page * pagination.per_page, pagination.total_count) %}
+                Mostrando {{ startRecord }} a {{ endRecord }} de {{ pagination.total_count }} registos
+            </span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <label for="per_page_select" class="mb-0">Registos por página:</label>
+            <select class="form-select form-select-sm" id="per_page_select" style="width: auto;">
+                <option value="25" {% if pagination.per_page == 25 %}selected{% endif %}>25</option>
+                <option value="50" {% if pagination.per_page == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if pagination.per_page == 100 %}selected{% endif %}>100</option>
+                <option value="200" {% if pagination.per_page == 200 %}selected{% endif %}>200</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="card shadow-sm" style="position: relative; z-index: 1;">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 150px;">
+                                <a href="#" class="sort-link text-decoration-none" data-sort="created_at">
+                                    Data/Hora
+                                    {% if filters.sort_by == 'created_at' %}
+                                        <i class="bi bi-arrow-{% if filters.sort_order == 'ASC' %}up{% else %}down{% endif %}"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th style="width: 120px;">
+                                <a href="#" class="sort-link text-decoration-none" data-sort="action">
+                                    Ação
+                                    {% if filters.sort_by == 'action' %}
+                                        <i class="bi bi-arrow-{% if filters.sort_order == 'ASC' %}up{% else %}down{% endif %}"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th style="width: 100px;">
+                                <a href="#" class="sort-link text-decoration-none" data-sort="model">
+                                    Modelo
+                                    {% if filters.sort_by == 'model' %}
+                                        <i class="bi bi-arrow-{% if filters.sort_order == 'ASC' %}up{% else %}down{% endif %}"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th style="width: 100px;">Tipo</th>
+                            <th style="width: 150px;">
+                                <a href="#" class="sort-link text-decoration-none" data-sort="user_id">
+                                    Utilizador
+                                    {% if filters.sort_by == 'user_id' %}
+                                        <i class="bi bi-arrow-{% if filters.sort_order == 'ASC' %}up{% else %}down{% endif %}"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th>Descrição</th>
+                            <th style="width: 120px;">IP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr class="log-row" style="cursor: pointer;" data-log-id="{{ log.id }}" data-audit-type="{{ log.audit_type|default('general') }}">
+                            <td>
+                                <small class="text-muted">
+                                    {{ log.created_at|date('d/m/Y H:i:s') }}
+                                </small>
+                            </td>
+                            <td>
+                                <span class="badge bg-{% if 'error' in log.action or 'failed' in log.action or 'blocked' in log.action %}danger{% elseif 'removed' in log.action or 'rejected' in log.action %}warning{% elseif 'approved' in log.action or 'created' in log.action %}success{% else %}info{% endif %}">
+                                    {{ log.action }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if log.model %}
+                                    <span class="badge bg-secondary">{{ log.model }}</span>
+                                    {% if log.model_id %}
+                                        <small class="text-muted">#{{ log.model_id }}</small>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.audit_type == 'payments' %}
+                                    <span class="badge bg-primary">Pagamentos</span>
+                                {% elseif log.audit_type == 'financial' %}
+                                    <span class="badge bg-success">Financeiro</span>
+                                {% elseif log.audit_type == 'subscriptions' %}
+                                    <span class="badge bg-info">Subscrições</span>
+                                {% elseif log.audit_type == 'documents' %}
+                                    <span class="badge bg-warning text-dark">Documentos</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Geral</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.user_name %}
+                                    <div>
+                                        <strong>{{ log.user_name }}</strong>
+                                        {% if log.user_role == 'super_admin' %}
+                                            <span class="badge bg-danger ms-1">SA</span>
+                                        {% endif %}
+                                    </div>
+                                    <small class="text-muted">{{ log.user_email }}</small>
+                                {% else %}
+                                    <span class="text-muted">Sistema</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="text-truncate" style="max-width: 400px;" title="{{ log.description }}">
+                                    {{ log.description }}
+                                    {% if log.amount %}
+                                        <br><small class="text-success"><strong>Valor: €{{ log.amount|number_format(2, ',', '.') }}</strong></small>
+                                    {% endif %}
+                                    {% if log.payment_method %}
+                                        <br><small class="text-muted">Método: {{ log.payment_method }}</small>
+                                    {% endif %}
+                                    {% if log.status %}
+                                        <br><small class="text-muted">Status: <span class="badge bg-{% if log.status == 'completed' or log.status == 'approved' or log.status == 'active' %}success{% elseif log.status == 'failed' or log.status == 'rejected' or log.status == 'canceled' %}danger{% else %}warning{% endif %}">{{ log.status }}</span></small>
+                                    {% endif %}
+                                    {% if log.document_type %}
+                                        <br><small class="text-muted">Tipo: <span class="badge bg-secondary">{{ log.document_type }}</span></small>
+                                    {% endif %}
+                                    {% if log.file_name %}
+                                        <br><small class="text-muted"><i class="bi bi-file-earmark"></i> {{ log.file_name }}</small>
+                                    {% endif %}
+                                </div>
+                                {% if log.user_agent %}
+                                    <small class="text-muted d-block mt-1">
+                                        <i class="bi bi-info-circle"></i> {{ log.user_agent|slice(0, 50) }}...
+                                    </small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.ip_address %}
+                                    <code class="small">{{ log.ip_address }}</code>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                <p class="mt-2 mb-0">Nenhum registo encontrado</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if pagination.total_pages > 1 %}
+    <nav aria-label="Paginação" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% set baseParams = [] %}
+            {% if filters.audit_type and filters.audit_type != 'all' %}{% set baseParams = baseParams|merge(['audit_type=' ~ filters.audit_type|url_encode]) %}{% endif %}
+            {% if filters.search %}{% set baseParams = baseParams|merge(['search=' ~ filters.search|url_encode]) %}{% endif %}
+            {% if filters.action %}{% set baseParams = baseParams|merge(['action=' ~ filters.action|url_encode]) %}{% endif %}
+            {% if filters.model %}{% set baseParams = baseParams|merge(['model=' ~ filters.model|url_encode]) %}{% endif %}
+            {% if filters.user_id %}{% set baseParams = baseParams|merge(['user_id=' ~ filters.user_id]) %}{% endif %}
+            {% if filters.date_from %}{% set baseParams = baseParams|merge(['date_from=' ~ filters.date_from|url_encode]) %}{% endif %}
+            {% if filters.date_to %}{% set baseParams = baseParams|merge(['date_to=' ~ filters.date_to|url_encode]) %}{% endif %}
+            {% if filters.sort_by %}{% set baseParams = baseParams|merge(['sort_by=' ~ filters.sort_by|url_encode]) %}{% endif %}
+            {% if filters.sort_order %}{% set baseParams = baseParams|merge(['sort_order=' ~ filters.sort_order|url_encode]) %}{% endif %}
+            {% if pagination.per_page %}{% set baseParams = baseParams|merge(['per_page=' ~ pagination.per_page]) %}{% endif %}
+            {% set baseQuery = baseParams|join('&') %}
+            
+            <!-- Previous Button -->
+            {% if pagination.current_page > 1 %}
+                {% set prevPage = pagination.current_page - 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ prevPage }}{% if baseQuery %}&{{ baseQuery }}{% endif %}" aria-label="Anterior">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link" aria-label="Anterior">
+                        <span aria-hidden="true">&laquo;</span>
+                    </span>
+                </li>
+            {% endif %}
+            
+            <!-- Page Numbers -->
+            {% set startPage = max(1, pagination.current_page - 2) %}
+            {% set endPage = min(pagination.total_pages, pagination.current_page + 2) %}
+            
+            {% if startPage > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{% if baseQuery %}&{{ baseQuery }}{% endif %}">1</a>
+                </li>
+                {% if startPage > 2 %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                {% endif %}
+            {% endif %}
+            
+            {% for i in startPage..endPage %}
+                <li class="page-item {% if i == pagination.current_page %}active{% endif %}">
+                    <a class="page-link" href="?page={{ i }}{% if baseQuery %}&{{ baseQuery }}{% endif %}">
+                        {{ i }}
+                    </a>
+                </li>
+            {% endfor %}
+            
+            {% if endPage < pagination.total_pages %}
+                {% if endPage < pagination.total_pages - 1 %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                {% endif %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ pagination.total_pages }}{% if baseQuery %}&{{ baseQuery }}{% endif %}">
+                        {{ pagination.total_pages }}
+                    </a>
+                </li>
+            {% endif %}
+            
+            <!-- Next Button -->
+            {% if pagination.current_page < pagination.total_pages %}
+                {% set nextPage = pagination.current_page + 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ nextPage }}{% if baseQuery %}&{{ baseQuery }}{% endif %}" aria-label="Próximo">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link" aria-label="Próximo">
+                        <span aria-hidden="true">&raquo;</span>
+                    </span>
+                </li>
+            {% endif %}
+        </ul>
+        
+        <!-- Pagination Info -->
+        <div class="text-center mt-2">
+            <small class="text-muted">
+                Página {{ pagination.current_page }} de {{ pagination.total_pages }} 
+                ({{ pagination.total_count }} registos no total)
+            </small>
+        </div>
+    </nav>
+    {% endif %}
+</div>
+
+<!-- Store logs data in JavaScript -->
+<script>
+    window.auditLogsData = {
+        {% if logs|length > 0 %}
+        {% for log in logs %}
+        '{{ log.id }}': {{ log|json_encode(constant('JSON_HEX_QUOT') b-or constant('JSON_HEX_APOS') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+        {% endif %}
+    };
+</script>
+
+<!-- Modal de Detalhes do Log -->
+<div class="modal fade" id="logDetailsModal" tabindex="-1" aria-labelledby="logDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="logDetailsModalLabel">
+                    <i class="bi bi-info-circle"></i> Detalhes do Log de Auditoria
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Data/Hora:</strong>
+                        <p class="mb-0" id="modal-created-at">-</p>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Tipo de Auditoria:</strong>
+                        <p class="mb-0" id="modal-audit-type">-</p>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Ação:</strong>
+                        <p class="mb-0" id="modal-action">-</p>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Modelo:</strong>
+                        <p class="mb-0" id="modal-model">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-model-id-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>ID do Modelo:</strong>
+                        <p class="mb-0" id="modal-model-id">-</p>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Utilizador:</strong>
+                        <p class="mb-0" id="modal-user">-</p>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Email:</strong>
+                        <p class="mb-0" id="modal-user-email">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-user-role-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>Função:</strong>
+                        <p class="mb-0" id="modal-user-role">-</p>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="mb-3">
+                    <strong>Descrição:</strong>
+                    <p class="mb-0" id="modal-description" style="white-space: pre-wrap; word-wrap: break-word;">-</p>
+                </div>
+                
+                <div class="row mb-3" id="modal-amount-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>Valor:</strong>
+                        <p class="mb-0" id="modal-amount">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-payment-method-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>Método de Pagamento:</strong>
+                        <p class="mb-0" id="modal-payment-method">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-status-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>Status:</strong>
+                        <p class="mb-0" id="modal-status">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-old-status-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>Status Anterior:</strong>
+                        <p class="mb-0" id="modal-old-status">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-new-status-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>Novo Status:</strong>
+                        <p class="mb-0" id="modal-new-status">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-entity-type-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>Tipo de Entidade:</strong>
+                        <p class="mb-0" id="modal-entity-type">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-entity-id-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>ID da Entidade:</strong>
+                        <p class="mb-0" id="modal-entity-id">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-condominium-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>Condomínio ID:</strong>
+                        <p class="mb-0" id="modal-condominium-id">-</p>
+                    </div>
+                </div>
+                
+                <!-- Document-specific fields -->
+                <div class="row mb-3" id="modal-document-type-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>Tipo de Documento:</strong>
+                        <p class="mb-0" id="modal-document-type">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-document-id-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>ID do Documento:</strong>
+                        <p class="mb-0" id="modal-document-id">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-assembly-id-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>ID da Assembleia:</strong>
+                        <p class="mb-0" id="modal-assembly-id">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-receipt-id-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>ID do Recibo:</strong>
+                        <p class="mb-0" id="modal-receipt-id">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-fee-id-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>ID da Quota:</strong>
+                        <p class="mb-0" id="modal-fee-id">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-file-name-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>Nome do Ficheiro:</strong>
+                        <p class="mb-0" id="modal-file-name">-</p>
+                    </div>
+                    <div class="col-md-6" id="modal-file-size-col" style="display: none;">
+                        <strong>Tamanho:</strong>
+                        <p class="mb-0" id="modal-file-size">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-file-path-row" style="display: none;">
+                    <div class="col-md-12">
+                        <strong>Caminho do Ficheiro:</strong>
+                        <p class="mb-0" style="word-break: break-all;" id="modal-file-path">-</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-metadata-row" style="display: none;">
+                    <div class="col-md-12">
+                        <strong>Metadados:</strong>
+                        <pre class="bg-light p-2 rounded" style="max-height: 200px; overflow-y: auto; font-size: 0.875rem;" id="modal-metadata">-</pre>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Endereço IP:</strong>
+                        <p class="mb-0" id="modal-ip-address">-</p>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>User Agent:</strong>
+                        <p class="mb-0" id="modal-user-agent" style="word-break: break-all;">-</p>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <!-- Old Data / New Data Section -->
+                <div class="row mb-3" id="modal-old-data-row" style="display: none;">
+                    <div class="col-12">
+                        <strong>Dados Antes da Alteração:</strong>
+                        <pre id="modal-old-data" class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto; font-size: 0.875rem; white-space: pre-wrap; word-wrap: break-word;">-</pre>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-new-data-row" style="display: none;">
+                    <div class="col-12">
+                        <strong>Dados Após a Alteração:</strong>
+                        <pre id="modal-new-data" class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto; font-size: 0.875rem; white-space: pre-wrap; word-wrap: break-word;">-</pre>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="modal-operation-row" style="display: none;">
+                    <div class="col-md-6">
+                        <strong>Operação:</strong>
+                        <p class="mb-0">
+                            <span id="modal-operation" class="badge bg-info">-</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Sort links
+    document.querySelectorAll('.sort-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const sortBy = this.dataset.sort;
+            const currentSort = document.getElementById('sort_by').value;
+            const currentOrder = document.getElementById('sort_order').value;
+            
+            document.getElementById('sort_by').value = sortBy;
+            document.getElementById('sort_order').value = 
+                (currentSort === sortBy && currentOrder === 'DESC') ? 'ASC' : 'DESC';
+            
+            document.getElementById('filterForm').submit();
+        });
+    });
+    
+    // Per page change
+    document.getElementById('per_page_select').addEventListener('change', function() {
+        document.getElementById('per_page').value = this.value;
+        document.getElementById('filterForm').submit();
+    });
+    
+    // User autocomplete
+    const userSearchInput = document.getElementById('user_search');
+    const userIdInput = document.getElementById('user_id');
+    const autocompleteResults = document.getElementById('user_autocomplete_results');
+    let searchTimeout = null;
+    let selectedIndex = -1;
+    
+    if (userSearchInput && userIdInput) {
+        // Search on input
+        userSearchInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            
+            // Clear selection if input is cleared
+            if (query === '') {
+                userIdInput.value = '';
+                autocompleteResults.style.display = 'none';
+                selectedIndex = -1;
+                return;
+            }
+            
+            // Don't search if the value matches the current selected user
+            const currentUserId = userIdInput.value;
+            if (currentUserId && this.value.includes('(') && this.value.includes(')')) {
+                // User might be typing, allow search
+            }
+            
+            // Debounce search
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                if (query.length >= 2) {
+                    searchUsers(query);
+                } else {
+                    autocompleteResults.style.display = 'none';
+                }
+            }, 300);
+        });
+        
+        // Clear user_id when user manually clears the input
+        userSearchInput.addEventListener('blur', function() {
+            // Small delay to allow click on autocomplete item
+            setTimeout(() => {
+                if (this.value.trim() === '' && userIdInput.value) {
+                    userIdInput.value = '';
+                }
+            }, 200);
+        });
+        
+        // Handle keyboard navigation
+        userSearchInput.addEventListener('keydown', function(e) {
+            const items = autocompleteResults.querySelectorAll('.list-group-item');
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                updateSelection(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, -1);
+                updateSelection(items);
+            } else if (e.key === 'Enter' && selectedIndex >= 0 && items[selectedIndex]) {
+                e.preventDefault();
+                items[selectedIndex].click();
+            } else if (e.key === 'Escape') {
+                autocompleteResults.style.display = 'none';
+                selectedIndex = -1;
+            }
+        });
+        
+        // Hide autocomplete when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!userSearchInput.contains(e.target) && !autocompleteResults.contains(e.target)) {
+                autocompleteResults.style.display = 'none';
+            }
+        });
+    }
+    
+    function searchUsers(query) {
+        fetch(`{{ BASE_URL }}admin/audit-logs/users/search?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                displayResults(data);
+            })
+            .catch(error => {
+                console.error('Error searching users:', error);
+                autocompleteResults.style.display = 'none';
+            });
+    }
+    
+    function displayResults(users) {
+        if (users.length === 0) {
+            autocompleteResults.innerHTML = '<div class="list-group-item text-muted">Nenhum utilizador encontrado</div>';
+            autocompleteResults.style.display = 'block';
+            return;
+        }
+        
+        autocompleteResults.innerHTML = '';
+        users.forEach((user, index) => {
+            const item = document.createElement('a');
+            item.href = '#';
+            item.className = 'list-group-item list-group-item-action';
+            item.dataset.userId = user.id;
+            item.dataset.userName = user.name;
+            item.dataset.userEmail = user.email;
+            
+            item.innerHTML = `
+                <div>
+                    <strong>${escapeHtml(user.name)}</strong>
+                    ${user.role === 'super_admin' ? '<span class="badge bg-danger ms-1">SA</span>' : ''}
+                </div>
+                <small class="text-muted">${escapeHtml(user.email)}</small>
+            `;
+            
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                selectUser(user.id, user.name, user.email);
+            });
+            
+            autocompleteResults.appendChild(item);
+        });
+        
+        autocompleteResults.style.display = 'block';
+        selectedIndex = -1;
+    }
+    
+    function updateSelection(items) {
+        items.forEach((item, index) => {
+            if (index === selectedIndex) {
+                item.classList.add('active');
+                item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            } else {
+                item.classList.remove('active');
+            }
+        });
+    }
+    
+    function selectUser(userId, userName, userEmail) {
+        userIdInput.value = userId;
+        userSearchInput.value = `${userName} (${userEmail})`;
+        autocompleteResults.style.display = 'none';
+        selectedIndex = -1;
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Log row click handler
+    document.querySelectorAll('.log-row').forEach(row => {
+        row.addEventListener('click', function(e) {
+            // Don't trigger if clicking on links or buttons
+            if (e.target.tagName === 'A' || e.target.closest('a') || e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+                return;
+            }
+            
+            try {
+                const logId = this.dataset.logId;
+                if (!logId) {
+                    throw new Error('Log ID não encontrado');
+                }
+                
+                // Get log data from window.auditLogsData
+                const logData = window.auditLogsData && window.auditLogsData[logId];
+                if (!logData) {
+                    throw new Error('Dados do log não encontrados');
+                }
+                
+                showLogDetails(logData);
+            } catch (error) {
+                console.error('Error loading log data:', error);
+                console.error('Log ID:', this.dataset.logId);
+                console.error('Available logs:', Object.keys(window.auditLogsData || {}));
+                alert('Erro ao carregar detalhes do log: ' + (error.message || 'Erro desconhecido'));
+            }
+        });
+    });
+    
+    function showLogDetails(log) {
+        const modal = new bootstrap.Modal(document.getElementById('logDetailsModal'));
+        
+        // Format date
+        let dateText = '-';
+        if (log.created_at) {
+            try {
+                const date = new Date(log.created_at);
+                if (!isNaN(date.getTime())) {
+                    dateText = date.toLocaleDateString('pt-PT', { 
+                        day: '2-digit', 
+                        month: '2-digit', 
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    });
+                } else {
+                    dateText = log.created_at;
+                }
+            } catch (e) {
+                dateText = log.created_at;
+            }
+        }
+        document.getElementById('modal-created-at').textContent = dateText;
+        
+        // Audit type
+        const auditTypeMap = {
+            'payments': '<span class="badge bg-primary">Pagamentos</span>',
+            'financial': '<span class="badge bg-success">Financeiro</span>',
+            'subscriptions': '<span class="badge bg-info">Subscrições</span>',
+            'documents': '<span class="badge bg-warning text-dark">Documentos</span>',
+            'general': '<span class="badge bg-secondary">Geral</span>'
+        };
+        document.getElementById('modal-audit-type').innerHTML = auditTypeMap[log.audit_type] || '<span class="badge bg-secondary">Geral</span>';
+        
+        // Action
+        const actionStr = (log.action || '').toLowerCase();
+        const actionBadgeClass = 
+            (actionStr.includes('error') || actionStr.includes('failed') || actionStr.includes('blocked')) ? 'danger' :
+            (actionStr.includes('removed') || actionStr.includes('rejected')) ? 'warning' :
+            (actionStr.includes('approved') || actionStr.includes('created')) ? 'success' : 'info';
+        document.getElementById('modal-action').innerHTML = 
+            `<span class="badge bg-${actionBadgeClass}">${escapeHtml(log.action || '-')}</span>`;
+        
+        // Model
+        document.getElementById('modal-model').textContent = log.model || '-';
+        if (log.model_id) {
+            document.getElementById('modal-model-id').textContent = '#' + log.model_id;
+            document.getElementById('modal-model-id-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-model-id-row').style.display = 'none';
+        }
+        
+        // User
+        document.getElementById('modal-user').textContent = log.user_name || 'Sistema';
+        document.getElementById('modal-user-email').textContent = log.user_email || '-';
+        if (log.user_role) {
+            const roleBadge = log.user_role === 'super_admin' ? 
+                '<span class="badge bg-danger">Super Admin</span>' :
+                log.user_role === 'admin' ? 
+                '<span class="badge bg-warning">Admin</span>' :
+                '<span class="badge bg-secondary">' + escapeHtml(log.user_role) + '</span>';
+            document.getElementById('modal-user-role').innerHTML = roleBadge;
+            document.getElementById('modal-user-role-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-user-role-row').style.display = 'none';
+        }
+        
+        // Description
+        document.getElementById('modal-description').textContent = log.description || '-';
+        
+        // Amount
+        if (log.amount !== null && log.amount !== undefined && log.amount !== '') {
+            const amount = parseFloat(log.amount);
+            if (!isNaN(amount)) {
+                document.getElementById('modal-amount').innerHTML = 
+                    '<strong class="text-success">€' + amount.toLocaleString('pt-PT', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</strong>';
+                document.getElementById('modal-amount-row').style.display = 'block';
+            } else {
+                document.getElementById('modal-amount-row').style.display = 'none';
+            }
+        } else {
+            document.getElementById('modal-amount-row').style.display = 'none';
+        }
+        
+        // Payment method
+        if (log.payment_method) {
+            document.getElementById('modal-payment-method').textContent = log.payment_method;
+            document.getElementById('modal-payment-method-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-payment-method-row').style.display = 'none';
+        }
+        
+        // Status
+        if (log.status || log.new_status) {
+            const status = log.new_status || log.status;
+            const statusBadgeClass = 
+                (status === 'completed' || status === 'approved' || status === 'active' || status === 'paid') ? 'success' :
+                (status === 'failed' || status === 'rejected' || status === 'canceled' || status === 'deleted') ? 'danger' : 'warning';
+            document.getElementById('modal-status').innerHTML = 
+                `<span class="badge bg-${statusBadgeClass}">${escapeHtml(status)}</span>`;
+            document.getElementById('modal-status-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-status-row').style.display = 'none';
+        }
+        
+        // Old status
+        if (log.old_status) {
+            const oldStatusBadgeClass = 
+                (log.old_status === 'completed' || log.old_status === 'approved' || log.old_status === 'active' || log.old_status === 'paid') ? 'success' :
+                (log.old_status === 'failed' || log.old_status === 'rejected' || log.old_status === 'canceled') ? 'danger' : 'warning';
+            document.getElementById('modal-old-status').innerHTML = 
+                `<span class="badge bg-${oldStatusBadgeClass}">${escapeHtml(log.old_status)}</span>`;
+            document.getElementById('modal-old-status-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-old-status-row').style.display = 'none';
+        }
+        
+        // New status
+        if (log.new_status && log.old_status) {
+            const newStatusBadgeClass = 
+                (log.new_status === 'completed' || log.new_status === 'approved' || log.new_status === 'active' || log.new_status === 'paid') ? 'success' :
+                (log.new_status === 'failed' || log.new_status === 'rejected' || log.new_status === 'canceled' || log.new_status === 'deleted') ? 'danger' : 'warning';
+            document.getElementById('modal-new-status').innerHTML = 
+                `<span class="badge bg-${newStatusBadgeClass}">${escapeHtml(log.new_status)}</span>`;
+            document.getElementById('modal-new-status-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-new-status-row').style.display = 'none';
+        }
+        
+        // Entity type
+        if (log.entity_type) {
+            document.getElementById('modal-entity-type').textContent = log.entity_type;
+            document.getElementById('modal-entity-type-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-entity-type-row').style.display = 'none';
+        }
+        
+        // Entity ID
+        if (log.entity_id) {
+            document.getElementById('modal-entity-id').textContent = '#' + log.entity_id;
+            document.getElementById('modal-entity-id-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-entity-id-row').style.display = 'none';
+        }
+        
+        // Condominium ID
+        if (log.condominium_id !== null && log.condominium_id !== undefined && log.condominium_id !== '') {
+            document.getElementById('modal-condominium-id').textContent = '#' + log.condominium_id;
+            document.getElementById('modal-condominium-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-condominium-row').style.display = 'none';
+        }
+        
+        // Additional fields for financial logs
+        if (log.old_amount !== null && log.old_amount !== undefined && log.old_amount !== '') {
+            const oldAmount = parseFloat(log.old_amount);
+            if (!isNaN(oldAmount)) {
+                const amountRow = document.getElementById('modal-amount-row');
+                if (amountRow.style.display !== 'none') {
+                    document.getElementById('modal-amount').innerHTML += 
+                        ' <small class="text-muted">(Anterior: €' + oldAmount.toLocaleString('pt-PT', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ')</small>';
+                }
+            }
+        }
+        
+        // IP Address
+        document.getElementById('modal-ip-address').textContent = log.ip_address || '-';
+        
+        // User Agent
+        document.getElementById('modal-user-agent').textContent = log.user_agent || '-';
+        
+        // Old Data / New Data
+        if (log.old_data) {
+            try {
+                const oldDataParsed = typeof log.old_data === 'string' ? JSON.parse(log.old_data) : log.old_data;
+                document.getElementById('modal-old-data').textContent = JSON.stringify(oldDataParsed, null, 2);
+                document.getElementById('modal-old-data-row').style.display = 'block';
+            } catch (e) {
+                document.getElementById('modal-old-data').textContent = log.old_data;
+                document.getElementById('modal-old-data-row').style.display = 'block';
+            }
+        } else {
+            document.getElementById('modal-old-data-row').style.display = 'none';
+        }
+        
+        if (log.new_data) {
+            try {
+                const newDataParsed = typeof log.new_data === 'string' ? JSON.parse(log.new_data) : log.new_data;
+                document.getElementById('modal-new-data').textContent = JSON.stringify(newDataParsed, null, 2);
+                document.getElementById('modal-new-data-row').style.display = 'block';
+            } catch (e) {
+                document.getElementById('modal-new-data').textContent = log.new_data;
+                document.getElementById('modal-new-data-row').style.display = 'block';
+            }
+        } else {
+            document.getElementById('modal-new-data-row').style.display = 'none';
+        }
+        
+        // Operation
+        if (log.operation) {
+            const operationMap = {
+                'insert': { text: 'Inserção', class: 'bg-success' },
+                'update': { text: 'Atualização', class: 'bg-warning text-dark' },
+                'delete': { text: 'Exclusão', class: 'bg-danger' }
+            };
+            const operationInfo = operationMap[log.operation.toLowerCase()] || { text: log.operation, class: 'bg-info' };
+            document.getElementById('modal-operation').textContent = operationInfo.text;
+            document.getElementById('modal-operation').className = 'badge ' + operationInfo.class;
+            document.getElementById('modal-operation-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-operation-row').style.display = 'none';
+        }
+        
+        // Document-specific fields
+        if (log.document_type) {
+            document.getElementById('modal-document-type').textContent = log.document_type;
+            document.getElementById('modal-document-type-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-document-type-row').style.display = 'none';
+        }
+        
+        if (log.document_id) {
+            document.getElementById('modal-document-id').textContent = '#' + log.document_id;
+            document.getElementById('modal-document-id-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-document-id-row').style.display = 'none';
+        }
+        
+        if (log.assembly_id) {
+            document.getElementById('modal-assembly-id').textContent = '#' + log.assembly_id;
+            document.getElementById('modal-assembly-id-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-assembly-id-row').style.display = 'none';
+        }
+        
+        if (log.receipt_id) {
+            document.getElementById('modal-receipt-id').textContent = '#' + log.receipt_id;
+            document.getElementById('modal-receipt-id-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-receipt-id-row').style.display = 'none';
+        }
+        
+        if (log.fee_id) {
+            document.getElementById('modal-fee-id').textContent = '#' + log.fee_id;
+            document.getElementById('modal-fee-id-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-fee-id-row').style.display = 'none';
+        }
+        
+        if (log.file_name) {
+            document.getElementById('modal-file-name').textContent = log.file_name;
+            document.getElementById('modal-file-name-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-file-name-row').style.display = 'none';
+        }
+        
+        if (log.file_size !== null && log.file_size !== undefined && log.file_size !== '') {
+            const fileSize = parseInt(log.file_size);
+            if (!isNaN(fileSize)) {
+                const sizeInKB = (fileSize / 1024).toFixed(2);
+                const sizeInMB = (fileSize / (1024 * 1024)).toFixed(2);
+                let sizeText = fileSize + ' bytes';
+                if (fileSize >= 1024 * 1024) {
+                    sizeText = sizeInMB + ' MB';
+                } else if (fileSize >= 1024) {
+                    sizeText = sizeInKB + ' KB';
+                }
+                document.getElementById('modal-file-size').textContent = sizeText;
+                document.getElementById('modal-file-size-col').style.display = 'block';
+            } else {
+                document.getElementById('modal-file-size-col').style.display = 'none';
+            }
+        } else {
+            document.getElementById('modal-file-size-col').style.display = 'none';
+        }
+        
+        if (log.file_path) {
+            document.getElementById('modal-file-path').textContent = log.file_path;
+            document.getElementById('modal-file-path-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-file-path-row').style.display = 'none';
+        }
+        
+        if (log.metadata && typeof log.metadata === 'object') {
+            document.getElementById('modal-metadata').textContent = JSON.stringify(log.metadata, null, 2);
+            document.getElementById('modal-metadata-row').style.display = 'block';
+        } else if (log.metadata) {
+            document.getElementById('modal-metadata').textContent = log.metadata;
+            document.getElementById('modal-metadata-row').style.display = 'block';
+        } else {
+            document.getElementById('modal-metadata-row').style.display = 'none';
+        }
+        
+        modal.show();
+    }
+});
+</script>
+
+<style>
+.sort-link {
+    color: inherit;
+    cursor: pointer;
+}
+
+.sort-link:hover {
+    color: var(--bs-primary);
+}
+
+.text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* User autocomplete dropdown - ensure it appears above table */
+.position-relative[style*="z-index: 1050"] {
+    z-index: 1050 !important;
+}
+
+#user_autocomplete_results {
+    margin-top: 2px;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    border-radius: 0.375rem;
+    z-index: 1051 !important;
+    background-color: white !important;
+    border: 1px solid rgba(0, 0, 0, 0.125) !important;
+    position: absolute !important;
+}
+
+#user_autocomplete_results .list-group-item {
+    border-left: none;
+    border-right: none;
+    cursor: pointer;
+    position: relative;
+    z-index: 1052;
+}
+
+#user_autocomplete_results .list-group-item:first-child {
+    border-top-left-radius: 0.375rem;
+    border-top-right-radius: 0.375rem;
+}
+
+#user_autocomplete_results .list-group-item:last-child {
+    border-bottom-left-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+}
+
+#user_autocomplete_results .list-group-item:hover,
+#user_autocomplete_results .list-group-item.active {
+    background-color: var(--bs-primary);
+    color: white;
+    z-index: 1053;
+}
+
+#user_autocomplete_results .list-group-item.active .text-muted {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Ensure table doesn't overlap autocomplete */
+.card.shadow-sm:not(:first-of-type) {
+    position: relative;
+    z-index: 1;
+}
+
+/* Log row hover effect */
+.log-row:hover {
+    background-color: rgba(0, 123, 255, 0.05) !important;
+}
+
+.log-row:active {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+}
+</style>

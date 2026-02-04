@@ -1,0 +1,357 @@
+/**
+ * Template 8 - Acogedor (Laranja Pastel)
+ * Estilo intermediário com fundo laranja pastel acolhedor
+ */
+:root {
+  /* Primary Colors - Laranja acolhedor */
+  --color-primary: #d4a574;
+  --color-primary-dark: #b8865a;
+  --color-primary-light: #e8c19a;
+
+  /* Accent Colors */
+  --color-accent: #ff8c42;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-info: #3b82f6;
+
+  /* Background Colors - Laranja pastel */
+  --color-bg: #ffe8d6;
+  --color-bg-light: #fff4e6;
+  --color-bg-dark: #ffd4b3;
+
+  /* Text Colors - Escuros para contraste */
+  --color-text: #2c1810;
+  --color-text-light: #5a3c2a;
+  --color-text-muted: #8b5a3c;
+
+  /* Border Colors */
+  --color-border: #d4a574;
+  --color-border-dark: #b8865a;
+}
+
+/* Bootstrap Override Variables */
+:root {
+  --bs-card-header-bg: hsl(28 60% 65%);
+  --bs-card-header-text: hsl(0 0% 100%);
+  --bs-card-header-border: hsl(28 60% 55%);
+  --bs-card-header-bg-alt: hsl(28 60% 65%);
+}
+
+/* Card Header Overrides */
+.card-header.bg-primary {
+  background-color: hsl(28 60% 65%) !important;
+  color: hsl(0 0% 100%) !important;
+  border-color: hsl(28 60% 55%) !important;
+}
+
+/* Button Overrides */
+.btn-primary {
+  background-color: hsl(28 60% 65%) !important;
+  border-color: hsl(28 60% 55%) !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.btn-primary:hover {
+  background-color: hsl(28 60% 55%) !important;
+  border-color: hsl(28 60% 50%) !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.btn-outline-primary {
+  color: hsl(28 60% 55%) !important;
+  border-color: hsl(28 60% 55%) !important;
+  background-color: transparent !important;
+}
+
+.btn-outline-primary:hover {
+  background-color: hsl(28 60% 65%) !important;
+  border-color: hsl(28 60% 65%) !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.badge.bg-primary {
+  background-color: hsl(28 60% 65%) !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+/* Sidebar styling */
+.sidebar {
+  background: var(--color-bg-dark) !important;
+}
+
+.sidebar-nav .nav-link:hover {
+  background: rgba(212, 165, 116, 0.3) !important;
+  color: var(--color-text) !important;
+}
+
+.sidebar-nav .nav-link.active {
+  background: rgba(212, 165, 116, 0.5) !important;
+  color: var(--color-text) !important;
+}
+
+/* Links */
+a {
+  color: var(--color-primary-dark) !important;
+}
+
+a:hover {
+  color: var(--color-primary) !important;
+}
+
+/* Main Content Background */
+.main-content {
+  background: var(--color-bg) !important;
+}
+
+/* Cards */
+.card {
+  background: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+}
+
+.card-body {
+  background: var(--color-bg-light) !important;
+}
+
+.card-header {
+  background: var(--color-bg-dark) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+/* Tables */
+table {
+  background: var(--color-bg-light) !important;
+}
+
+table thead th {
+  background: var(--color-bg-dark) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+table tbody td {
+  background: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+}
+
+table tbody tr:hover {
+  background: var(--color-bg-dark) !important;
+}
+
+/* Footer Homepage - Ensure readability */
+.footer-homepage {
+  background: #1a1c1e !important;
+  color: #ffffff !important;
+}
+
+.footer-homepage * {
+  color: inherit;
+}
+
+.footer-homepage .footer-column-title {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-description,
+.footer-homepage .footer-contact-item {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage .footer-copyright,
+.footer-homepage .footer-copyright p {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.footer-homepage .footer-developed-by {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.footer-homepage a {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage a:hover {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-column-links a {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage .footer-column-links a:hover {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-column-links li i {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.footer-homepage .footer-developed-by a {
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-weight: 600 !important;
+}
+
+.footer-homepage .footer-developed-by a:hover {
+  color: #ffffff !important;
+}
+
+/* Form Controls */
+.form-control,
+.form-select {
+  background-color: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+  background-color: var(--color-bg-light) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-text) !important;
+}
+
+/* Dropdowns */
+.dropdown-menu {
+  background-color: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+}
+
+.dropdown-item {
+  color: var(--color-text) !important;
+}
+
+.dropdown-item:hover {
+  background-color: var(--color-bg-dark) !important;
+  color: var(--color-text) !important;
+}
+
+/* Alerts */
+.alert {
+  border-color: var(--color-border) !important;
+}
+
+.alert-success {
+  background-color: #d1f2eb !important;
+  border-color: var(--color-success) !important;
+  color: #065f46 !important;
+}
+
+.alert-danger {
+  background-color: #f8d7da !important;
+  border-color: var(--color-danger) !important;
+  color: #842029 !important;
+}
+
+.alert-warning {
+  background-color: #fff3cd !important;
+  border-color: var(--color-warning) !important;
+  color: #856404 !important;
+}
+
+.alert-info {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+  border-color: var(--color-info) !important;
+  color: #1e3a8a !important;
+}
+
+/* Badges */
+.badge {
+  border-color: var(--color-border) !important;
+}
+
+.badge.bg-success {
+  background-color: var(--color-success) !important;
+  color: #ffffff !important;
+}
+
+.badge.bg-danger {
+  background-color: var(--color-danger) !important;
+  color: #ffffff !important;
+}
+
+.badge.bg-warning {
+  background-color: var(--color-warning) !important;
+  color: #000000 !important;
+}
+
+.badge.bg-info {
+  background-color: var(--color-info) !important;
+  color: #ffffff !important;
+}
+
+.badge.bg-secondary {
+  background-color: var(--color-text-muted) !important;
+  color: #ffffff !important;
+}
+
+/* Header */
+.header {
+  background: var(--color-bg-dark) !important;
+  border-bottom-color: var(--color-border) !important;
+}
+
+/* Pagination */
+.page-link {
+  background-color: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+.page-link:hover {
+  background-color: var(--color-bg-dark) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-text) !important;
+}
+
+.page-item.active .page-link {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: #ffffff !important;
+}
+
+/* Modal */
+.modal-content {
+  background-color: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+}
+
+.modal-header {
+  background-color: var(--color-bg-dark) !important;
+  border-bottom-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+.modal-footer {
+  background-color: var(--color-bg-light) !important;
+  border-top-color: var(--color-border) !important;
+}
+
+/* List Group */
+.list-group-item {
+  background-color: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+.list-group-item:hover {
+  background-color: var(--color-bg-dark) !important;
+}
+
+/* Nav Tabs */
+.nav-tabs .nav-link {
+  color: var(--color-text) !important;
+  border-color: var(--color-border) !important;
+}
+
+.nav-tabs .nav-link:hover {
+  background-color: var(--color-bg-dark) !important;
+  border-color: var(--color-border) !important;
+}
+
+.nav-tabs .nav-link.active {
+  background-color: var(--color-bg-light) !important;
+  border-color: var(--color-border) var(--color-border) var(--color-bg-light) !important;
+  color: var(--color-text) !important;
+}

@@ -96,7 +96,26 @@ class Expense extends Model
             ':created_by' => $data['created_by']
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $expenseId = (int)$this->db->lastInsertId();
+        
+        // Log audit
+        $this->auditCreate($expenseId, $data);
+        
+        return $expenseId;
+    }
+
+    /**
+     * Find expense by ID
+     */
+    public function findById(int $id): ?array
+    {
+        if (!$this->db) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("SELECT * FROM expenses WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $id]);
+        return $stmt->fetch() ?: null;
     }
 
     /**

@@ -1,0 +1,226 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>{% if promotion %}Editar{% else %}Criar{% endif %} Promoção</h2>
+            <p class="text-muted mb-0">{% if promotion %}Modificar informações da promoção{% else %}Adicionar nova promoção ou desconto{% endif %}</p>
+        </div>
+        <a href="{{ BASE_URL }}admin/promotions" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-{% if promotion %}pencil{% else %}plus-circle{% endif %}"></i> {% if promotion %}Editar{% else %}Criar{% endif %} Promoção</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ BASE_URL }}admin/promotions{% if promotion %}/{{ promotion.id }}{% endif %}" id="promotionForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="name" class="form-label">Nome da Promoção <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="name" name="name" value="{{ promotion.name|default('') }}" required>
+                        <small class="form-text text-muted">Ex: Black Friday 2024, Desconto de Verão</small>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label for="code" class="form-label">Código da Promoção <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control text-uppercase" id="code" name="code" value="{{ promotion.code|default('') }}" required pattern="[A-Z0-9]+" maxlength="50">
+                        <small class="form-text text-muted">Código único em maiúsculas (ex: BLACKFRIDAY2024)</small>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="description" class="form-label">Descrição</label>
+                    <textarea class="form-control" id="description" name="description" rows="3">{{ promotion.description|default('') }}</textarea>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Tipo de Desconto <span class="text-danger">*</span></label>
+                        <div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="discount_type" id="discount_type_percentage" value="percentage" {% if not promotion or promotion.discount_type == 'percentage' %}checked{% endif %} required>
+                                <label class="form-check-label" for="discount_type_percentage">
+                                    Percentual (%)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="discount_type" id="discount_type_fixed" value="fixed" {% if promotion and promotion.discount_type == 'fixed' %}checked{% endif %}>
+                                <label class="form-check-label" for="discount_type_fixed">
+                                    Valor Fixo (€)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label for="discount_value" class="form-label">Valor do Desconto <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text" id="discount_prefix">€</span>
+                            <input type="number" class="form-control" id="discount_value" name="discount_value" value="{{ promotion.discount_value|default('0') }}" step="0.01" min="0.01" required>
+                            <span class="input-group-text" id="discount_suffix">%</span>
+                        </div>
+                        <small class="form-text text-muted" id="discount_help">Valor do desconto</small>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="plan_id" class="form-label">Plano Específico</label>
+                    <select class="form-select" id="plan_id" name="plan_id">
+                        <option value="">Todos os planos</option>
+                        {% for plan in plans %}
+                            <option value="{{ plan.id }}" {% if promotion and promotion.plan_id == plan.id %}selected{% endif %}>
+                                {{ plan.name }} - €{{ plan.price_monthly|number_format(2, ',', '.') }}/mês
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text text-muted">Deixe em branco para aplicar a todos os planos</small>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="start_date" class="form-label">Data de Início <span class="text-danger">*</span></label>
+                        <input type="datetime-local" class="form-control" id="start_date" name="start_date" value="{% if promotion %}{{ promotion.start_date|date('Y-m-d\\TH:i') }}{% endif %}" required>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label for="end_date" class="form-label">Data de Fim <span class="text-danger">*</span></label>
+                        <input type="datetime-local" class="form-control" id="end_date" name="end_date" value="{% if promotion %}{{ promotion.end_date|date('Y-m-d\\TH:i') }}{% endif %}" required>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="max_uses" class="form-label">Máximo de Utilizações</label>
+                        <input type="number" class="form-control" id="max_uses" name="max_uses" value="{{ promotion.max_uses|default('') }}" min="1">
+                        <small class="form-text text-muted">Deixe em branco para ilimitado</small>
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label for="duration_months" class="form-label">Duração (meses)</label>
+                        <input type="number" class="form-control" id="duration_months" name="duration_months" value="{{ promotion.duration_months|default('') }}" min="1">
+                        <small class="form-text text-muted">Número de meses que a promoção é aplicada após subscrição</small>
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" id="is_active" name="is_active" value="1" {% if promotion.is_active|default(true) %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">
+                                Promoção Ativa
+                            </label>
+                        </div>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="is_visible" name="is_visible" value="1" {% if promotion.is_visible|default(false) %}checked{% endif %}>
+                            <label class="form-check-label" for="is_visible">
+                                Visível no Site
+                            </label>
+                            <small class="form-text text-muted d-block">Se marcado, a promoção aparece automaticamente nos planos</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info" id="preview_alert" style="display: none;">
+                    <strong>Preview:</strong> <span id="preview_text"></span>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="{{ BASE_URL }}admin/promotions" class="btn btn-secondary">Cancelar</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-{% if promotion %}check{% else %}plus-circle{% endif %}"></i> {% if promotion %}Atualizar{% else %}Criar{% endif %} Promoção
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const discountTypeRadios = document.querySelectorAll('input[name="discount_type"]');
+    const discountValueInput = document.getElementById('discount_value');
+    const discountPrefix = document.getElementById('discount_prefix');
+    const discountSuffix = document.getElementById('discount_suffix');
+    const discountHelp = document.getElementById('discount_help');
+    const previewAlert = document.getElementById('preview_alert');
+    const previewText = document.getElementById('preview_text');
+    const planSelect = document.getElementById('plan_id');
+    const startDateInput = document.getElementById('start_date');
+    const endDateInput = document.getElementById('end_date');
+
+    function updateDiscountDisplay() {
+        const selectedType = document.querySelector('input[name="discount_type"]:checked').value;
+        
+        if (selectedType === 'percentage') {
+            discountPrefix.style.display = 'none';
+            discountSuffix.style.display = 'inline-block';
+            discountHelp.textContent = 'Valor entre 0 e 100%';
+            discountValueInput.setAttribute('max', '100');
+        } else {
+            discountPrefix.style.display = 'inline-block';
+            discountSuffix.style.display = 'none';
+            discountHelp.textContent = 'Valor fixo em euros';
+            discountValueInput.removeAttribute('max');
+        }
+        updatePreview();
+    }
+
+    function updatePreview() {
+        const selectedType = document.querySelector('input[name="discount_type"]:checked').value;
+        const value = parseFloat(discountValueInput.value) || 0;
+        const planText = planSelect.value ? planSelect.options[planSelect.selectedIndex].text.split(' - ')[0] : 'todos os planos';
+        
+        if (value > 0) {
+            let preview = '';
+            if (selectedType === 'percentage') {
+                preview = `Desconto de ${value}% aplicado em ${planText}`;
+            } else {
+                preview = `Desconto de €${value.toFixed(2)} aplicado em ${planText}`;
+            }
+            previewText.textContent = preview;
+            previewAlert.style.display = 'block';
+        } else {
+            previewAlert.style.display = 'none';
+        }
+    }
+
+    discountTypeRadios.forEach(radio => {
+        radio.addEventListener('change', updateDiscountDisplay);
+    });
+
+    discountValueInput.addEventListener('input', updatePreview);
+    planSelect.addEventListener('change', updatePreview);
+
+    // Validate dates
+    function validateDates() {
+        const startDate = new Date(startDateInput.value);
+        const endDate = new Date(endDateInput.value);
+        
+        if (startDate && endDate && endDate <= startDate) {
+            endDateInput.setCustomValidity('A data de fim deve ser posterior à data de início');
+        } else {
+            endDateInput.setCustomValidity('');
+        }
+    }
+
+    startDateInput.addEventListener('change', validateDates);
+    endDateInput.addEventListener('change', validateDates);
+
+    // Auto-uppercase code
+    const codeInput = document.getElementById('code');
+    codeInput.addEventListener('input', function() {
+        this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    });
+
+    // Initial display update
+    updateDiscountDisplay();
+});
+</script>

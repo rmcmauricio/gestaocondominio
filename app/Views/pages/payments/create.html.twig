@@ -6,6 +6,14 @@
                     <h4 class="mb-0"><i class="bi bi-credit-card"></i> Efetuar Pagamento</h4>
                 </div>
                 <div class="card-body p-4">
+                    {% if show_launch_warning %}
+                    <div class="alert alert-info alert-dismissible fade show" role="alert">
+                        <i class="bi bi-info-circle"></i> <strong>Fase de Lançamento</strong>
+                        <p class="mb-0">Estamos em fase de lançamento e testes. Obrigado pela sua compreensão.</p>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
                     {% if error %}
                     <div class="alert alert-danger alert-dismissible fade show" role="alert">
                         {{ error }}
@@ -15,8 +23,97 @@
 
                     <div class="mb-4 text-center">
                         <h5>{{ plan.name }}</h5>
+                        {% if is_expired and backpayment_months > 0 %}
+                        <div class="alert alert-warning mb-3">
+                            <i class="bi bi-exclamation-triangle"></i> <strong>Subscrição Expirada</strong>
+                            <p class="mb-0 small">A sua subscrição expirou há {{ backpayment_months }} mês(es). Para reativar, é necessário pagar os meses em atraso mais o mês atual.</p>
+                        </div>
+                        {% endif %}
+                        {% if is_extra_update %}
+                        <div class="alert alert-info mb-3">
+                            <i class="bi bi-info-circle"></i> <strong>Atualização de Condomínios Extras</strong>
+                            <p class="mb-0 small">Este pagamento irá ativar os novos condomínios extras na sua subscrição.</p>
+                        </div>
+                        {% endif %}
                         <h2 class="text-primary mb-2">€{{ amount|number_format(2, ',', '.') }}</h2>
-                        <p class="text-muted mb-0">Pagamento mensal</p>
+                        <p class="text-muted mb-0">{% if is_expired and backpayment_months > 0 %}Pagamento total ({{ backpayment_months }} mês(es) em atraso){% else %}Pagamento mensal{% endif %}</p>
+                        {% if plan.slug == 'business' and (extra_condominiums_price > 0 or has_promotion) or (plan_type and (extra_licenses > 0 or has_promotion)) %}
+                        <div class="mt-3" style="text-align: left;">
+                            <small class="text-muted d-block mb-2 text-center"><strong>Detalhe do pagamento:</strong></small>
+                            {% if is_license_addition %}
+                            {# For license addition: show only the extra licenses being added #}
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between align-items-center mb-2" style="flex-direction: row; flex-wrap: nowrap;">
+                                    <span style="flex: 1; text-align: left;">{{ extra_licenses }} fração(ões) extra(s) a adicionar:</span>
+                                    <span style="flex: 0 0 auto; text-align: right; margin-left: 1rem; white-space: nowrap;"><strong>€{{ extra_licenses_price|number_format(2, ',', '.') }}</strong></span>
+                                </div>
+                            </div>
+                            <hr class="my-2">
+                            <div class="d-flex justify-content-between align-items-center fw-bold" style="flex-direction: row; flex-wrap: nowrap;">
+                                <span style="flex: 1; text-align: left;">Total a pagar:</span>
+                                <span style="flex: 0 0 auto; text-align: right; margin-left: 1rem; white-space: nowrap;" class="text-primary fs-5">€{{ amount|number_format(2, ',', '.') }}</span>
+                            </div>
+                            {% else %}
+                            {# For other cases: show base package + extras #}
+                            {% if is_expired and backpayment_months > 0 %}
+                            {# Show backpayment breakdown for expired subscriptions #}
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between align-items-center mb-1" style="flex-direction: row; flex-wrap: nowrap;">
+                                    <span style="flex: 1; text-align: left;">{{ backpayment_months }} mês(es) em atraso (€{{ base_amount|number_format(2, ',', '.') }}/mês):</span>
+                                    <span style="flex: 0 0 auto; text-align: right; margin-left: 1rem; white-space: nowrap;">
+                                        <strong>€{{ (base_amount * backpayment_months)|number_format(2, ',', '.') }}</strong>
+                                    </span>
+                                </div>
+                            </div>
+                            <hr class="my-2">
+                            <div class="d-flex justify-content-between align-items-center fw-bold" style="flex-direction: row; flex-wrap: nowrap;">
+                                <span style="flex: 1; text-align: left;">Total a pagar:</span>
+                                <span style="flex: 0 0 auto; text-align: right; margin-left: 1rem; white-space: nowrap;" class="text-primary fs-5">€{{ amount|number_format(2, ',', '.') }}</span>
+                            </div>
+                            {% else %}
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between align-items-center mb-1" style="flex-direction: row; flex-wrap: nowrap;">
+                                    <span style="flex: 1; text-align: left;">Pacote base{% if plan_type and license_min %}: {{ license_min }} frações incluídas{% endif %}:</span>
+                                    <span style="flex: 0 0 auto; text-align: right; margin-left: 1rem; white-space: nowrap;">
+                                        {% if has_promotion and original_base_amount != base_amount %}
+                                        <span class="text-muted text-decoration-line-through small">€{{ original_base_amount|number_format(2, ',', '.') }}</span>
+                                        <strong class="text-success ms-2">€{{ base_amount|number_format(2, ',', '.') }}</strong>
+                                        {% else %}
+                                        <strong>€{{ base_amount|number_format(2, ',', '.') }}</strong>
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                {% if has_promotion and original_base_amount != base_amount %}
+                                <div class="d-flex justify-content-end mb-1" style="flex-direction: row;">
+                                    <span class="text-success small">
+                                        <i class="bi bi-gift"></i> Desconto aplicado: €{{ promotion_discount|number_format(2, ',', '.') }}
+                                    </span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% if plan.slug == 'business' and extra_condominiums > 0 and extra_condominiums_price > 0 %}
+                            <div class="d-flex justify-content-between align-items-center mb-2" style="flex-direction: row; flex-wrap: nowrap;">
+                                <span style="flex: 1; text-align: left;">{{ extra_condominiums }} condomínio(s) extra(s) (€{{ price_per_condominium|number_format(2, ',', '.') }}/cada):</span>
+                                <span style="flex: 0 0 auto; text-align: right; margin-left: 1rem; white-space: nowrap;"><strong>€{{ extra_condominiums_price|number_format(2, ',', '.') }}</strong></span>
+                            </div>
+                            {% endif %}
+                            {% if plan_type and extra_licenses > 0 %}
+                            <div class="d-flex justify-content-between align-items-center mb-2" style="flex-direction: row; flex-wrap: nowrap;">
+                                <span style="flex: 1; text-align: left;">{{ extra_licenses }} fração(ões) extra(s):</span>
+                                <span style="flex: 0 0 auto; text-align: right; margin-left: 1rem; white-space: nowrap;"><strong>€{{ extra_licenses_price|number_format(2, ',', '.') }}</strong></span>
+                            </div>
+                            {% endif %}
+                            {% if (plan.slug == 'business' and extra_condominiums_price > 0) or (plan_type and extra_licenses > 0) or has_promotion %}
+                            <hr class="my-2">
+                            <div class="d-flex justify-content-between align-items-center fw-bold" style="flex-direction: row; flex-wrap: nowrap;">
+                                <span style="flex: 1; text-align: left;">Total:</span>
+                                <span style="flex: 0 0 auto; text-align: right; margin-left: 1rem; white-space: nowrap;" class="text-primary fs-5">€{{ amount|number_format(2, ',', '.') }}</span>
+                            </div>
+                            {% endif %}
+                            {% endif %}
+                            {% endif %}
+                        </div>
+                        {% endif %}
                     </div>
 
                     <form method="POST" action="{{ BASE_URL }}payments/{{ subscription.id }}/process" id="paymentForm">
@@ -78,6 +175,29 @@
                             </div>
                         </div>
 
+                        <!-- Direct Debit Bank Data -->
+                        <div id="directDebitFields" class="mb-3" style="display: none;">
+                            <div class="mb-3">
+                                <label for="dd_account_holder" class="form-label">Titular da Conta <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="dd_account_holder" name="account_holder" 
+                                       placeholder="Nome completo">
+                            </div>
+                            <div class="mb-3">
+                                <label for="dd_iban" class="form-label">IBAN <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="dd_iban" name="iban" 
+                                       placeholder="PT50 0000 0000 0000 0000 0000 0" maxlength="34">
+                                <small class="text-muted">Formato: PT50 XXXX XXXX XXXX XXXX XXXX X</small>
+                            </div>
+                            <div class="mb-3">
+                                <label for="dd_bic" class="form-label">BIC (opcional)</label>
+                                <input type="text" class="form-control" id="dd_bic" name="bic" 
+                                       placeholder="BIC do banco" maxlength="11">
+                            </div>
+                            <div class="alert alert-info">
+                                <small><i class="bi bi-info-circle"></i> Ao autorizar o débito direto via IfthenPay, autoriza o débito automático mensal da sua conta.</small>
+                            </div>
+                        </div>
+
                         <div class="d-flex justify-content-between mt-4">
                             <a href="{{ BASE_URL }}subscription" class="btn btn-secondary">
                                 <i class="bi bi-arrow-left"></i> Cancelar
@@ -110,6 +230,7 @@ function selectPaymentMethod(method) {
     // Show/hide additional fields
     document.getElementById('mbwayFields').style.display = method === 'mbway' ? 'block' : 'none';
     document.getElementById('sepaFields').style.display = method === 'sepa' ? 'block' : 'none';
+    document.getElementById('directDebitFields').style.display = method === 'direct_debit' ? 'block' : 'none';
     
     // Enable submit button
     document.getElementById('submitBtn').disabled = false;
@@ -125,6 +246,12 @@ function selectPaymentMethod(method) {
         ibanInput.addEventListener('input', validateSEPA);
         accountHolderInput.addEventListener('input', validateSEPA);
         validateSEPA();
+    } else if (method === 'direct_debit') {
+        const ibanInput = document.getElementById('dd_iban');
+        const accountHolderInput = document.getElementById('dd_account_holder');
+        ibanInput.addEventListener('input', validateDirectDebit);
+        accountHolderInput.addEventListener('input', validateDirectDebit);
+        validateDirectDebit();
     }
 }
 
@@ -141,8 +268,26 @@ function validateSEPA() {
     document.getElementById('submitBtn').disabled = !isValid;
 }
 
+function validateDirectDebit() {
+    const iban = document.getElementById('dd_iban').value.replace(/\s/g, '');
+    const accountHolder = document.getElementById('dd_account_holder').value.trim();
+    const isValid = iban.length >= 15 && iban.length <= 34 && accountHolder.length > 0;
+    document.getElementById('submitBtn').disabled = !isValid;
+}
+
 // Format IBAN input
 document.getElementById('iban')?.addEventListener('input', function(e) {
+    let value = e.target.value.replace(/\s/g, '').toUpperCase();
+    if (value.length > 0 && !value.startsWith('PT')) {
+        value = 'PT' + value;
+    }
+    // Add spaces every 4 characters
+    value = value.match(/.{1,4}/g)?.join(' ') || value;
+    e.target.value = value;
+});
+
+// Format Direct Debit IBAN input
+document.getElementById('dd_iban')?.addEventListener('input', function(e) {
     let value = e.target.value.replace(/\s/g, '').toUpperCase();
     if (value.length > 0 && !value.startsWith('PT')) {
         value = 'PT' + value;

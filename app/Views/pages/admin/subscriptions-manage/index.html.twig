@@ -1,0 +1,140 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Gestão de Subscrições</h2>
+            <p class="text-muted mb-0">Gerir subscrições, licenças e condomínios associados</p>
+        </div>
+        <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ BASE_URL }}admin/subscriptions-manage" class="row g-3">
+                <div class="col-md-3">
+                    <label for="plan" class="form-label">Plano</label>
+                    <select class="form-select" id="plan" name="plan">
+                        <option value="">Todos</option>
+                        {% for plan in plans %}
+                        <option value="{{ plan.slug }}" {% if filter_plan == plan.slug %}selected{% endif %}>{{ plan.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="status" class="form-label">Status</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">Todos</option>
+                        <option value="trial" {% if filter_status == 'trial' %}selected{% endif %}>Trial</option>
+                        <option value="active" {% if filter_status == 'active' %}selected{% endif %}>Ativa</option>
+                        <option value="suspended" {% if filter_status == 'suspended' %}selected{% endif %}>Suspensa</option>
+                        <option value="canceled" {% if filter_status == 'canceled' %}selected{% endif %}>Cancelada</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-funnel"></i> Filtrar
+                    </button>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <a href="{{ BASE_URL }}admin/subscriptions-manage" class="btn btn-outline-secondary w-100">
+                        <i class="bi bi-x-circle"></i> Limpar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Subscriptions Table -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-credit-card"></i> Subscrições</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Utilizador</th>
+                            <th>Plano</th>
+                            <th>Licenças</th>
+                            <th>Condomínios</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for subscription in subscriptions %}
+                        <tr>
+                            <td>{{ subscription.id }}</td>
+                            <td>
+                                <strong>{{ subscription.user_name }}</strong><br>
+                                <small class="text-muted">{{ subscription.user_email }}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">{{ subscription.plan_name }}</span>
+                                {% if subscription.plan_type %}
+                                <br><small class="text-muted">{{ subscription.plan_type }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if subscription.used_licenses is defined %}
+                                <strong>{{ subscription.used_licenses }}</strong>
+                                {% if subscription.license_limit %}
+                                / {{ subscription.license_limit }}
+                                {% endif %}
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ subscription.condominium_count|default(0) }}
+                            </td>
+                            <td>
+                                {% if subscription.status == 'active' %}
+                                    <span class="badge bg-success">Ativa</span>
+                                {% elseif subscription.status == 'trial' %}
+                                    <span class="badge bg-warning">Trial</span>
+                                {% elseif subscription.status == 'canceled' %}
+                                    <span class="badge bg-secondary">Cancelada</span>
+                                {% elseif subscription.status == 'suspended' %}
+                                    <span class="badge bg-danger">Suspensa</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ subscription.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ BASE_URL }}admin/subscriptions-manage/view/{{ subscription.id }}" class="btn btn-sm btn-info">
+                                    <i class="bi bi-eye"></i> Ver Detalhes
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">
+                                Nenhuma subscrição encontrada.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

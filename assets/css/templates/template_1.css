@@ -1,0 +1,179 @@
+/**
+ * Template 1 - Clássico (Padrão)
+ * Cores atuais do sistema (laranja/azul escuro)
+ */
+:root {
+  /* Primary Colors - Mantém cores padrão */
+  --color-primary: #e07920;
+  --color-primary-dark: #c7650e;
+  --color-primary-light: #f39e54;
+
+  /* Accent Colors */
+  --color-accent: #f59e0b;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-info: #3b82f6;
+
+  /* Background Colors */
+  --color-bg: #ffffff;
+  --color-bg-light: #f8f9fa;
+  --color-bg-dark: #e9ecef;
+
+  /* Text Colors */
+  --color-text: #1a1f3a;
+  --color-text-light: #4a5568;
+  --color-text-muted: #6b7280;
+
+  /* Border Colors */
+  --color-border: #e5e7eb;
+  --color-border-dark: #d1d5db;
+}
+
+/* Bootstrap Override Variables */
+:root {
+  --bs-card-header-bg: hsl(210 92% 20%);
+  --bs-card-header-text: hsl(0 0% 100%);
+  --bs-card-header-border: hsl(210 92% 25%);
+  --bs-card-header-bg-alt: hsl(27 98% 48%);
+}
+
+/* Button Overrides */
+.btn-primary {
+  background-color: hsl(27 98% 48%) !important;
+  border-color: hsl(27 98% 48%) !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.btn-primary:hover {
+  background-color: hsl(27 98% 42%) !important;
+  border-color: hsl(27 98% 42%) !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.btn-outline-primary {
+  color: hsl(27 98% 48%) !important;
+  border-color: hsl(27 98% 48%) !important;
+}
+
+.btn-outline-primary:hover {
+  background-color: hsl(27 98% 48%) !important;
+  border-color: hsl(27 98% 48%) !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+.badge.bg-primary {
+  background-color: hsl(27 98% 48%) !important;
+  color: hsl(0 0% 100%) !important;
+}
+
+/* Sidebar styling */
+.sidebar {
+  background: var(--color-bg-light) !important;
+}
+
+.sidebar-nav .nav-link:hover {
+  background: rgba(224, 121, 32, 0.1) !important;
+  color: var(--color-primary) !important;
+}
+
+/* Links */
+a {
+  color: var(--color-primary) !important;
+}
+
+a:hover {
+  color: var(--color-primary-dark) !important;
+}
+
+/* Main Content Background */
+.main-content {
+  background: var(--color-bg-light) !important;
+}
+
+/* Cards */
+.card {
+  background: var(--color-bg) !important;
+  border-color: var(--color-border) !important;
+}
+
+.card-body {
+  background: var(--color-bg) !important;
+}
+
+/* Tables */
+table {
+  background: var(--color-bg) !important;
+}
+
+table thead th {
+  background: var(--color-bg-light) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+table tbody td {
+  background: var(--color-bg) !important;
+  border-color: var(--color-border) !important;
+}
+
+table tbody tr:hover {
+  background: var(--color-bg-light) !important;
+}
+
+/* Footer Homepage - Ensure readability */
+.footer-homepage {
+  background: #1a1c1e !important;
+  color: #ffffff !important;
+}
+
+.footer-homepage * {
+  color: inherit;
+}
+
+.footer-homepage .footer-column-title {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-description,
+.footer-homepage .footer-contact-item {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage .footer-copyright,
+.footer-homepage .footer-copyright p {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.footer-homepage .footer-developed-by {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.footer-homepage a {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage a:hover {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-column-links a {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.footer-homepage .footer-column-links a:hover {
+  color: #ffffff !important;
+}
+
+.footer-homepage .footer-column-links li i {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.footer-homepage .footer-developed-by a {
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-weight: 600 !important;
+}
+
+.footer-homepage .footer-developed-by a:hover {
+  color: #ffffff !important;
+}

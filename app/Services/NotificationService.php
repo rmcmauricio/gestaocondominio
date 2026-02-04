@@ -3,34 +3,73 @@
 namespace App\Services;
 
 use App\Core\EmailService;
+use App\Middleware\DemoProtectionMiddleware;
+use App\Models\UserEmailPreference;
 
 class NotificationService
 {
     protected $emailService;
+    protected $preferenceModel;
 
     public function __construct()
     {
         $this->emailService = new EmailService();
+        $this->preferenceModel = new UserEmailPreference();
     }
 
     /**
-     * Create notification in database
+     * Create notification in database and send email
      */
     public function createNotification(int $userId, int $condominiumId, string $type, string $title, string $message, string $link = null): bool
     {
         global $db;
-        
+
         if (!$db) {
             return false;
         }
 
         try {
+            // Check if user is demo - demo users never receive emails
+            if (DemoProtectionMiddleware::isDemoUser($userId)) {
+                // Still create notification in database, but don't send email
+                $stmt = $db->prepare("
+                    INSERT INTO notifications (user_id, condominium_id, type, title, message, link)
+                    VALUES (:user_id, :condominium_id, :type, :title, :message, :link)
+                ");
+                return $stmt->execute([
+                    ':user_id' => $userId,
+                    ':condominium_id' => $condominiumId,
+                    ':type' => $type,
+                    ':title' => $title,
+                    ':message' => $message,
+                    ':link' => $link
+                ]);
+            }
+
+            // Check user preferences
+            if (!$this->preferenceModel->hasEmailEnabled($userId, 'notification')) {
+                // User has disabled notification emails, but still create notification
+                $stmt = $db->prepare("
+                    INSERT INTO notifications (user_id, condominium_id, type, title, message, link)
+                    VALUES (:user_id, :condominium_id, :type, :title, :message, :link)
+                ");
+                return $stmt->execute([
+                    ':user_id' => $userId,
+                    ':condominium_id' => $condominiumId,
+                    ':type' => $type,
+                    ':title' => $title,
+                    ':message' => $message,
+                    ':link' => $link
+                ]);
+            }
+
+            // Create notification in database
             $stmt = $db->prepare("
                 INSERT INTO notifications (user_id, condominium_id, type, title, message, link)
                 VALUES (:user_id, :condominium_id, :type, :title, :message, :link)
             ");
 
-            return $stmt->execute([
+            $result = $stmt->execute([
                 ':user_id' => $userId,
                 ':condominium_id' => $condominiumId,
                 ':type' => $type,
@@ -38,6 +77,33 @@ class NotificationService
                 ':message' => $message,
                 ':link' => $link
             ]);
+
+            // Send email notification (don't fail if email fails)
+            if ($result) {
+                try {
+                    // Get user email
+                    $userStmt = $db->prepare("SELECT email, name FROM users WHERE id = :user_id LIMIT 1");
+                    $userStmt->execute([':user_id' => $userId]);
+                    $user = $userStmt->fetch();
+
+                    if ($user && !empty($user['email'])) {
+                        $this->emailService->sendNotificationEmail(
+                            $user['email'],
+                            $user['name'] ?? 'Utilizador',
+                            $type,
+                            $title,
+                            $message,
+                            $link,
+                            $userId
+                        );
+                    }
+                } catch (\Exception $e) {
+                    // Log error but don't fail notification creation
+                    error_log("Failed to send notification email: " . $e->getMessage());
+                }
+            }
+
+            return $result;
         } catch (\Exception $e) {
             error_log("Notification error: " . $e->getMessage());
             return false;
@@ -52,8 +118,25 @@ class NotificationService
         // Notify admins
         global $db;
         if ($db) {
+            // Get occurrence priority
+            $stmtOcc = $db->prepare("SELECT priority, title FROM occurrences WHERE id = :occurrence_id LIMIT 1");
+            $stmtOcc->execute([':occurrence_id' => $occurrenceId]);
+            $occurrence = $stmtOcc->fetch();
+
+            $priority = $occurrence['priority'] ?? 'medium';
+            $occurrenceTitle = $occurrence['title'] ?? 'Nova Ocorrência';
+
+            // Map priority to Portuguese
+            $priorityLabels = [
+                'low' => 'Baixa',
+                'medium' => 'Média',
+                'high' => 'Alta',
+                'urgent' => 'Urgente'
+            ];
+            $priorityLabel = $priorityLabels[$priority] ?? 'Média';
+
             $stmt = $db->prepare("
-                SELECT DISTINCT u.id 
+                SELECT DISTINCT u.id
                 FROM users u
                 INNER JOIN condominiums c ON c.user_id = u.id
                 WHERE c.id = :condominium_id AND u.role = 'admin'
@@ -67,7 +150,7 @@ class NotificationService
                     $condominiumId,
                     'occurrence',
                     'Nova Ocorrência',
-                    'Uma nova ocorrência foi reportada.',
+                    'Uma nova ocorrência foi reportada: ' . $occurrenceTitle . ' (Prioridade: ' . $priorityLabel . ')',
                     BASE_URL . 'condominiums/' . $condominiumId . '/occurrences/' . $occurrenceId
                 );
             }
@@ -95,7 +178,7 @@ class NotificationService
     public function sendOverdueFeeEmail(int $userId, array $feeData, int $condominiumId): bool
     {
         global $db;
-        
+
         if (!$db) {
             return false;
         }
@@ -127,7 +210,7 @@ class NotificationService
         }
 
         $subject = 'Quotas em Atraso - ' . ($condominium['name'] ?? 'Condomínio');
-        
+
         $html = $this->getOverdueFeeEmailTemplate(
             $user['name'],
             $condominium['name'] ?? 'Condomínio',
@@ -180,7 +263,7 @@ class NotificationService
                 <div class="content">
                     <p>Olá <strong>' . htmlspecialchars($userName) . '</strong>,</p>
                     <p>Informamos que tem quotas em atraso no condomínio <strong>' . htmlspecialchars($condominiumName) . '</strong>.</p>
-                    
+
                     <table>
                         <thead>
                             <tr>
@@ -200,9 +283,9 @@ class NotificationService
                             </tr>
                         </tfoot>
                     </table>
-                    
+
                     <p>Por favor, efetue o pagamento o mais breve possível para evitar juros de mora.</p>
-                    
+
                     <a href="' . BASE_URL . 'condominiums/' . $condominiumId . '/fees" class="button">Ver Detalhes das Quotas</a>
                 </div>
                 <div class="footer">
@@ -244,7 +327,7 @@ class NotificationService
 
         // Also notify admins
         $stmt = $db->prepare("
-            SELECT DISTINCT u.id 
+            SELECT DISTINCT u.id
             FROM users u
             INNER JOIN condominium_users cu ON cu.user_id = u.id
             WHERE cu.condominium_id = :condominium_id AND u.role IN ('admin', 'super_admin')
@@ -288,28 +371,248 @@ class NotificationService
     }
 
     /**
-     * Get user notifications
+     * Notify vote opened
+     */
+    public function notifyVoteOpened(int $voteId, int $condominiumId, string $voteTitle): void
+    {
+        global $db;
+        if (!$db) {
+            return;
+        }
+
+        // Get all users in the condominium (condominos and admins)
+        $stmt = $db->prepare("
+            SELECT DISTINCT u.id
+            FROM users u
+            INNER JOIN condominium_users cu ON cu.user_id = u.id
+            WHERE cu.condominium_id = :condominium_id
+        ");
+        $stmt->execute([':condominium_id' => $condominiumId]);
+        $users = $stmt->fetchAll();
+
+        foreach ($users as $user) {
+            $this->createNotification(
+                $user['id'],
+                $condominiumId,
+                'vote',
+                'Nova Votação Aberta',
+                'Uma nova votação foi aberta: ' . $voteTitle,
+                BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId
+            );
+        }
+    }
+
+    /**
+     * Check if user has access to condominium
+     */
+    protected function userHasAccessToCondominium(int $userId, int $condominiumId): bool
+    {
+        // Use RoleMiddleware to check access based on role per condominium
+        $role = \App\Middleware\RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        return $role !== null;
+    }
+
+    /**
+     * Get user notifications (only for condominiums user has access to)
      */
     public function getUserNotifications(int $userId, int $limit = 10): array
     {
         global $db;
-        
+
         if (!$db) {
             return [];
         }
 
+        // Get all notifications for user
         $stmt = $db->prepare("
-            SELECT * FROM notifications 
-            WHERE user_id = :user_id 
-            ORDER BY created_at DESC 
-            LIMIT :limit
+            SELECT * FROM notifications
+            WHERE user_id = :user_id
+            ORDER BY created_at DESC
         ");
 
-        $stmt->bindValue(':user_id', $userId, \PDO::PARAM_INT);
-        $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
-        $stmt->execute();
+        $stmt->execute([':user_id' => $userId]);
+        $allNotifications = $stmt->fetchAll() ?: [];
 
-        return $stmt->fetchAll() ?: [];
+        // Filter notifications to only include those from condominiums user has access to
+        $filteredNotifications = [];
+        foreach ($allNotifications as $notification) {
+            $condominiumId = $notification['condominium_id'] ?? null;
+            
+            // If notification has no condominium_id (system notification), include it
+            if ($condominiumId === null) {
+                $filteredNotifications[] = $notification;
+            } 
+            // If notification has condominium_id, check access
+            elseif ($this->userHasAccessToCondominium($userId, $condominiumId)) {
+                $filteredNotifications[] = $notification;
+            }
+        }
+
+        // Apply limit
+        return array_slice($filteredNotifications, 0, $limit);
+    }
+
+    /**
+     * Get unified notifications (system notifications + unread messages)
+     */
+    public function getUnifiedNotifications(int $userId, int $limit = 50): array
+    {
+        global $db;
+
+        if (!$db) {
+            return [];
+        }
+
+        $unified = [];
+
+        // Get system notifications
+        $stmt = $db->prepare("
+            SELECT
+                n.id,
+                'notification' as source_type,
+                n.type,
+                n.title,
+                n.message,
+                n.link,
+                n.condominium_id,
+                n.is_read,
+                n.read_at,
+                n.created_at
+            FROM notifications n
+            WHERE n.user_id = :user_id
+            ORDER BY n.created_at DESC
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        $allNotifications = $stmt->fetchAll() ?: [];
+
+        // Filter notifications to only include those from condominiums user has access to
+        $notifications = [];
+        foreach ($allNotifications as $notif) {
+            $condominiumId = $notif['condominium_id'] ?? null;
+            
+            // If notification has no condominium_id (system notification), include it
+            if ($condominiumId === null) {
+                $notifications[] = $notif;
+            } 
+            // If notification has condominium_id, check access
+            elseif ($this->userHasAccessToCondominium($userId, $condominiumId)) {
+                $notifications[] = $notif;
+            }
+        }
+
+        foreach ($notifications as $notif) {
+            // Ensure link has BASE_URL if it's a relative path
+            $link = $notif['link'];
+            if ($link) {
+                // Replace localhost with current domain if present
+                $currentHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                $currentProtocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+                $currentBaseUrl = $currentProtocol . '://' . $currentHost . '/';
+
+                // If link contains localhost, replace with current domain
+                if (strpos($link, 'localhost') !== false) {
+                    $link = preg_replace('/https?:\/\/localhost\/?/', $currentBaseUrl, $link);
+                    $link = preg_replace('/https?:\/\/127\.0\.0\.1\/?/', $currentBaseUrl, $link);
+                }
+
+                // If link is relative or doesn't start with http, add BASE_URL
+                if (!preg_match('/^https?:\/\//', $link)) {
+                    // Remove BASE_URL if already present to avoid duplication
+                    $link = str_replace(BASE_URL, '', $link);
+                    // Add BASE_URL if link doesn't start with /
+                    if (!str_starts_with($link, '/')) {
+                        $link = BASE_URL . $link;
+                    } else {
+                        $link = BASE_URL . ltrim($link, '/');
+                    }
+                }
+            }
+
+            $notificationData = [
+                'id' => 'notif_' . $notif['id'],
+                'source_type' => 'notification',
+                'type' => $notif['type'],
+                'title' => $notif['title'],
+                'message' => $notif['message'],
+                'link' => $link,
+                'condominium_id' => $notif['condominium_id'],
+                'is_read' => (bool)$notif['is_read'],
+                'read_at' => $notif['read_at'],
+                'created_at' => $notif['created_at']
+            ];
+
+            // If it's an occurrence notification, get the priority from the occurrence
+            if ($notif['type'] === 'occurrence' && $notif['link']) {
+                // Extract occurrence ID from link (format: BASE_URL/condominiums/{id}/occurrences/{occurrence_id})
+                if (preg_match('/occurrences\/(\d+)/', $notif['link'], $matches)) {
+                    $occurrenceId = (int)$matches[1];
+                    $stmtOcc = $db->prepare("SELECT priority FROM occurrences WHERE id = :occurrence_id LIMIT 1");
+                    $stmtOcc->execute([':occurrence_id' => $occurrenceId]);
+                    $occurrence = $stmtOcc->fetch();
+                    if ($occurrence) {
+                        $notificationData['priority'] = $occurrence['priority'];
+                    }
+                }
+            }
+
+            $unified[] = $notificationData;
+        }
+
+        // Get unread messages (only from condominiums user has access to)
+        $stmt = $db->prepare("
+            SELECT
+                m.id,
+                m.condominium_id,
+                m.subject,
+                m.message,
+                m.is_read,
+                m.read_at,
+                m.created_at,
+                u.name as sender_name
+            FROM messages m
+            LEFT JOIN users u ON u.id = m.from_user_id
+            WHERE (m.to_user_id = :user_id OR m.to_user_id IS NULL)
+            AND m.is_read = FALSE
+            AND m.from_user_id != :user_id
+            AND m.thread_id IS NULL
+            ORDER BY m.created_at DESC
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        $allMessages = $stmt->fetchAll() ?: [];
+
+        // Filter messages to only include those from condominiums user has access to
+        $messages = [];
+        foreach ($allMessages as $msg) {
+            $condominiumId = $msg['condominium_id'] ?? null;
+            
+            // If message has condominium_id, check access
+            if ($condominiumId && $this->userHasAccessToCondominium($userId, $condominiumId)) {
+                $messages[] = $msg;
+            }
+        }
+
+        foreach ($messages as $msg) {
+            $unified[] = [
+                'id' => 'msg_' . $msg['id'],
+                'source_type' => 'message',
+                'type' => 'message',
+                'title' => 'Nova Mensagem: ' . $msg['subject'],
+                'message' => 'De: ' . ($msg['sender_name'] ?? 'Sistema') . ' - ' . substr(strip_tags($msg['message']), 0, 100) . '...',
+                'link' => BASE_URL . 'condominiums/' . $msg['condominium_id'] . '/messages/' . $msg['id'],
+                'condominium_id' => $msg['condominium_id'],
+                'is_read' => false,
+                'read_at' => null,
+                'created_at' => $msg['created_at']
+            ];
+        }
+
+        // Sort by created_at DESC
+        usort($unified, function($a, $b) {
+            return strtotime($b['created_at']) - strtotime($a['created_at']);
+        });
+
+        // Limit results
+        return array_slice($unified, 0, $limit);
     }
 
     /**
@@ -318,14 +621,14 @@ class NotificationService
     public function markAsRead(int $notificationId): bool
     {
         global $db;
-        
+
         if (!$db) {
             return false;
         }
 
         $stmt = $db->prepare("
-            UPDATE notifications 
-            SET is_read = TRUE, read_at = NOW() 
+            UPDATE notifications
+            SET is_read = TRUE, read_at = NOW()
             WHERE id = :id
         ");
 

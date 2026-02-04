@@ -26,48 +26,82 @@ class EmailService
     private $fromEmail;
     private $fromName;
     private $emailTranslations;
+    private $emailTemplateModel;
 
     public function __construct()
     {
-        // Load email configuration from constants (defined in .env)
-        $this->smtpHost = defined('SMTP_HOST') ? SMTP_HOST : 'smtp.gmail.com';
-        $this->smtpPort = defined('SMTP_PORT') ? (int)SMTP_PORT : 587;
-        $this->smtpUsername = defined('SMTP_USERNAME') ? SMTP_USERNAME : '';
-        $this->smtpPassword = defined('SMTP_PASSWORD') ? SMTP_PASSWORD : '';
-        $this->fromEmail = defined('FROM_EMAIL') ? FROM_EMAIL : 'noreply@sync2stage.com';
-        $this->fromName = defined('FROM_NAME') ? FROM_NAME : 'Sync2Stage';
+        // Load email configuration from .env (loaded into $_ENV)
+        $this->smtpHost = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
+        $this->smtpPort = isset($_ENV['SMTP_PORT']) ? (int)$_ENV['SMTP_PORT'] : 587;
+        $this->smtpUsername = $_ENV['SMTP_USERNAME'] ?? '';
+        $this->smtpPassword = $_ENV['SMTP_PASSWORD'] ?? '';
+        $this->fromEmail = $_ENV['FROM_EMAIL'] ?? 'noreply@example.com';
+        $this->fromName = $_ENV['FROM_NAME'] ?? 'Meu Prédio';
 
         // Load email translations
         $this->loadEmailTranslations();
+
+        // Initialize email template model
+        $this->emailTemplateModel = new \App\Models\EmailTemplate();
     }
 
     private function loadEmailTranslations(): void
     {
-        $lang = $_SESSION['lang'] ?? 'pt';
+        // Try to get language from session, but default to Portuguese
+        $lang = isset($_SESSION) && isset($_SESSION['lang']) ? $_SESSION['lang'] : 'pt';
         $emailFile = __DIR__ . "/../Metafiles/{$lang}/emails.json";
 
         if (file_exists($emailFile)) {
             $emailData = json_decode(file_get_contents($emailFile), true);
-            if (isset($emailData['t'])) {
+            if (isset($emailData['t']) && is_array($emailData['t'])) {
                 $this->emailTranslations = $emailData['t'];
             }
         }
 
-        // Fallback to Portuguese if translations not found
+        // Fallback to Portuguese if translations not found or empty
         if (empty($this->emailTranslations)) {
             $fallbackFile = __DIR__ . "/../Metafiles/pt/emails.json";
             if (file_exists($fallbackFile)) {
                 $fallbackData = json_decode(file_get_contents($fallbackFile), true);
-                if (isset($fallbackData['t'])) {
+                if (isset($fallbackData['t']) && is_array($fallbackData['t'])) {
                     $this->emailTranslations = $fallbackData['t'];
                 }
             }
+        }
+
+        // If still empty, initialize as empty array to avoid errors
+        if (empty($this->emailTranslations)) {
+            $this->emailTranslations = [];
         }
     }
 
     private function t(string $key, array $replacements = []): string
     {
+        // Get translation or use key as fallback
         $text = $this->emailTranslations[$key] ?? $key;
+
+        // If translation is empty or same as key, try to provide a default
+        if (empty($text) || $text === $key) {
+            // Provide some default Portuguese translations for common keys
+            $defaults = [
+                'password_reset_title' => 'Redefinir Senha',
+                'password_reset_subtitle' => 'Solicitação de redefinição de senha',
+                'password_reset_hello' => 'Olá {nome}!',
+                'password_reset_message' => 'Recebemos uma solicitação para redefinir a senha da sua conta.',
+                'password_reset_button' => 'Redefinir Senha',
+                'password_reset_important' => 'Importante',
+                'password_reset_warning_1' => 'Este link expira em 1 hora',
+                'password_reset_warning_2' => 'Se você não solicitou esta alteração, ignore este email',
+                'password_reset_warning_3' => 'A sua senha não será alterada até que você clique no link acima',
+                'password_reset_copy_link' => 'Se o botão não funcionar, copie e cole este link no seu navegador:',
+                'welcome_footer_made_with' => 'Feito com ❤️ para gestão de condomínios',
+                'welcome_footer_copyright' => '© O Meu Prédio - Todos os direitos reservados',
+            ];
+
+            if (isset($defaults[$key])) {
+                $text = $defaults[$key];
+            }
+        }
 
         // Replace placeholders like {nome}
         foreach ($replacements as $placeholder => $value) {
@@ -79,36 +113,87 @@ class EmailService
 
     public function sendWelcomeEmail(string $email, string $nome, string $token): bool
     {
-        $subject = $this->t('welcome_subject');
         $verificationUrl = BASE_URL . 'verify-email?token=' . $token;
 
-        $html = $this->getWelcomeEmailTemplate($nome, $verificationUrl);
-        $text = $this->getWelcomeEmailText($nome, $verificationUrl);
+        // Use template from database (required)
+        $template = $this->emailTemplateModel->findByKey('welcome');
+        if (!$template) {
+            error_log("EmailService: Template 'welcome' not found in database. Please run seeder.");
+            return false;
+        }
+
+        $subject = $template['subject'] ?? $this->t('welcome_subject');
+        $html = $this->renderTemplate('welcome', [
+            'nome' => $nome,
+            'verificationUrl' => $verificationUrl,
+            'baseUrl' => BASE_URL
+        ]);
+        $text = $this->renderTextTemplate('welcome', [
+            'nome' => $nome,
+            'verificationUrl' => $verificationUrl,
+            'baseUrl' => BASE_URL
+        ]);
+
+        if (empty($html)) {
+            error_log("EmailService: Failed to render 'welcome' template. Check base_layout exists.");
+            return false;
+        }
 
         return $this->sendEmailInternal($email, $subject, $html, $text);
     }
 
     public function sendApprovalNotification(string $email, string $nome): bool
     {
-        $subject = $this->t('approval_subject');
-
-        $html = $this->getApprovalEmailTemplate($nome);
-        $text = $this->getApprovalEmailText($nome);
+        // Try to use template from database
+        $template = $this->emailTemplateModel->findByKey('approval');
+        if ($template) {
+            $subject = $template['subject'] ?? $this->t('approval_subject');
+            $html = $this->renderTemplate('approval', [
+                'nome' => $nome,
+                'baseUrl' => BASE_URL
+            ]);
+            $text = $this->renderTextTemplate('approval', [
+                'nome' => $nome,
+                'baseUrl' => BASE_URL
+            ]);
+        } else {
+            error_log("EmailService: Template 'approval' not found in database. Please run seeder.");
+            return false;
+        }
 
         return $this->sendEmailInternal($email, $subject, $html, $text);
     }
 
     public function sendNewUserNotification(string $userEmail, string $userName, int $userId): bool
     {
-        $subject = $this->t('new_user_subject');
         $adminUrl = BASE_URL . 'dashboard/approvals';
+
+        // Try to use template from database
+        $template = $this->emailTemplateModel->findByKey('new_user_notification');
+        if ($template) {
+            $subject = $template['subject'] ?? $this->t('new_user_subject');
+            $html = $this->renderTemplate('new_user_notification', [
+                'userEmail' => $userEmail,
+                'userName' => $userName,
+                'userId' => (string)$userId,
+                'adminUrl' => $adminUrl,
+                'baseUrl' => BASE_URL
+            ]);
+            $text = $this->renderTextTemplate('new_user_notification', [
+                'userEmail' => $userEmail,
+                'userName' => $userName,
+                'userId' => (string)$userId,
+                'adminUrl' => $adminUrl,
+                'baseUrl' => BASE_URL
+            ]);
+        } else {
+            error_log("EmailService: Template 'new_user_notification' not found in database. Please run seeder.");
+            return false;
+        }
 
         // Obter emails de suporte (suporta múltiplos emails separados por vírgula)
         $supportEmails = defined('SUPPORT_EMAILS') ? SUPPORT_EMAILS : (defined('SUPPORT_EMAIL') ? SUPPORT_EMAIL : 'suporte@lyricsjam.com');
         $emailList = array_map('trim', explode(',', $supportEmails));
-
-        $html = $this->getNewUserNotificationTemplate($userEmail, $userName, $adminUrl);
-        $text = $this->getNewUserNotificationText($userEmail, $userName, $adminUrl);
 
         // Enviar para todos os emails de suporte
         $allSent = true;
@@ -127,14 +212,96 @@ class EmailService
 
     /**
      * Send generic email
+     * @param string $to Recipient email
+     * @param string $subject Email subject
+     * @param string $html HTML content
+     * @param string $text Plain text content
+     * @param string|null $emailType Type of email ('notification' or 'message')
+     * @param int|null $userId User ID for preference checking and demo protection
+     * @return bool
      */
-    public function sendEmail(string $to, string $subject, string $html, string $text = ''): bool
+    public function sendEmail(string $to, string $subject, string $html, string $text = '', ?string $emailType = null, ?int $userId = null): bool
     {
-        return $this->sendEmailInternal($to, $subject, $html, $text);
+        return $this->sendEmailInternal($to, $subject, $html, $text, $emailType, $userId);
     }
 
-    private function sendEmailInternal(string $to, string $subject, string $html, string $text): bool
+    private function sendEmailInternal(string $to, string $subject, string $html, string $text, ?string $emailType = null, ?int $userId = null): bool
     {
+        // Check if user is demo - demo users never receive emails
+        if ($userId !== null) {
+            if (\App\Middleware\DemoProtectionMiddleware::isDemoUser($userId)) {
+                error_log("EmailService: Skipping email to demo user (ID: {$userId})");
+                return false;
+            }
+
+            // Check user preferences if email type is provided
+            if ($emailType !== null && in_array($emailType, ['notification', 'message'])) {
+                $preferenceModel = new \App\Models\UserEmailPreference();
+                if (!$preferenceModel->hasEmailEnabled($userId, $emailType)) {
+                    error_log("EmailService: Email disabled by user preference (User ID: {$userId}, Type: {$emailType})");
+                    return false;
+                }
+            }
+        }
+
+        // Store original recipient for DEV redirection
+        $originalTo = $to;
+
+        // Get APP_ENV from multiple sources
+        $appEnv = null;
+        if (defined('APP_ENV')) {
+            $appEnv = APP_ENV;
+        } elseif (isset($_ENV['APP_ENV'])) {
+            $appEnv = $_ENV['APP_ENV'];
+        } else {
+            $appEnv = 'development'; // Default to development
+        }
+
+        // Get DEV_EMAIL
+        $devEmail = $_ENV['DEV_EMAIL'] ?? '';
+
+        // Check if we're in development mode
+        $isDevelopment = (strtolower($appEnv) === 'development');
+
+        // In development, if DEV_EMAIL is not set, block email sending
+        if ($isDevelopment && empty($devEmail)) {
+            error_log("EmailService: BLOCKED - Development mode but DEV_EMAIL not set. Email to {$originalTo} was blocked. Please set DEV_EMAIL in .env file.");
+            return false; // Don't send email in development if DEV_EMAIL is not configured
+        }
+
+        // Redirect to DEV_EMAIL in development environment
+        if ($isDevelopment && !empty($devEmail)) {
+            $to = $devEmail;
+
+            // Modify subject to indicate it's a dev redirect
+            $subject = '[DEV] [Original: ' . $originalTo . '] ' . $subject;
+
+            // Add notice to email body about redirection
+            $devNotice = '
+            <div style="background: #F98E13; border: 2px solid #F98E13; padding: 15px; margin: 20px 0; border-radius: 8px; opacity: 0.9;">
+                <strong style="color: #ffffff;">⚠️ EMAIL DE DESENVOLVIMENTO</strong><br>
+                <p style="color: #ffffff; margin: 10px 0 0 0;">
+                    Este email foi redirecionado para o ambiente de desenvolvimento.<br>
+                    <strong>Destinatário original:</strong> ' . htmlspecialchars($originalTo) . '<br>
+                    <strong>Destinatário atual:</strong> ' . htmlspecialchars($devEmail) . '
+                </p>
+            </div>';
+
+            // Insert notice after opening body tag or at the beginning of content
+            if (strpos($html, '<body') !== false) {
+                $html = preg_replace('/(<body[^>]*>)/', '$1' . $devNotice, $html, 1);
+            } else {
+                $html = $devNotice . $html;
+            }
+
+            // Add notice to text version
+            $text = "⚠️ EMAIL DE DESENVOLVIMENTO\n\n" .
+                   "Este email foi redirecionado para o ambiente de desenvolvimento.\n" .
+                   "Destinatário original: {$originalTo}\n" .
+                   "Destinatário atual: {$devEmail}\n\n" .
+                   "---\n\n" . $text;
+        }
+
         try {
             $mail = new PHPMailer(true);
 
@@ -156,11 +323,19 @@ class EmailService
                     'crypto_method' => STREAM_CRYPTO_METHOD_TLS_CLIENT,
                     'ciphers' => 'DEFAULT@SECLEVEL=1',
                     'disable_compression' => true,
-                    'peer_name' => 'mail.lyricsjam.com',
+                    'peer_name' => $this->smtpHost,
                     'capture_peer_cert' => false,
                     'capture_peer_cert_chain' => false
                 )
             );
+
+            // Enable verbose debug output in development
+            if (defined('APP_ENV') && APP_ENV === 'development') {
+                $mail->SMTPDebug = SMTP::DEBUG_SERVER;
+                $mail->Debugoutput = function($str, $level) {
+                    error_log("PHPMailer Debug: " . $str);
+                };
+            }
 
             // Character encoding settings
             $mail->CharSet = 'UTF-8';
@@ -179,263 +354,44 @@ class EmailService
             $mail->send();
             return true;
         } catch (Exception $e) {
-            error_log("EmailService Error: " . $e->getMessage());
+            $errorMsg = "EmailService Error: " . $e->getMessage();
+            error_log($errorMsg);
+            // Log additional debug info in development
+            if (defined('APP_ENV') && APP_ENV === 'development') {
+                error_log("SMTP Host: " . $this->smtpHost);
+                error_log("SMTP Port: " . $this->smtpPort);
+                error_log("SMTP Username: " . $this->smtpUsername);
+            }
             return false;
         }
     }
 
-    private function getWelcomeEmailTemplate(string $nome, string $verificationUrl): string
-    {
-        return "
-        <!DOCTYPE html>
-        <html lang='pt'>
-        <head>
-            <meta charset='UTF-8'>
-            <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
-            <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #fabd14 0%, #e6a700 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                .button { display: inline-block; background: #fabd14; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
-                .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-            </style>
-        </head>
-        <body>
-            <div class='container'>
-                <div class='header'>
-                    <div style='margin-bottom: 20px;'>
-                        <img src='{$this->getLogoBase64()}' alt='Sync2Stage Logo' style='height: 60px; width: auto; filter: brightness(0) invert(1);'>
-                    </div>
-                    <h1>🎵 " . $this->t('welcome_title') . "</h1>
-                    <p>Revolucionário! A tua conta foi criada com sucesso.</p>
-                </div>
-                <div class='content'>
-                    <h2>Olá {$nome}!</h2>
-                    <p>" . $this->t('welcome_subtitle') . "</p>
-
-                    <p><strong>" . $this->t('welcome_next_step') . "</strong> " . $this->t('welcome_confirm_email') . "</p>
-
-                    <div style='text-align: center;'>
-                        <a href='{$verificationUrl}' class='button'>" . $this->t('welcome_confirm_button') . "</a>
-                    </div>
-
-                    <p><strong>" . $this->t('welcome_what_happens') . "</strong></p>
-                    <ul>
-                        <li>✅ " . $this->t('welcome_step_1') . "</li>
-                        <li>⏳ " . $this->t('welcome_step_2') . "</li>
-                        <li>🎵 " . $this->t('welcome_step_3') . "</li>
-                        <li>🚀 " . $this->t('welcome_step_4') . "</li>
-                    </ul>
-
-                    <p>" . $this->t('welcome_copy_link') . "</p>
-                    <p style='word-break: break-all; background: #eee; padding: 10px; border-radius: 5px;'>{$verificationUrl}</p>
-                </div>
-                <div class='footer'>
-                    <p>" . $this->t('welcome_footer_made_with') . "</p>
-                    <p>" . $this->t('welcome_footer_copyright') . "</p>
-                </div>
-            </div>
-        </body>
-        </html>";
-    }
-
-    private function getWelcomeEmailText(string $nome, string $verificationUrl): string
-    {
-        return "
-" . $this->t('welcome_title') . "
-
-Olá {$nome}!
-
-" . $this->t('welcome_subtitle') . "
-
-" . $this->t('welcome_next_step') . " " . $this->t('welcome_confirm_email') . "
-Link: {$verificationUrl}
-
-" . $this->t('welcome_what_happens') . "
-- " . $this->t('welcome_step_1') . "
-- " . $this->t('welcome_step_2') . "
-- " . $this->t('welcome_step_3') . "
-- " . $this->t('welcome_step_4') . "
-
-" . $this->t('welcome_footer_made_with') . "
-" . $this->t('welcome_footer_copyright') . "
-        ";
-    }
-
-    private function getApprovalEmailTemplate(string $nome): string
-    {
-        return "
-        <!DOCTYPE html>
-        <html lang='pt'>
-        <head>
-            <meta charset='UTF-8'>
-            <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
-            <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #fabd14 0%, #e6a700 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                .button { display: inline-block; background: #fabd14; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
-                .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-            </style>
-        </head>
-        <body>
-            <div class='container'>
-                <div class='header'>
-                    <h1>🎉 " . $this->t('approval_title') . "</h1>
-                    <p>" . $this->t('approval_subtitle') . "</p>
-                </div>
-                <div class='content'>
-                    <h2>" . $this->t('approval_congratulations', ['nome' => $nome]) . "</h2>
-                    <p>" . $this->t('approval_message') . "</p>
-
-                    <div style='text-align: center;'>
-                        <a href='" . BASE_URL . "login' class='button'>" . $this->t('approval_login_button') . "</a>
-                    </div>
-
-                    <p><strong>" . $this->t('approval_what_can_do') . "</strong></p>
-                    <ul>
-                        <li>🎵 " . $this->t('approval_feature_1') . "</li>
-                        <li>🎤 " . $this->t('approval_feature_2') . "</li>
-                        <li>🎪 " . $this->t('approval_feature_3') . "</li>
-                        <li>👥 " . $this->t('approval_feature_4') . "</li>
-                    </ul>
-
-                    <p>" . $this->t('approval_contact') . "</p>
-                </div>
-                <div class='footer'>
-                    <p>" . $this->t('welcome_footer_made_with') . "</p>
-                    <p>" . $this->t('welcome_footer_copyright') . "</p>
-                </div>
-            </div>
-        </body>
-        </html>";
-    }
-
-    private function getApprovalEmailText(string $nome): string
-    {
-        return "
-" . $this->t('approval_title') . " - " . $this->t('approval_subtitle') . "
-
-" . $this->t('approval_congratulations', ['nome' => $nome]) . "
-
-" . $this->t('approval_message') . "
-
-" . $this->t('approval_login_button') . ": " . BASE_URL . "login
-
-" . $this->t('approval_what_can_do') . ":
-- " . $this->t('approval_feature_1') . "
-- " . $this->t('approval_feature_2') . "
-- " . $this->t('approval_feature_3') . "
-- " . $this->t('approval_feature_4') . "
-
-" . $this->t('approval_contact') . "
-
-" . $this->t('welcome_footer_made_with') . "
-" . $this->t('welcome_footer_copyright') . "
-        ";
-    }
-
-    private function getNewUserNotificationTemplate(string $userEmail, string $userName, string $adminUrl): string
-    {
-        return "
-        <!DOCTYPE html>
-        <html lang='pt'>
-        <head>
-            <meta charset='UTF-8'>
-            <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
-            <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #fabd14 0%, #e6a700 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                .button { display: inline-block; background: #fabd14; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
-                .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-                .user-info { background: #e8f4fd; border: 1px solid #bee5eb; border-radius: 8px; padding: 20px; margin: 20px 0; }
-            </style>
-        </head>
-        <body>
-            <div class='container'>
-                <div class='header'>
-                    <div style='margin-bottom: 20px;'>
-                        <img src='{$this->getLogoBase64()}' alt='Sync2Stage Logo' style='height: 60px; width: auto; filter: brightness(0) invert(1);'>
-                    </div>
-                    <h1>🔔 " . $this->t('new_user_title') . "</h1>
-                    <p>" . $this->t('new_user_subtitle') . "</p>
-                </div>
-                <div class='content'>
-                    <h2>" . $this->t('new_user_details') . "</h2>
-
-                    <div class='user-info'>
-                        <p><strong>" . $this->t('new_user_name') . "</strong> {$userName}</p>
-                        <p><strong>" . $this->t('new_user_email') . "</strong> {$userEmail}</p>
-                        <p><strong>" . $this->t('new_user_date') . "</strong> " . date('d/m/Y H:i') . "</p>
-                        <p><strong>" . $this->t('new_user_status') . "</strong> <span style='color: #ff9800; font-weight: bold;'>" . $this->t('new_user_pending') . "</span></p>
-                    </div>
-
-                    <p><strong>" . $this->t('new_user_next_step') . "</strong> " . $this->t('new_user_approve_message') . "</p>
-
-                    <div style='text-align: center;'>
-                        <a href='{$adminUrl}' class='button'>" . $this->t('new_user_view_button') . "</a>
-                    </div>
-
-                    <p><strong>" . $this->t('new_user_what_can_do') . "</strong></p>
-                    <ul>
-                        <li>✅ " . $this->t('new_user_action_1') . "</li>
-                        <li>❌ " . $this->t('new_user_action_2') . "</li>
-                        <li>📧 " . $this->t('new_user_action_3') . "</li>
-                        <li>👥 " . $this->t('new_user_action_4') . "</li>
-                    </ul>
-
-                    <p>" . $this->t('new_user_copy_link') . "</p>
-                    <p style='word-break: break-all; background: #eee; padding: 10px; border-radius: 5px;'>{$adminUrl}</p>
-                </div>
-                <div class='footer'>
-                    <p>" . $this->t('new_user_footer_auto') . "</p>
-                    <p>" . $this->t('welcome_footer_copyright') . "</p>
-                </div>
-            </div>
-        </body>
-        </html>";
-    }
-
-    private function getNewUserNotificationText(string $userEmail, string $userName, string $adminUrl): string
-    {
-        return "
-" . $this->t('new_user_title') . " - " . $this->t('new_user_pending') . "
-
-" . $this->t('new_user_details') . ":
-- " . $this->t('new_user_name') . " {$userName}
-- " . $this->t('new_user_email') . " {$userEmail}
-- " . $this->t('new_user_date') . " " . date('d/m/Y H:i') . "
-- " . $this->t('new_user_status') . " " . $this->t('new_user_pending') . "
-
-" . $this->t('new_user_next_step') . " " . $this->t('new_user_approve_message') . "
-
-" . $this->t('new_user_view_button') . ": {$adminUrl}
-
-" . $this->t('new_user_what_can_do') . ":
-- " . $this->t('new_user_action_1') . "
-- " . $this->t('new_user_action_2') . "
-- " . $this->t('new_user_action_3') . "
-- " . $this->t('new_user_action_4') . "
-
-" . $this->t('new_user_footer_auto') . "
-" . $this->t('welcome_footer_copyright') . "
-        ";
-    }
 
     /**
      * Send password reset email
      */
     public function sendPasswordResetEmail(string $email, string $nome, string $resetToken): bool
     {
-        $subject = $this->t('password_reset_subject');
         $resetUrl = BASE_URL . 'reset-password?token=' . $resetToken;
 
-        $html = $this->getPasswordResetEmailTemplate($nome, $resetUrl);
-        $text = $this->getPasswordResetEmailText($nome, $resetUrl);
+        // Try to use template from database
+        $template = $this->emailTemplateModel->findByKey('password_reset');
+        if ($template) {
+            $subject = $template['subject'] ?? $this->t('password_reset_subject');
+            $html = $this->renderTemplate('password_reset', [
+                'nome' => $nome,
+                'resetUrl' => $resetUrl,
+                'baseUrl' => BASE_URL
+            ]);
+            $text = $this->renderTextTemplate('password_reset', [
+                'nome' => $nome,
+                'resetUrl' => $resetUrl,
+                'baseUrl' => BASE_URL
+            ]);
+        } else {
+            error_log("EmailService: Template 'password_reset' not found in database. Please run seeder.");
+            return false;
+        }
 
         return $this->sendEmailInternal($email, $subject, $html, $text);
     }
@@ -445,168 +401,370 @@ Link: {$verificationUrl}
      */
     public function sendPasswordResetSuccessEmail(string $email, string $nome): bool
     {
-        $subject = $this->t('password_reset_success_subject');
-
-        $html = $this->getPasswordResetSuccessEmailTemplate($nome);
-        $text = $this->getPasswordResetSuccessEmailText($nome);
+        // Try to use template from database
+        $template = $this->emailTemplateModel->findByKey('password_reset_success');
+        if ($template) {
+            $subject = $template['subject'] ?? $this->t('password_reset_success_subject');
+            $html = $this->renderTemplate('password_reset_success', [
+                'nome' => $nome,
+                'baseUrl' => BASE_URL
+            ]);
+            $text = $this->renderTextTemplate('password_reset_success', [
+                'nome' => $nome,
+                'baseUrl' => BASE_URL
+            ]);
+        } else {
+            error_log("EmailService: Template 'password_reset_success' not found in database. Please run seeder.");
+            return false;
+        }
 
         return $this->sendEmailInternal($email, $subject, $html, $text);
     }
 
-    private function getPasswordResetEmailTemplate(string $nome, string $resetUrl): string
+    /**
+     * Get logo as HTML - works in all email clients including Gmail
+     * Uses HTML table with styled text - most compatible approach
+     * Gmail strips SVG, divs with CSS, and sometimes emojis
+     * Solution: Pure HTML table with inline styles (Gmail-safe)
+     */
+    /**
+     * Send notification email
+     */
+    public function sendNotificationEmail(string $email, string $nome, string $notificationType, string $title, string $message, string $link = null, ?int $userId = null): bool
     {
-        return "
-        <!DOCTYPE html>
-        <html lang='pt'>
-        <head>
-            <meta charset='UTF-8'>
-            <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
-            <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #ffc107 0%, #ff8c00 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                .button { display: inline-block; background: #ffc107; color: #000; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0; box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3); }
-                .button:hover { background: #ff8c00; color: #000; }
-                .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-                .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin: 20px 0; }
-                .warning strong { color: #856404; }
-            </style>
-        </head>
-        <body>
-            <div class='container'>
-                <div class='header'>
-                    <div style='margin-bottom: 20px;'>
-                        <img src='{$this->getLogoBase64()}' alt='Sync2Stage Logo' style='height: 60px; width: auto; filter: brightness(0) invert(1);'>
-                    </div>
-                    <h1>🔐 " . $this->t('password_reset_title') . "</h1>
-                    <p>" . $this->t('password_reset_subtitle') . "</p>
-                </div>
-                <div class='content'>
-                    <h2>" . $this->t('password_reset_hello', ['nome' => $nome]) . "</h2>
-                    <p>" . $this->t('password_reset_message') . "</p>
+        // Try to use template from database
+        $template = $this->emailTemplateModel->findByKey('notification');
+        if ($template) {
+            $subject = $template['subject'] ?? ($this->t('notification_email_subject') . ': ' . $title);
+            // Replace subject placeholders
+            $subject = str_replace('{title}', $title, $subject);
+            $html = $this->renderTemplate('notification', [
+                'nome' => $nome,
+                'notificationType' => $notificationType,
+                'title' => $title,
+                'message' => $message,
+                'link' => $link ?? '',
+                'icon' => $this->getNotificationIcon($notificationType),
+                'baseUrl' => BASE_URL
+            ]);
+            $text = $this->renderTextTemplate('notification', [
+                'nome' => $nome,
+                'notificationType' => $notificationType,
+                'title' => $title,
+                'message' => $message,
+                'link' => $link ?? '',
+                'baseUrl' => BASE_URL
+            ]);
+        } else {
+            error_log("EmailService: Template 'notification' not found in database. Please run seeder.");
+            return false;
+        }
 
-                    <div style='text-align: center;'>
-                        <a href='{$resetUrl}' class='button'>" . $this->t('password_reset_button') . "</a>
-                    </div>
-
-                    <div class='warning'>
-                        <strong>⚠️ " . $this->t('password_reset_important') . "</strong>
-                        <ul style='margin: 10px 0; padding-left: 20px;'>
-                            <li>" . $this->t('password_reset_warning_1') . "</li>
-                            <li>" . $this->t('password_reset_warning_2') . "</li>
-                            <li>" . $this->t('password_reset_warning_3') . "</li>
-                        </ul>
-                    </div>
-
-                    <p><strong>" . $this->t('password_reset_copy_link') . "</strong></p>
-                    <p style='word-break: break-all; background: #f0f0f0; padding: 10px; border-radius: 5px; font-family: monospace;'>{$resetUrl}</p>
-                </div>
-                <div class='footer'>
-                    <p>" . $this->t('welcome_footer_made_with') . "</p>
-                    <p>" . $this->t('welcome_footer_copyright') . "</p>
-                </div>
-            </div>
-        </body>
-        </html>";
+        return $this->sendEmail($email, $subject, $html, $text, 'notification', $userId);
     }
 
-    private function getPasswordResetEmailText(string $nome, string $resetUrl): string
+    /**
+     * Send message email
+     */
+    public function sendMessageEmail(string $email, string $nome, string $senderName, string $subject, string $messageContent, string $link, bool $isAnnouncement = false, ?int $userId = null): bool
     {
-        return "
-" . $this->t('password_reset_hello', ['nome' => $nome]) . "
+        // Try to use template from database
+        $template = $this->emailTemplateModel->findByKey('message');
+        if ($template) {
+            $messageType = $isAnnouncement ? 'Anúncio' : 'Mensagem Privada';
+            $buttonText = $isAnnouncement ? 'Ver Anúncio' : 'Responder Mensagem';
+            $emailSubject = $template['subject'] ?? ($isAnnouncement
+                ? $this->t('message_email_announcement_title') . ': ' . $subject
+                : $this->t('message_email_private_title') . ': ' . $subject);
+            // Replace subject placeholders
+            $emailSubject = str_replace('{messageType}', $messageType, $emailSubject);
+            $emailSubject = str_replace('{subject}', $subject, $emailSubject);
 
-" . $this->t('password_reset_message') . "
+            $html = $this->renderTemplate('message', [
+                'nome' => $nome,
+                'senderName' => $senderName,
+                'subject' => $subject,
+                'messageContent' => $messageContent,
+                'link' => $link,
+                'isAnnouncement' => $isAnnouncement ? 'true' : 'false',
+                'messageType' => $messageType,
+                'buttonText' => $buttonText,
+                'baseUrl' => BASE_URL
+            ]);
+            $text = $this->renderTextTemplate('message', [
+                'nome' => $nome,
+                'senderName' => $senderName,
+                'subject' => $subject,
+                'messageContent' => strip_tags($messageContent),
+                'link' => $link,
+                'isAnnouncement' => $isAnnouncement ? 'true' : 'false',
+                'messageType' => $messageType,
+                'buttonText' => $buttonText,
+                'baseUrl' => BASE_URL
+            ]);
 
-" . $this->t('password_reset_button') . ": {$resetUrl}
+            if (empty($html)) {
+                error_log("EmailService: Failed to render 'message' template. Check base_layout exists.");
+                return false;
+            }
+        } else {
+            error_log("EmailService: Template 'message' not found in database. Please run seeder.");
+            return false;
+        }
 
-⚠️ " . $this->t('password_reset_important') . ":
-- " . $this->t('password_reset_warning_1') . "
-- " . $this->t('password_reset_warning_2') . "
-- " . $this->t('password_reset_warning_3') . "
-
-" . $this->t('welcome_footer_made_with') . "
-" . $this->t('welcome_footer_copyright') . "
-        ";
+        return $this->sendEmail($email, $emailSubject, $html, $text, 'message', $userId);
     }
 
-    private function getPasswordResetSuccessEmailTemplate(string $nome): string
+    /**
+     * Send fraction assignment email
+     */
+    public function sendFractionAssignmentEmail(string $email, string $nome, string $condominiumName, string $fractionIdentifier, string $link, ?int $userId = null): bool
     {
-        return "
-        <!DOCTYPE html>
-        <html lang='pt'>
-        <head>
-            <meta charset='UTF-8'>
-            <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
-            <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                .button { display: inline-block; background: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3); }
-                .button:hover { background: #20c997; }
-                .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-                .success { background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 8px; margin: 20px 0; }
-                .success strong { color: #155724; }
-            </style>
-        </head>
-        <body>
-            <div class='container'>
-                <div class='header'>
-                    <div style='margin-bottom: 20px;'>
-                        <img src='{$this->getLogoBase64()}' alt='Sync2Stage Logo' style='height: 60px; width: auto; filter: brightness(0) invert(1);'>
-                    </div>
-                    <h1>✅ " . $this->t('password_reset_success_title') . "</h1>
-                    <p>" . $this->t('password_reset_success_subtitle') . "</p>
-                </div>
-                <div class='content'>
-                    <h2>" . $this->t('password_reset_success_hello', ['nome' => $nome]) . "</h2>
-                    <p>" . $this->t('password_reset_success_message') . "</p>
+        // Try to use template from database
+        $template = $this->emailTemplateModel->findByKey('fraction_assignment');
+        if ($template) {
+            $subject = $template['subject'] ?? ($this->t('fraction_assignment_subject') . ': ' . $fractionIdentifier);
+            // Replace subject placeholders
+            $subject = str_replace('{fractionIdentifier}', $fractionIdentifier, $subject);
+            $html = $this->renderTemplate('fraction_assignment', [
+                'nome' => $nome,
+                'condominiumName' => $condominiumName,
+                'fractionIdentifier' => $fractionIdentifier,
+                'link' => $link,
+                'baseUrl' => BASE_URL
+            ]);
+            $text = $this->renderTextTemplate('fraction_assignment', [
+                'nome' => $nome,
+                'condominiumName' => $condominiumName,
+                'fractionIdentifier' => $fractionIdentifier,
+                'link' => $link,
+                'baseUrl' => BASE_URL
+            ]);
+        } else {
+            error_log("EmailService: Template 'fraction_assignment' not found in database. Please run seeder.");
+            return false;
+        }
 
-                    <div class='success'>
-                        <strong>✅ " . $this->t('password_reset_success_security') . ":</strong> " . $this->t('password_reset_success_security_message') . "
-                    </div>
-
-                    <div style='text-align: center;'>
-                        <a href='" . BASE_URL . "login' class='button'>" . $this->t('password_reset_success_login_button') . "</a>
-                    </div>
-
-                    <p><strong>" . $this->t('password_reset_success_if_not_you') . "</strong></p>
-                    <p>" . $this->t('password_reset_success_contact') . "</p>
-                </div>
-                <div class='footer'>
-                    <p>" . $this->t('welcome_footer_made_with') . "</p>
-                    <p>" . $this->t('welcome_footer_copyright') . "</p>
-                </div>
-            </div>
-        </body>
-        </html>";
+        return $this->sendEmail($email, $subject, $html, $text, 'notification', $userId);
     }
 
-    private function getPasswordResetSuccessEmailText(string $nome): string
+    /**
+     * Render email template from database
+     * Combines base layout with specific template body
+     */
+    public function renderTemplate(string $templateKey, array $data = []): string
     {
-        return "
-" . $this->t('password_reset_success_hello', ['nome' => $nome]) . "
+        // Get base layout
+        $baseLayout = $this->emailTemplateModel->getBaseLayout();
+        if (!$baseLayout) {
+            // Fallback: return empty if base layout not found
+            error_log("EmailService: Base layout not found, using fallback");
+            return '';
+        }
 
-" . $this->t('password_reset_success_message') . "
+        // Get specific template
+        $template = $this->emailTemplateModel->findByKey($templateKey);
+        if (!$template) {
+            // Fallback: use hardcoded templates
+            error_log("EmailService: Template '{$templateKey}' not found in database, using fallback");
+            return '';
+        }
 
-✅ " . $this->t('password_reset_success_security') . ": " . $this->t('password_reset_success_security_message') . "
+        // Replace fields in body
+        $body = $template['html_body'];
+        foreach ($data as $key => $value) {
+            // Don't escape HTML for specific fields that should contain HTML
+            $htmlFields = ['logoUrl', 'messageContent', 'body'];
+            if (in_array($key, $htmlFields)) {
+                $body = str_replace('{' . $key . '}', $value, $body);
+            } else {
+                // Escape HTML but preserve line breaks
+                $escapedValue = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+                $body = str_replace('{' . $key . '}', $escapedValue, $body);
+            }
+        }
 
-" . $this->t('password_reset_success_login_button') . ": " . BASE_URL . "login
+        // Replace fields in base layout
+        $html = $baseLayout['html_body'];
+        $html = str_replace('{body}', $body, $html);
 
-" . $this->t('password_reset_success_if_not_you') . "
-" . $this->t('password_reset_success_contact') . "
+        // Replace base layout fields (these should not be escaped as they may contain HTML)
+        $html = str_replace('{baseUrl}', BASE_URL, $html);
+        $html = str_replace('{logoUrl}', $this->getLogoInline(), $html);
+        $html = str_replace('{currentYear}', date('Y'), $html);
+        $html = str_replace('{companyName}', htmlspecialchars($this->fromName, ENT_QUOTES, 'UTF-8'), $html);
 
-" . $this->t('welcome_footer_made_with') . "
-" . $this->t('welcome_footer_copyright') . "
-        ";
+        // Replace subject if present
+        if ($template['subject']) {
+            $subject = $template['subject'];
+            foreach ($data as $key => $value) {
+                // Subject should always be escaped
+                $subject = str_replace('{' . $key . '}', htmlspecialchars($value, ENT_QUOTES, 'UTF-8'), $subject);
+            }
+            $html = str_replace('{subject}', $subject, $html);
+        } else {
+            $html = str_replace('{subject}', '', $html);
+        }
+
+        return $html;
+    }
+
+    /**
+     * Render text template from database
+     */
+    public function renderTextTemplate(string $templateKey, array $data = []): string
+    {
+        // Get base layout
+        $baseLayout = $this->emailTemplateModel->getBaseLayout();
+        if (!$baseLayout) {
+            return '';
+        }
+
+        // Get specific template
+        $template = $this->emailTemplateModel->findByKey($templateKey);
+        if (!$template) {
+            return '';
+        }
+
+        // Replace fields in body
+        $body = $template['text_body'] ?? strip_tags($template['html_body']);
+        foreach ($data as $key => $value) {
+            $body = str_replace('{' . $key . '}', strip_tags($value), $body);
+        }
+
+        // Replace fields in base layout text
+        $text = $baseLayout['text_body'] ?? '';
+        $text = str_replace('{body}', $body, $text);
+        $text = str_replace('{baseUrl}', BASE_URL, $text);
+        $text = str_replace('{currentYear}', date('Y'), $text);
+        $text = str_replace('{companyName}', $this->fromName, $text);
+
+        return $text;
+    }
+
+
+    /**
+     * Get notification icon based on type
+     */
+    private function getNotificationIcon(string $notificationType): string
+    {
+        $icons = [
+            'occurrence' => '⚠️',
+            'fee_overdue' => '💰',
+            'assembly' => '📋',
+            'vote' => '🗳️',
+            'occurrence_comment' => '💬',
+            'default' => '🔔'
+        ];
+        return $icons[$notificationType] ?? $icons['default'];
+    }
+
+
+    private function getLogoInline(): string
+    {
+        // Get APP_ENV to determine if we should use URL or base64
+        $appEnv = null;
+        if (defined('APP_ENV')) {
+            $appEnv = APP_ENV;
+        } elseif (isset($_ENV['APP_ENV'])) {
+            $appEnv = $_ENV['APP_ENV'];
+        } else {
+            $appEnv = 'development';
+        }
+
+        $isDevelopment = (strtolower($appEnv) === 'development');
+
+        // In development, try URL first (better for local testing)
+        if ($isDevelopment && defined('BASE_URL')) {
+            $logoUrl = rtrim(BASE_URL, '/') . '/assets/images/logo.png';
+            // Verify URL is accessible (optional check)
+            $logoPngPath = __DIR__ . '/../../assets/images/logo.png';
+            if (file_exists($logoPngPath) && is_readable($logoPngPath)) {
+                error_log("EmailService: Using logo URL for development: {$logoUrl}");
+                return '
+                <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                    <tr>
+                        <td align="center" style="padding: 15px 0 10px 0;">
+                            <img src="' . htmlspecialchars($logoUrl) . '" alt="O Meu Prédio" style="max-width: 200px; height: auto; display: block; margin: 0 auto; width: auto;" width="200" />
+                        </td>
+                    </tr>
+                </table>';
+            }
+        }
+
+        // Try to use PNG logo as base64 (better email client compatibility for production)
+        $pngLogo = $this->getLogoPngBase64();
+        if (!empty($pngLogo)) {
+            return '
+            <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                <tr>
+                    <td align="center" style="padding: 15px 0 10px 0;">
+                        <img src="' . htmlspecialchars($pngLogo) . '" alt="O Meu Prédio" style="max-width: 200px; height: auto; display: block; margin: 0 auto; width: auto;" width="200" />
+                    </td>
+                </tr>
+            </table>';
+        }
+
+        // Fallback to text-based logo if PNG not available
+        return '
+        <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+            <tr>
+                <td align="center" style="padding: 15px 0 10px 0;">
+                    <table border="0" cellpadding="0" cellspacing="0">
+                        <tr>
+                            <td align="center" style="font-family: Arial, Helvetica, sans-serif; font-size: 26px; font-weight: bold; color: #ffffff; letter-spacing: 1px; line-height: 1.2;">
+                                O MEU PRÉDIO
+                            </td>
+                        </tr>
+                        <tr>
+                            <td align="center" style="font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #ffffff; letter-spacing: 0.5px; padding-top: 5px; opacity: 0.9;">
+                                Gestão de Condomínios
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>';
+    }
+
+    private function getLogoPngBase64(): string
+    {
+        // Try to load PNG logo
+        $logoPngPath = __DIR__ . '/../../assets/images/logo.png';
+        if (file_exists($logoPngPath) && is_readable($logoPngPath)) {
+            $logoContent = file_get_contents($logoPngPath);
+            if ($logoContent !== false && strlen($logoContent) > 0) {
+                // Encode PNG as base64 for email
+                $base64 = base64_encode($logoContent);
+                error_log("EmailService: PNG logo loaded successfully, size: " . strlen($logoContent) . " bytes, base64 length: " . strlen($base64));
+                return 'data:image/png;base64,' . $base64;
+            } else {
+                error_log("EmailService: PNG logo file exists but content is empty or unreadable");
+            }
+        } else {
+            error_log("EmailService: PNG logo not found at: {$logoPngPath}");
+        }
+        return '';
     }
 
     private function getLogoBase64(): string
     {
-        $logoPath = __DIR__ . '/../../assets/images/sync2stage_logo.svg';
-        if (file_exists($logoPath)) {
-            return 'data:image/svg+xml;base64,' . base64_encode(file_get_contents($logoPath));
+        // Try project logo first
+        $logoPath = __DIR__ . '/../../assets/images/logo.svg';
+        if (file_exists($logoPath) && is_readable($logoPath)) {
+            $logoContent = file_get_contents($logoPath);
+            if ($logoContent !== false) {
+                // Encode SVG properly for email (URL encode instead of base64 for better compatibility)
+                return 'data:image/svg+xml;charset=utf-8,' . rawurlencode($logoContent);
+            }
+        }
+        // Fallback to old logo if exists
+        $oldLogoPath = __DIR__ . '/../../assets/images/sync2stage_logo.svg';
+        if (file_exists($oldLogoPath) && is_readable($oldLogoPath)) {
+            $logoContent = file_get_contents($oldLogoPath);
+            if ($logoContent !== false) {
+                return 'data:image/svg+xml;charset=utf-8,' . rawurlencode($logoContent);
+            }
         }
         return '';
     }

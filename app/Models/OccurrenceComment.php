@@ -51,11 +51,17 @@ class OccurrenceComment extends Model
             )
         ");
 
+        // Ensure is_internal is always a boolean converted to integer (0 or 1) for MySQL
+        $isInternal = false;
+        if (isset($data['is_internal'])) {
+            $isInternal = filter_var($data['is_internal'], FILTER_VALIDATE_BOOLEAN);
+        }
+        
         $stmt->execute([
             ':occurrence_id' => $data['occurrence_id'],
             ':user_id' => $data['user_id'],
             ':comment' => $data['comment'],
-            ':is_internal' => $data['is_internal'] ?? false
+            ':is_internal' => $isInternal ? 1 : 0
         ]);
 
         return (int)$this->db->lastInsertId();
