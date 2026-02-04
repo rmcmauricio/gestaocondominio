@@ -59,9 +59,21 @@
                         </p>
 
                         <h2 class="mb-4" style="color: hsl(var(--foreground)); font-weight: 700;">4. Gestão de Cookies</h2>
-                        <p style="color: hsl(var(--muted-foreground)); line-height: 1.8; margin-bottom: 2rem;">
+                        <p style="color: hsl(var(--muted-foreground)); line-height: 1.8; margin-bottom: 1.5rem;">
                             Pode gerir ou eliminar cookies a qualquer momento através das definições do seu navegador. No entanto, se desativar os cookies, algumas funcionalidades do website podem não funcionar corretamente.
                         </p>
+                        <div class="alert alert-info d-flex align-items-center" style="background-color: hsl(var(--color-info, #3b82f6), 0.1); border-color: hsl(var(--color-info, #3b82f6), 0.3);">
+                            <i class="bi bi-sliders me-3" style="font-size: 1.5rem; color: hsl(var(--color-info, #3b82f6));"></i>
+                            <div class="flex-grow-1">
+                                <strong style="color: hsl(var(--foreground));">Gerir Preferências de Cookies</strong>
+                                <p class="mb-2" style="color: hsl(var(--muted-foreground)); font-size: 0.9rem;">
+                                    Pode alterar as suas preferências de cookies a qualquer momento através do nosso painel de gestão.
+                                </p>
+                                <button type="button" class="btn btn-primary btn-sm" onclick="if(typeof window.openCookiePreferences === 'function') { window.openCookiePreferences(); } else { alert('Por favor, recarregue a página para aceder às preferências de cookies.'); }">
+                                    <i class="bi bi-sliders me-1"></i>Abrir Preferências de Cookies
+                                </button>
+                            </div>
+                        </div>
 
                         <h2 class="mb-4" style="color: hsl(var(--foreground)); font-weight: 700;">5. Cookies de Terceiros</h2>
                         <p style="color: hsl(var(--muted-foreground)); line-height: 1.8; margin-bottom: 2rem;">

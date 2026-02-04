@@ -389,6 +389,9 @@ $router->get('/api/documentation', 'App\Controllers\ApiKeyController@documentati
 $router->post('/api-keys/generate', 'App\Controllers\ApiKeyController@generate');
 $router->post('/api-keys/revoke', 'App\Controllers\ApiKeyController@revoke');
 
+// Cookie Consent API route
+$router->post('/api/cookie-consent', 'App\Controllers\CookieConsentController@save');
+
 // API REST routes
 $router->get('/api/condominiums', 'App\Controllers\Api\CondominiumApiController@index');
 $router->get('/api/condominiums/{id}', 'App\Controllers\Api\CondominiumApiController@show');
