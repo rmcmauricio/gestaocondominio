@@ -10,6 +10,8 @@ class Document extends Model
 
     /**
      * Get documents by condominium
+     * @param int $condominiumId
+     * @param array $filters - Can include 'user_fraction_ids' array and 'is_admin' boolean for access control
      */
     public function getByCondominium(int $condominiumId, array $filters = []): array
     {
@@ -24,6 +26,34 @@ class Document extends Model
                 WHERE d.condominium_id = :condominium_id";
 
         $params = [':condominium_id' => $condominiumId];
+
+        // Access control: filter documents based on visibility and user's fractions
+        $isAdmin = $filters['is_admin'] ?? false;
+        $userFractionIds = $filters['user_fraction_ids'] ?? [];
+        
+        if (!$isAdmin && !empty($userFractionIds)) {
+            // Non-admin users can only see:
+            // 1. Documents with visibility = 'condominos' (public to all condominos)
+            // 2. Documents with visibility = 'fraction' AND fraction_id IN (user's fractions)
+            // 3. Documents with visibility = 'fraction' AND fraction_id IS NULL (shouldn't happen, but handle it)
+            // 4. Documents with visibility = 'admin' are excluded (only admins see them)
+            $fractionPlaceholders = [];
+            foreach ($userFractionIds as $index => $fractionId) {
+                $key = ':fraction_id_' . $index;
+                $fractionPlaceholders[] = $key;
+                $params[$key] = $fractionId;
+            }
+            $fractionPlaceholdersStr = implode(',', $fractionPlaceholders);
+            
+            $sql .= " AND (
+                (d.visibility = 'condominos')
+                OR (d.visibility = 'fraction' AND d.fraction_id IS NOT NULL AND d.fraction_id IN ($fractionPlaceholdersStr))
+            )";
+        } elseif (!$isAdmin) {
+            // User has no fractions in this condominium - only show public documents
+            $sql .= " AND d.visibility = 'condominos'";
+        }
+        // If isAdmin is true, show all documents (no additional filter)
 
         if (isset($filters['folder'])) {
             if ($filters['folder'] === null || $filters['folder'] === '') {
@@ -111,6 +141,31 @@ class Document extends Model
     public function getByFolder(int $condominiumId, string $folder): array
     {
         return $this->getByCondominium($condominiumId, ['folder' => $folder]);
+    }
+
+    /**
+     * Count total documents in a folder (without access control)
+     */
+    public function countByFolder(int $condominiumId, ?string $folder = null): int
+    {
+        if (!$this->db) {
+            return 0;
+        }
+
+        $sql = "SELECT COUNT(*) as count FROM documents WHERE condominium_id = :condominium_id";
+        $params = [':condominium_id' => $condominiumId];
+
+        if ($folder === null || $folder === '') {
+            $sql .= " AND folder IS NULL";
+        } else {
+            $sql .= " AND folder = :folder";
+            $params[':folder'] = $folder;
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetch();
+        return (int)($result['count'] ?? 0);
     }
 
     /**
@@ -520,6 +575,9 @@ class Document extends Model
 
     /**
      * Search documents
+     * @param int $condominiumId
+     * @param string $query
+     * @param array $filters - Can include 'user_fraction_ids' array and 'is_admin' boolean for access control
      */
     public function search(int $condominiumId, string $query, array $filters = []): array
     {
@@ -538,6 +596,32 @@ class Document extends Model
             ':condominium_id' => $condominiumId,
             ':query' => '%' . $query . '%'
         ];
+
+        // Access control: filter documents based on visibility and user's fractions
+        $isAdmin = $filters['is_admin'] ?? false;
+        $userFractionIds = $filters['user_fraction_ids'] ?? [];
+        
+        if (!$isAdmin && !empty($userFractionIds)) {
+            // Non-admin users can only see:
+            // 1. Documents with visibility = 'condominos' (public to all condominos)
+            // 2. Documents with visibility = 'fraction' AND fraction_id IN (user's fractions)
+            $fractionPlaceholders = [];
+            foreach ($userFractionIds as $index => $fractionId) {
+                $key = ':search_fraction_id_' . $index;
+                $fractionPlaceholders[] = $key;
+                $params[$key] = $fractionId;
+            }
+            $fractionPlaceholdersStr = implode(',', $fractionPlaceholders);
+            
+            $sql .= " AND (
+                (d.visibility = 'condominos')
+                OR (d.visibility = 'fraction' AND d.fraction_id IS NOT NULL AND d.fraction_id IN ($fractionPlaceholdersStr))
+            )";
+        } elseif (!$isAdmin) {
+            // User has no fractions in this condominium - only show public documents
+            $sql .= " AND d.visibility = 'condominos'";
+        }
+        // If isAdmin is true, show all documents (no additional filter)
 
         if (isset($filters['folder'])) {
             if ($filters['folder'] === null) {

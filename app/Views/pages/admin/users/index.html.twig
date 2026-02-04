@@ -99,7 +99,7 @@ tr.expanded .expand-icon {
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label for="filterPlan" class="form-label">Plano</label>
                     <select class="form-select" id="filterPlan">
                         <option value="">Todos</option>
@@ -107,6 +107,16 @@ tr.expanded .expand-icon {
                         {% for plan in plans %}
                         <option value="{{ plan.name }}">{{ plan.name }}</option>
                         {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="filterAdvanced" class="form-label">Filtros Avançados</label>
+                    <select class="form-select" id="filterAdvanced">
+                        <option value="">Nenhum</option>
+                        <option value="trial_only">Só Trial</option>
+                        <option value="no_active_plan">Sem Plano Ativo</option>
+                        <option value="no_condominium">Sem Condomínio</option>
+                        <option value="email_not_verified">Email Não Verificado</option>
                     </select>
                 </div>
                 <div class="col-md-1 d-flex align-items-end">
@@ -151,6 +161,10 @@ tr.expanded .expand-icon {
                     <tbody>
                         {% for user in users %}
                         <tr data-role="{{ user.role }}" data-status="{{ user.status }}" data-plan="{{ user.plan_name|default('none') }}" data-name="{{ user.name|lower }}" data-email="{{ user.email|lower }}" 
+                            data-has-only-trial="{{ user.has_only_trial ? 'true' : 'false' }}"
+                            data-has-no-active-plan="{{ user.has_no_active_plan ? 'true' : 'false' }}"
+                            data-has-no-condominium="{{ user.has_no_condominium ? 'true' : 'false' }}"
+                            data-email-not-verified="{{ user.email_not_verified ? 'true' : 'false' }}"
                             {% if user.role == 'admin' and user.condominiums|length > 0 %}class="admin-row clickable-row" data-user-id="{{ user.id }}" style="cursor: pointer;"{% endif %}>
                             <td data-sort-value="{{ user.id }}">{{ user.id }}</td>
                             <td data-sort-value="{{ user.name|lower }}">
@@ -158,8 +172,27 @@ tr.expanded .expand-icon {
                                 {% if user.role == 'admin' and user.condominiums|length > 0 %}
                                     <i class="bi bi-chevron-down ms-2 text-muted expand-icon"></i>
                                 {% endif %}
+                                {% if user.has_only_trial %}
+                                    <span class="badge bg-warning ms-1" title="Apenas trial ativo"><i class="bi bi-clock-history"></i> Trial</span>
+                                {% endif %}
+                                {% if user.has_no_active_plan %}
+                                    <span class="badge bg-danger ms-1" title="Sem plano ativo"><i class="bi bi-x-circle"></i> Sem Plano Ativo</span>
+                                {% endif %}
+                                {% if user.has_no_condominium %}
+                                    <span class="badge bg-secondary ms-1" title="Sem condomínio associado"><i class="bi bi-building-x"></i> Sem Condomínio</span>
+                                {% endif %}
+                                {% if user.email_not_verified %}
+                                    <span class="badge bg-danger ms-1" title="Email não verificado"><i class="bi bi-envelope-x"></i> Não Verificado</span>
+                                {% endif %}
                             </td>
-                            <td data-sort-value="{{ user.email|lower }}">{{ user.email }}</td>
+                            <td data-sort-value="{{ user.email|lower }}">
+                                {{ user.email }}
+                                {% if user.email_not_verified %}
+                                    <i class="bi bi-exclamation-triangle-fill text-danger ms-1" title="Email não verificado"></i>
+                                {% else %}
+                                    <i class="bi bi-check-circle-fill text-success ms-1" title="Email verificado"></i>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if user.role == 'super_admin' %}
                                     <span class="badge bg-danger"><i class="bi bi-shield-check"></i> Super Admin</span>
@@ -189,21 +222,52 @@ tr.expanded .expand-icon {
                             <td class="text-center" data-sort-value="{{ user.total_condominiums }}">{{ user.total_condominiums }}</td>
                             <td data-sort-value="{{ user.created_at }}">{{ user.created_at|date('d/m/Y H:i') }}</td>
                             <td class="text-center">
-                                {% if user.role == 'super_admin' %}
-                                    {% if user.id != current_user_id %}
-                                        <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#removeSuperAdminModal" data-user-id="{{ user.id }}" data-user-name="{{ user.name }}" data-user-email="{{ user.email }}">
-                                            <i class="bi bi-person-x"></i> Remover Super Admin
-                                        </button>
+                                <div class="btn-group" role="group">
+                                    {% if user.role == 'super_admin' %}
+                                        {% if user.id != current_user_id %}
+                                            <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#removeSuperAdminModal" data-user-id="{{ user.id }}" data-user-name="{{ user.name }}" data-user-email="{{ user.email }}">
+                                                <i class="bi bi-person-x"></i> Remover Super Admin
+                                            </button>
+                                        {% else %}
+                                            <span class="badge bg-info" title="Não pode remover o seu próprio cargo de super admin">
+                                                <i class="bi bi-shield-check"></i> Você (Super Admin)
+                                            </span>
+                                        {% endif %}
                                     {% else %}
-                                        <span class="badge bg-info" title="Não pode remover o seu próprio cargo de super admin">
-                                            <i class="bi bi-shield-check"></i> Você (Super Admin)
-                                        </span>
+                                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#assignSuperAdminModal" data-user-id="{{ user.id }}" data-user-name="{{ user.name }}" data-user-email="{{ user.email }}">
+                                            <i class="bi bi-shield-check"></i> Tornar Super Admin
+                                        </button>
                                     {% endif %}
-                                {% else %}
-                                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#assignSuperAdminModal" data-user-id="{{ user.id }}" data-user-name="{{ user.name }}" data-user-email="{{ user.email }}">
-                                        <i class="bi bi-shield-check"></i> Tornar Super Admin
-                                    </button>
-                                {% endif %}
+                                    
+                                    {% if user.role == 'admin' and user.has_only_trial and user.id != current_user_id %}
+                                        <button type="button" class="btn btn-sm btn-danger ms-1" data-bs-toggle="modal" data-bs-target="#deleteTrialAdminModal" 
+                                                data-user-id="{{ user.id }}" 
+                                                data-user-name="{{ user.name }}" 
+                                                data-user-email="{{ user.email }}"
+                                                data-condominium-count="{{ user.condominiums|length }}">
+                                            <i class="bi bi-trash"></i> Apagar Trial
+                                        </button>
+                                    {% endif %}
+                                    
+                                    {% if user.role == 'admin' and user.has_no_active_plan and user.id != current_user_id %}
+                                        <button type="button" class="btn btn-sm btn-danger ms-1" data-bs-toggle="modal" data-bs-target="#deleteUserNoActivePlanModal" 
+                                                data-user-id="{{ user.id }}" 
+                                                data-user-name="{{ user.name }}" 
+                                                data-user-email="{{ user.email }}"
+                                                data-condominium-count="{{ user.condominiums|length }}">
+                                            <i class="bi bi-trash"></i> Apagar Sem Plano
+                                        </button>
+                                    {% endif %}
+                                    
+                                    {% if user.has_no_condominium and user.role != 'super_admin' and user.id != current_user_id %}
+                                        <button type="button" class="btn btn-sm btn-danger ms-1" data-bs-toggle="modal" data-bs-target="#deleteUserNoCondominiumModal" 
+                                                data-user-id="{{ user.id }}" 
+                                                data-user-name="{{ user.name }}" 
+                                                data-user-email="{{ user.email }}">
+                                            <i class="bi bi-trash"></i> Apagar
+                                        </button>
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                         {% if user.role == 'admin' and user.condominiums|length > 0 %}
@@ -364,6 +428,199 @@ tr.expanded .expand-icon {
     </div>
 </div>
 
+<!-- Modal para Apagar Admin Trial -->
+<div class="modal fade" id="deleteTrialAdminModal" tabindex="-1" aria-labelledby="deleteTrialAdminModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteTrialAdminModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Apagar Admin Trial
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/delete-trial-admin">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="delete_trial_user_id">
+                    
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção!</strong>
+                        <p class="mb-0 mt-2">Esta ação irá <strong>remover permanentemente</strong>:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Utilizador:</strong> <span id="delete_trial_user_name"></span></p>
+                            <p class="mb-1"><strong>Email:</strong> <span id="delete_trial_user_email"></span></p>
+                            <p class="mb-0"><strong>Condomínios a remover:</strong> <span id="delete_trial_condominium_count" class="badge bg-danger">0</span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> <strong>Será removido:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Todos os condomínios criados pelo utilizador</li>
+                            <li>Todos os dados relacionados (frações, quotas, documentos, etc.)</li>
+                            <li>Todas as subscrições do utilizador</li>
+                            <li>O próprio utilizador</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_trial" required>
+                        <label class="form-check-label" for="confirm_delete_trial">
+                            Confirmo que desejo apagar permanentemente este utilizador e todos os seus dados
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger" id="submit_delete_trial" disabled>
+                        <i class="bi bi-trash"></i> Confirmar Remoção
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Apagar User Sem Plano Ativo -->
+<div class="modal fade" id="deleteUserNoActivePlanModal" tabindex="-1" aria-labelledby="deleteUserNoActivePlanModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteUserNoActivePlanModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Apagar Utilizador Sem Plano Ativo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/delete-user-no-active-plan">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="delete_no_plan_user_id">
+                    
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção Crítica!</strong>
+                        <p class="mb-0 mt-2">Esta ação irá <strong>remover permanentemente</strong>:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Utilizador:</strong> <span id="delete_no_plan_user_name"></span></p>
+                            <p class="mb-1"><strong>Email:</strong> <span id="delete_no_plan_user_email"></span></p>
+                            <p class="mb-0"><strong>Condomínios a remover:</strong> <span id="delete_no_plan_condominium_count" class="badge bg-danger">0</span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> <strong>Será removido:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Todos os condomínios criados pelo utilizador</li>
+                            <li>Todos os dados relacionados (frações, quotas, documentos, etc.)</li>
+                            <li>Todas as subscrições do utilizador</li>
+                            <li>O próprio utilizador</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-shield-check"></i> <strong>Verificação de Segurança:</strong>
+                        <p class="mb-0 mt-2">Este utilizador não possui planos ativos no momento. Esta ação é irreversível.</p>
+                    </div>
+                    
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_no_plan_1" required>
+                        <label class="form-check-label" for="confirm_delete_no_plan_1">
+                            Confirmo que verifiquei que este utilizador não possui planos ativos
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_no_plan_2" required>
+                        <label class="form-check-label" for="confirm_delete_no_plan_2">
+                            Entendo que todos os condomínios e dados relacionados serão removidos permanentemente
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_no_plan_3" required>
+                        <label class="form-check-label" for="confirm_delete_no_plan_3">
+                            Confirmo que desejo prosseguir com a remoção completa deste utilizador
+                        </label>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="delete_no_plan_reason" class="form-label">Motivo da remoção (obrigatório):</label>
+                        <textarea class="form-control" id="delete_no_plan_reason" name="reason" rows="3" required placeholder="Descreva o motivo da remoção deste utilizador..."></textarea>
+                        <small class="form-text text-muted">Este motivo será registado no log de auditoria.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger" id="submit_delete_no_plan" disabled>
+                        <i class="bi bi-trash"></i> Confirmar Remoção Completa
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Apagar User Sem Condomínio -->
+<div class="modal fade" id="deleteUserNoCondominiumModal" tabindex="-1" aria-labelledby="deleteUserNoCondominiumModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteUserNoCondominiumModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Apagar Utilizador Sem Condomínio
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/delete-user-no-condominium">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="delete_no_condo_user_id">
+                    
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção!</strong>
+                        <p class="mb-0 mt-2">Esta ação irá <strong>remover permanentemente</strong> o utilizador:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Nome:</strong> <span id="delete_no_condo_user_name"></span></p>
+                            <p class="mb-0"><strong>Email:</strong> <span id="delete_no_condo_user_email"></span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> <strong>Será removido:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Todas as subscrições do utilizador</li>
+                            <li>Todas as notificações</li>
+                            <li>Preferências de email</li>
+                            <li>Outros dados relacionados</li>
+                            <li>O próprio utilizador</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_no_condo" required>
+                        <label class="form-check-label" for="confirm_delete_no_condo">
+                            Confirmo que desejo apagar permanentemente este utilizador
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger" id="submit_delete_no_condo" disabled>
+                        <i class="bi bi-trash"></i> Confirmar Remoção
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Modal para Estatísticas do Condomínio -->
 <div class="modal fade" id="condominiumStatsModal" tabindex="-1" aria-labelledby="condominiumStatsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -448,6 +705,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const roleFilter = document.getElementById('filterRole').value;
         const statusFilter = document.getElementById('filterStatus').value;
         const planFilter = document.getElementById('filterPlan').value;
+        const advancedFilter = document.getElementById('filterAdvanced').value;
         
         filteredRows = allRows.filter(row => {
             // Search filter
@@ -475,6 +733,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (planFilter === 'none' && plan !== 'none') {
                     return false;
                 } else if (planFilter !== 'none' && plan !== planFilter) {
+                    return false;
+                }
+            }
+            
+            // Advanced filters
+            if (advancedFilter) {
+                if (advancedFilter === 'trial_only' && row.dataset.hasOnlyTrial !== 'true') {
+                    return false;
+                }
+                if (advancedFilter === 'no_active_plan' && row.dataset.hasNoActivePlan !== 'true') {
+                    return false;
+                }
+                if (advancedFilter === 'no_condominium' && row.dataset.hasNoCondominium !== 'true') {
+                    return false;
+                }
+                if (advancedFilter === 'email_not_verified' && row.dataset.emailNotVerified !== 'true') {
                     return false;
                 }
             }
@@ -628,6 +902,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('filterRole').addEventListener('change', applyFilters);
     document.getElementById('filterStatus').addEventListener('change', applyFilters);
     document.getElementById('filterPlan').addEventListener('change', applyFilters);
+    document.getElementById('filterAdvanced').addEventListener('change', applyFilters);
     
     // Clear filters
     document.getElementById('clearFilters').addEventListener('click', function() {
@@ -635,6 +910,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('filterRole').value = '';
         document.getElementById('filterStatus').value = '';
         document.getElementById('filterPlan').value = '';
+        document.getElementById('filterAdvanced').value = '';
         applyFilters();
     });
     
@@ -854,6 +1130,94 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('remove_user_id').value = userId;
             document.getElementById('remove_user_name').textContent = userName;
             document.getElementById('remove_user_email').textContent = userEmail;
+        });
+    }
+    
+    // Setup Delete Trial Admin Modal
+    const deleteTrialModal = document.getElementById('deleteTrialAdminModal');
+    if (deleteTrialModal) {
+        deleteTrialModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const userId = button.getAttribute('data-user-id');
+            const userName = button.getAttribute('data-user-name');
+            const userEmail = button.getAttribute('data-user-email');
+            const condominiumCount = button.getAttribute('data-condominium-count') || '0';
+            
+            document.getElementById('delete_trial_user_id').value = userId;
+            document.getElementById('delete_trial_user_name').textContent = userName;
+            document.getElementById('delete_trial_user_email').textContent = userEmail;
+            document.getElementById('delete_trial_condominium_count').textContent = condominiumCount;
+            
+            // Reset checkbox and button
+            document.getElementById('confirm_delete_trial').checked = false;
+            document.getElementById('submit_delete_trial').disabled = true;
+        });
+        
+        // Enable/disable submit button based on checkbox
+        document.getElementById('confirm_delete_trial').addEventListener('change', function() {
+            document.getElementById('submit_delete_trial').disabled = !this.checked;
+        });
+    }
+    
+    // Setup Delete User No Active Plan Modal
+    const deleteNoPlanModal = document.getElementById('deleteUserNoActivePlanModal');
+    if (deleteNoPlanModal) {
+        deleteNoPlanModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const userId = button.getAttribute('data-user-id');
+            const userName = button.getAttribute('data-user-name');
+            const userEmail = button.getAttribute('data-user-email');
+            const condominiumCount = button.getAttribute('data-condominium-count') || '0';
+            
+            document.getElementById('delete_no_plan_user_id').value = userId;
+            document.getElementById('delete_no_plan_user_name').textContent = userName;
+            document.getElementById('delete_no_plan_user_email').textContent = userEmail;
+            document.getElementById('delete_no_plan_condominium_count').textContent = condominiumCount;
+            
+            // Reset checkboxes, textarea and button
+            document.getElementById('confirm_delete_no_plan_1').checked = false;
+            document.getElementById('confirm_delete_no_plan_2').checked = false;
+            document.getElementById('confirm_delete_no_plan_3').checked = false;
+            document.getElementById('delete_no_plan_reason').value = '';
+            document.getElementById('submit_delete_no_plan').disabled = true;
+        });
+        
+        // Enable/disable submit button based on all checkboxes and reason
+        function checkDeleteNoPlanForm() {
+            const check1 = document.getElementById('confirm_delete_no_plan_1').checked;
+            const check2 = document.getElementById('confirm_delete_no_plan_2').checked;
+            const check3 = document.getElementById('confirm_delete_no_plan_3').checked;
+            const reason = document.getElementById('delete_no_plan_reason').value.trim();
+            document.getElementById('submit_delete_no_plan').disabled = !(check1 && check2 && check3 && reason.length > 0);
+        }
+        
+        document.getElementById('confirm_delete_no_plan_1').addEventListener('change', checkDeleteNoPlanForm);
+        document.getElementById('confirm_delete_no_plan_2').addEventListener('change', checkDeleteNoPlanForm);
+        document.getElementById('confirm_delete_no_plan_3').addEventListener('change', checkDeleteNoPlanForm);
+        document.getElementById('delete_no_plan_reason').addEventListener('input', checkDeleteNoPlanForm);
+    }
+    
+    // Setup Delete User No Condominium Modal
+    const deleteNoCondoModal = document.getElementById('deleteUserNoCondominiumModal');
+    if (deleteNoCondoModal) {
+        deleteNoCondoModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const userId = button.getAttribute('data-user-id');
+            const userName = button.getAttribute('data-user-name');
+            const userEmail = button.getAttribute('data-user-email');
+            
+            document.getElementById('delete_no_condo_user_id').value = userId;
+            document.getElementById('delete_no_condo_user_name').textContent = userName;
+            document.getElementById('delete_no_condo_user_email').textContent = userEmail;
+            
+            // Reset checkbox and button
+            document.getElementById('confirm_delete_no_condo').checked = false;
+            document.getElementById('submit_delete_no_condo').disabled = true;
+        });
+        
+        // Enable/disable submit button based on checkbox
+        document.getElementById('confirm_delete_no_condo').addEventListener('change', function() {
+            document.getElementById('submit_delete_no_condo').disabled = !this.checked;
         });
     }
     

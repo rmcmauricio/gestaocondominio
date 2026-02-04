@@ -19,6 +19,7 @@ use App\Models\EmailTemplate;
 use App\Services\AuditService;
 use App\Services\PaymentService;
 use App\Services\LogService;
+use App\Services\CondominiumDeletionService;
 
 class SuperAdminController extends Controller
 {
@@ -65,10 +66,12 @@ class SuperAdminController extends Controller
 
         global $db;
 
-        // Get all users including super admins
+        // Get all users including super admins with additional calculated fields
         $stmt = $db->query("
             SELECT u.*,
-                   (SELECT COUNT(*) FROM condominiums WHERE user_id = u.id) as total_condominiums
+                   (SELECT COUNT(*) FROM condominiums WHERE user_id = u.id) as total_condominiums,
+                   (SELECT COUNT(*) FROM condominiums WHERE user_id = u.id) as condominium_count_as_admin,
+                   (SELECT COUNT(*) FROM condominium_users WHERE user_id = u.id AND (ended_at IS NULL OR ended_at > CURDATE())) as condominium_count_as_member
             FROM users u
             ORDER BY
                 CASE WHEN u.role = 'super_admin' THEN 0 ELSE 1 END,
@@ -79,6 +82,39 @@ class SuperAdminController extends Controller
 
         // Get subscription info and condominiums for each user
         foreach ($users as &$user) {
+            // Check if user has only trial (no active subscription)
+            $trialStmt = $db->prepare("
+                SELECT COUNT(*) as trial_count
+                FROM subscriptions
+                WHERE user_id = :user_id AND status = 'trial'
+            ");
+            $trialStmt->execute([':user_id' => $user['id']]);
+            $trialCount = (int)$trialStmt->fetch()['trial_count'];
+
+            $activeStmt = $db->prepare("
+                SELECT COUNT(*) as active_count
+                FROM subscriptions
+                WHERE user_id = :user_id AND status = 'active'
+            ");
+            $activeStmt->execute([':user_id' => $user['id']]);
+            $activeCount = (int)$activeStmt->fetch()['active_count'];
+
+            // User has only trial if has trial but no active subscriptions
+            $user['has_only_trial'] = ($trialCount > 0 && $activeCount === 0 && $user['role'] === 'admin');
+
+            // Check if user has no active plan (no active subscriptions)
+            $user['has_no_active_plan'] = ($activeCount === 0 && $user['role'] === 'admin');
+
+            // Check if user has no condominium (neither as owner nor as member)
+            $user['has_no_condominium'] = (
+                (int)$user['condominium_count_as_admin'] === 0 && 
+                (int)$user['condominium_count_as_member'] === 0
+            );
+
+            // Check if email is not verified
+            $user['email_not_verified'] = empty($user['email_verified_at']);
+
+            // Get latest subscription info
             $subStmt = $db->prepare("
                 SELECT s.*, p.name as plan_name, p.slug as plan_slug
                 FROM subscriptions s
@@ -4527,6 +4563,507 @@ class SuperAdminController extends Controller
             'success' => $success,
             'info' => $info
         ];
+    }
+
+    /**
+     * Delete admin with only trial subscription
+     */
+    public function deleteAdminWithTrial()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        // Verify CSRF token
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        $userId = (int)($_POST['user_id'] ?? 0);
+        $currentUserId = AuthMiddleware::userId();
+
+        // Security checks
+        if ($userId === 0) {
+            $_SESSION['error'] = 'ID de utilizador inválido.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        if ($userId === $currentUserId) {
+            $_SESSION['error'] = 'Não pode apagar o seu próprio utilizador.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        global $db;
+
+        // Get user
+        $user = $this->userModel->findById($userId);
+        if (!$user) {
+            $_SESSION['error'] = 'Utilizador não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        // Verify user is admin
+        if ($user['role'] !== 'admin') {
+            $_SESSION['error'] = 'Apenas admins com trial podem ser apagados através desta função.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        // Verify user has only trial (no active subscription)
+        $trialStmt = $db->prepare("
+            SELECT COUNT(*) as trial_count
+            FROM subscriptions
+            WHERE user_id = :user_id AND status = 'trial'
+        ");
+        $trialStmt->execute([':user_id' => $userId]);
+        $trialCount = (int)$trialStmt->fetch()['trial_count'];
+
+        $activeStmt = $db->prepare("
+            SELECT COUNT(*) as active_count
+            FROM subscriptions
+            WHERE user_id = :user_id AND status = 'active'
+        ");
+        $activeStmt->execute([':user_id' => $userId]);
+        $activeCount = (int)$activeStmt->fetch()['active_count'];
+
+        if ($trialCount === 0 || $activeCount > 0) {
+            $_SESSION['error'] = 'Este utilizador não tem apenas trial ou tem subscrições ativas.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        try {
+            // Get all condominiums created by this admin
+            $condoStmt = $db->prepare("SELECT id, name FROM condominiums WHERE user_id = :user_id");
+            $condoStmt->execute([':user_id' => $userId]);
+            $condominiums = $condoStmt->fetchAll() ?: [];
+
+            $deletionService = new CondominiumDeletionService();
+            $deletedCondominiums = [];
+
+            // Delete each condominium and all related data
+            foreach ($condominiums as $condominium) {
+                try {
+                    $deletionService->deleteCondominiumData($condominium['id'], false);
+                    $deletedCondominiums[] = $condominium['name'];
+                } catch (\Exception $e) {
+                    error_log("Error deleting condominium {$condominium['id']}: " . $e->getMessage());
+                    // Continue with other condominiums
+                }
+            }
+
+            // Delete all subscriptions
+            $db->prepare("DELETE FROM subscriptions WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+
+            // Delete user-related data
+            $db->prepare("DELETE FROM notifications WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+            $db->prepare("DELETE FROM user_email_preferences WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+            
+            // Delete messages sent by user (if any)
+            // Note: Messages in condominiums owned by this user are already deleted when condominiums are deleted
+            // But if user sent messages in other condominiums, delete them
+            $db->prepare("DELETE FROM messages WHERE from_user_id = :user_id")->execute([':user_id' => $userId]);
+
+            // Delete data where user is referenced without CASCADE/SET NULL
+            // These might exist in condominiums where user is a member (not owner)
+            // Occurrences where user is reported_by (outside owned condominiums)
+            $db->prepare("DELETE FROM occurrences WHERE reported_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Expenses created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM expenses WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Contracts created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM contracts WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Standalone votes created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM standalone_votes WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Assembly vote topics created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM assembly_vote_topics WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Assemblies created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM assemblies WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Revenues created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM revenues WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Documents uploaded by user (outside owned condominiums)
+            $documentsStmt = $db->prepare("SELECT file_path FROM documents WHERE uploaded_by = :user_id");
+            $documentsStmt->execute([':user_id' => $userId]);
+            $documents = $documentsStmt->fetchAll();
+            foreach ($documents as $document) {
+                if (!empty($document['file_path'])) {
+                    $basePath = __DIR__ . '/../../storage';
+                    $fullPath = $basePath . '/' . $document['file_path'];
+                    if (file_exists($fullPath)) {
+                        @unlink($fullPath);
+                    }
+                }
+            }
+            $db->prepare("DELETE FROM documents WHERE uploaded_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Reservations by user (outside owned condominiums)
+            $db->prepare("DELETE FROM reservations WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+            
+            // Payments by user (if any remain)
+            $db->prepare("DELETE FROM payments WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+            
+            // Folders created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM folders WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Invitations created by user
+            $db->prepare("DELETE FROM invitations WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+
+            // Delete user
+            $db->prepare("DELETE FROM users WHERE id = :user_id")->execute([':user_id' => $userId]);
+
+            // Log audit
+            $this->logAudit([
+                'action' => 'delete',
+                'model' => 'user',
+                'model_id' => $userId,
+                'description' => "Admin trial apagado: {$user['name']} ({$user['email']}). Condomínios removidos: " . implode(', ', $deletedCondominiums)
+            ]);
+
+            $_SESSION['success'] = 'Admin trial e todos os condomínios associados foram removidos com sucesso.';
+            
+        } catch (\Exception $e) {
+            error_log("Error deleting admin trial {$userId}: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao apagar admin trial: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'admin/users');
+        exit;
+    }
+
+    /**
+     * Delete user without active plan
+     */
+    public function deleteUserWithoutActivePlan()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        // Verify CSRF token
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        $userId = (int)($_POST['user_id'] ?? 0);
+        $currentUserId = AuthMiddleware::userId();
+        $reason = trim($_POST['reason'] ?? '');
+
+        // Security checks
+        if ($userId === 0) {
+            $_SESSION['error'] = 'ID de utilizador inválido.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        if ($userId === $currentUserId) {
+            $_SESSION['error'] = 'Não pode apagar o seu próprio utilizador.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        if (empty($reason) || strlen($reason) < 10) {
+            $_SESSION['error'] = 'Deve fornecer um motivo detalhado (mínimo 10 caracteres) para a remoção.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        global $db;
+
+        // Get user
+        $user = $this->userModel->findById($userId);
+        if (!$user) {
+            $_SESSION['error'] = 'Utilizador não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        // Verify user is admin
+        if ($user['role'] !== 'admin') {
+            $_SESSION['error'] = 'Apenas admins sem planos ativos podem ser apagados através desta função.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        // Verify user has no active plan
+        $activeStmt = $db->prepare("
+            SELECT COUNT(*) as active_count
+            FROM subscriptions
+            WHERE user_id = :user_id AND status = 'active'
+        ");
+        $activeStmt->execute([':user_id' => $userId]);
+        $activeCount = (int)$activeStmt->fetch()['active_count'];
+
+        if ($activeCount > 0) {
+            $_SESSION['error'] = 'Este utilizador possui planos ativos. Não é possível apagar.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        try {
+            // Get all condominiums created by this admin
+            $condoStmt = $db->prepare("SELECT id, name FROM condominiums WHERE user_id = :user_id");
+            $condoStmt->execute([':user_id' => $userId]);
+            $condominiums = $condoStmt->fetchAll() ?: [];
+
+            $deletionService = new CondominiumDeletionService();
+            $deletedCondominiums = [];
+
+            // Delete each condominium and all related data
+            foreach ($condominiums as $condominium) {
+                try {
+                    $deletionService->deleteCondominiumData($condominium['id'], false);
+                    $deletedCondominiums[] = $condominium['name'];
+                } catch (\Exception $e) {
+                    error_log("Error deleting condominium {$condominium['id']}: " . $e->getMessage());
+                    // Continue with other condominiums
+                }
+            }
+
+            // Delete all subscriptions
+            $db->prepare("DELETE FROM subscriptions WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+
+            // Delete user-related data
+            $db->prepare("DELETE FROM notifications WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+            $db->prepare("DELETE FROM user_email_preferences WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+            
+            // Delete messages sent by user (if any)
+            // Note: Messages in condominiums owned by this user are already deleted when condominiums are deleted
+            // But if user sent messages in other condominiums, delete them
+            $db->prepare("DELETE FROM messages WHERE from_user_id = :user_id")->execute([':user_id' => $userId]);
+
+            // Delete data where user is referenced without CASCADE/SET NULL
+            // These might exist in condominiums where user is a member (not owner)
+            // Occurrences where user is reported_by (outside owned condominiums)
+            $db->prepare("DELETE FROM occurrences WHERE reported_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Expenses created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM expenses WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Contracts created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM contracts WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Standalone votes created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM standalone_votes WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Assembly vote topics created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM assembly_vote_topics WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Assemblies created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM assemblies WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Revenues created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM revenues WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Documents uploaded by user (outside owned condominiums)
+            $documentsStmt = $db->prepare("SELECT file_path FROM documents WHERE uploaded_by = :user_id");
+            $documentsStmt->execute([':user_id' => $userId]);
+            $documents = $documentsStmt->fetchAll();
+            foreach ($documents as $document) {
+                if (!empty($document['file_path'])) {
+                    $basePath = __DIR__ . '/../../storage';
+                    $fullPath = $basePath . '/' . $document['file_path'];
+                    if (file_exists($fullPath)) {
+                        @unlink($fullPath);
+                    }
+                }
+            }
+            $db->prepare("DELETE FROM documents WHERE uploaded_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Reservations by user (outside owned condominiums)
+            $db->prepare("DELETE FROM reservations WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+            
+            // Payments by user (if any remain)
+            $db->prepare("DELETE FROM payments WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+            
+            // Folders created by user (outside owned condominiums)
+            $db->prepare("DELETE FROM folders WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Invitations created by user
+            $db->prepare("DELETE FROM invitations WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+
+            // Delete user
+            $db->prepare("DELETE FROM users WHERE id = :user_id")->execute([':user_id' => $userId]);
+
+            // Log audit with reason
+            $this->logAudit([
+                'action' => 'delete',
+                'model' => 'user',
+                'model_id' => $userId,
+                'description' => "Admin sem plano ativo apagado: {$user['name']} ({$user['email']}). Condomínios removidos: " . implode(', ', $deletedCondominiums) . ". Motivo: " . $reason
+            ]);
+
+            $_SESSION['success'] = 'Admin sem plano ativo e todos os condomínios associados foram removidos com sucesso.';
+            
+        } catch (\Exception $e) {
+            error_log("Error deleting admin without active plan {$userId}: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao apagar admin sem plano ativo: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'admin/users');
+        exit;
+    }
+
+    /**
+     * Delete user without condominium
+     */
+    public function deleteUserWithoutCondominium()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        // Verify CSRF token
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        $userId = (int)($_POST['user_id'] ?? 0);
+        $currentUserId = AuthMiddleware::userId();
+
+        // Security checks
+        if ($userId === 0) {
+            $_SESSION['error'] = 'ID de utilizador inválido.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        if ($userId === $currentUserId) {
+            $_SESSION['error'] = 'Não pode apagar o seu próprio utilizador.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        global $db;
+
+        // Get user
+        $user = $this->userModel->findById($userId);
+        if (!$user) {
+            $_SESSION['error'] = 'Utilizador não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        // Verify user is not super_admin
+        if ($user['role'] === 'super_admin') {
+            $_SESSION['error'] = 'Não é possível apagar super admins através desta função.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        // Verify user has no condominiums
+        $condoAsAdminStmt = $db->prepare("SELECT COUNT(*) as count FROM condominiums WHERE user_id = :user_id");
+        $condoAsAdminStmt->execute([':user_id' => $userId]);
+        $condoAsAdminCount = (int)$condoAsAdminStmt->fetch()['count'];
+
+        $condoAsMemberStmt = $db->prepare("
+            SELECT COUNT(*) as count 
+            FROM condominium_users 
+            WHERE user_id = :user_id AND (ended_at IS NULL OR ended_at > CURDATE())
+        ");
+        $condoAsMemberStmt->execute([':user_id' => $userId]);
+        $condoAsMemberCount = (int)$condoAsMemberStmt->fetch()['count'];
+
+        if ($condoAsAdminCount > 0 || $condoAsMemberCount > 0) {
+            $_SESSION['error'] = 'Este utilizador tem condomínios associados. Use a função de apagar admin trial se aplicável.';
+            header('Location: ' . BASE_URL . 'admin/users');
+            exit;
+        }
+
+        try {
+            // Delete all subscriptions
+            $db->prepare("DELETE FROM subscriptions WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+
+            // Delete user-related data that has CASCADE or SET NULL
+            $db->prepare("DELETE FROM notifications WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+            $db->prepare("DELETE FROM user_email_preferences WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+            
+            // Delete messages sent by user (if any)
+            $db->prepare("DELETE FROM messages WHERE from_user_id = :user_id")->execute([':user_id' => $userId]);
+            
+            // Delete any remaining condominium_users associations (shouldn't exist, but just in case)
+            $db->prepare("DELETE FROM condominium_users WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+
+            // Delete data where user is referenced without CASCADE/SET NULL
+            // Occurrences where user is reported_by
+            $db->prepare("DELETE FROM occurrences WHERE reported_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Expenses created by user
+            $db->prepare("DELETE FROM expenses WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Contracts created by user
+            $db->prepare("DELETE FROM contracts WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Standalone votes created by user
+            $db->prepare("DELETE FROM standalone_votes WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Assembly vote topics created by user
+            $db->prepare("DELETE FROM assembly_vote_topics WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Assemblies created by user
+            $db->prepare("DELETE FROM assemblies WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Revenues created by user
+            $db->prepare("DELETE FROM revenues WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Documents uploaded by user
+            $documentsStmt = $db->prepare("SELECT file_path FROM documents WHERE uploaded_by = :user_id");
+            $documentsStmt->execute([':user_id' => $userId]);
+            $documents = $documentsStmt->fetchAll();
+            foreach ($documents as $document) {
+                if (!empty($document['file_path'])) {
+                    $basePath = __DIR__ . '/../../storage';
+                    $fullPath = $basePath . '/' . $document['file_path'];
+                    if (file_exists($fullPath)) {
+                        @unlink($fullPath);
+                    }
+                }
+            }
+            $db->prepare("DELETE FROM documents WHERE uploaded_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Reservations by user
+            $db->prepare("DELETE FROM reservations WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+            
+            // Payments by user (if any remain)
+            $db->prepare("DELETE FROM payments WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+            
+            // Folders created by user
+            $db->prepare("DELETE FROM folders WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+            
+            // Invitations created by user
+            $db->prepare("DELETE FROM invitations WHERE created_by = :user_id")->execute([':user_id' => $userId]);
+
+            // Delete user
+            $db->prepare("DELETE FROM users WHERE id = :user_id")->execute([':user_id' => $userId]);
+
+            // Log audit
+            $this->logAudit([
+                'action' => 'delete',
+                'model' => 'user',
+                'model_id' => $userId,
+                'description' => "Utilizador sem condomínio apagado: {$user['name']} ({$user['email']})"
+            ]);
+
+            $_SESSION['success'] = 'Utilizador removido com sucesso.';
+            
+        } catch (\Exception $e) {
+            error_log("Error deleting user without condominium {$userId}: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao apagar utilizador: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'admin/users');
+        exit;
     }
 
     /**

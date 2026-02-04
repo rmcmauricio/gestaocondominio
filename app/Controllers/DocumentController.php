@@ -64,6 +64,36 @@ class DocumentController extends Controller
         if ($sortBy) $filters['sort_by'] = $sortBy;
         if ($sortOrder) $filters['sort_order'] = $sortOrder;
 
+        // Get user information for access control
+        $userId = AuthMiddleware::userId();
+        $user = AuthMiddleware::user();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin') || ($user['role'] ?? '') === 'super_admin';
+        
+        // Get user's fractions in this condominium
+        $userFractionIds = [];
+        if (!$isAdmin) {
+            global $db;
+            $stmt = $db->prepare("
+                SELECT DISTINCT fraction_id 
+                FROM condominium_users 
+                WHERE user_id = :user_id 
+                AND condominium_id = :condominium_id 
+                AND fraction_id IS NOT NULL
+                AND (ended_at IS NULL OR ended_at > CURDATE())
+            ");
+            $stmt->execute([
+                ':user_id' => $userId,
+                ':condominium_id' => $condominiumId
+            ]);
+            $fractions = $stmt->fetchAll();
+            $userFractionIds = array_column($fractions, 'fraction_id');
+        }
+        
+        // Add access control filters
+        $filters['is_admin'] = $isAdmin;
+        $filters['user_fraction_ids'] = $userFractionIds;
+
         // Search or filter documents
         if (!empty($searchQuery)) {
             // When searching, show all results regardless of folder structure
@@ -192,6 +222,26 @@ class DocumentController extends Controller
         // Get unique document types for filter
         $documentTypes = $this->documentModel->getDocumentTypes($condominiumId);
 
+        // Count total documents in current folder (without access control) to detect if user has no permission
+        $totalDocumentsInFolder = 0;
+        $hasRestrictedAccess = false;
+        
+        if (!$isAdmin) {
+            // Only check for non-admin users
+            if (!empty($searchQuery)) {
+                // For search, we can't easily count total without access control, skip this check
+                $hasRestrictedAccess = false;
+            } elseif ($folder || !$folder) {
+                // Count total documents in the folder (without access control)
+                $totalDocumentsInFolder = $this->documentModel->countByFolder($condominiumId, is_string($folder) ? $folder : null);
+                // If there are documents in folder but user sees none, they don't have permission
+                $visibleDocumentsCount = count($documents) + count($documentsWithoutFolder ?? []);
+                if ($totalDocumentsInFolder > 0 && $visibleDocumentsCount === 0) {
+                    $hasRestrictedAccess = true;
+                }
+            }
+        }
+
         $this->loadPageTranslations('documents');
         
         $this->data += [
@@ -211,6 +261,9 @@ class DocumentController extends Controller
             'current_sort_order' => $sortOrder,
             'current_date_from' => $dateFrom,
             'current_date_to' => $dateTo,
+            'has_restricted_access' => $hasRestrictedAccess,
+            'total_documents_in_folder' => $totalDocumentsInFolder,
+            'is_admin' => $isAdmin,
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null,
             'csrf_token' => Security::generateCSRFToken()
@@ -296,6 +349,17 @@ class DocumentController extends Controller
                 }
             }
 
+            // Validate visibility and fraction_id
+            $visibility = Security::sanitize($_POST['visibility'] ?? ($parentDocument['visibility'] ?? 'condominos'));
+            $fractionId = !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : ($parentDocument['fraction_id'] ?? null);
+            
+            // If visibility is 'fraction', fraction_id must be set
+            if ($visibility === 'fraction' && empty($fractionId)) {
+                $_SESSION['error'] = 'Para documentos privados (Fração Específica), deve selecionar uma fração.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/create');
+                exit;
+            }
+
             // Upload file
             $fileData = $this->fileStorageService->upload(
                 $_FILES['file'],
@@ -306,7 +370,7 @@ class DocumentController extends Controller
             // Create document record
             $documentId = $this->documentModel->create([
                 'condominium_id' => $condominiumId,
-                'fraction_id' => !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : ($parentDocument['fraction_id'] ?? null),
+                'fraction_id' => $fractionId,
                 'folder' => Security::sanitize($_POST['folder'] ?? ($parentDocument['folder'] ?? '')),
                 'title' => Security::sanitize($_POST['title'] ?? ($parentDocument['title'] ?? $_FILES['file']['name'])),
                 'description' => Security::sanitize($_POST['description'] ?? ($parentDocument['description'] ?? '')),
@@ -314,7 +378,7 @@ class DocumentController extends Controller
                 'file_name' => $fileData['file_name'],
                 'file_size' => $fileData['file_size'],
                 'mime_type' => $fileData['mime_type'],
-                'visibility' => Security::sanitize($_POST['visibility'] ?? ($parentDocument['visibility'] ?? 'condominos')),
+                'visibility' => $visibility,
                 'document_type' => Security::sanitize($_POST['document_type'] ?? ($parentDocument['document_type'] ?? '')),
                 'parent_document_id' => $parentDocumentId,
                 'uploaded_by' => $userId
@@ -418,6 +482,45 @@ class DocumentController extends Controller
             $_SESSION['error'] = 'Documento não encontrado.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents');
             exit;
+        }
+
+        // Check access permissions
+        $userId = AuthMiddleware::userId();
+        $user = AuthMiddleware::user();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin') || ($user['role'] ?? '') === 'super_admin';
+        
+        if (!$isAdmin) {
+            // Check visibility
+            if ($document['visibility'] === 'admin') {
+                $_SESSION['error'] = 'Não tem permissão para descarregar este documento.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents');
+                exit;
+            }
+            
+            // Check if document is private to a specific fraction
+            if ($document['visibility'] === 'fraction' && $document['fraction_id']) {
+                // Verify user owns this fraction
+                global $db;
+                $stmt = $db->prepare("
+                    SELECT id FROM condominium_users 
+                    WHERE user_id = :user_id 
+                    AND condominium_id = :condominium_id 
+                    AND fraction_id = :fraction_id
+                    AND (ended_at IS NULL OR ended_at > CURDATE())
+                ");
+                $stmt->execute([
+                    ':user_id' => $userId,
+                    ':condominium_id' => $condominiumId,
+                    ':fraction_id' => $document['fraction_id']
+                ]);
+                
+                if (!$stmt->fetch()) {
+                    $_SESSION['error'] = 'Não tem permissão para descarregar este documento.';
+                    header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents');
+                    exit;
+                }
+            }
         }
 
         $filePath = $this->fileStorageService->getFilePath($document['file_path']);
@@ -524,14 +627,25 @@ class DocumentController extends Controller
             exit;
         }
 
+        // Validate visibility and fraction_id
+        $visibility = Security::sanitize($_POST['visibility'] ?? 'condominos');
+        $fractionId = !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null;
+        
+        // If visibility is 'fraction', fraction_id must be set
+        if ($visibility === 'fraction' && empty($fractionId)) {
+            $_SESSION['error'] = 'Para documentos privados (Fração Específica), deve selecionar uma fração.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents/' . $id . '/edit');
+            exit;
+        }
+
         try {
             $this->documentModel->update($id, [
                 'title' => Security::sanitize($_POST['title'] ?? ''),
                 'description' => Security::sanitize($_POST['description'] ?? ''),
                 'folder' => Security::sanitize($_POST['folder'] ?? ''),
                 'document_type' => Security::sanitize($_POST['document_type'] ?? ''),
-                'visibility' => Security::sanitize($_POST['visibility'] ?? 'condominos'),
-                'fraction_id' => !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null
+                'visibility' => $visibility,
+                'fraction_id' => $fractionId
             ]);
 
             $_SESSION['success'] = 'Documento atualizado com sucesso!';
@@ -564,13 +678,42 @@ class DocumentController extends Controller
         }
 
         // Check visibility permissions
+        $userId = AuthMiddleware::userId();
         $user = AuthMiddleware::user();
-        $userRole = $user['role'] ?? 'condomino';
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin') || ($user['role'] ?? '') === 'super_admin';
         
-        if ($document['visibility'] === 'admin' && $userRole !== 'admin' && $userRole !== 'super_admin') {
-            $_SESSION['error'] = 'Não tem permissão para visualizar este documento.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents');
-            exit;
+        if (!$isAdmin) {
+            // Check visibility
+            if ($document['visibility'] === 'admin') {
+                $_SESSION['error'] = 'Não tem permissão para visualizar este documento.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents');
+                exit;
+            }
+            
+            // Check if document is private to a specific fraction
+            if ($document['visibility'] === 'fraction' && $document['fraction_id']) {
+                // Verify user owns this fraction
+                global $db;
+                $stmt = $db->prepare("
+                    SELECT id FROM condominium_users 
+                    WHERE user_id = :user_id 
+                    AND condominium_id = :condominium_id 
+                    AND fraction_id = :fraction_id
+                    AND (ended_at IS NULL OR ended_at > CURDATE())
+                ");
+                $stmt->execute([
+                    ':user_id' => $userId,
+                    ':condominium_id' => $condominiumId,
+                    ':fraction_id' => $document['fraction_id']
+                ]);
+                
+                if (!$stmt->fetch()) {
+                    $_SESSION['error'] = 'Não tem permissão para visualizar este documento.';
+                    header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/documents');
+                    exit;
+                }
+            }
         }
 
         $filePath = $this->fileStorageService->getFilePath($document['file_path']);
