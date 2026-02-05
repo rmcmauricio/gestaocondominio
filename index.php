@@ -16,6 +16,10 @@ function getBasePathForRedirect(): string {
 
 // Configure secure session settings before starting session
 if (session_status() === PHP_SESSION_NONE) {
+    // Set session garbage collection max lifetime to 24 hours (86400 seconds)
+    // This must be set BEFORE session_start() to take effect
+    ini_set('session.gc_maxlifetime', 86400);
+    
     // Set secure session cookie parameters
     $isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ||
                (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
@@ -71,6 +75,11 @@ if (session_status() === PHP_SESSION_NONE) {
             }
         }
 
+        // Initialize last_activity if not set (for existing sessions)
+        if (!isset($_SESSION['last_activity'])) {
+            $_SESSION['last_activity'] = time();
+        }
+
         // Check for session timeout due to inactivity (24 hours)
         $inactivityTimeout = 86400; // 24 hours (86400 seconds)
         if (isset($_SESSION['last_activity'])) {
@@ -84,7 +93,7 @@ if (session_status() === PHP_SESSION_NONE) {
             }
         }
 
-        // Update last activity timestamp
+        // Update last activity timestamp on every request
         $_SESSION['last_activity'] = time();
     }
 }

@@ -193,6 +193,7 @@ class AuthController extends Controller
         
         // Set session creation time for periodic regeneration
         $_SESSION['created'] = time();
+        $_SESSION['last_activity'] = time();
 
         // Reset rate limit on successful login
         RateLimitMiddleware::reset('login', $email);
@@ -524,6 +525,7 @@ class AuthController extends Controller
         
         // Set session creation time for periodic regeneration
         $_SESSION['created'] = time();
+        $_SESSION['last_activity'] = time();
 
         // Reset rate limit on successful login
         RateLimitMiddleware::reset('login', $email);
@@ -711,6 +713,10 @@ class AuthController extends Controller
                     'name' => $user['name'],
                     'role' => $user['role']
                 ];
+                
+                // Set session creation time and last activity
+                $_SESSION['created'] = time();
+                $_SESSION['last_activity'] = time();
                 
                 $_SESSION['register_success'] = 'Conta criada com sucesso!';
                 $this->redirectToDashboard();
@@ -1259,6 +1265,10 @@ class AuthController extends Controller
                     'name' => $user['name'],
                     'role' => $user['role']
                 ];
+                
+                // Set session creation time and last activity
+                $_SESSION['created'] = time();
+                $_SESSION['last_activity'] = time();
 
                 // Update last login
                 $this->userModel->updateLastLogin($user['id']);
@@ -1408,6 +1418,10 @@ class AuthController extends Controller
                         'name' => $user['name'],
                         'role' => $user['role']
                     ];
+                    
+                    // Set session creation time and last activity
+                    $_SESSION['created'] = time();
+                    $_SESSION['last_activity'] = time();
                     
                     $_SESSION['register_success'] = 'Conta criada com sucesso via Google!';
                     $this->redirectToDashboard();
@@ -1615,6 +1629,10 @@ class AuthController extends Controller
                     'name' => $user['name'],
                     'role' => $user['role']
                 ];
+                
+                // Set session creation time and last activity
+                $_SESSION['created'] = time();
+                $_SESSION['last_activity'] = time();
                 
                 $_SESSION['register_success'] = 'Conta criada com sucesso! Período experimental de 14 dias iniciado.';
                 header('Location: ' . BASE_URL . 'subscription');
