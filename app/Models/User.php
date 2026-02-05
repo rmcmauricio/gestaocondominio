@@ -66,9 +66,15 @@ class User extends Model
             return false;
         }
 
+        // Detect SQLite for compatibility
+        $isSQLite = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'sqlite';
+        $timestampFunc = $isSQLite ? 'CURRENT_TIMESTAMP' : 'NOW()';
+
         $stmt = $this->db->prepare("
             UPDATE users 
-            SET google_id = :google_id, auth_provider = 'google' 
+            SET google_id = :google_id, 
+                auth_provider = 'google',
+                email_verified_at = {$timestampFunc}
             WHERE id = :user_id
         ");
 
@@ -138,6 +144,12 @@ class User extends Model
             $fields[] = 'auth_provider';
             $values[] = ':auth_provider';
             $params[':auth_provider'] = $data['auth_provider'];
+        }
+
+        if (isset($data['email_verified_at'])) {
+            $fields[] = 'email_verified_at';
+            $values[] = ':email_verified_at';
+            $params[':email_verified_at'] = $data['email_verified_at'];
         }
 
         $sql = "INSERT INTO users (" . implode(', ', $fields) . ") VALUES (" . implode(', ', $values) . ")";
