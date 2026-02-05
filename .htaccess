@@ -1,5 +1,16 @@
 # MVC Framework - URL Rewriting Configuration
 
+# Configure session settings at server level
+# This ensures session.gc_maxlifetime is set even if ini_set() doesn't work
+<IfModule mod_php7.c>
+    php_value session.gc_maxlifetime 86400
+    php_value session.cookie_lifetime 86400
+</IfModule>
+<IfModule mod_php8.c>
+    php_value session.gc_maxlifetime 86400
+    php_value session.cookie_lifetime 86400
+</IfModule>
+
 # Enable rewrite engine
 RewriteEngine On
 
