@@ -93,11 +93,11 @@
       {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName or viewName == 'pages/help/index.html.twig' %}
       <!-- Homepage Navigation -->
       <div class="d-flex align-items-center gap-2">
-        {% if not DISABLE_AUTH_REGISTRATION %}
+        {% if DISABLE_AUTH_REGISTRATION is defined and DISABLE_AUTH_REGISTRATION %}
+        <a href="{{ BASE_URL }}demo/access" class="btn-start-free">Aceder à Demo</a>
+        {% else %}
         <a href="{{ BASE_URL }}login" class="btn-login">Entrar</a>
         <a href="{{ BASE_URL }}register" class="btn-start-free">Começar Grátis</a>
-        {% else %}
-        <a href="{{ BASE_URL }}demo/access" class="btn-start-free">Demonstração</a>
         {% endif %}
       </div>
       {% else %}

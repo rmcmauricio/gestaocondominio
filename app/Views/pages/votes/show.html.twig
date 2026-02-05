@@ -114,12 +114,12 @@
             {% elseif vote.status == 'open' and user_vote %}
             <div class="alert alert-success">
                 <i class="bi bi-check-circle"></i> 
-                <strong>Voto registado:</strong> Você votou em "{{ user_vote.option_label }}" em {{ user_vote.created_at|date('d/m/Y H:i') }}.
+                <strong>Voto registado:</strong> Votou em "{{ user_vote.option_label }}" em {{ user_vote.created_at|date('d/m/Y H:i') }}.
             </div>
             {% elseif vote.status == 'open' and not user_fraction %}
             <div class="alert alert-warning">
                 <i class="bi bi-exclamation-triangle"></i> 
-                Você não tem uma fração associada neste condomínio para poder votar.
+                Não tem uma fração associada neste condomínio para poder votar.
             </div>
             {% endif %}
         </div>
