@@ -16,6 +16,7 @@ class RateLimitMiddleware
         'api_key_generate' => ['max_attempts' => 3, 'window' => 3600], // 3 attempts per hour
         'file_upload' => ['max_attempts' => 20, 'window' => 3600], // 20 uploads per hour
         'password_change' => ['max_attempts' => 5, 'window' => 3600], // 5 attempts per hour
+        'demo_access' => ['max_attempts' => 3, 'window' => 3600], // 3 attempts per identifier (email/IP) per hour
     ];
 
     /**

@@ -302,6 +302,25 @@ class EmailService
                    "---\n\n" . $text;
         }
 
+        // Validate SMTP configuration before attempting to send
+        if (empty($this->smtpHost) || empty($this->smtpUsername) || empty($this->smtpPassword)) {
+            $errorMsg = "EmailService: SMTP configuration incomplete. Missing: ";
+            $missing = [];
+            if (empty($this->smtpHost)) $missing[] = 'SMTP_HOST';
+            if (empty($this->smtpUsername)) $missing[] = 'SMTP_USERNAME';
+            if (empty($this->smtpPassword)) $missing[] = 'SMTP_PASSWORD';
+            $errorMsg .= implode(', ', $missing);
+            error_log($errorMsg);
+            error_log("EmailService: Cannot send email to: {$to} (Original: {$originalTo})");
+            return false;
+        }
+
+        // Log email attempt (always log in production for debugging)
+        error_log("EmailService: Attempting to send email to: {$to}, Subject: {$subject}, Environment: " . ($appEnv ?? 'unknown'));
+        if ($isDevelopment && !empty($devEmail)) {
+            error_log("EmailService: Development mode - Email redirected from {$originalTo} to {$devEmail}");
+        }
+
         try {
             $mail = new PHPMailer(true);
 
@@ -335,6 +354,15 @@ class EmailService
                 $mail->Debugoutput = function($str, $level) {
                     error_log("PHPMailer Debug: " . $str);
                 };
+            } else {
+                // In production, enable basic debug to capture errors
+                $mail->SMTPDebug = SMTP::DEBUG_OFF; // Don't output to screen
+                $mail->Debugoutput = function($str, $level) {
+                    // Only log errors and important messages in production
+                    if ($level >= SMTP::DEBUG_SERVER) {
+                        error_log("PHPMailer Production Debug: " . $str);
+                    }
+                };
             }
 
             // Character encoding settings
@@ -351,17 +379,35 @@ class EmailService
             $mail->Body = $html;
             $mail->AltBody = $text;
 
-            $mail->send();
-            return true;
+            // Send email
+            $result = $mail->send();
+            
+            if ($result) {
+                error_log("EmailService: Email sent successfully to: {$to} (Original: {$originalTo})");
+                return true;
+            } else {
+                $errorMsg = "EmailService: PHPMailer send() returned false for: {$to}";
+                error_log($errorMsg);
+                error_log("EmailService: PHPMailer ErrorInfo: " . $mail->ErrorInfo);
+                return false;
+            }
         } catch (Exception $e) {
             $errorMsg = "EmailService Error: " . $e->getMessage();
             error_log($errorMsg);
-            // Log additional debug info in development
-            if (defined('APP_ENV') && APP_ENV === 'development') {
-                error_log("SMTP Host: " . $this->smtpHost);
-                error_log("SMTP Port: " . $this->smtpPort);
-                error_log("SMTP Username: " . $this->smtpUsername);
-            }
+            error_log("EmailService: Failed to send email to: {$to} (Original: {$originalTo})");
+            error_log("EmailService: PHPMailer ErrorInfo: " . ($mail->ErrorInfo ?? 'N/A'));
+            
+            // Log additional debug info (always log in production for troubleshooting)
+            error_log("EmailService Debug Info:");
+            error_log("  - SMTP Host: " . $this->smtpHost);
+            error_log("  - SMTP Port: " . $this->smtpPort);
+            error_log("  - SMTP Username: " . $this->smtpUsername);
+            error_log("  - From Email: " . $this->fromEmail);
+            error_log("  - To Email: {$to}");
+            error_log("  - Original To: {$originalTo}");
+            error_log("  - Environment: " . ($appEnv ?? 'unknown'));
+            error_log("  - Is Development: " . ($isDevelopment ? 'yes' : 'no'));
+            
             return false;
         }
     }
@@ -590,7 +636,11 @@ class EmailService
 
         // Replace base layout fields (these should not be escaped as they may contain HTML)
         $html = str_replace('{baseUrl}', BASE_URL, $html);
-        $html = str_replace('{logoUrl}', $this->getLogoInline(), $html);
+        // Logo URL is now hardcoded in the template, no need to replace {logoUrl}
+        // If template still has {logoUrl} placeholder, replace it with the production URL
+        if (strpos($html, '{logoUrl}') !== false) {
+            $html = str_replace('{logoUrl}', '<img src="https://omeupredio.com/assets/images/logo.png" alt="O Meu Prédio" width="200" style="display: block; max-width: 200px; height: auto; margin: 0 auto; border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;" />', $html);
+        }
         $html = str_replace('{currentYear}', date('Y'), $html);
         $html = str_replace('{companyName}', htmlspecialchars($this->fromName, ENT_QUOTES, 'UTF-8'), $html);
 
@@ -659,6 +709,38 @@ class EmailService
         return $icons[$notificationType] ?? $icons['default'];
     }
 
+
+    /**
+     * Send demo access email with unique token link
+     */
+    public function sendDemoAccessEmail(string $email, string $token): bool
+    {
+        $accessUrl = BASE_URL . 'demo/access/token?token=' . urlencode($token);
+
+        // Try to use template from database
+        $template = $this->emailTemplateModel->findByKey('demo_access');
+        if ($template) {
+            $subject = $template['subject'] ?? 'Acesso à Demonstração - O Meu Prédio';
+            $html = $this->renderTemplate('demo_access', [
+                'accessUrl' => $accessUrl,
+                'baseUrl' => BASE_URL
+            ]);
+            $text = $this->renderTextTemplate('demo_access', [
+                'accessUrl' => $accessUrl,
+                'baseUrl' => BASE_URL
+            ]);
+
+            if (empty($html)) {
+                error_log("EmailService: Failed to render 'demo_access' template. Check base_layout exists.");
+                return false;
+            }
+        } else {
+            error_log("EmailService: Template 'demo_access' not found in database. Please run seeder.");
+            return false;
+        }
+
+        return $this->sendEmail($email, $subject, $html, $text, 'demo_access');
+    }
 
     private function getLogoInline(): string
     {

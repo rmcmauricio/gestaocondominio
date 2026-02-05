@@ -18,7 +18,10 @@ $router->get('/', 'App\Controllers\HomeController@index');
 
 // Demo route
 $router->get('/demo', 'App\Controllers\DemoController@index');
+// Demo access routes
 $router->get('/demo/access', 'App\Controllers\AuthController@demoAccess');
+$router->post('/demo/access/request', 'App\Controllers\AuthController@processDemoAccessRequest');
+$router->get('/demo/access/token', 'App\Controllers\AuthController@demoAccessWithToken');
 $router->get('/demo/switch-profile', 'App\Controllers\DemoController@switchProfile');
 
 // About route
