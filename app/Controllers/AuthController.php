@@ -1258,6 +1258,11 @@ class AuthController extends Controller
                     exit;
                 }
 
+                // If user authenticated via Google and email is verified by Google, ensure email_verified_at is set
+                if ($userInfo['verified_email'] && empty($user['email_verified_at'])) {
+                    $this->userModel->update($user['id'], ['email_verified_at' => date('Y-m-d H:i:s')]);
+                }
+
                 // Set user session
                 $_SESSION['user'] = [
                     'id' => $user['id'],
@@ -1288,7 +1293,8 @@ class AuthController extends Controller
                     'email' => $email,
                     'name' => $name,
                     'google_id' => $googleId,
-                    'auth_provider' => 'google'
+                    'auth_provider' => 'google',
+                    'verified_email' => $userInfo['verified_email'] ?? false
                 ];
                 // Redirect to account type selection
                 header('Location: ' . BASE_URL . 'auth/select-account-type');
@@ -1396,14 +1402,22 @@ class AuthController extends Controller
         // If user (condomino), create account directly
         if ($accountType === 'user') {
             try {
-                $userId = $this->userModel->create([
+                // Get verified_email from Google OAuth data if available
+                $userData = [
                     'email' => $googleData['email'],
                     'name' => $googleData['name'],
                     'role' => 'condomino',
                     'status' => 'active',
                     'google_id' => $googleData['google_id'],
                     'auth_provider' => $googleData['auth_provider']
-                ]);
+                ];
+                
+                // If email is verified by Google, set email_verified_at
+                if (isset($googleData['verified_email']) && $googleData['verified_email']) {
+                    $userData['email_verified_at'] = date('Y-m-d H:i:s');
+                }
+                
+                $userId = $this->userModel->create($userData);
 
                 // Log audit
                 $this->logAudit($userId, 'register', 'User registered via Google OAuth');
@@ -1593,6 +1607,10 @@ class AuthController extends Controller
             if ($isGoogleOAuth) {
                 $userData['google_id'] = $pendingData['google_id'];
                 $userData['auth_provider'] = $pendingData['auth_provider'];
+                // If email is verified by Google, set email_verified_at
+                if (isset($pendingData['verified_email']) && $pendingData['verified_email']) {
+                    $userData['email_verified_at'] = date('Y-m-d H:i:s');
+                }
             } else {
                 $userData['password'] = $pendingData['password'];
                 if (isset($pendingData['phone'])) {

@@ -112,7 +112,8 @@ class SuperAdminController extends Controller
             );
 
             // Check if email is not verified
-            $user['email_not_verified'] = empty($user['email_verified_at']);
+            // Users with google_id are considered verified (Google verifies emails)
+            $user['email_not_verified'] = empty($user['email_verified_at']) && empty($user['google_id']);
 
             // Get latest subscription info
             $subStmt = $db->prepare("
