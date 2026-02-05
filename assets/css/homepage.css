@@ -746,6 +746,274 @@ body:has(.header-homepage) .main-content-full {
 }
 
 /* ============================================
+   Screenshots Section
+   ============================================ */
+.screenshots-section {
+  background: hsl(var(--background));
+  padding: 5rem 0;
+}
+
+.screenshots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  .screenshots-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .screenshots-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1200px) {
+  .screenshots-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 1400px) {
+  .screenshots-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+@media (min-width: 1600px) {
+  .screenshots-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+@media (min-width: 1800px) {
+  .screenshots-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.screenshot-item {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  transition: all 0.3s ease;
+  background: hsl(var(--card));
+  cursor: pointer;
+}
+
+.screenshot-item:hover {
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.screenshot-wrapper {
+  position: relative;
+  width: 100%;
+  padding-top: 62.5%; /* 16:10 aspect ratio */
+  overflow: hidden;
+  background: hsl(var(--muted));
+}
+
+.screenshot-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.screenshot-item:hover .screenshot-image {
+  transform: scale(1.05);
+}
+
+.screenshot-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
+  display: flex;
+  align-items: flex-end;
+  padding: 1.5rem;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.screenshot-item:hover .screenshot-overlay {
+  opacity: 1;
+}
+
+.screenshot-info {
+  color: white;
+}
+
+.screenshot-info h5 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  color: white;
+}
+
+.screenshot-info p {
+  font-size: 0.875rem;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Fallback para imagens não encontradas */
+.screenshot-image:not([src]),
+.screenshot-image[src=""],
+.screenshot-image[src*="screenshots/"]:not([src*=".jpg"]):not([src*=".png"]):not([src*=".webp"]) {
+  background: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(var(--muted-foreground) / 0.1) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.screenshot-image:not([src])::after,
+.screenshot-image[src=""]::after {
+  content: "📱 Screenshot";
+  color: hsl(var(--muted-foreground));
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+/* Screenshot Modal Styles */
+#screenshotModal .modal-content {
+  background: rgba(0, 0, 0, 0.95);
+  border: none;
+}
+
+#screenshotModal .modal-header {
+  padding: 1rem 1.5rem;
+}
+
+#screenshotModal .modal-body {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.screenshot-modal-image-container {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.screenshot-modal-image {
+  max-width: 100%;
+  max-height: 80vh;
+  height: auto;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  transition: opacity 0.3s ease;
+}
+
+.screenshot-loading-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: none;
+  z-index: 10;
+}
+
+.screenshot-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: hsl(var(--primary));
+  border: 2px solid hsl(var(--primary));
+  color: white;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.screenshot-nav-btn:hover:not(:disabled) {
+  background: hsl(var(--primary) / 0.9);
+  border-color: hsl(var(--primary));
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.screenshot-nav-btn:disabled {
+  background: rgba(128, 128, 128, 0.5);
+  border-color: rgba(128, 128, 128, 0.5);
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.screenshot-nav-prev {
+  left: 1rem;
+}
+
+.screenshot-nav-next {
+  right: 1rem;
+}
+
+.screenshot-counter {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+#screenshotModal .modal-footer {
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (max-width: 768px) {
+  .screenshot-nav-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 1.25rem;
+  }
+  
+  .screenshot-nav-prev {
+    left: 0.5rem;
+  }
+  
+  .screenshot-nav-next {
+    right: 0.5rem;
+  }
+  
+  .screenshot-modal-image {
+    max-height: 70vh;
+  }
+  
+  #screenshotModal .modal-body {
+    padding: 1rem;
+  }
+}
+
+/* ============================================
    How It Works Section
    ============================================ */
 .how-it-works-section {

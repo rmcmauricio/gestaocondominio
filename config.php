@@ -121,6 +121,9 @@ $twig = new \Twig\Environment($loader, [
     'auto_reload' => ($config['APP_ENV'] ?? 'development') !== 'production',
 ]);
 
+// Disable auth/registration mode - MUST be defined BEFORE Twig globals
+define('DISABLE_AUTH_REGISTRATION', isset($config['DISABLE_AUTH_REGISTRATION']) && $config['DISABLE_AUTH_REGISTRATION'] === 'true');
+
 // Add debug extension in development
 if (($config['APP_ENV'] ?? 'development') !== 'production') {
     $twig->addExtension(new \Twig\Extension\DebugExtension());
@@ -161,6 +164,3 @@ if (isset($config['RECAPTCHA_SECRET'])) {
 
 // Maintenance mode
 define('MAINTENANCE_MODE', isset($config['MAINTENANCE_MODE']) && $config['MAINTENANCE_MODE'] === 'true');
-
-// Disable auth/registration mode
-define('DISABLE_AUTH_REGISTRATION', isset($config['DISABLE_AUTH_REGISTRATION']) && $config['DISABLE_AUTH_REGISTRATION'] === 'true');
