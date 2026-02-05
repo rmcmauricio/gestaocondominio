@@ -199,6 +199,18 @@
                             </div>
                         </div>
                         
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="newsletter_subscribed" name="newsletter_subscribed" {% if is_newsletter_subscribed %}checked{% endif %}>
+                                <label class="form-check-label" for="newsletter_subscribed">
+                                    <strong>Receber newsletter e notificações sobre lançamento</strong>
+                                </label>
+                                <small class="form-text text-muted d-block">
+                                    Receba emails sobre novidades, lançamentos e atualizações da plataforma
+                                </small>
+                            </div>
+                        </div>
+                        
                         <div class="d-grid">
                             <button type="submit" class="btn btn-info">
                                 <i class="bi bi-save"></i> Guardar Preferências

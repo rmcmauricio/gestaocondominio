@@ -22,9 +22,8 @@ class EmailTemplatesSeeder
             throw new \Exception("Database connection not available");
         }
 
-        // Template Base Layout
-        if (!$this->emailTemplateModel->existsByKey('base_layout')) {
-            $baseLayoutHtml = '<!DOCTYPE html>
+        // Template Base Layout - sempre atualizar para garantir que está atualizado
+        $baseLayoutHtml = '<!DOCTYPE html>
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
@@ -70,8 +69,13 @@ class EmailTemplatesSeeder
             position: relative;
             z-index: 1;
         }
+        .logo-section {
+            background: #ffffff;
+            padding: 30px 30px 20px 30px;
+            text-align: center;
+        }
         .logo-container {
-            margin-bottom: 20px;
+            margin-bottom: 0;
             padding: 10px 0;
         }
         .header h1 {
@@ -102,17 +106,20 @@ class EmailTemplatesSeeder
         }
         @media only screen and (max-width: 600px) {
             body { padding: 10px; }
+            .logo-section { padding: 25px 20px 15px 20px; }
             .header, .content { padding: 25px 20px; }
         }
     </style>
 </head>
 <body>
     <div class="email-wrapper">
+        <div class="logo-section">
+            <div class="logo-container">
+                <img src="https://omeupredio.com/assets/images/logo.png" alt="O Meu Prédio" width="200" style="display: block; max-width: 200px; height: auto; margin: 0 auto; border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;" />
+            </div>
+        </div>
         <div class="header">
             <div class="header-content">
-                <div class="logo-container">
-                    {logoUrl}
-                </div>
                 <h1>{subject}</h1>
             </div>
         </div>
@@ -133,25 +140,35 @@ class EmailTemplatesSeeder
 Feito com ❤️ para gestão de condomínios
 © {companyName} {currentYear} - Todos os direitos reservados';
 
-            $this->emailTemplateModel->create([
-                'template_key' => 'base_layout',
-                'name' => 'Layout Base (Header/Footer)',
-                'description' => 'Template base com header e footer usado em todos os emails. Contém o placeholder {body} onde o conteúdo específico é inserido.',
-                'subject' => null,
-                'html_body' => $baseLayoutHtml,
-                'text_body' => $baseLayoutText,
-                'available_fields' => [
-                    ['key' => '{body}', 'description' => 'Conteúdo específico do email (obrigatório)', 'required' => true],
-                    ['key' => '{subject}', 'description' => 'Assunto/título do email', 'required' => false],
-                    ['key' => '{baseUrl}', 'description' => 'URL base do sistema', 'required' => false],
-                    ['key' => '{logoUrl}', 'description' => 'URL do logo', 'required' => false],
-                    ['key' => '{currentYear}', 'description' => 'Ano atual', 'required' => false],
-                    ['key' => '{companyName}', 'description' => 'Nome da empresa', 'required' => false]
-                ],
-                'is_base_layout' => true,
-                'is_active' => true
-            ]);
-        }
+            $existingTemplate = $this->emailTemplateModel->findByKey('base_layout');
+            
+            if ($existingTemplate) {
+                // Atualizar template existente
+                $this->emailTemplateModel->update($existingTemplate['id'], [
+                    'html_body' => $baseLayoutHtml,
+                    'text_body' => $baseLayoutText
+                ]);
+            } else {
+                // Criar novo template
+                $this->emailTemplateModel->create([
+                    'template_key' => 'base_layout',
+                    'name' => 'Layout Base (Header/Footer)',
+                    'description' => 'Template base com header e footer usado em todos os emails. Contém o placeholder {body} onde o conteúdo específico é inserido.',
+                    'subject' => null,
+                    'html_body' => $baseLayoutHtml,
+                    'text_body' => $baseLayoutText,
+                    'available_fields' => [
+                        ['key' => '{body}', 'description' => 'Conteúdo específico do email (obrigatório)', 'required' => true],
+                        ['key' => '{subject}', 'description' => 'Assunto/título do email', 'required' => false],
+                        ['key' => '{baseUrl}', 'description' => 'URL base do sistema', 'required' => false],
+                        ['key' => '{logoUrl}', 'description' => 'URL do logo', 'required' => false],
+                        ['key' => '{currentYear}', 'description' => 'Ano atual', 'required' => false],
+                        ['key' => '{companyName}', 'description' => 'Nome da empresa', 'required' => false]
+                    ],
+                    'is_base_layout' => true,
+                    'is_active' => true
+                ]);
+            }
 
         // Templates específicos - apenas o body (sem header/footer)
         $templates = [
@@ -866,6 +883,56 @@ Ver detalhes: {link}
                     ['key' => '{newMonthlyPrice}', 'description' => 'Novo preço mensal', 'required' => true],
                     ['key' => '{newFeatures}', 'description' => 'Lista de novas funcionalidades (pode conter HTML)', 'required' => false],
                     ['key' => '{link}', 'description' => 'Link para ver detalhes do plano', 'required' => true],
+                    ['key' => '{baseUrl}', 'description' => 'URL base do sistema', 'required' => false]
+                ]
+            ],
+            [
+                'template_key' => 'demo_access',
+                'name' => 'Acesso à Demonstração',
+                'description' => 'Email enviado com link único de acesso à demonstração',
+                'subject' => 'Acesso à Demonstração - O Meu Prédio',
+                'html_body' => '<div class="greeting">Olá!</div>
+<div class="message">
+    <p>Solicitou acesso à demonstração da plataforma <strong>O Meu Prédio</strong>.</p>
+    <p>Clique no botão abaixo para aceder à demonstração e explorar todas as funcionalidades da plataforma.</p>
+</div>
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{accessUrl}" class="button" style="background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; display: inline-block;">Aceder à Demonstração</a>
+</div>
+<div class="warning">
+    <div class="warning-title">
+        <span>⚠️</span>
+        <span>Importante</span>
+    </div>
+    <ul>
+        <li>Este link é único e válido por 24 horas</li>
+        <li>O link só pode ser usado uma vez</li>
+        <li>Se precisar de novo acesso, solicite novamente através do website</li>
+    </ul>
+</div>
+<div class="link-box">
+    <div class="link-label">Se o botão não funcionar, copie e cole este link no seu navegador:</div>
+    {accessUrl}
+</div>
+<div style="background-color: #e7f3ff; border-left: 4px solid #2196F3; padding: 15px; margin: 20px 0;">
+    <p style="margin: 0;"><strong>ℹ️ Sobre a Demonstração:</strong> A demonstração contém dados fictícios para que possa explorar todas as funcionalidades. Todas as alterações são repostas automaticamente.</p>
+</div>',
+                'text_body' => 'Olá!
+
+Solicitou acesso à demonstração da plataforma O Meu Prédio.
+
+Clique no link abaixo para aceder à demonstração e explorar todas as funcionalidades da plataforma.
+
+Aceder à Demonstração: {accessUrl}
+
+⚠️ Importante:
+- Este link é único e válido por 24 horas
+- O link só pode ser usado uma vez
+- Se precisar de novo acesso, solicite novamente através do website
+
+ℹ️ Sobre a Demonstração: A demonstração contém dados fictícios para que possa explorar todas as funcionalidades. Todas as alterações são repostas automaticamente.',
+                'available_fields' => [
+                    ['key' => '{accessUrl}', 'description' => 'URL de acesso único à demo (com token)', 'required' => true],
                     ['key' => '{baseUrl}', 'description' => 'URL base do sistema', 'required' => false]
                 ]
             ]

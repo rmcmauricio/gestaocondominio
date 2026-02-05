@@ -211,21 +211,177 @@ class AuthController extends Controller
         $this->redirectToDashboard();
     }
 
+    /**
+     * Show demo access request form
+     */
     public function demoAccess()
     {
-        // Auto-login demo user
+        // If already authenticated, redirect to dashboard
+        if (isset($_SESSION['user'])) {
+            $this->redirectToDashboard();
+            exit;
+        }
+
+        // Show access request form
+        $this->loadPageTranslations('demo');
+        
+        $this->data += [
+            'viewName' => 'pages/demo/request-access.html.twig',
+            'page' => [
+                'titulo' => 'Acesso à Demonstração',
+                'description' => 'Solicite acesso à demonstração',
+            ],
+            'error' => $_SESSION['demo_error'] ?? null,
+            'success' => $_SESSION['demo_success'] ?? null,
+            'csrf_token' => Security::generateCSRFToken()
+        ];
+        
+        unset($_SESSION['demo_error'], $_SESSION['demo_success']);
+        
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Process demo access request
+     */
+    public function processDemoAccessRequest()
+    {
+        // Only accept POST requests
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'demo/access');
+            exit;
+        }
+
+        // Verify CSRF token
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['demo_error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'demo/access');
+            exit;
+        }
+
+        $email = Security::sanitize($_POST['email'] ?? '');
+        $wantsNewsletter = isset($_POST['wants_newsletter']) && $_POST['wants_newsletter'] === 'on';
+
+        // Validate email first
+        if (empty($email)) {
+            $_SESSION['demo_error'] = 'Por favor, introduza o seu email.';
+            header('Location: ' . BASE_URL . 'demo/access');
+            exit;
+        }
+
+        if (!Security::validateEmail($email)) {
+            $_SESSION['demo_error'] = 'Email inválido.';
+            header('Location: ' . BASE_URL . 'demo/access');
+            exit;
+        }
+
+        // Check rate limit by email (max 3 per hour)
+        try {
+            RateLimitMiddleware::require('demo_access', $email);
+        } catch (\Exception $e) {
+            $_SESSION['demo_error'] = 'Muitas tentativas para este email. Por favor, aguarde antes de tentar novamente.';
+            header('Location: ' . BASE_URL . 'demo/access');
+            exit;
+        }
+
+        // Check rate limit by IP (max 10 per hour)
+        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+        if ($ipAddress) {
+            try {
+                RateLimitMiddleware::require('demo_access', $ipAddress);
+            } catch (\Exception $e) {
+                RateLimitMiddleware::recordAttempt('demo_access', $email);
+                $_SESSION['demo_error'] = 'Muitas tentativas deste endereço IP. Por favor, aguarde antes de tentar novamente.';
+                header('Location: ' . BASE_URL . 'demo/access');
+                exit;
+            }
+        }
+
+        // Create token
+        try {
+            $tokenModel = new \App\Models\DemoAccessToken();
+            $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+            $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+            
+            $token = $tokenModel->createToken($email, $wantsNewsletter, $ipAddress, $userAgent);
+
+            // Subscribe to newsletter if requested
+            if ($wantsNewsletter) {
+                $newsletterService = new \App\Services\NewsletterService();
+                $newsletterService->subscribe($email, 'demo_access');
+            }
+
+            // Send email with access link
+            $emailService = new EmailService();
+            $accessUrl = BASE_URL . 'demo/access/token?token=' . urlencode($token);
+            $emailSent = $emailService->sendDemoAccessEmail($email, $token);
+
+            if (!$emailSent) {
+                error_log("Failed to send demo access email to: " . $email);
+                // Still show success message to user (don't reveal if email failed)
+            }
+
+            // Reset rate limit on success (both email and IP)
+            RateLimitMiddleware::reset('demo_access', $email);
+            if ($ipAddress) {
+                RateLimitMiddleware::reset('demo_access', $ipAddress);
+            }
+
+            $_SESSION['demo_success'] = 'Link de acesso enviado para o seu email! Verifique a sua caixa de entrada (e spam).';
+        } catch (\Exception $e) {
+            // Record attempt for both email and IP
+            RateLimitMiddleware::recordAttempt('demo_access', $email);
+            if ($ipAddress) {
+                RateLimitMiddleware::recordAttempt('demo_access', $ipAddress);
+            }
+            error_log("Error creating demo access token: " . $e->getMessage());
+            $_SESSION['demo_error'] = 'Erro ao processar pedido. Por favor, tente novamente.';
+        }
+
+        header('Location: ' . BASE_URL . 'demo/access');
+        exit;
+    }
+
+    /**
+     * Access demo with token
+     */
+    public function demoAccessWithToken()
+    {
+        $token = $_GET['token'] ?? '';
+
+        if (empty($token)) {
+            $_SESSION['demo_error'] = 'Token de acesso inválido ou ausente.';
+            header('Location: ' . BASE_URL . 'demo/access');
+            exit;
+        }
+
+        // Find token
+        $tokenModel = new \App\Models\DemoAccessToken();
+        $tokenData = $tokenModel->findByToken($token);
+
+        if (!$tokenData) {
+            $_SESSION['demo_error'] = 'Token de acesso inválido ou expirado. Por favor, solicite um novo acesso.';
+            header('Location: ' . BASE_URL . 'demo/access');
+            exit;
+        }
+
+        // Mark token as used
+        $tokenModel->markAsUsed($token);
+
+        // Get demo user
         $demoUser = $this->userModel->findByEmail('demo@predio.pt');
         
         if (!$demoUser) {
-            $_SESSION['login_error'] = 'Conta demo não encontrada. Contacte o administrador.';
-            header('Location: ' . BASE_URL . 'login');
+            $_SESSION['demo_error'] = 'Conta demo não encontrada. Contacte o administrador.';
+            header('Location: ' . BASE_URL . 'demo/access');
             exit;
         }
 
         // Check if user is active
         if ($demoUser['status'] !== 'active') {
-            $_SESSION['login_error'] = 'Conta demo não está ativa.';
-            header('Location: ' . BASE_URL . 'login');
+            $_SESSION['demo_error'] = 'Conta demo não está ativa.';
+            header('Location: ' . BASE_URL . 'demo/access');
             exit;
         }
 
@@ -233,6 +389,9 @@ class AuthController extends Controller
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
+
+        // Regenerate session ID on successful access
+        session_regenerate_id(true);
 
         // Set user session
         $_SESSION['user'] = [
@@ -242,6 +401,10 @@ class AuthController extends Controller
             'role' => $demoUser['role']
         ];
         
+        // Set session creation time
+        $_SESSION['created'] = time();
+        $_SESSION['last_activity'] = time();
+        
         // Set demo profile to admin by default
         $_SESSION['demo_profile'] = 'admin';
 
@@ -249,7 +412,7 @@ class AuthController extends Controller
         $this->userModel->updateLastLogin($demoUser['id']);
 
         // Log audit
-        $this->logAudit($demoUser['id'], 'login', 'Demo access - auto login');
+        $this->logAudit($demoUser['id'], 'login', 'Demo access via token - email: ' . $tokenData['email']);
 
         // Redirect to dashboard
         $_SESSION['login_success'] = 'Bem-vindo à demo! Explore todas as funcionalidades. Todas as alterações serão repostas automaticamente.';

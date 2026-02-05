@@ -21,7 +21,7 @@ if (session_status() === PHP_SESSION_NONE) {
                (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
 
     session_set_cookie_params([
-        'lifetime' => 0, // Session cookie expires when browser closes
+        'lifetime' => 86400, // Session cookie expires after 24 hours
         'path' => '/',
         'domain' => '',
         'secure' => $isHttps, // Only send over HTTPS in production
@@ -71,8 +71,8 @@ if (session_status() === PHP_SESSION_NONE) {
             }
         }
 
-        // Check for session timeout due to inactivity (30 minutes)
-        $inactivityTimeout = 1800; // 30 minutes
+        // Check for session timeout due to inactivity (24 hours)
+        $inactivityTimeout = 86400; // 24 hours (86400 seconds)
         if (isset($_SESSION['last_activity'])) {
             if (time() - $_SESSION['last_activity'] > $inactivityTimeout) {
                 // Session expired due to inactivity

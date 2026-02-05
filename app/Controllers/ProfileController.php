@@ -45,6 +45,10 @@ class ProfileController extends Controller
         $preferenceModel = new UserEmailPreference();
         $emailPreferences = $preferenceModel->getPreferences($userId);
 
+        // Get newsletter subscription status
+        $newsletterService = new \App\Services\NewsletterService();
+        $isNewsletterSubscribed = $newsletterService->isSubscribed($userData['email']);
+
         $this->loadPageTranslations('profile');
         
         $this->data += [
@@ -53,6 +57,7 @@ class ProfileController extends Controller
             'user' => $userData,
             'is_demo' => $isDemo,
             'email_preferences' => $emailPreferences,
+            'is_newsletter_subscribed' => $isNewsletterSubscribed,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
@@ -81,6 +86,14 @@ class ProfileController extends Controller
         // Verify CSRF token
         if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
             $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'profile');
+            exit;
+        }
+
+        // Get user data before update (for newsletter sync)
+        $userData = $this->userModel->findById($userId);
+        if (!$userData) {
+            $_SESSION['error'] = 'Utilizador não encontrado.';
             header('Location: ' . BASE_URL . 'profile');
             exit;
         }
@@ -137,6 +150,10 @@ class ProfileController extends Controller
             exit;
         }
 
+        // Get old email before update (for newsletter sync)
+        $oldEmail = $userData['email'];
+        $emailChanged = ($oldEmail !== $email);
+
         // Update user
         $updateData = [
             'email' => $email,
@@ -150,6 +167,22 @@ class ProfileController extends Controller
             $updatedUser = $this->userModel->findById($userId);
             $_SESSION['user']['name'] = $updatedUser['name'];
             $_SESSION['user']['email'] = $updatedUser['email'];
+            
+            // Sync newsletter subscription if email changed
+            if ($emailChanged) {
+                try {
+                    $newsletterService = new \App\Services\NewsletterService();
+                    $wasSubscribed = $newsletterService->isSubscribed($oldEmail);
+                    if ($wasSubscribed) {
+                        // Unsubscribe old email, subscribe new email
+                        $newsletterService->toggleSubscription($oldEmail, false, 'profile_email_change');
+                        $newsletterService->toggleSubscription($email, true, 'profile_email_change');
+                    }
+                } catch (\Exception $e) {
+                    // Log error but don't fail profile update
+                    error_log("Failed to sync newsletter subscription: " . $e->getMessage());
+                }
+            }
             
             // Sync user data with fraction associations
             try {
@@ -307,8 +340,18 @@ class ProfileController extends Controller
             'email_messages_enabled' => isset($_POST['email_messages_enabled'])
         ];
 
+        // Get user email for newsletter subscription
+        $userData = $this->userModel->findById($userId);
+        $wantsNewsletter = isset($_POST['newsletter_subscribed']);
+
         try {
             if ($preferenceModel->updatePreferences($userId, $preferences)) {
+                // Update newsletter subscription
+                if ($userData && isset($userData['email'])) {
+                    $newsletterService = new \App\Services\NewsletterService();
+                    $newsletterService->toggleSubscription($userData['email'], $wantsNewsletter, 'profile');
+                }
+                
                 $_SESSION['success'] = 'Preferências de email atualizadas com sucesso!';
             } else {
                 $_SESSION['error'] = 'Erro ao atualizar preferências de email. Tente novamente.';
