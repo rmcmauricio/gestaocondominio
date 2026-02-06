@@ -1946,13 +1946,29 @@ class AuthController extends Controller
             $success = $newsletterService->subscribe($email, 'pilot_user');
 
             if ($success) {
-                // Send thank you email
+                // Get subscription date for notification
+                global $db;
+                $stmt = $db->prepare("SELECT subscribed_at FROM newsletter_subscribers WHERE email = :email AND source = 'pilot_user' LIMIT 1");
+                $stmt->execute([':email' => $email]);
+                $subscriber = $stmt->fetch();
+                $subscribedAt = $subscriber ? date('d/m/Y H:i', strtotime($subscriber['subscribed_at'])) : date('d/m/Y H:i');
+
+                // Send thank you email to pilot user
                 try {
                     $emailService = new \App\Core\EmailService();
                     $emailService->sendPilotSignupThankYouEmail($email);
                 } catch (\Exception $emailException) {
                     // Log email error but don't fail the signup
                     error_log("Error sending pilot signup thank you email: " . $emailException->getMessage());
+                }
+
+                // Send notification email to super admin
+                try {
+                    $emailService = new \App\Core\EmailService();
+                    $emailService->sendPilotUserNotificationEmail($email, $subscribedAt);
+                } catch (\Exception $notificationException) {
+                    // Log notification error but don't fail the signup
+                    error_log("Error sending pilot user notification to super admin: " . $notificationException->getMessage());
                 }
                 
                 $_SESSION['pilot_signup_success'] = 'Obrigado pelo seu interesse! Entraremos em contacto em breve.';

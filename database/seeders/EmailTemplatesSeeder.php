@@ -1050,6 +1050,55 @@ Criar Conta: {registrationUrl}
                     ['key' => '{expiresAt}', 'description' => 'Data de expiração do convite (formato: dd/mm/yyyy)', 'required' => true],
                     ['key' => '{baseUrl}', 'description' => 'URL base do sistema', 'required' => false]
                 ]
+            ],
+            [
+                'template_key' => 'pilot_user_notification',
+                'name' => 'Notificação - Novo User Piloto',
+                'description' => 'Email enviado ao super admin quando um novo user piloto se inscreve',
+                'subject' => 'Novo User Piloto Inscrito - O Meu Prédio',
+                'html_body' => '<div class="greeting">
+    <h2>Novo User Piloto Inscrito</h2>
+    <p>Um novo utilizador interessado em participar como user piloto acabou de se inscrever.</p>
+</div>
+<div class="user-info">
+    <p><strong>Email:</strong> {email}</p>
+    <p><strong>Data de Inscrição:</strong> {subscribedAt}</p>
+    <p><strong>Status:</strong> <span style="color: #F98E13; font-weight: bold;">Aguardando Ação</span></p>
+</div>
+<p><strong>Próximo passo:</strong> Pode enviar um convite de registo através do painel de administração.</p>
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{adminUrl}" class="button" style="background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; display: inline-block;">Ver Users Piloto</a>
+</div>
+<p><strong>O que pode fazer:</strong></p>
+<ul>
+    <li>✅ Enviar convite de registo</li>
+    <li>📧 Ver histórico de inscrições</li>
+    <li>👥 Gerir todos os users piloto</li>
+    <li>📊 Ver estatísticas</li>
+</ul>',
+                'text_body' => 'Novo User Piloto Inscrito
+
+Um novo utilizador interessado em participar como user piloto acabou de se inscrever.
+
+Email: {email}
+Data de Inscrição: {subscribedAt}
+Status: Aguardando Ação
+
+Próximo passo: Pode enviar um convite de registo através do painel de administração.
+
+Ver Users Piloto: {adminUrl}
+
+O que pode fazer:
+- Enviar convite de registo
+- Ver histórico de inscrições
+- Gerir todos os users piloto
+- Ver estatísticas',
+                'available_fields' => [
+                    ['key' => '{email}', 'description' => 'Email do user piloto que se inscreveu', 'required' => true],
+                    ['key' => '{subscribedAt}', 'description' => 'Data e hora da inscrição', 'required' => true],
+                    ['key' => '{adminUrl}', 'description' => 'URL do painel de users piloto', 'required' => true],
+                    ['key' => '{baseUrl}', 'description' => 'URL base do sistema', 'required' => false]
+                ]
             ]
         ];
 

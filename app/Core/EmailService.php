@@ -808,6 +808,54 @@ class EmailService
         return $this->sendEmail($email, $subject, $html, $text, 'pilot_signup_thank_you');
     }
 
+    /**
+     * Send notification email to super admin when a pilot user signs up
+     */
+    public function sendPilotUserNotificationEmail(string $pilotEmail, string $subscribedAt): bool
+    {
+        // Get super admin email
+        global $db;
+        $stmt = $db->prepare("SELECT email FROM users WHERE role = 'super_admin' LIMIT 1");
+        $stmt->execute();
+        $superAdmin = $stmt->fetch();
+        
+        if (!$superAdmin || empty($superAdmin['email'])) {
+            error_log("EmailService: No super admin found to send pilot user notification.");
+            return false;
+        }
+        
+        $superAdminEmail = $superAdmin['email'];
+        $adminUrl = BASE_URL . 'admin/pilot-users';
+
+        // Try to use template from database
+        $template = $this->emailTemplateModel->findByKey('pilot_user_notification');
+        if ($template) {
+            $subject = $template['subject'] ?? 'Novo User Piloto Inscrito - O Meu Prédio';
+            $html = $this->renderTemplate('pilot_user_notification', [
+                'email' => $pilotEmail,
+                'subscribedAt' => $subscribedAt,
+                'adminUrl' => $adminUrl,
+                'baseUrl' => BASE_URL
+            ]);
+            $text = $this->renderTextTemplate('pilot_user_notification', [
+                'email' => $pilotEmail,
+                'subscribedAt' => $subscribedAt,
+                'adminUrl' => $adminUrl,
+                'baseUrl' => BASE_URL
+            ]);
+
+            if (empty($html)) {
+                error_log("EmailService: Failed to render 'pilot_user_notification' template. Check base_layout exists.");
+                return false;
+            }
+        } else {
+            error_log("EmailService: Template 'pilot_user_notification' not found in database. Please run seeder.");
+            return false;
+        }
+
+        return $this->sendEmail($superAdminEmail, $subject, $html, $text, 'pilot_user_notification');
+    }
+
     private function getLogoInline(): string
     {
         // Get APP_ENV to determine if we should use URL or base64
