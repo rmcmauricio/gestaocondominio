@@ -20,6 +20,7 @@ use App\Services\AuditService;
 use App\Services\PaymentService;
 use App\Services\LogService;
 use App\Services\CondominiumDeletionService;
+use App\Core\DebugLogger;
 
 class SuperAdminController extends Controller
 {
@@ -4092,9 +4093,9 @@ class SuperAdminController extends Controller
      */
     public function updateEmailTemplate(int $id)
     {
-        error_log("updateEmailTemplate - INÍCIO - ID: {$id}");
-        error_log("updateEmailTemplate - REQUEST_URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
-        error_log("updateEmailTemplate - POST data: " . json_encode($_POST));
+        DebugLogger::controller("updateEmailTemplate - INÍCIO - ID: {$id}");
+        DebugLogger::controller("updateEmailTemplate - REQUEST_URI: " . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
+        DebugLogger::controller("updateEmailTemplate - POST data: " . json_encode($_POST));
         
         AuthMiddleware::require();
         RoleMiddleware::requireSuperAdmin();
@@ -4106,7 +4107,7 @@ class SuperAdminController extends Controller
 
         // Check if this is actually a test email request (shouldn't happen, but just in case)
         if (isset($_POST['action_type']) && $_POST['action_type'] === 'test_email') {
-            error_log("updateEmailTemplate - ERRO: Recebeu requisição de teste de email! Redirecionando para sendTestEmail...");
+            DebugLogger::controller("updateEmailTemplate - ERRO: Recebeu requisição de teste de email! Redirecionando para sendTestEmail...");
             // Redirect to the correct method
             $this->sendTestEmail($id);
             return;
@@ -4204,29 +4205,29 @@ class SuperAdminController extends Controller
      */
     public function sendTestEmail(int $id)
     {
-        error_log("SuperAdminController::sendTestEmail - INÍCIO - ID: {$id}");
-        error_log("SuperAdminController::sendTestEmail - REQUEST_METHOD: " . $_SERVER['REQUEST_METHOD']);
+        DebugLogger::controller("SuperAdminController::sendTestEmail - INÍCIO - ID: {$id}");
+        DebugLogger::controller("SuperAdminController::sendTestEmail - REQUEST_METHOD: " . $_SERVER['REQUEST_METHOD']);
         
         AuthMiddleware::require();
         RoleMiddleware::requireSuperAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            error_log("SuperAdminController::sendTestEmail - ERRO: Método não é POST");
+            DebugLogger::controller("SuperAdminController::sendTestEmail - ERRO: Método não é POST");
             header('Location: ' . BASE_URL . 'admin/email-templates');
             exit;
         }
 
         $csrfToken = $_POST['csrf_token'] ?? '';
-        error_log("SuperAdminController::sendTestEmail - CSRF Token recebido: " . (!empty($csrfToken) ? 'SIM' : 'NÃO'));
+        DebugLogger::controller("SuperAdminController::sendTestEmail - CSRF Token recebido: " . (!empty($csrfToken) ? 'SIM' : 'NÃO'));
         
         if (!Security::verifyCSRFToken($csrfToken)) {
-            error_log("SuperAdminController::sendTestEmail - ERRO: Token CSRF inválido");
+            DebugLogger::controller("SuperAdminController::sendTestEmail - ERRO: Token CSRF inválido");
             $_SESSION['error'] = 'Token de segurança inválido.';
             header('Location: ' . BASE_URL . 'admin/email-templates/' . $id . '/edit');
             exit;
         }
         
-        error_log("SuperAdminController::sendTestEmail - Validações passadas, continuando...");
+        DebugLogger::controller("SuperAdminController::sendTestEmail - Validações passadas, continuando...");
 
         $template = $this->emailTemplateModel->findById($id);
         if (!$template || $template['is_base_layout']) {
@@ -4256,13 +4257,13 @@ class SuperAdminController extends Controller
         $text = $emailService->renderTextTemplate($template['template_key'], $sampleData);
         
         // Debug logging
-        error_log("SuperAdminController::sendTestEmail - Template key: {$template['template_key']}");
-        error_log("SuperAdminController::sendTestEmail - HTML length: " . strlen($html));
-        error_log("SuperAdminController::sendTestEmail - Text length: " . strlen($text));
+        DebugLogger::emailTemplate("SuperAdminController::sendTestEmail - Template key: {$template['template_key']}");
+        DebugLogger::emailTemplate("SuperAdminController::sendTestEmail - HTML length: " . strlen($html));
+        DebugLogger::emailTemplate("SuperAdminController::sendTestEmail - Text length: " . strlen($text));
         
         // If template not found in database or empty, show error
         if (empty($html)) {
-            error_log("SuperAdminController::sendTestEmail - ERROR: Template renderizado está vazio!");
+            DebugLogger::emailTemplate("SuperAdminController::sendTestEmail - ERROR: Template renderizado está vazio!");
             $_SESSION['error'] = 'Não foi possível renderizar o template. Verifique se o template base está configurado e se o template específico existe no banco de dados.';
             header('Location: ' . BASE_URL . 'admin/email-templates/' . $id . '/edit');
             exit;
@@ -4274,8 +4275,8 @@ class SuperAdminController extends Controller
             $subject = str_replace('{' . $key . '}', $value, $subject);
         }
 
-        error_log("SuperAdminController::sendTestEmail - Enviando email para: {$recipientEmail}");
-        error_log("SuperAdminController::sendTestEmail - Assunto: [TESTE] {$subject}");
+        DebugLogger::emailTemplate("SuperAdminController::sendTestEmail - Enviando email para: {$recipientEmail}");
+        DebugLogger::emailTemplate("SuperAdminController::sendTestEmail - Assunto: [TESTE] {$subject}");
 
         // Send test email (bypass user preferences for test emails)
         $sent = $emailService->sendEmail(
@@ -4287,7 +4288,7 @@ class SuperAdminController extends Controller
             null // No userId to bypass preferences
         );
         
-        error_log("SuperAdminController::sendTestEmail - Resultado do envio: " . ($sent ? 'SUCESSO' : 'FALHA'));
+        DebugLogger::emailSend("SuperAdminController::sendTestEmail - Resultado do envio: " . ($sent ? 'SUCESSO' : 'FALHA'));
 
         if ($sent) {
             // Check if email was redirected in development

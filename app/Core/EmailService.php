@@ -5,6 +5,7 @@ namespace App\Core;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
+use App\Core\DebugLogger;
 
 // Load .env file
 if (file_exists(__DIR__ . '/../../.env')) {
@@ -315,10 +316,10 @@ class EmailService
             return false;
         }
 
-        // Log email attempt (always log in production for debugging)
-        error_log("EmailService: Attempting to send email to: {$to}, Subject: {$subject}, Environment: " . ($appEnv ?? 'unknown'));
+        // Log email attempt (only if debug logging is enabled)
+        DebugLogger::email("EmailService: Attempting to send email to: {$to}, Subject: {$subject}, Environment: " . ($appEnv ?? 'unknown'));
         if ($isDevelopment && !empty($devEmail)) {
-            error_log("EmailService: Development mode - Email redirected from {$originalTo} to {$devEmail}");
+            DebugLogger::email("EmailService: Development mode - Email redirected from {$originalTo} to {$devEmail}");
         }
 
         try {
@@ -348,19 +349,18 @@ class EmailService
                 )
             );
 
-            // Enable verbose debug output in development
-            if (defined('APP_ENV') && APP_ENV === 'development') {
+            // Enable verbose debug output only if LOG_DEBUG_PHPMailer is enabled
+            if (DebugLogger::isEnabled('phpmailer')) {
                 $mail->SMTPDebug = SMTP::DEBUG_SERVER;
                 $mail->Debugoutput = function($str, $level) {
-                    error_log("PHPMailer Debug: " . $str);
+                    DebugLogger::phpmailer("PHPMailer Debug: " . $str);
                 };
             } else {
-                // In production, enable basic debug to capture errors
-                $mail->SMTPDebug = SMTP::DEBUG_OFF; // Don't output to screen
+                $mail->SMTPDebug = SMTP::DEBUG_OFF;
                 $mail->Debugoutput = function($str, $level) {
-                    // Only log errors and important messages in production
-                    if ($level >= SMTP::DEBUG_SERVER) {
-                        error_log("PHPMailer Production Debug: " . $str);
+                    // Only log errors and important messages if email debug is enabled
+                    if (DebugLogger::isEnabled('email') && $level >= SMTP::DEBUG_SERVER) {
+                        DebugLogger::phpmailer("PHPMailer Production Debug: " . $str);
                     }
                 };
             }
@@ -383,30 +383,33 @@ class EmailService
             $result = $mail->send();
             
             if ($result) {
-                error_log("EmailService: Email sent successfully to: {$to} (Original: {$originalTo})");
+                DebugLogger::emailSend("EmailService: Email sent successfully to: {$to} (Original: {$originalTo})");
                 return true;
             } else {
                 $errorMsg = "EmailService: PHPMailer send() returned false for: {$to}";
+                // Always log errors, but use debug logger for additional info
                 error_log($errorMsg);
                 error_log("EmailService: PHPMailer ErrorInfo: " . $mail->ErrorInfo);
+                DebugLogger::email("EmailService: PHPMailer ErrorInfo: " . $mail->ErrorInfo);
                 return false;
             }
         } catch (Exception $e) {
             $errorMsg = "EmailService Error: " . $e->getMessage();
+            // Always log exceptions
             error_log($errorMsg);
             error_log("EmailService: Failed to send email to: {$to} (Original: {$originalTo})");
             error_log("EmailService: PHPMailer ErrorInfo: " . ($mail->ErrorInfo ?? 'N/A'));
             
-            // Log additional debug info (always log in production for troubleshooting)
-            error_log("EmailService Debug Info:");
-            error_log("  - SMTP Host: " . $this->smtpHost);
-            error_log("  - SMTP Port: " . $this->smtpPort);
-            error_log("  - SMTP Username: " . $this->smtpUsername);
-            error_log("  - From Email: " . $this->fromEmail);
-            error_log("  - To Email: {$to}");
-            error_log("  - Original To: {$originalTo}");
-            error_log("  - Environment: " . ($appEnv ?? 'unknown'));
-            error_log("  - Is Development: " . ($isDevelopment ? 'yes' : 'no'));
+            // Log additional debug info only if email debug is enabled
+            DebugLogger::email("EmailService Debug Info:");
+            DebugLogger::email("  - SMTP Host: " . $this->smtpHost);
+            DebugLogger::email("  - SMTP Port: " . $this->smtpPort);
+            DebugLogger::email("  - SMTP Username: " . $this->smtpUsername);
+            DebugLogger::email("  - From Email: " . $this->fromEmail);
+            DebugLogger::email("  - To Email: {$to}");
+            DebugLogger::email("  - Original To: {$originalTo}");
+            DebugLogger::email("  - Environment: " . ($appEnv ?? 'unknown'));
+            DebugLogger::email("  - Is Development: " . ($isDevelopment ? 'yes' : 'no'));
             
             return false;
         }
@@ -783,16 +786,17 @@ class EmailService
      */
     public function sendPilotSignupThankYouEmail(string $email): bool
     {
-        error_log("EmailService: sendPilotSignupThankYouEmail called for email: {$email}");
+        DebugLogger::email("EmailService: sendPilotSignupThankYouEmail called for email: {$email}");
         
         // Try to use template from database
         $template = $this->emailTemplateModel->findByKey('pilot_signup_thank_you');
         if (!$template) {
+            // Always log template not found errors
             error_log("EmailService: Template 'pilot_signup_thank_you' not found in database. Please run seeder.");
             return false;
         }
         
-        error_log("EmailService: Template 'pilot_signup_thank_you' found, rendering...");
+        DebugLogger::email("EmailService: Template 'pilot_signup_thank_you' found, rendering...");
         
         $subject = $template['subject'] ?? 'Obrigado pelo seu interesse - O Meu Prédio';
         $html = $this->renderTemplate('pilot_signup_thank_you', [
@@ -805,20 +809,17 @@ class EmailService
         ]);
 
         if (empty($html)) {
+            // Always log render failures
             error_log("EmailService: Failed to render 'pilot_signup_thank_you' template. Check base_layout exists.");
             return false;
         }
         
-        error_log("EmailService: Template rendered successfully. HTML length: " . strlen($html) . ", Text length: " . strlen($text));
-        error_log("EmailService: Attempting to send email to: {$email}");
+        DebugLogger::email("EmailService: Template rendered successfully. HTML length: " . strlen($html) . ", Text length: " . strlen($text));
+        DebugLogger::email("EmailService: Attempting to send email to: {$email}");
 
         $result = $this->sendEmail($email, $subject, $html, $text, 'pilot_signup_thank_you');
         
-        if ($result) {
-            error_log("EmailService: Successfully sent pilot signup thank you email to: {$email}");
-        } else {
-            error_log("EmailService: Failed to send pilot signup thank you email to: {$email}");
-        }
+        DebugLogger::emailSend("EmailService: " . ($result ? "Successfully sent" : "Failed to send") . " pilot signup thank you email to: {$email}");
         
         return $result;
     }
