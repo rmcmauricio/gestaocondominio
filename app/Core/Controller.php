@@ -175,19 +175,39 @@ class Controller
                     $condominiumUserModel = new \App\Models\CondominiumUser();
                     $condominiumsByRole = $condominiumUserModel->getUserCondominiumsWithRoles($userId);
                     // Combine admin and condomino condominiums
-                    $userCondominiums = array_merge(
+                    $mergedCondominiums = array_merge(
                         $condominiumsByRole['admin'] ?? [],
                         $condominiumsByRole['condomino'] ?? []
                     );
+                    // Remove duplicates by ID (same condominium might appear in both lists)
+                    $userCondominiums = [];
+                    $seenIds = [];
+                    foreach ($mergedCondominiums as $condo) {
+                        $condoId = $condo['id'] ?? null;
+                        if ($condoId && !in_array($condoId, $seenIds)) {
+                            $seenIds[] = $condoId;
+                            $userCondominiums[] = $condo;
+                        }
+                    }
                 } elseif ($userRole === 'admin') {
                     // For admin, get all condominiums where user is admin (owner or assigned)
                     $condominiumUserModel = new \App\Models\CondominiumUser();
                     $condominiumsByRole = $condominiumUserModel->getUserCondominiumsWithRoles($userId);
                     // Combine admin and condomino condominiums for dropdown
-                    $userCondominiums = array_merge(
+                    $mergedCondominiums = array_merge(
                         $condominiumsByRole['admin'] ?? [],
                         $condominiumsByRole['condomino'] ?? []
                     );
+                    // Remove duplicates by ID (same condominium might appear in both lists)
+                    $userCondominiums = [];
+                    $seenIds = [];
+                    foreach ($mergedCondominiums as $condo) {
+                        $condoId = $condo['id'] ?? null;
+                        if ($condoId && !in_array($condoId, $seenIds)) {
+                            $seenIds[] = $condoId;
+                            $userCondominiums[] = $condo;
+                        }
+                    }
                 } else {
                     $condominiumUserModel = new \App\Models\CondominiumUser();
                     $userCondominiumsList = $condominiumUserModel->getUserCondominiums($userId);
