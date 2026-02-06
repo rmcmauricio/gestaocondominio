@@ -1953,22 +1953,37 @@ class AuthController extends Controller
                 $subscriber = $stmt->fetch();
                 $subscribedAt = $subscriber ? date('d/m/Y H:i', strtotime($subscriber['subscribed_at'])) : date('d/m/Y H:i');
 
+                // Create email service instance once
+                $emailService = new \App\Core\EmailService();
+
                 // Send thank you email to pilot user
+                $thankYouSent = false;
                 try {
-                    $emailService = new \App\Core\EmailService();
-                    $emailService->sendPilotSignupThankYouEmail($email);
+                    $thankYouSent = $emailService->sendPilotSignupThankYouEmail($email);
+                    if (!$thankYouSent) {
+                        error_log("AuthController: Failed to send pilot signup thank you email to: {$email}");
+                    } else {
+                        error_log("AuthController: Successfully sent pilot signup thank you email to: {$email}");
+                    }
                 } catch (\Exception $emailException) {
                     // Log email error but don't fail the signup
-                    error_log("Error sending pilot signup thank you email: " . $emailException->getMessage());
+                    error_log("AuthController: Exception sending pilot signup thank you email to {$email}: " . $emailException->getMessage());
+                    error_log("AuthController: Exception trace: " . $emailException->getTraceAsString());
                 }
 
                 // Send notification email to super admin
+                $notificationSent = false;
                 try {
-                    $emailService = new \App\Core\EmailService();
-                    $emailService->sendPilotUserNotificationEmail($email, $subscribedAt);
+                    $notificationSent = $emailService->sendPilotUserNotificationEmail($email, $subscribedAt);
+                    if (!$notificationSent) {
+                        error_log("AuthController: Failed to send pilot user notification to super admin for: {$email}");
+                    } else {
+                        error_log("AuthController: Successfully sent pilot user notification to super admin for: {$email}");
+                    }
                 } catch (\Exception $notificationException) {
                     // Log notification error but don't fail the signup
-                    error_log("Error sending pilot user notification to super admin: " . $notificationException->getMessage());
+                    error_log("AuthController: Exception sending pilot user notification to super admin for {$email}: " . $notificationException->getMessage());
+                    error_log("AuthController: Exception trace: " . $notificationException->getTraceAsString());
                 }
                 
                 $_SESSION['pilot_signup_success'] = 'Obrigado pelo seu interesse! Entraremos em contacto em breve.';
@@ -1976,7 +1991,8 @@ class AuthController extends Controller
                 $_SESSION['pilot_signup_error'] = 'Erro ao processar inscrição. Por favor, tente novamente.';
             }
         } catch (\Exception $e) {
-            error_log("Error processing pilot signup: " . $e->getMessage());
+            error_log("AuthController: Error processing pilot signup for {$email}: " . $e->getMessage());
+            error_log("AuthController: Exception trace: " . $e->getTraceAsString());
             $_SESSION['pilot_signup_error'] = 'Erro ao processar inscrição. Por favor, tente novamente.';
         }
 
