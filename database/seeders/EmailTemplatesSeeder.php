@@ -935,6 +935,121 @@ Aceder à Demonstração: {accessUrl}
                     ['key' => '{accessUrl}', 'description' => 'URL de acesso único à demo (com token)', 'required' => true],
                     ['key' => '{baseUrl}', 'description' => 'URL base do sistema', 'required' => false]
                 ]
+            ],
+            [
+                'template_key' => 'pilot_signup_thank_you',
+                'name' => 'Agradecimento - Inscrição User Piloto',
+                'description' => 'Email de agradecimento enviado quando um utilizador se inscreve como user piloto',
+                'subject' => 'Obrigado pelo seu interesse - O Meu Prédio',
+                'html_body' => '<div class="greeting">Olá!</div>
+<div class="message">
+    <p>Obrigado por se inscrever como utilizador piloto do <strong>O Meu Prédio</strong>!</p>
+    <p>A sua inscrição foi recebida com sucesso e estamos muito entusiasmados por ter o seu interesse em participar nesta fase de testes.</p>
+    <div style="background-color: #e7f3ff; border-left: 4px solid #2196F3; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0;"><strong>ℹ️ O que acontece a seguir?</strong></p>
+        <ul style="margin: 10px 0 0 20px; padding: 0;">
+            <li>Analisaremos o seu pedido</li>
+            <li>Entraremos em contacto em breve através deste email</li>
+            <li>Receberá informações sobre como participar na fase de testes</li>
+            <li>Beneficiará de descontos especiais no lançamento oficial</li>
+        </ul>
+    </div>
+    <p><strong>Porquê participar como utilizador piloto?</strong></p>
+    <ul>
+        <li>✅ Acesso antecipado à plataforma</li>
+        <li>✅ Descontos exclusivos no lançamento</li>
+        <li>✅ Oportunidade de influenciar o desenvolvimento</li>
+        <li>✅ Suporte prioritário durante a fase de testes</li>
+    </ul>
+</div>
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{baseUrl}" class="button" style="background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; display: inline-block;">Visitar Website</a>
+</div>
+<div style="background-color: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
+    <p style="margin: 0;"><strong>✅ Inscrição Confirmada:</strong> O seu email foi registado e entraremos em contacto em breve.</p>
+</div>',
+                'text_body' => 'Olá!
+
+Obrigado por se inscrever como utilizador piloto do O Meu Prédio!
+
+A sua inscrição foi recebida com sucesso e estamos muito entusiasmados por ter o seu interesse em participar nesta fase de testes.
+
+ℹ️ O que acontece a seguir?
+- Analisaremos o seu pedido
+- Entraremos em contacto em breve através deste email
+- Receberá informações sobre como participar na fase de testes
+- Beneficiará de descontos especiais no lançamento oficial
+
+Porquê participar como utilizador piloto?
+- ✅ Acesso antecipado à plataforma
+- ✅ Descontos exclusivos no lançamento
+- ✅ Oportunidade de influenciar o desenvolvimento
+- ✅ Suporte prioritário durante a fase de testes
+
+Visitar Website: {baseUrl}
+
+✅ Inscrição Confirmada: O seu email foi registado e entraremos em contacto em breve.',
+                'available_fields' => [
+                    ['key' => '{email}', 'description' => 'Email do utilizador', 'required' => false],
+                    ['key' => '{baseUrl}', 'description' => 'URL base do sistema', 'required' => false]
+                ]
+            ],
+            [
+                'template_key' => 'registration_invite',
+                'name' => 'Convite de Registo',
+                'description' => 'Email enviado com convite para registo usando token único',
+                'subject' => 'Convite para Registar-se - O Meu Prédio',
+                'html_body' => '<div class="greeting">Olá!</div>
+<div class="message">
+    <p>Recebeu um convite especial para se registar no <strong>O Meu Prédio</strong>!</p>
+    <p>Como utilizador piloto, tem acesso privilegiado para criar a sua conta e começar a utilizar a plataforma.</p>
+    <div style="background-color: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0;"><strong>✅ Convite Especial:</strong> Este convite permite-lhe registar-se mesmo durante a fase de testes.</p>
+    </div>
+</div>
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{registrationUrl}" class="button" style="background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; display: inline-block;">Criar Conta Agora</a>
+</div>
+<div class="warning">
+    <div class="warning-title">
+        <span>⚠️</span>
+        <span>Importante</span>
+    </div>
+    <ul>
+        <li>Este convite expira em {expiresAt}</li>
+        <li>O link só pode ser usado uma vez</li>
+        <li>Se precisar de novo convite, contacte-nos</li>
+    </ul>
+</div>
+<div class="link-box">
+    <div class="link-label">Se o botão não funcionar, copie e cole este link no seu navegador:</div>
+    {registrationUrl}
+</div>
+<div style="background-color: #e7f3ff; border-left: 4px solid #2196F3; padding: 15px; margin: 20px 0;">
+    <p style="margin: 0;"><strong>ℹ️ Sobre o Registo:</strong> Ao criar a sua conta, terá acesso completo à plataforma e poderá começar a gerir o seu condomínio imediatamente.</p>
+</div>',
+                'text_body' => 'Olá!
+
+Recebeu um convite especial para se registar no O Meu Prédio!
+
+Como utilizador piloto, tem acesso privilegiado para criar a sua conta e começar a utilizar a plataforma.
+
+✅ Convite Especial: Este convite permite-lhe registar-se mesmo durante a fase de testes.
+
+Criar Conta: {registrationUrl}
+
+⚠️ Importante:
+- Este convite expira em {expiresAt}
+- O link só pode ser usado uma vez
+- Se precisar de novo convite, contacte-nos
+
+ℹ️ Sobre o Registo: Ao criar a sua conta, terá acesso completo à plataforma e poderá começar a gerir o seu condomínio imediatamente.',
+                'available_fields' => [
+                    ['key' => '{email}', 'description' => 'Email do utilizador', 'required' => false],
+                    ['key' => '{registrationUrl}', 'description' => 'URL de registo com token (ex: /register?token=xxx)', 'required' => true],
+                    ['key' => '{expiresAt}', 'description' => 'Data de expiração do convite (formato: dd/mm/yyyy)', 'required' => true],
+                    ['key' => '{baseUrl}', 'description' => 'URL base do sistema', 'required' => false]
+                ]
             ]
         ];
 

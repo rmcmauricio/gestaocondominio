@@ -23,6 +23,8 @@ $router->get('/demo/access', 'App\Controllers\AuthController@demoAccess');
 $router->post('/demo/access/request', 'App\Controllers\AuthController@processDemoAccessRequest');
 $router->get('/demo/access/token', 'App\Controllers\AuthController@demoAccessWithToken');
 $router->get('/demo/switch-profile', 'App\Controllers\DemoController@switchProfile');
+// Super admin direct demo access (bypasses token requirement)
+$router->get('/demo/admin-access', 'App\Controllers\AuthController@superAdminDemoAccess');
 
 // About route
 $router->get('/about', 'App\Controllers\AboutController@index');
@@ -50,6 +52,9 @@ $router->post('/forgot-password/process', 'App\Controllers\AuthController@proces
 $router->get('/reset-password', 'App\Controllers\AuthController@resetPassword');
 $router->post('/reset-password/process', 'App\Controllers\AuthController@processResetPassword');
 $router->get('/logout', 'App\Controllers\AuthController@logout');
+
+// Pilot user signup route
+$router->post('/pilot/signup', 'App\Controllers\AuthController@processPilotSignup');
 
 // Google OAuth routes
 $router->get('/auth/google', 'App\Controllers\AuthController@googleAuth');
@@ -549,6 +554,13 @@ $router->post('/admin/email-templates/{id}/test', 'App\Controllers\SuperAdminCon
 $router->get('/admin/email-templates/{id}/preview', 'App\Controllers\SuperAdminController@previewEmailTemplate');
 $router->get('/admin/email-templates/{id}/edit', 'App\Controllers\SuperAdminController@editEmailTemplate');
 $router->post('/admin/email-templates/{id}', 'App\Controllers\SuperAdminController@updateEmailTemplate');
+
+// Pilot Users (super admin only)
+$router->get('/admin/pilot-users', 'App\Controllers\SuperAdminController@pilotUsers');
+$router->post('/admin/pilot-users/send-invite', 'App\Controllers\SuperAdminController@sendRegistrationInvite');
+
+// Newsletter Subscribers (super admin only)
+$router->get('/admin/newsletter-subscribers', 'App\Controllers\SuperAdminController@newsletterSubscribers');
 
 // Add your routes here
 

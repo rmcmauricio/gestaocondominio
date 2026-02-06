@@ -901,3 +901,84 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+
+{# Modal para fase de testes / users piloto #}
+{% if is_registration_disabled|default(false) %}
+<div class="modal fade" id="pilotSignupModal" tabindex="-1" aria-labelledby="pilotSignupModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-2" style="background: linear-gradient(135deg, #e07920 0%, #c7650e 100%); color: white;">
+                <h5 class="modal-title d-flex align-items-center gap-2" id="pilotSignupModalLabel">
+                    <i class="bi bi-code-slash" style="font-size: 1.5rem;"></i>
+                    <span>Aplicação em Fase de Testes</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-4">
+                {% if pilot_signup_error %}
+                <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <div class="flex-grow-1">{{ pilot_signup_error }}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endif %}
+
+                {% if pilot_signup_success %}
+                <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <div class="flex-grow-1">{{ pilot_signup_success }}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endif %}
+
+                <div class="text-center mb-4">
+                    <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3 mx-auto" style="width: 80px; height: 80px; background: linear-gradient(135deg, #e07920 0%, #c7650e 100%); box-shadow: 0 8px 25px rgba(224, 121, 32, 0.5);">
+                        <i class="bi bi-lightbulb text-white" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <p class="d-flex align-items-start gap-2 mb-3">
+                        <i class="bi bi-info-circle-fill text-primary mt-1" style="font-size: 1.2rem;"></i>
+                        <span>A nossa aplicação encontra-se ainda em fase de testes.</span>
+                    </p>
+                    <p class="d-flex align-items-start gap-2 mb-3">
+                        <i class="bi bi-envelope-heart-fill text-danger mt-1" style="font-size: 1.2rem;"></i>
+                        <span>Se tiver interesse em participar como utilizador piloto e ajudar-nos a melhorar o sistema, deixe-nos o seu email e entraremos em contacto em breve.</span>
+                    </p>
+                    <div class="alert alert-warning d-flex align-items-start gap-2 mb-0" role="alert">
+                        <i class="bi bi-star-fill text-warning mt-1" style="font-size: 1.2rem;"></i>
+                        <div>
+                            <strong>Ao participar na fase de testes, será um utilizador pioneiro beneficiando de descontos no lançamento.</strong>
+                        </div>
+                    </div>
+                </div>
+                
+                <form id="pilotSignupForm" method="POST" action="{{ BASE_URL }}pilot/signup">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="source" value="homepage">
+                    <div class="mb-3">
+                        <label for="pilot_email" class="form-label d-flex align-items-center gap-2">
+                            <i class="bi bi-envelope"></i>
+                            <span>Email</span>
+                        </label>
+                        <input type="email" class="form-control form-control-lg" id="pilot_email" name="email" placeholder="seu@email.com" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg d-flex align-items-center justify-content-center gap-2">
+                            <i class="bi bi-send-fill"></i>
+                            <span>Inscrever-me</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-0 pt-2">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg me-1"></i>
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}

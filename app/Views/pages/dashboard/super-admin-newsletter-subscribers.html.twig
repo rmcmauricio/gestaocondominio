@@ -1,0 +1,146 @@
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="mb-0"><i class="bi bi-envelope-heart"></i> Newsletter Subscribers</h1>
+                <a href="{{ BASE_URL }}dashboard/super-admin" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
+                </a>
+            </div>
+
+            {% if messages.success %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i>{{ messages.success }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
+
+            {% if messages.error %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ messages.error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
+
+            {% if stats %}
+            <div class="row mb-4">
+                {% for source, stat in stats %}
+                <div class="col-md-3 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted mb-2">
+                                {% if source == 'pilot_user' %}User Piloto
+                                {% elseif source == 'demo_access' %}Acesso Demo
+                                {% elseif source == 'profile' %}Perfil
+                                {% elseif source == 'profile_email_change' %}Mudança Email
+                                {% else %}{{ source }}{% endif %}
+                            </h6>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h3 class="mb-0">{{ stat.total }}</h3>
+                                    <small class="text-muted">Total</small>
+                                </div>
+                                <div class="text-end">
+                                    <div class="text-success">{{ stat.registered }}</div>
+                                    <small class="text-muted">Registados</small>
+                                </div>
+                            </div>
+                            {% if stat.unsubscribed > 0 %}
+                            <div class="mt-2">
+                                <small class="text-danger">{{ stat.unsubscribed }} cancelados</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Lista de Inscritos</h5>
+                        <span class="badge bg-light text-dark">{{ subscribers|length }} total</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if subscribers and subscribers|length > 0 %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Email</th>
+                                    <th>Origem</th>
+                                    <th>Data de Inscrição</th>
+                                    <th>Status</th>
+                                    <th>Utilizador</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for subscriber in subscribers %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ subscriber.email }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge 
+                                            {% if subscriber.source == 'pilot_user' %}bg-info
+                                            {% elseif subscriber.source == 'demo_access' %}bg-warning
+                                            {% elseif subscriber.source == 'profile' %}bg-success
+                                            {% else %}bg-secondary{% endif %}">
+                                            {{ subscriber.source_label }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {{ subscriber.subscribed_at|date('d/m/Y H:i') }}
+                                    </td>
+                                    <td>
+                                        {% if subscriber.unsubscribed_at %}
+                                        <span class="badge bg-danger">Cancelado</span>
+                                        <br><small class="text-muted">{{ subscriber.unsubscribed_at|date('d/m/Y') }}</small>
+                                        {% else %}
+                                        <span class="badge bg-success">Ativo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if subscriber.user_id %}
+                                        <a href="{{ BASE_URL }}admin/users" class="text-decoration-none">
+                                            <span class="badge bg-primary">{{ subscriber.user_name|default('Ver') }}</span>
+                                        </a>
+                                        <br><small class="text-muted">{{ subscriber.user_role }}</small>
+                                        {% else %}
+                                        <span class="text-muted">Não registado</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                        <p class="text-muted mt-3">Nenhum inscrito encontrado.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mt-4 shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informações</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li><strong>User Piloto:</strong> Pessoas que se inscreveram através do modal de fase de testes.</li>
+                        <li><strong>Acesso Demo:</strong> Pessoas que solicitaram acesso à demonstração.</li>
+                        <li><strong>Perfil:</strong> Utilizadores que se inscreveram através do perfil.</li>
+                        <li>Os utilizadores registados aparecem com link para o seu perfil.</li>
+                        <li>Os cancelados aparecem com badge vermelho e data de cancelamento.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
