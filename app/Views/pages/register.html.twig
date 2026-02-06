@@ -22,6 +22,14 @@
                     </div>
                     {% endif %}
 
+                    {% if has_registration_token %}
+                    <div class="alert alert-info alert-dismissible fade show" role="alert">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <strong>Convite Especial:</strong> Recebeu um convite para se registar. O seu email foi pré-preenchido.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
                     <a href="{{ BASE_URL }}auth/google?source=register" class="btn btn-outline-secondary w-100 mb-3 d-flex align-items-center justify-content-center gap-2">
                         <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
                             <g fill="#000" fill-rule="evenodd">
@@ -68,8 +76,8 @@
 
                         <div class="mb-3">
                             <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control form-control-lg" id="email" name="email" required>
-                            <div class="form-text">Usaremos este email para comunicar consigo</div>
+                            <input type="email" class="form-control form-control-lg" id="email" name="email" value="{{ registration_token_email|default('') }}" {% if has_registration_token %}readonly{% endif %} required>
+                            <div class="form-text">Usaremos este email para comunicar consigo{% if has_registration_token %} (pré-preenchido pelo convite){% endif %}</div>
                         </div>
 
                         <div class="mb-3">

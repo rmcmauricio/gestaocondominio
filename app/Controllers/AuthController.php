@@ -22,13 +22,6 @@ class AuthController extends Controller
 
     public function login()
     {
-        // Check if auth/registration is disabled
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
-            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
-            header('Location: ' . BASE_URL);
-            exit;
-        }
-
         // If already logged in, redirect to dashboard
         if (isset($_SESSION['user'])) {
             $this->redirectToDashboard();
@@ -36,6 +29,8 @@ class AuthController extends Controller
         }
 
         $this->loadPageTranslations('login');
+        
+        $isRegistrationDisabled = defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION;
         
         $this->data += [
             'viewName' => 'pages/login.html.twig',
@@ -46,12 +41,17 @@ class AuthController extends Controller
             ],
             'error' => $_SESSION['login_error'] ?? null,
             'success' => $_SESSION['login_success'] ?? null,
-            'csrf_token' => Security::generateCSRFToken()
+            'pilot_signup_error' => $_SESSION['pilot_signup_error'] ?? null,
+            'pilot_signup_success' => $_SESSION['pilot_signup_success'] ?? null,
+            'csrf_token' => Security::generateCSRFToken(),
+            'is_registration_disabled' => $isRegistrationDisabled
         ];
         
         // Clear error messages after displaying
         unset($_SESSION['login_error']);
         unset($_SESSION['login_success']);
+        unset($_SESSION['pilot_signup_error']);
+        unset($_SESSION['pilot_signup_success']);
         
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
     }
@@ -421,13 +421,83 @@ class AuthController extends Controller
         exit;
     }
 
+    /**
+     * Direct demo access for super admin (bypasses token requirement)
+     * Only accessible to authenticated super admins
+     */
+    public function superAdminDemoAccess()
+    {
+        // Require authentication
+        if (!isset($_SESSION['user'])) {
+            $_SESSION['login_error'] = 'Precisa de estar autenticado para aceder à demo.';
+            header('Location: ' . BASE_URL . 'login');
+            exit;
+        }
+
+        // Check if user is super admin
+        $currentUser = $_SESSION['user'];
+        if ($currentUser['role'] !== 'super_admin') {
+            $_SESSION['error'] = 'Apenas super administradores podem aceder diretamente à demo.';
+            header('Location: ' . BASE_URL . 'dashboard');
+            exit;
+        }
+
+        // Get demo user
+        $demoUser = $this->userModel->findByEmail('demo@predio.pt');
+        
+        if (!$demoUser) {
+            $_SESSION['error'] = 'Conta demo não encontrada. Contacte o administrador.';
+            header('Location: ' . BASE_URL . 'dashboard');
+            exit;
+        }
+
+        // Check if user is active
+        if ($demoUser['status'] !== 'active') {
+            $_SESSION['error'] = 'Conta demo não está ativa.';
+            header('Location: ' . BASE_URL . 'dashboard');
+            exit;
+        }
+
+        // Store original user info for later return (optional)
+        $_SESSION['original_user'] = $currentUser;
+
+        // Regenerate session ID for security
+        session_regenerate_id(true);
+
+        // Set user session as demo user
+        $_SESSION['user'] = [
+            'id' => $demoUser['id'],
+            'email' => $demoUser['email'],
+            'name' => $demoUser['name'],
+            'role' => $demoUser['role']
+        ];
+        
+        // Set session creation time
+        $_SESSION['created'] = time();
+        $_SESSION['last_activity'] = time();
+        
+        // Set demo profile to admin by default
+        $_SESSION['demo_profile'] = 'admin';
+
+        // Update last login
+        $this->userModel->updateLastLogin($demoUser['id']);
+
+        // Log audit
+        $this->logAudit($demoUser['id'], 'login', 'Demo access by super admin: ' . $currentUser['email'] . ' (ID: ' . $currentUser['id'] . ')');
+
+        // Redirect to dashboard
+        $_SESSION['login_success'] = 'Bem-vindo à demo! Explore todas as funcionalidades. Todas as alterações serão repostas automaticamente.';
+        header('Location: ' . BASE_URL . 'dashboard');
+        exit;
+    }
+
     public function processLogin()
     {
         // Check if auth/registration is disabled
         if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
             http_response_code(403);
-            $_SESSION['error'] = 'O login está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
-            header('Location: ' . BASE_URL);
+            $_SESSION['login_error'] = 'O login está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL . 'login');
             exit;
         }
 
@@ -546,10 +616,32 @@ class AuthController extends Controller
 
     public function register()
     {
-        // Check if auth/registration is disabled
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
-            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
-            header('Location: ' . BASE_URL);
+        // Check for registration token in URL
+        $token = $_GET['token'] ?? null;
+        $hasValidToken = false;
+
+        if ($token) {
+            // Validate token
+            $registrationTokenModel = new \App\Models\RegistrationToken();
+            $tokenData = $registrationTokenModel->findByToken($token);
+            
+            if ($tokenData) {
+                // Valid token - allow registration even if DISABLE_AUTH_REGISTRATION is true
+                $hasValidToken = true;
+                $_SESSION['registration_token'] = $token;
+                $_SESSION['registration_token_email'] = $tokenData['email'];
+            } else {
+                // Invalid or expired token
+                $_SESSION['register_error'] = 'Token de convite inválido ou expirado. Por favor, solicite um novo convite.';
+                header('Location: ' . BASE_URL);
+                exit;
+            }
+        }
+
+        // Check if auth/registration is disabled (unless we have a valid token)
+        if ((defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) && !$hasValidToken) {
+            $_SESSION['login_error'] = 'O registo está temporariamente desativado. A aplicação encontra-se em fase de testes.';
+            header('Location: ' . BASE_URL . 'login');
             exit;
         }
 
@@ -570,6 +662,8 @@ class AuthController extends Controller
             ],
             'error' => $_SESSION['register_error'] ?? null,
             'success' => $_SESSION['register_success'] ?? null,
+            'has_registration_token' => $hasValidToken,
+            'registration_token_email' => $_SESSION['registration_token_email'] ?? null,
             'csrf_token' => Security::generateCSRFToken()
         ];
         
@@ -581,8 +675,31 @@ class AuthController extends Controller
 
     public function processRegister()
     {
-        // Check if auth/registration is disabled
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+        // Check for registration token in session
+        $registrationToken = $_SESSION['registration_token'] ?? null;
+        $hasValidToken = false;
+        $tokenEmail = $_SESSION['registration_token_email'] ?? null;
+
+        if ($registrationToken) {
+            // Validate token
+            $registrationTokenModel = new \App\Models\RegistrationToken();
+            $tokenData = $registrationTokenModel->findByToken($registrationToken);
+            
+            if ($tokenData) {
+                $hasValidToken = true;
+                // Ensure email matches token email
+                $tokenEmail = $tokenData['email'];
+            } else {
+                // Token invalid or expired - clear session and redirect
+                unset($_SESSION['registration_token'], $_SESSION['registration_token_email']);
+                $_SESSION['register_error'] = 'Token de convite inválido ou expirado. Por favor, solicite um novo convite.';
+                header('Location: ' . BASE_URL . 'register');
+                exit;
+            }
+        }
+
+        // Check if auth/registration is disabled (unless we have a valid token)
+        if ((defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) && !$hasValidToken) {
             http_response_code(403);
             $_SESSION['error'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
             header('Location: ' . BASE_URL);
@@ -613,6 +730,14 @@ class AuthController extends Controller
         }
 
         $email = Security::sanitize($_POST['email'] ?? '');
+        
+        // If we have a valid token, ensure email matches token email
+        if ($hasValidToken && $email !== $tokenEmail) {
+            RateLimitMiddleware::recordAttempt('register');
+            $_SESSION['register_error'] = 'O email deve corresponder ao email do convite (' . htmlspecialchars($tokenEmail) . ').';
+            header('Location: ' . BASE_URL . 'register');
+            exit;
+        }
         $password = $_POST['password'] ?? '';
         $passwordConfirm = $_POST['password_confirm'] ?? '';
         $name = Security::sanitize($_POST['name'] ?? '');
@@ -676,6 +801,10 @@ class AuthController extends Controller
 
         // If admin, store registration data in session and redirect to plan selection
         if ($accountType === 'admin') {
+            // Preserve registration token in session if present
+            $registrationToken = $_SESSION['registration_token'] ?? null;
+            $registrationTokenEmail = $_SESSION['registration_token_email'] ?? null;
+            
             $_SESSION['pending_registration'] = [
                 'email' => $email,
                 'password' => $password,
@@ -685,6 +814,15 @@ class AuthController extends Controller
                 'role' => 'admin',
                 'account_type' => 'admin'
             ];
+            
+            // Restore token in session if it was there
+            if ($registrationToken) {
+                $_SESSION['registration_token'] = $registrationToken;
+                if ($registrationTokenEmail) {
+                    $_SESSION['registration_token_email'] = $registrationTokenEmail;
+                }
+            }
+            
             header('Location: ' . BASE_URL . 'auth/select-plan');
             exit;
         }
@@ -701,8 +839,16 @@ class AuthController extends Controller
                 'status' => 'active'
             ]);
 
+            // Mark registration token as used if present
+            if ($hasValidToken && $registrationToken) {
+                $registrationTokenModel = new \App\Models\RegistrationToken();
+                $registrationTokenModel->markAsUsed($registrationToken);
+                // Clear token from session
+                unset($_SESSION['registration_token'], $_SESSION['registration_token_email']);
+            }
+
             // Log audit
-            $this->logAudit($userId, 'register', 'User registered');
+            $this->logAudit($userId, 'register', 'User registered' . ($hasValidToken ? ' via registration invite' : ''));
 
             // Auto login after registration
             $user = $this->userModel->findById($userId);
@@ -1460,11 +1606,35 @@ class AuthController extends Controller
      */
     public function selectPlanForAdmin()
     {
+        // Check for registration token in session
+        $registrationToken = $_SESSION['registration_token'] ?? null;
+        $hasValidToken = false;
+
+        if ($registrationToken) {
+            // Validate token
+            $registrationTokenModel = new \App\Models\RegistrationToken();
+            $tokenData = $registrationTokenModel->findByToken($registrationToken);
+            
+            if ($tokenData) {
+                $hasValidToken = true;
+            } else {
+                // Token invalid or expired - clear session
+                unset($_SESSION['registration_token'], $_SESSION['registration_token_email']);
+            }
+        }
+
+        // Check if auth/registration is disabled (unless we have a valid token)
+        if ((defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) && !$hasValidToken) {
+            $_SESSION['register_error'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
         // Check if we have pending registration data (from normal register or Google OAuth)
         $hasPendingRegistration = isset($_SESSION['pending_registration']);
         $hasGoogleOAuth = isset($_SESSION['google_oauth_pending']) && 
-                         isset($_SESSION['google_oauth_pending']['account_type']) && 
-                         $_SESSION['google_oauth_pending']['account_type'] === 'admin';
+                          isset($_SESSION['google_oauth_pending']['account_type']) && 
+                          $_SESSION['google_oauth_pending']['account_type'] === 'admin';
 
         if (!$hasPendingRegistration && !$hasGoogleOAuth) {
             $_SESSION['register_error'] = 'Dados de registo não encontrados. Por favor, tente novamente.';
@@ -1538,8 +1708,25 @@ class AuthController extends Controller
      */
     public function processPlanSelection()
     {
-        // Check if auth/registration is disabled
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+        // Check for registration token in session
+        $registrationToken = $_SESSION['registration_token'] ?? null;
+        $hasValidToken = false;
+
+        if ($registrationToken) {
+            // Validate token
+            $registrationTokenModel = new \App\Models\RegistrationToken();
+            $tokenData = $registrationTokenModel->findByToken($registrationToken);
+            
+            if ($tokenData) {
+                $hasValidToken = true;
+            } else {
+                // Token invalid or expired - clear session
+                unset($_SESSION['registration_token'], $_SESSION['registration_token_email']);
+            }
+        }
+
+        // Check if auth/registration is disabled (unless we have a valid token)
+        if ((defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) && !$hasValidToken) {
             http_response_code(403);
             $_SESSION['error'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
             header('Location: ' . BASE_URL);
@@ -1623,8 +1810,20 @@ class AuthController extends Controller
 
             $userId = $this->userModel->create($userData);
 
+            // Mark registration token as used if present
+            $registrationToken = $_SESSION['registration_token'] ?? null;
+            if ($registrationToken) {
+                $registrationTokenModel = new \App\Models\RegistrationToken();
+                $tokenData = $registrationTokenModel->findByToken($registrationToken);
+                if ($tokenData && $tokenData['email'] === $pendingData['email']) {
+                    $registrationTokenModel->markAsUsed($registrationToken);
+                    // Clear token from session
+                    unset($_SESSION['registration_token'], $_SESSION['registration_token_email']);
+                }
+            }
+
             // Log audit
-            $this->logAudit($userId, 'register', 'Admin registered' . ($isGoogleOAuth ? ' via Google OAuth' : ''));
+            $this->logAudit($userId, 'register', 'Admin registered' . ($isGoogleOAuth ? ' via Google OAuth' : '') . (isset($registrationToken) && isset($tokenData) && $tokenData ? ' via registration invite' : ''));
 
             // Start trial subscription
             $subscriptionService = new \App\Services\SubscriptionService();
@@ -1689,6 +1888,84 @@ class AuthController extends Controller
                 error_log("Audit log error: " . $e->getMessage());
             }
         }
+    }
+
+    /**
+     * Process pilot user signup request
+     */
+    public function processPilotSignup()
+    {
+        // Only accept POST requests
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
+        // Determine redirect URL based on referer or form field
+        $redirectUrl = BASE_URL . 'login';
+        $referer = $_SERVER['HTTP_REFERER'] ?? '';
+        if (strpos($referer, BASE_URL) === 0) {
+            // If coming from homepage, redirect back to homepage
+            if (strpos($referer, BASE_URL . 'login') === false && (strpos($referer, BASE_URL) === 0 && (strpos($referer, BASE_URL . '?') === false || strpos($referer, BASE_URL . '?') === 0))) {
+                $redirectUrl = BASE_URL;
+            }
+        }
+        
+        // Check if source is specified in form
+        $source = $_POST['source'] ?? '';
+        if ($source === 'homepage') {
+            $redirectUrl = BASE_URL;
+        }
+
+        // Verify CSRF token
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['pilot_signup_error'] = 'Token de segurança inválido.';
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+
+        $email = Security::sanitize($_POST['email'] ?? '');
+
+        // Validate email
+        if (empty($email)) {
+            $_SESSION['pilot_signup_error'] = 'Por favor, introduza o seu email.';
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+
+        if (!Security::validateEmail($email)) {
+            $_SESSION['pilot_signup_error'] = 'Email inválido.';
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+
+        // Subscribe to newsletter with source 'pilot_user'
+        try {
+            $newsletterService = new \App\Services\NewsletterService();
+            $success = $newsletterService->subscribe($email, 'pilot_user');
+
+            if ($success) {
+                // Send thank you email
+                try {
+                    $emailService = new \App\Core\EmailService();
+                    $emailService->sendPilotSignupThankYouEmail($email);
+                } catch (\Exception $emailException) {
+                    // Log email error but don't fail the signup
+                    error_log("Error sending pilot signup thank you email: " . $emailException->getMessage());
+                }
+                
+                $_SESSION['pilot_signup_success'] = 'Obrigado pelo seu interesse! Entraremos em contacto em breve.';
+            } else {
+                $_SESSION['pilot_signup_error'] = 'Erro ao processar inscrição. Por favor, tente novamente.';
+            }
+        } catch (\Exception $e) {
+            error_log("Error processing pilot signup: " . $e->getMessage());
+            $_SESSION['pilot_signup_error'] = 'Erro ao processar inscrição. Por favor, tente novamente.';
+        }
+
+        header('Location: ' . $redirectUrl);
+        exit;
     }
 }
 

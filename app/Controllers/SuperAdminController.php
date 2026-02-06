@@ -5101,4 +5101,221 @@ class SuperAdminController extends Controller
             ':user_agent' => $userAgent
         ]);
     }
+
+    /**
+     * List pilot users (from newsletter_subscribers with source='pilot_user')
+     */
+    public function pilotUsers()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+
+        global $db;
+
+        // Get all pilot users from newsletter_subscribers
+        $stmt = $db->query("
+            SELECT 
+                ns.*,
+                u.id as user_id,
+                u.name as user_name,
+                u.created_at as user_created_at,
+                (SELECT COUNT(*) FROM registration_tokens WHERE email = ns.email AND used_at IS NULL AND expires_at > NOW()) as pending_invites,
+                (SELECT COUNT(*) FROM registration_tokens WHERE email = ns.email AND used_at IS NOT NULL) as used_invites,
+                (SELECT MAX(created_at) FROM registration_tokens WHERE email = ns.email) as last_invite_sent
+            FROM newsletter_subscribers ns
+            LEFT JOIN users u ON u.email = ns.email
+            WHERE ns.source = 'pilot_user' 
+            AND ns.unsubscribed_at IS NULL
+            ORDER BY ns.subscribed_at DESC
+        ");
+
+        $pilotUsers = $stmt->fetchAll() ?: [];
+
+        // Get registration tokens for each pilot user
+        $registrationTokenModel = new \App\Models\RegistrationToken();
+        foreach ($pilotUsers as &$pilotUser) {
+            $pilotUser['tokens'] = $registrationTokenModel->getByEmail($pilotUser['email']);
+            $pilotUser['has_registered'] = !empty($pilotUser['user_id']);
+            $pilotUser['has_pending_invite'] = $pilotUser['pending_invites'] > 0;
+        }
+        unset($pilotUser);
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/dashboard/super-admin-pilot-users.html.twig',
+            'page' => [
+                'titulo' => 'Users Piloto - Super Admin',
+                'description' => 'Gerir users piloto e enviar convites de registo',
+                'keywords' => 'users piloto, convites, registo'
+            ],
+            'pilot_users' => $pilotUsers,
+            'messages' => $messages,
+            'csrf_token' => Security::generateCSRFToken()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Send registration invite to pilot user
+     */
+    public function sendRegistrationInvite()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/pilot-users');
+            exit;
+        }
+
+        // Verify CSRF token
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/pilot-users');
+            exit;
+        }
+
+        $email = Security::sanitize($_POST['email'] ?? '');
+
+        // Validate email
+        if (empty($email) || !Security::validateEmail($email)) {
+            $_SESSION['error'] = 'Email inválido.';
+            header('Location: ' . BASE_URL . 'admin/pilot-users');
+            exit;
+        }
+
+        global $db;
+
+        // Verify email is a pilot user
+        $stmt = $db->prepare("
+            SELECT * FROM newsletter_subscribers 
+            WHERE email = :email 
+            AND source = 'pilot_user' 
+            AND unsubscribed_at IS NULL
+        ");
+        $stmt->execute([':email' => $email]);
+        $pilotUser = $stmt->fetch();
+
+        if (!$pilotUser) {
+            $_SESSION['error'] = 'Email não encontrado na lista de users piloto.';
+            header('Location: ' . BASE_URL . 'admin/pilot-users');
+            exit;
+        }
+
+        // Check if user already registered
+        $userModel = new \App\Models\User();
+        $existingUser = $userModel->findByEmail($email);
+        if ($existingUser) {
+            $_SESSION['error'] = 'Este email já está registado como utilizador.';
+            header('Location: ' . BASE_URL . 'admin/pilot-users');
+            exit;
+        }
+
+        try {
+            // Create registration token
+            $registrationTokenModel = new \App\Models\RegistrationToken();
+            $createdBy = AuthMiddleware::userId();
+            $token = $registrationTokenModel->createToken($email, $createdBy, 7);
+
+            // Get expiration date for email
+            $tokenData = $registrationTokenModel->findByToken($token);
+            $expiresAt = $tokenData ? date('d/m/Y', strtotime($tokenData['expires_at'])) : '7 dias';
+
+            // Send email
+            $emailService = new \App\Core\EmailService();
+            $emailSent = $emailService->sendRegistrationInviteEmail($email, $token, $expiresAt);
+
+            if ($emailSent) {
+                $_SESSION['success'] = 'Convite de registo enviado com sucesso para ' . htmlspecialchars($email) . '!';
+            } else {
+                // Token was created but email failed - still show success but log error
+                error_log("Failed to send registration invite email to: " . $email);
+                $_SESSION['success'] = 'Token criado mas houve um erro ao enviar o email. O token foi criado: ' . $token;
+            }
+        } catch (\Exception $e) {
+            error_log("SuperAdminController::sendRegistrationInvite error: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao enviar convite: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'admin/pilot-users');
+        exit;
+    }
+
+    /**
+     * List newsletter subscribers (all sources)
+     */
+    public function newsletterSubscribers()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+
+        global $db;
+
+        // Get all newsletter subscribers with user status
+        $stmt = $db->query("
+            SELECT 
+                ns.*,
+                u.id as user_id,
+                u.name as user_name,
+                u.role as user_role,
+                u.created_at as user_created_at,
+                CASE 
+                    WHEN ns.source = 'pilot_user' THEN 'User Piloto'
+                    WHEN ns.source = 'demo_access' THEN 'Acesso Demo'
+                    WHEN ns.source = 'profile' THEN 'Perfil'
+                    WHEN ns.source = 'profile_email_change' THEN 'Mudança Email'
+                    ELSE ns.source
+                END as source_label
+            FROM newsletter_subscribers ns
+            LEFT JOIN users u ON u.email = ns.email
+            ORDER BY ns.subscribed_at DESC
+        ");
+
+        $subscribers = $stmt->fetchAll() ?: [];
+
+        // Group by source for statistics
+        $stats = [];
+        foreach ($subscribers as $subscriber) {
+            $source = $subscriber['source'];
+            if (!isset($stats[$source])) {
+                $stats[$source] = [
+                    'total' => 0,
+                    'registered' => 0,
+                    'unsubscribed' => 0
+                ];
+            }
+            $stats[$source]['total']++;
+            if ($subscriber['user_id']) {
+                $stats[$source]['registered']++;
+            }
+            if ($subscriber['unsubscribed_at']) {
+                $stats[$source]['unsubscribed']++;
+            }
+        }
+
+        $this->loadPageTranslations('dashboard');
+        
+        $this->data += [
+            'viewName' => 'pages/dashboard/super-admin-newsletter-subscribers.html.twig',
+            'page' => [
+                'titulo' => 'Newsletter Subscribers - Super Admin',
+                'description' => 'Gerir inscritos na newsletter',
+                'keywords' => 'newsletter, subscribers, inscritos'
+            ],
+            'subscribers' => $subscribers,
+            'stats' => $stats,
+            'messages' => $messages
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
 }

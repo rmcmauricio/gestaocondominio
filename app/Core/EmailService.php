@@ -742,6 +742,72 @@ class EmailService
         return $this->sendEmail($email, $subject, $html, $text, 'demo_access');
     }
 
+    /**
+     * Send registration invite email with unique token link
+     */
+    public function sendRegistrationInviteEmail(string $email, string $token, string $expiresAt): bool
+    {
+        $registrationUrl = BASE_URL . 'register?token=' . urlencode($token);
+
+        // Try to use template from database
+        $template = $this->emailTemplateModel->findByKey('registration_invite');
+        if ($template) {
+            $subject = $template['subject'] ?? 'Convite para Registar-se - O Meu Prédio';
+            $html = $this->renderTemplate('registration_invite', [
+                'email' => $email,
+                'registrationUrl' => $registrationUrl,
+                'expiresAt' => $expiresAt,
+                'baseUrl' => BASE_URL
+            ]);
+            $text = $this->renderTextTemplate('registration_invite', [
+                'email' => $email,
+                'registrationUrl' => $registrationUrl,
+                'expiresAt' => $expiresAt,
+                'baseUrl' => BASE_URL
+            ]);
+
+            if (empty($html)) {
+                error_log("EmailService: Failed to render 'registration_invite' template. Check base_layout exists.");
+                return false;
+            }
+        } else {
+            error_log("EmailService: Template 'registration_invite' not found in database. Please run seeder.");
+            return false;
+        }
+
+        return $this->sendEmail($email, $subject, $html, $text, 'registration_invite');
+    }
+
+    /**
+     * Send pilot signup thank you email
+     */
+    public function sendPilotSignupThankYouEmail(string $email): bool
+    {
+        // Try to use template from database
+        $template = $this->emailTemplateModel->findByKey('pilot_signup_thank_you');
+        if ($template) {
+            $subject = $template['subject'] ?? 'Obrigado pelo seu interesse - O Meu Prédio';
+            $html = $this->renderTemplate('pilot_signup_thank_you', [
+                'email' => $email,
+                'baseUrl' => BASE_URL
+            ]);
+            $text = $this->renderTextTemplate('pilot_signup_thank_you', [
+                'email' => $email,
+                'baseUrl' => BASE_URL
+            ]);
+
+            if (empty($html)) {
+                error_log("EmailService: Failed to render 'pilot_signup_thank_you' template. Check base_layout exists.");
+                return false;
+            }
+        } else {
+            error_log("EmailService: Template 'pilot_signup_thank_you' not found in database. Please run seeder.");
+            return false;
+        }
+
+        return $this->sendEmail($email, $subject, $html, $text, 'pilot_signup_thank_you');
+    }
+
     private function getLogoInline(): string
     {
         // Get APP_ENV to determine if we should use URL or base64
