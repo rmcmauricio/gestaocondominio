@@ -783,29 +783,44 @@ class EmailService
      */
     public function sendPilotSignupThankYouEmail(string $email): bool
     {
+        error_log("EmailService: sendPilotSignupThankYouEmail called for email: {$email}");
+        
         // Try to use template from database
         $template = $this->emailTemplateModel->findByKey('pilot_signup_thank_you');
-        if ($template) {
-            $subject = $template['subject'] ?? 'Obrigado pelo seu interesse - O Meu Prédio';
-            $html = $this->renderTemplate('pilot_signup_thank_you', [
-                'email' => $email,
-                'baseUrl' => BASE_URL
-            ]);
-            $text = $this->renderTextTemplate('pilot_signup_thank_you', [
-                'email' => $email,
-                'baseUrl' => BASE_URL
-            ]);
-
-            if (empty($html)) {
-                error_log("EmailService: Failed to render 'pilot_signup_thank_you' template. Check base_layout exists.");
-                return false;
-            }
-        } else {
+        if (!$template) {
             error_log("EmailService: Template 'pilot_signup_thank_you' not found in database. Please run seeder.");
             return false;
         }
+        
+        error_log("EmailService: Template 'pilot_signup_thank_you' found, rendering...");
+        
+        $subject = $template['subject'] ?? 'Obrigado pelo seu interesse - O Meu Prédio';
+        $html = $this->renderTemplate('pilot_signup_thank_you', [
+            'email' => $email,
+            'baseUrl' => BASE_URL
+        ]);
+        $text = $this->renderTextTemplate('pilot_signup_thank_you', [
+            'email' => $email,
+            'baseUrl' => BASE_URL
+        ]);
 
-        return $this->sendEmail($email, $subject, $html, $text, 'pilot_signup_thank_you');
+        if (empty($html)) {
+            error_log("EmailService: Failed to render 'pilot_signup_thank_you' template. Check base_layout exists.");
+            return false;
+        }
+        
+        error_log("EmailService: Template rendered successfully. HTML length: " . strlen($html) . ", Text length: " . strlen($text));
+        error_log("EmailService: Attempting to send email to: {$email}");
+
+        $result = $this->sendEmail($email, $subject, $html, $text, 'pilot_signup_thank_you');
+        
+        if ($result) {
+            error_log("EmailService: Successfully sent pilot signup thank you email to: {$email}");
+        } else {
+            error_log("EmailService: Failed to send pilot signup thank you email to: {$email}");
+        }
+        
+        return $result;
     }
 
     /**
