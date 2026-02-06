@@ -402,7 +402,7 @@ class DatabaseSeeder
             ");
 
             $stmt->execute([
-                'email' => 'admin@predio.pt',
+                'email' => 'ricardo.mcmauricio@gmail.com',
                 'password' => $password,
                 'name' => 'Super Administrador'
             ]);
