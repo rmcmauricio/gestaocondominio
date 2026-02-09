@@ -22,29 +22,24 @@ th.sortable[style*="color: rgb(13, 110, 253)"] .sort-icon {
     opacity: 1;
 }
 
-tr.clickable-row:hover {
+tr.user-row {
+    cursor: pointer;
+}
+
+tr.user-row:hover {
     background-color: rgba(0, 123, 255, 0.05) !important;
 }
 
-tr.clickable-row.expanded {
-    background-color: rgba(0, 123, 255, 0.1) !important;
-}
-
-.expand-icon {
-    transition: transform 0.3s ease;
-}
-
-tr.expanded .expand-icon {
-    transform: rotate(180deg);
-}
-
-.condominiums-row {
-    background-color: #f8f9fa;
-}
-
-.condominiums-row td {
-    border-top: none;
-    padding: 0;
+/* Scroll horizontal para dispositivos pequenos */
+@media (max-width: 768px) {
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .table-responsive table {
+        min-width: 600px;
+    }
 }
 </style>
 
@@ -149,41 +144,30 @@ tr.expanded .expand-icon {
                             <th>Role</th>
                             <th>Status</th>
                             <th>Plano</th>
-                            <th class="text-center sortable" data-sort="condominiums" style="cursor: pointer;">
-                                Condomínios <i class="bi bi-arrow-down-up sort-icon"></i>
-                            </th>
-                            <th class="sortable" data-sort="created" style="cursor: pointer;">
-                                Registado em <i class="bi bi-arrow-down-up sort-icon"></i>
-                            </th>
-                            <th class="text-center">Ações</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for user in users %}
-                        <tr data-role="{{ user.role }}" data-status="{{ user.status }}" data-plan="{{ user.plan_name|default('none') }}" data-name="{{ user.name|lower }}" data-email="{{ user.email|lower }}" 
+                        <tr class="user-row" 
+                            data-user-id="{{ user.id }}"
+                            data-role="{{ user.role }}" 
+                            data-status="{{ user.status }}" 
+                            data-plan="{{ user.plan_name|default('none') }}" 
+                            data-name="{{ user.name|lower }}" 
+                            data-email="{{ user.email|lower }}" 
                             data-has-only-trial="{{ user.has_only_trial ? 'true' : 'false' }}"
                             data-has-no-active-plan="{{ user.has_no_active_plan ? 'true' : 'false' }}"
                             data-has-no-condominium="{{ user.has_no_condominium ? 'true' : 'false' }}"
                             data-email-not-verified="{{ user.email_not_verified ? 'true' : 'false' }}"
-                            {% if user.role == 'admin' and user.condominiums|length > 0 %}class="admin-row clickable-row" data-user-id="{{ user.id }}" style="cursor: pointer;"{% endif %}>
+                            data-plan-name="{{ user.plan_name|default('') }}"
+                            data-subscription-status="{{ user.subscription_status|default('') }}"
+                            data-total-condominiums="{{ user.total_condominiums|default(0) }}"
+                            data-created-at="{{ user.created_at }}"
+                            data-is-current-user="{{ user.id == current_user_id ? 'true' : 'false' }}"
+                            data-condominiums="{{ user.condominiums|default([])|json_encode|escape('html_attr') }}">
                             <td data-sort-value="{{ user.id }}">{{ user.id }}</td>
                             <td data-sort-value="{{ user.name|lower }}">
                                 <strong>{{ user.name }}</strong>
-                                {% if user.role == 'admin' and user.condominiums|length > 0 %}
-                                    <i class="bi bi-chevron-down ms-2 text-muted expand-icon"></i>
-                                {% endif %}
-                                {% if user.has_only_trial %}
-                                    <span class="badge bg-warning ms-1" title="Apenas trial ativo"><i class="bi bi-clock-history"></i> Trial</span>
-                                {% endif %}
-                                {% if user.has_no_active_plan %}
-                                    <span class="badge bg-danger ms-1" title="Sem plano ativo"><i class="bi bi-x-circle"></i> Sem Plano Ativo</span>
-                                {% endif %}
-                                {% if user.has_no_condominium %}
-                                    <span class="badge bg-secondary ms-1" title="Sem condomínio associado"><i class="bi bi-building-x"></i> Sem Condomínio</span>
-                                {% endif %}
-                                {% if user.email_not_verified %}
-                                    <span class="badge bg-danger ms-1" title="Email não verificado"><i class="bi bi-envelope-x"></i> Não Verificado</span>
-                                {% endif %}
                             </td>
                             <td data-sort-value="{{ user.email|lower }}">
                                 {{ user.email }}
@@ -212,90 +196,14 @@ tr.expanded .expand-icon {
                             <td>
                                 {% if user.plan_name %}
                                     <span class="badge bg-primary">{{ user.plan_name }}</span>
-                                    {% if user.subscription_status %}
-                                        <br><small class="text-muted">{{ user.subscription_status }}</small>
-                                    {% endif %}
                                 {% else %}
                                     <span class="text-muted">Sem plano</span>
                                 {% endif %}
                             </td>
-                            <td class="text-center" data-sort-value="{{ user.total_condominiums }}">{{ user.total_condominiums }}</td>
-                            <td data-sort-value="{{ user.created_at }}">{{ user.created_at|date('d/m/Y H:i') }}</td>
-                            <td class="text-center">
-                                <div class="btn-group" role="group">
-                                    {% if user.role == 'super_admin' %}
-                                        {% if user.id != current_user_id %}
-                                            <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#removeSuperAdminModal" data-user-id="{{ user.id }}" data-user-name="{{ user.name }}" data-user-email="{{ user.email }}">
-                                                <i class="bi bi-person-x"></i> Remover Super Admin
-                                            </button>
-                                        {% else %}
-                                            <span class="badge bg-info" title="Não pode remover o seu próprio cargo de super admin">
-                                                <i class="bi bi-shield-check"></i> Utilizador atual (Super Admin)
-                                            </span>
-                                        {% endif %}
-                                    {% else %}
-                                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#assignSuperAdminModal" data-user-id="{{ user.id }}" data-user-name="{{ user.name }}" data-user-email="{{ user.email }}">
-                                            <i class="bi bi-shield-check"></i> Tornar Super Admin
-                                        </button>
-                                    {% endif %}
-                                    
-                                    {% if user.role == 'admin' and user.has_only_trial and user.id != current_user_id %}
-                                        <button type="button" class="btn btn-sm btn-danger ms-1" data-bs-toggle="modal" data-bs-target="#deleteTrialAdminModal" 
-                                                data-user-id="{{ user.id }}" 
-                                                data-user-name="{{ user.name }}" 
-                                                data-user-email="{{ user.email }}"
-                                                data-condominium-count="{{ user.condominiums|length }}">
-                                            <i class="bi bi-trash"></i> Apagar Trial
-                                        </button>
-                                    {% endif %}
-                                    
-                                    {% if user.role == 'admin' and user.has_no_active_plan and user.id != current_user_id %}
-                                        <button type="button" class="btn btn-sm btn-danger ms-1" data-bs-toggle="modal" data-bs-target="#deleteUserNoActivePlanModal" 
-                                                data-user-id="{{ user.id }}" 
-                                                data-user-name="{{ user.name }}" 
-                                                data-user-email="{{ user.email }}"
-                                                data-condominium-count="{{ user.condominiums|length }}">
-                                            <i class="bi bi-trash"></i> Apagar Sem Plano
-                                        </button>
-                                    {% endif %}
-                                    
-                                    {% if user.has_no_condominium and user.role != 'super_admin' and user.id != current_user_id %}
-                                        <button type="button" class="btn btn-sm btn-danger ms-1" data-bs-toggle="modal" data-bs-target="#deleteUserNoCondominiumModal" 
-                                                data-user-id="{{ user.id }}" 
-                                                data-user-name="{{ user.name }}" 
-                                                data-user-email="{{ user.email }}">
-                                            <i class="bi bi-trash"></i> Apagar
-                                        </button>
-                                    {% endif %}
-                                </div>
-                            </td>
                         </tr>
-                        {% if user.role == 'admin' and user.condominiums|length > 0 %}
-                        <tr class="condominiums-row" data-parent-id="{{ user.id }}" style="display: none;">
-                            <td colspan="9" class="bg-light">
-                                <div class="p-3">
-                                    <h6 class="mb-3"><i class="bi bi-building"></i> Condomínios Administrados ({{ user.condominiums|length }})</h6>
-                                    <div class="d-flex flex-wrap gap-2">
-                                        {% for condo in user.condominiums %}
-                                            <button type="button" 
-                                                    class="badge bg-info text-decoration-none p-2 border-0 btn-stats" 
-                                                    data-condo-id="{{ condo.id }}"
-                                                    data-condo-name="{{ condo.name }}"
-                                                    title="Ver estatísticas de {{ condo.name }}">
-                                                <i class="bi bi-building"></i> {{ condo.name }}
-                                                {% if not condo.is_active %}
-                                                    <span class="badge bg-secondary ms-1">Inativo</span>
-                                                {% endif %}
-                                            </button>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endif %}
                         {% else %}
                         <tr>
-                            <td colspan="9" class="text-center text-muted">
+                            <td colspan="6" class="text-center text-muted">
                                 Nenhum utilizador encontrado.
                             </td>
                         </tr>
@@ -329,6 +237,24 @@ tr.expanded .expand-icon {
     </div>
 </div>
 
+<!-- Modal Principal de Detalhes do Utilizador -->
+<div class="modal fade" id="userDetailsModal" tabindex="-1" aria-labelledby="userDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="userDetailsModalLabel">
+                    <i class="bi bi-person-circle"></i> Detalhes do Utilizador
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="userDetailsContent">
+                <!-- Conteúdo será preenchido via JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modais de Ações -->
 <!-- Modal para Atribuir Super Admin -->
 <div class="modal fade" id="assignSuperAdminModal" tabindex="-1" aria-labelledby="assignSuperAdminModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -658,33 +584,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize: store all rows
     const tbody = table.querySelector('tbody');
-    const allTableRows = Array.from(tbody.querySelectorAll('tr'));
+    const allTableRows = Array.from(tbody.querySelectorAll('tr.user-row'));
     
-    // Remove empty row if exists and separate admin rows from condominiums rows
-    const emptyRow = allTableRows.find(row => row.querySelector('td[colspan]') && !row.classList.contains('condominiums-row'));
-    const condominiumsRowsMap = new Map();
+    // Filter out empty row
+    allRows = allTableRows.filter(row => !row.querySelector('td[colspan]'));
     
-    // Build map of condominiums rows by parent ID
-    allTableRows.forEach(row => {
-        if (row.classList.contains('condominiums-row')) {
-            const parentId = row.dataset.parentId;
-            if (parentId) {
-                condominiumsRowsMap.set(parentId, row);
-            }
-        }
-    });
-    
-    // Filter out empty row and condominiums rows from main list
-    allRows = allTableRows.filter(row => {
-        if (row === emptyRow) return false;
-        if (row.classList.contains('condominiums-row')) return false;
-        return true;
-    });
-    
-    // Store condominiums rows map for later use
-    window.condominiumsRowsMap = condominiumsRowsMap;
-    
-    // If no rows, hide pagination and return
     if (allRows.length === 0) {
         const paginationContainer = document.querySelector('.d-flex.justify-content-between.align-items-center.mt-3');
         if (paginationContainer) paginationContainer.style.display = 'none';
@@ -766,7 +670,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const totalItems = filteredRows.length;
         const paginationContainer = document.querySelector('.d-flex.justify-content-between.align-items-center.mt-3');
         
-        // Hide pagination if no items
         if (totalItems === 0) {
             if (paginationContainer) paginationContainer.style.display = 'none';
             return;
@@ -776,7 +679,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const totalPages = itemsPerPage === 0 ? 1 : Math.ceil(totalItems / itemsPerPage);
         
-        // Update info text
         const infoEl = document.getElementById('paginationInfo');
         if (itemsPerPage === 0) {
             infoEl.textContent = `Mostrando todos os ${totalItems} utilizadores`;
@@ -786,7 +688,6 @@ document.addEventListener('DOMContentLoaded', function() {
             infoEl.textContent = `Mostrando ${start}-${end} de ${totalItems} utilizadores`;
         }
         
-        // Generate pagination buttons
         const controlsEl = document.getElementById('paginationControls');
         controlsEl.innerHTML = '';
         
@@ -794,13 +695,11 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Previous button
         const prevLi = document.createElement('li');
         prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
         prevLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage - 1}">Anterior</a>`;
         controlsEl.appendChild(prevLi);
         
-        // Page number buttons
         const maxVisible = 7;
         let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
         let endPage = Math.min(totalPages, startPage + maxVisible - 1);
@@ -844,13 +743,11 @@ document.addEventListener('DOMContentLoaded', function() {
             controlsEl.appendChild(lastLi);
         }
         
-        // Next button
         const nextLi = document.createElement('li');
         nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
         nextLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage + 1}">Próximo</a>`;
         controlsEl.appendChild(nextLi);
         
-        // Add click handlers
         controlsEl.querySelectorAll('a[data-page]').forEach(link => {
             link.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -870,7 +767,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (filteredRows.length === 0) {
             const emptyRow = document.createElement('tr');
-            emptyRow.innerHTML = '<td colspan="9" class="text-center text-muted">Nenhum utilizador encontrado.</td>';
+            emptyRow.innerHTML = '<td colspan="6" class="text-center text-muted">Nenhum utilizador encontrado.</td>';
             tbody.appendChild(emptyRow);
             return;
         }
@@ -882,19 +779,10 @@ document.addEventListener('DOMContentLoaded', function() {
         rowsToDisplay.forEach(row => {
             const clonedRow = row.cloneNode(true);
             tbody.appendChild(clonedRow);
-            
-            // Also clone the condominiums row if it exists
-            const userId = clonedRow.dataset.userId;
-            if (userId && window.condominiumsRowsMap && window.condominiumsRowsMap.has(userId)) {
-                const condominiumsRow = window.condominiumsRowsMap.get(userId);
-                const clonedCondominiumsRow = condominiumsRow.cloneNode(true);
-                clonedCondominiumsRow.style.display = 'none';
-                tbody.appendChild(clonedCondominiumsRow);
-            }
         });
         
-        // Setup expansion after displaying
-        setTimeout(setupRowExpansion, 0);
+        // Setup click handlers for modal
+        setupModalHandlers();
     }
     
     // Search and filter event listeners
@@ -904,7 +792,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('filterPlan').addEventListener('change', applyFilters);
     document.getElementById('filterAdvanced').addEventListener('change', applyFilters);
     
-    // Clear filters
     document.getElementById('clearFilters').addEventListener('click', function() {
         document.getElementById('searchInput').value = '';
         document.getElementById('filterRole').value = '';
@@ -914,7 +801,6 @@ document.addEventListener('DOMContentLoaded', function() {
         applyFilters();
     });
     
-    // Items per page change handler
     document.getElementById('itemsPerPage').addEventListener('change', function() {
         itemsPerPage = parseInt(this.value);
         currentPage = 1;
@@ -929,7 +815,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (filteredRows.length === 0) return;
             
-            // Determine sort direction
             if (currentSort.column === sortType) {
                 currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
             } else {
@@ -937,10 +822,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 currentSort.direction = 'asc';
             }
             
-            // Get column index
             const columnIndex = getColumnIndex(sortType);
             
-            // Sort rows
             filteredRows.sort((a, b) => {
                 const aCells = a.querySelectorAll('td');
                 const bCells = b.querySelectorAll('td');
@@ -951,15 +834,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 const aCell = aCells[columnIndex];
                 const bCell = bCells[columnIndex];
                 
-                if (sortType === 'id' || sortType === 'condominiums') {
+                if (sortType === 'id') {
                     aValue = parseFloat(aCell.dataset.sortValue || aCell.textContent.trim()) || 0;
                     bValue = parseFloat(bCell.dataset.sortValue || bCell.textContent.trim()) || 0;
                 } else if (sortType === 'name' || sortType === 'email') {
                     aValue = (aCell.dataset.sortValue || aCell.textContent.trim()).toLowerCase();
                     bValue = (bCell.dataset.sortValue || bCell.textContent.trim()).toLowerCase();
-                } else if (sortType === 'created') {
-                    aValue = aCell.dataset.sortValue || '';
-                    bValue = bCell.dataset.sortValue || '';
                 }
                 
                 if (typeof aValue === 'string') {
@@ -977,7 +857,6 @@ document.addEventListener('DOMContentLoaded', function() {
             displayRows();
             updatePagination();
             
-            // Update sort icons
             sortableHeaders.forEach(h => {
                 const icon = h.querySelector('.sort-icon');
                 if (h.dataset.sort === sortType) {
@@ -992,7 +871,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
         
-        // Add hover effect
         header.style.transition = 'color 0.2s';
         header.addEventListener('mouseenter', function() {
             if (this.dataset.sort !== currentSort.column) {
@@ -1006,222 +884,315 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Row expansion functionality for admin users
-    function setupRowExpansion() {
-        // Remove existing listeners by cloning rows (cleaner approach)
-        const adminRows = tbody.querySelectorAll('tr.admin-row');
-        
-        adminRows.forEach(row => {
-            // Remove any existing click handler by cloning
-            const newRow = row.cloneNode(true);
-            row.parentNode.replaceChild(newRow, row);
-            
-            newRow.addEventListener('click', function(e) {
-                // Don't expand if clicking on a link or badge
-                if (e.target.tagName === 'A' || e.target.closest('a') || e.target.closest('.badge')) {
+    // Modal functionality
+    const userDetailsModal = new bootstrap.Modal(document.getElementById('userDetailsModal'));
+    
+    function setupModalHandlers() {
+        document.querySelectorAll('tr.user-row').forEach(row => {
+            row.addEventListener('click', function(e) {
+                // Don't open modal if clicking on a badge or icon
+                if (e.target.closest('.badge') || e.target.closest('i')) {
                     return;
                 }
                 
-                const userId = this.dataset.userId;
-                if (!userId) return;
-                
-                // Find the next sibling which should be the condominiums row
-                let nextSibling = this.nextElementSibling;
-                while (nextSibling && !nextSibling.classList.contains('condominiums-row')) {
-                    nextSibling = nextSibling.nextElementSibling;
-                }
-                
-                if (nextSibling && nextSibling.dataset.parentId === userId) {
-                    const isExpanded = nextSibling.style.display !== 'none';
+                openUserDetailsModal(this);
+            });
+        });
+    }
+    
+    function openUserDetailsModal(row) {
+        const content = document.getElementById('userDetailsContent');
+        const modalTitle = document.getElementById('userDetailsModalLabel');
+        
+        // Get data from row attributes
+        const userId = row.dataset.userId;
+        const userName = row.querySelector('td:nth-child(2) strong').textContent.trim();
+        const userEmail = row.dataset.email;
+        const userRole = row.dataset.role;
+        const userStatus = row.dataset.status;
+        const planName = row.dataset.planName || '';
+        const subscriptionStatus = row.dataset.subscriptionStatus || '';
+        const totalCondominiums = parseInt(row.dataset.totalCondominiums) || 0;
+        const createdAt = row.dataset.createdAt;
+        const hasOnlyTrial = row.dataset.hasOnlyTrial === 'true';
+        const hasNoActivePlan = row.dataset.hasNoActivePlan === 'true';
+        const hasNoCondominium = row.dataset.hasNoCondominium === 'true';
+        const emailNotVerified = row.dataset.emailNotVerified === 'true';
+        const isCurrentUser = row.dataset.isCurrentUser === 'true';
+        
+        // Parse condominiums
+        let condominiums = [];
+        try {
+            condominiums = JSON.parse(row.dataset.condominiums || '[]');
+        } catch (e) {
+            condominiums = [];
+        }
+        
+        modalTitle.innerHTML = `<i class="bi bi-person-circle"></i> ${userName || 'Detalhes do Utilizador'}`;
+        
+        // Format created_at date
+        const createdDate = createdAt ? new Date(createdAt).toLocaleString('pt-PT') : 'N/A';
+        
+        // Build badges HTML
+        let badgesHtml = '';
+        if (hasOnlyTrial) {
+            badgesHtml += '<span class="badge bg-warning ms-1"><i class="bi bi-clock-history"></i> Trial</span>';
+        }
+        if (hasNoActivePlan) {
+            badgesHtml += '<span class="badge bg-danger ms-1"><i class="bi bi-x-circle"></i> Sem Plano Ativo</span>';
+        }
+        if (hasNoCondominium) {
+            badgesHtml += '<span class="badge bg-secondary ms-1"><i class="bi bi-building-x"></i> Sem Condomínio</span>';
+        }
+        if (emailNotVerified) {
+            badgesHtml += '<span class="badge bg-danger ms-1"><i class="bi bi-envelope-x"></i> Não Verificado</span>';
+        }
+        
+        // Build condominiums HTML
+        let condominiumsHtml = '';
+        if (condominiums && condominiums.length > 0) {
+            condominiumsHtml = '<div class="mt-3"><h6><i class="bi bi-building"></i> Condomínios Administrados (' + condominiums.length + ')</h6><div class="d-flex flex-wrap gap-2">';
+            condominiums.forEach(condo => {
+                condominiumsHtml += `<button type="button" class="badge bg-info text-decoration-none p-2 border-0 btn-stats" data-condo-id="${condo.id}" data-condo-name="${condo.name}" title="Ver estatísticas de ${condo.name}"><i class="bi bi-building"></i> ${condo.name}${!condo.is_active ? ' <span class="badge bg-secondary ms-1">Inativo</span>' : ''}</button>`;
+            });
+            condominiumsHtml += '</div></div>';
+        }
+        
+        // Build actions HTML
+        let actionsHtml = '<div class="mt-4"><h6>Ações</h6><div class="d-flex flex-wrap gap-2">';
+        
+        if (userRole === 'super_admin') {
+            if (!isCurrentUser) {
+                actionsHtml += `<button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#removeSuperAdminModal" data-user-id="${userId}" data-user-name="${userName}" data-user-email="${userEmail}"><i class="bi bi-person-x"></i> Remover Super Admin</button>`;
+            } else {
+                actionsHtml += '<span class="badge bg-info"><i class="bi bi-shield-check"></i> Utilizador atual (Super Admin)</span>';
+            }
+        } else {
+            actionsHtml += `<button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#assignSuperAdminModal" data-user-id="${userId}" data-user-name="${userName}" data-user-email="${userEmail}"><i class="bi bi-shield-check"></i> Tornar Super Admin</button>`;
+        }
+        
+        if (userRole === 'admin' && hasOnlyTrial && !isCurrentUser) {
+            actionsHtml += `<button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteTrialAdminModal" data-user-id="${userId}" data-user-name="${userName}" data-user-email="${userEmail}" data-condominium-count="${condominiums.length}"><i class="bi bi-trash"></i> Apagar Trial</button>`;
+        }
+        
+        if (userRole === 'admin' && hasNoActivePlan && !isCurrentUser) {
+            actionsHtml += `<button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteUserNoActivePlanModal" data-user-id="${userId}" data-user-name="${userName}" data-user-email="${userEmail}" data-condominium-count="${condominiums.length}"><i class="bi bi-trash"></i> Apagar Sem Plano</button>`;
+        }
+        
+        if (hasNoCondominium && userRole !== 'super_admin' && !isCurrentUser) {
+            actionsHtml += `<button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteUserNoCondominiumModal" data-user-id="${userId}" data-user-name="${userName}" data-user-email="${userEmail}"><i class="bi bi-trash"></i> Apagar</button>`;
+        }
+        
+        actionsHtml += '</div></div>';
+        
+        content.innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Informações Básicas</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="40%">ID:</th>
+                            <td>${userId}</td>
+                        </tr>
+                        <tr>
+                            <th>Nome:</th>
+                            <td><strong>${userName || 'N/A'}</strong>${badgesHtml}</td>
+                        </tr>
+                        <tr>
+                            <th>Email:</th>
+                            <td>
+                                ${userEmail || 'N/A'}
+                                ${emailNotVerified 
+                                    ? '<i class="bi bi-exclamation-triangle-fill text-danger ms-1" title="Email não verificado"></i>' 
+                                    : '<i class="bi bi-check-circle-fill text-success ms-1" title="Email verificado"></i>'}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Role:</th>
+                            <td>
+                                ${userRole === 'super_admin' 
+                                    ? '<span class="badge bg-danger"><i class="bi bi-shield-check"></i> Super Admin</span>' 
+                                    : '<span class="badge bg-info">' + userRole + '</span>'}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Status:</th>
+                            <td>
+                                ${userStatus === 'active' 
+                                    ? '<span class="badge bg-success">Ativo</span>' 
+                                    : userStatus === 'suspended' 
+                                        ? '<span class="badge bg-warning">Suspenso</span>' 
+                                        : '<span class="badge bg-secondary">Inativo</span>'}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6>Subscrição e Condomínios</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="40%">Plano:</th>
+                            <td>
+                                ${planName 
+                                    ? '<span class="badge bg-primary">' + planName + '</span>' 
+                                    : '<span class="text-muted">Sem plano</span>'}
+                                ${subscriptionStatus ? '<br><small class="text-muted">' + subscriptionStatus + '</small>' : ''}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Condomínios:</th>
+                            <td>${totalCondominiums}</td>
+                        </tr>
+                        <tr>
+                            <th>Registado em:</th>
+                            <td>${createdDate}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            ${condominiumsHtml}
+            ${actionsHtml}
+        `;
+        
+        userDetailsModal.show();
+        
+        // Setup stats buttons after modal is shown
+        setTimeout(() => {
+            document.querySelectorAll('.btn-stats').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const condoId = this.dataset.condoId;
+                    const condoName = this.dataset.condoName;
+                    const statsUrl = '{{ BASE_URL }}admin/condominiums/' + condoId + '/stats?modal=1';
                     
-                    if (isExpanded) {
-                        nextSibling.style.display = 'none';
-                        this.classList.remove('expanded');
-                    } else {
-                        nextSibling.style.display = '';
-                        this.classList.add('expanded');
-                    }
-                }
+                    // Close user details modal
+                    userDetailsModal.hide();
+                    
+                    // Open stats modal
+                    setTimeout(() => {
+                        const statsModal = new bootstrap.Modal(document.getElementById('condominiumStatsModal'));
+                        document.getElementById('condominiumStatsModalLabel').innerHTML = '<i class="bi bi-graph-up"></i> Estatísticas: ' + condoName;
+                        document.getElementById('statsIframe').src = statsUrl;
+                        document.getElementById('openInNewTab').href = statsUrl;
+                        statsModal.show();
+                    }, 300);
+                });
             });
-        });
+        }, 100);
     }
     
-    // Modal functionality for condominium statistics (using event delegation)
-    let statsModal = null;
-    let modalTitle = null;
-    let statsIframe = null;
-    let openInNewTabLink = null;
-    
-    function initStatsModal() {
-        if (!statsModal) {
-            statsModal = new bootstrap.Modal(document.getElementById('condominiumStatsModal'));
-            modalTitle = document.getElementById('condominiumStatsModalLabel');
-            statsIframe = document.getElementById('statsIframe');
-            openInNewTabLink = document.getElementById('openInNewTab');
-            
-            // Clear iframe when modal is hidden
-            document.getElementById('condominiumStatsModal').addEventListener('hidden.bs.modal', function() {
-                if (statsIframe) statsIframe.src = '';
+    // Initialize modals for actions
+    function initActionModals() {
+        // Assign Super Admin Modal
+        const assignModal = document.getElementById('assignSuperAdminModal');
+        if (assignModal) {
+            assignModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                document.getElementById('assign_user_id').value = button.getAttribute('data-user-id');
+                document.getElementById('assign_user_name').textContent = button.getAttribute('data-user-name');
+                document.getElementById('assign_user_email').textContent = button.getAttribute('data-user-email');
             });
         }
-    }
-    
-    // Handle clicks on stats buttons using event delegation (works with cloned elements)
-    document.addEventListener('click', function(e) {
-        const statsBtn = e.target.closest('.btn-stats');
-        if (statsBtn) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            initStatsModal();
-            
-                const condoId = statsBtn.dataset.condoId;
-                const condoName = statsBtn.dataset.condoName;
-                const statsUrl = '{{ BASE_URL }}admin/condominiums/' + condoId + '/stats?modal=1';
-            
-            // Update modal title
-            if (modalTitle) {
-                modalTitle.innerHTML = '<i class="bi bi-graph-up"></i> Estatísticas: ' + condoName;
-            }
-            
-            // Set iframe source
-            if (statsIframe) {
-                statsIframe.src = statsUrl;
-            }
-            
-            // Update "open in new tab" link
-            if (openInNewTabLink) {
-                openInNewTabLink.href = statsUrl;
-            }
-            
-            // Show modal
-            if (statsModal) {
-                statsModal.show();
-            }
-        }
-    });
-    
-    // Initialize modal system
-    initStatsModal();
-    
-    // Setup Super Admin modals
-    const assignModal = document.getElementById('assignSuperAdminModal');
-    if (assignModal) {
-        assignModal.addEventListener('show.bs.modal', function(event) {
-            const button = event.relatedTarget;
-            const userId = button.getAttribute('data-user-id');
-            const userName = button.getAttribute('data-user-name');
-            const userEmail = button.getAttribute('data-user-email');
-            
-            document.getElementById('assign_user_id').value = userId;
-            document.getElementById('assign_user_name').textContent = userName;
-            document.getElementById('assign_user_email').textContent = userEmail;
-        });
-    }
-    
-    const removeModal = document.getElementById('removeSuperAdminModal');
-    if (removeModal) {
-        removeModal.addEventListener('show.bs.modal', function(event) {
-            const button = event.relatedTarget;
-            const userId = button.getAttribute('data-user-id');
-            const userName = button.getAttribute('data-user-name');
-            const userEmail = button.getAttribute('data-user-email');
-            
-            document.getElementById('remove_user_id').value = userId;
-            document.getElementById('remove_user_name').textContent = userName;
-            document.getElementById('remove_user_email').textContent = userEmail;
-        });
-    }
-    
-    // Setup Delete Trial Admin Modal
-    const deleteTrialModal = document.getElementById('deleteTrialAdminModal');
-    if (deleteTrialModal) {
-        deleteTrialModal.addEventListener('show.bs.modal', function(event) {
-            const button = event.relatedTarget;
-            const userId = button.getAttribute('data-user-id');
-            const userName = button.getAttribute('data-user-name');
-            const userEmail = button.getAttribute('data-user-email');
-            const condominiumCount = button.getAttribute('data-condominium-count') || '0';
-            
-            document.getElementById('delete_trial_user_id').value = userId;
-            document.getElementById('delete_trial_user_name').textContent = userName;
-            document.getElementById('delete_trial_user_email').textContent = userEmail;
-            document.getElementById('delete_trial_condominium_count').textContent = condominiumCount;
-            
-            // Reset checkbox and button
-            document.getElementById('confirm_delete_trial').checked = false;
-            document.getElementById('submit_delete_trial').disabled = true;
-        });
         
-        // Enable/disable submit button based on checkbox
-        document.getElementById('confirm_delete_trial').addEventListener('change', function() {
-            document.getElementById('submit_delete_trial').disabled = !this.checked;
-        });
-    }
-    
-    // Setup Delete User No Active Plan Modal
-    const deleteNoPlanModal = document.getElementById('deleteUserNoActivePlanModal');
-    if (deleteNoPlanModal) {
-        deleteNoPlanModal.addEventListener('show.bs.modal', function(event) {
-            const button = event.relatedTarget;
-            const userId = button.getAttribute('data-user-id');
-            const userName = button.getAttribute('data-user-name');
-            const userEmail = button.getAttribute('data-user-email');
-            const condominiumCount = button.getAttribute('data-condominium-count') || '0';
-            
-            document.getElementById('delete_no_plan_user_id').value = userId;
-            document.getElementById('delete_no_plan_user_name').textContent = userName;
-            document.getElementById('delete_no_plan_user_email').textContent = userEmail;
-            document.getElementById('delete_no_plan_condominium_count').textContent = condominiumCount;
-            
-            // Reset checkboxes, textarea and button
-            document.getElementById('confirm_delete_no_plan_1').checked = false;
-            document.getElementById('confirm_delete_no_plan_2').checked = false;
-            document.getElementById('confirm_delete_no_plan_3').checked = false;
-            document.getElementById('delete_no_plan_reason').value = '';
-            document.getElementById('submit_delete_no_plan').disabled = true;
-        });
-        
-        // Enable/disable submit button based on all checkboxes and reason
-        function checkDeleteNoPlanForm() {
-            const check1 = document.getElementById('confirm_delete_no_plan_1').checked;
-            const check2 = document.getElementById('confirm_delete_no_plan_2').checked;
-            const check3 = document.getElementById('confirm_delete_no_plan_3').checked;
-            const reason = document.getElementById('delete_no_plan_reason').value.trim();
-            document.getElementById('submit_delete_no_plan').disabled = !(check1 && check2 && check3 && reason.length > 0);
+        // Remove Super Admin Modal
+        const removeModal = document.getElementById('removeSuperAdminModal');
+        if (removeModal) {
+            removeModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                document.getElementById('remove_user_id').value = button.getAttribute('data-user-id');
+                document.getElementById('remove_user_name').textContent = button.getAttribute('data-user-name');
+                document.getElementById('remove_user_email').textContent = button.getAttribute('data-user-email');
+            });
         }
         
-        document.getElementById('confirm_delete_no_plan_1').addEventListener('change', checkDeleteNoPlanForm);
-        document.getElementById('confirm_delete_no_plan_2').addEventListener('change', checkDeleteNoPlanForm);
-        document.getElementById('confirm_delete_no_plan_3').addEventListener('change', checkDeleteNoPlanForm);
-        document.getElementById('delete_no_plan_reason').addEventListener('input', checkDeleteNoPlanForm);
-    }
-    
-    // Setup Delete User No Condominium Modal
-    const deleteNoCondoModal = document.getElementById('deleteUserNoCondominiumModal');
-    if (deleteNoCondoModal) {
-        deleteNoCondoModal.addEventListener('show.bs.modal', function(event) {
-            const button = event.relatedTarget;
-            const userId = button.getAttribute('data-user-id');
-            const userName = button.getAttribute('data-user-name');
-            const userEmail = button.getAttribute('data-user-email');
+        // Delete Trial Admin Modal
+        const deleteTrialModal = document.getElementById('deleteTrialAdminModal');
+        if (deleteTrialModal) {
+            deleteTrialModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                document.getElementById('delete_trial_user_id').value = button.getAttribute('data-user-id');
+                document.getElementById('delete_trial_user_name').textContent = button.getAttribute('data-user-name');
+                document.getElementById('delete_trial_user_email').textContent = button.getAttribute('data-user-email');
+                document.getElementById('delete_trial_condominium_count').textContent = button.getAttribute('data-condominium-count') || '0';
+                document.getElementById('confirm_delete_trial').checked = false;
+                document.getElementById('submit_delete_trial').disabled = true;
+            });
             
-            document.getElementById('delete_no_condo_user_id').value = userId;
-            document.getElementById('delete_no_condo_user_name').textContent = userName;
-            document.getElementById('delete_no_condo_user_email').textContent = userEmail;
-            
-            // Reset checkbox and button
-            document.getElementById('confirm_delete_no_condo').checked = false;
-            document.getElementById('submit_delete_no_condo').disabled = true;
-        });
+            const confirmTrialCheckbox = document.getElementById('confirm_delete_trial');
+            if (confirmTrialCheckbox) {
+                confirmTrialCheckbox.addEventListener('change', function() {
+                    document.getElementById('submit_delete_trial').disabled = !this.checked;
+                });
+            }
+        }
         
-        // Enable/disable submit button based on checkbox
-        document.getElementById('confirm_delete_no_condo').addEventListener('change', function() {
-            document.getElementById('submit_delete_no_condo').disabled = !this.checked;
-        });
+        // Delete User No Active Plan Modal
+        const deleteNoPlanModal = document.getElementById('deleteUserNoActivePlanModal');
+        if (deleteNoPlanModal) {
+            deleteNoPlanModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                document.getElementById('delete_no_plan_user_id').value = button.getAttribute('data-user-id');
+                document.getElementById('delete_no_plan_user_name').textContent = button.getAttribute('data-user-name');
+                document.getElementById('delete_no_plan_user_email').textContent = button.getAttribute('data-user-email');
+                document.getElementById('delete_no_plan_condominium_count').textContent = button.getAttribute('data-condominium-count') || '0';
+                document.getElementById('confirm_delete_no_plan_1').checked = false;
+                document.getElementById('confirm_delete_no_plan_2').checked = false;
+                document.getElementById('confirm_delete_no_plan_3').checked = false;
+                document.getElementById('delete_no_plan_reason').value = '';
+                document.getElementById('submit_delete_no_plan').disabled = true;
+            });
+            
+            function checkDeleteNoPlanForm() {
+                const check1 = document.getElementById('confirm_delete_no_plan_1').checked;
+                const check2 = document.getElementById('confirm_delete_no_plan_2').checked;
+                const check3 = document.getElementById('confirm_delete_no_plan_3').checked;
+                const reason = document.getElementById('delete_no_plan_reason').value.trim();
+                document.getElementById('submit_delete_no_plan').disabled = !(check1 && check2 && check3 && reason.length > 0);
+            }
+            
+            const check1 = document.getElementById('confirm_delete_no_plan_1');
+            const check2 = document.getElementById('confirm_delete_no_plan_2');
+            const check3 = document.getElementById('confirm_delete_no_plan_3');
+            const reason = document.getElementById('delete_no_plan_reason');
+            
+            if (check1) check1.addEventListener('change', checkDeleteNoPlanForm);
+            if (check2) check2.addEventListener('change', checkDeleteNoPlanForm);
+            if (check3) check3.addEventListener('change', checkDeleteNoPlanForm);
+            if (reason) reason.addEventListener('input', checkDeleteNoPlanForm);
+        }
+        
+        // Delete User No Condominium Modal
+        const deleteNoCondoModal = document.getElementById('deleteUserNoCondominiumModal');
+        if (deleteNoCondoModal) {
+            deleteNoCondoModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                document.getElementById('delete_no_condo_user_id').value = button.getAttribute('data-user-id');
+                document.getElementById('delete_no_condo_user_name').textContent = button.getAttribute('data-user-name');
+                document.getElementById('delete_no_condo_user_email').textContent = button.getAttribute('data-user-email');
+                document.getElementById('confirm_delete_no_condo').checked = false;
+                document.getElementById('submit_delete_no_condo').disabled = true;
+            });
+            
+            const confirmNoCondoCheckbox = document.getElementById('confirm_delete_no_condo');
+            if (confirmNoCondoCheckbox) {
+                confirmNoCondoCheckbox.addEventListener('change', function() {
+                    document.getElementById('submit_delete_no_condo').disabled = !this.checked;
+                });
+            }
+        }
+        
+        // Condominium Stats Modal
+        const statsModalEl = document.getElementById('condominiumStatsModal');
+        if (statsModalEl) {
+            statsModalEl.addEventListener('hidden.bs.modal', function() {
+                document.getElementById('statsIframe').src = '';
+            });
+        }
     }
     
-    // Initialize table
+    // Initialize
+    initActionModals();
+    setupModalHandlers();
     displayRows();
     updatePagination();
 });

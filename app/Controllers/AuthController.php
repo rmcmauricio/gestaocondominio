@@ -631,18 +631,13 @@ class AuthController extends Controller
             }
         }
 
-        // Check if registration is disabled (unless we have a valid token - pioneers ignore this flag)
-        if ((defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION) && !$hasValidToken) {
-            $_SESSION['login_error'] = 'O registo está temporariamente desativado. A aplicação encontra-se em fase de testes.';
-            header('Location: ' . BASE_URL . 'login');
-            exit;
-        }
-
         // If already logged in, redirect to dashboard
         if (isset($_SESSION['user'])) {
             $this->redirectToDashboard();
             exit;
         }
+
+        $isRegistrationDisabled = defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION && !$hasValidToken;
 
         $this->loadPageTranslations('login');
         
@@ -657,8 +652,15 @@ class AuthController extends Controller
             'success' => $_SESSION['register_success'] ?? null,
             'has_registration_token' => $hasValidToken,
             'registration_token_email' => $_SESSION['registration_token_email'] ?? null,
-            'csrf_token' => Security::generateCSRFToken()
+            'csrf_token' => Security::generateCSRFToken(),
+            'is_registration_disabled' => $isRegistrationDisabled,
+            'pilot_signup_error' => $_SESSION['pilot_signup_error'] ?? null,
+            'pilot_signup_success' => $_SESSION['pilot_signup_success'] ?? null
         ];
+        
+        // Clear pilot signup messages after displaying
+        unset($_SESSION['pilot_signup_error']);
+        unset($_SESSION['pilot_signup_success']);
         
         unset($_SESSION['register_error']);
         unset($_SESSION['register_success']);
@@ -1983,6 +1985,9 @@ class AuthController extends Controller
             exit;
         }
 
+        // Check if this is an AJAX request
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
         // Determine redirect URL based on referer or form field
         $redirectUrl = BASE_URL . 'login';
         $referer = $_SERVER['HTTP_REFERER'] ?? '';
@@ -2002,6 +2007,11 @@ class AuthController extends Controller
         // Verify CSRF token
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'Token de segurança inválido.']);
+                exit;
+            }
             $_SESSION['pilot_signup_error'] = 'Token de segurança inválido.';
             header('Location: ' . $redirectUrl);
             exit;
@@ -2011,12 +2021,22 @@ class AuthController extends Controller
 
         // Validate email
         if (empty($email)) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'Por favor, introduza o seu email.']);
+                exit;
+            }
             $_SESSION['pilot_signup_error'] = 'Por favor, introduza o seu email.';
             header('Location: ' . $redirectUrl);
             exit;
         }
 
         if (!Security::validateEmail($email)) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'Email inválido.']);
+                exit;
+            }
             $_SESSION['pilot_signup_error'] = 'Email inválido.';
             header('Location: ' . $redirectUrl);
             exit;
@@ -2068,13 +2088,28 @@ class AuthController extends Controller
                     error_log("AuthController: Exception trace: " . $notificationException->getTraceAsString());
                 }
                 
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => true, 'message' => 'Obrigado pelo seu interesse! Receberá um convite para registo brevemente.']);
+                    exit;
+                }
                 $_SESSION['pilot_signup_success'] = 'Obrigado pelo seu interesse! Entraremos em contacto em breve.';
             } else {
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'message' => 'Erro ao processar inscrição. Por favor, tente novamente.']);
+                    exit;
+                }
                 $_SESSION['pilot_signup_error'] = 'Erro ao processar inscrição. Por favor, tente novamente.';
             }
         } catch (\Exception $e) {
             error_log("AuthController: Error processing pilot signup for {$email}: " . $e->getMessage());
             error_log("AuthController: Exception trace: " . $e->getTraceAsString());
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'Erro ao processar inscrição. Por favor, tente novamente.']);
+                exit;
+            }
             $_SESSION['pilot_signup_error'] = 'Erro ao processar inscrição. Por favor, tente novamente.';
         }
 
