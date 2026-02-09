@@ -1,17 +1,6 @@
 <!-- Hero Section -->
 <section class="hero-section">
     <div class="container">
-        {% if auth_disabled_message %}
-        <div class="alert alert-info alert-dismissible fade show mb-4" role="alert" style="border-radius: 0.5rem; border-left: 4px solid #3b82f6;">
-            <div class="d-flex align-items-center">
-                <i class="bi bi-info-circle me-2" style="font-size: 1.25rem;"></i>
-                <div class="flex-grow-1">
-                    <strong>Nota:</strong> {{ auth_disabled_message }}
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
-            </div>
-        </div>
-        {% endif %}
         <div class="row justify-content-center text-center">
             <div class="col-lg-10">
                 <div class="hero-badge-top">
@@ -48,7 +37,7 @@
                 </div>
 
                 <div class="hero-buttons justify-content-center">
-                    {% if not DISABLE_AUTH_REGISTRATION %}
+                    {% if not DISABLE_REGISTRATION %}
                     <a href="{{ BASE_URL }}register" class="btn-hero-primary">
                         <span>Começar Gratuitamente</span>
                         <i class="bi bi-arrow-right"></i>
@@ -792,7 +781,7 @@
             </div>
             <h2 class="cta-title">Pronto para transformar a gestão do seu condomínio?</h2>
             <div class="cta-buttons">
-                {% if not DISABLE_AUTH_REGISTRATION %}
+                {% if not DISABLE_REGISTRATION %}
                 <a href="{{ BASE_URL }}register" class="btn-cta-primary">
                     <span>Criar Conta Gratuita</span>
                     <i class="bi bi-arrow-right"></i>

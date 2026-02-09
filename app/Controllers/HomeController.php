@@ -87,8 +87,6 @@ class HomeController extends Controller
             }
         }
         
-        $isRegistrationDisabled = defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION;
-        
         $this->data += [
             'viewName' => 'pages/home.html.twig',
             'page' => [
@@ -101,8 +99,6 @@ class HomeController extends Controller
             'business_plan' => $businessPlan,
             'extra_condominiums_pricing' => $extraCondominiumsPricing,
             'plan_pricing_tiers' => $planPricingTiers,
-            'auth_disabled_message' => $isRegistrationDisabled ? 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.' : null,
-            'is_registration_disabled' => $isRegistrationDisabled,
             'pilot_signup_error' => $_SESSION['pilot_signup_error'] ?? null,
             'pilot_signup_success' => $_SESSION['pilot_signup_success'] ?? null,
             'csrf_token' => \App\Core\Security::generateCSRFToken()
