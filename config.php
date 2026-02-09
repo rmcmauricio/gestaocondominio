@@ -121,8 +121,9 @@ $twig = new \Twig\Environment($loader, [
     'auto_reload' => ($config['APP_ENV'] ?? 'development') !== 'production',
 ]);
 
-// Disable auth/registration mode - MUST be defined BEFORE Twig globals
-define('DISABLE_AUTH_REGISTRATION', isset($config['DISABLE_AUTH_REGISTRATION']) && $config['DISABLE_AUTH_REGISTRATION'] === 'true');
+// Disable registration - registration with token (pioneers) ignores this flag
+// Login is always allowed, this only blocks new user registrations
+define('DISABLE_REGISTRATION', isset($config['DISABLE_REGISTRATION']) && $config['DISABLE_REGISTRATION'] === 'true');
 
 // Add debug extension in development
 if (($config['APP_ENV'] ?? 'development') !== 'production') {
@@ -132,7 +133,7 @@ if (($config['APP_ENV'] ?? 'development') !== 'production') {
 // Add global variables to Twig
 $twig->addGlobal('BASE_URL', BASE_URL);
 $twig->addGlobal('VERSION', VERSION);
-$twig->addGlobal('DISABLE_AUTH_REGISTRATION', defined('DISABLE_AUTH_REGISTRATION') ? DISABLE_AUTH_REGISTRATION : false);
+$twig->addGlobal('DISABLE_REGISTRATION', defined('DISABLE_REGISTRATION') ? DISABLE_REGISTRATION : false);
 
 // Breadcrumbs: needs_context to receive full Twig context
 $twig->addFunction(new \Twig\TwigFunction('get_breadcrumbs', [\App\Services\BreadcrumbService::class, 'getBreadcrumbs'], ['needs_context' => true]));

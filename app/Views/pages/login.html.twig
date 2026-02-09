@@ -33,7 +33,19 @@
                     </div>
                     {% endif %}
 
-                    {% if not is_registration_disabled|default(false) %}
+                    {% if is_registration_disabled|default(false) %}
+                    <div class="alert alert-info alert-dismissible fade show mb-3" role="alert" style="border-radius: 0.5rem; border-left: 4px solid #3b82f6;">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-info-circle me-2" style="font-size: 1.25rem;"></i>
+                            <div class="flex-grow-1">
+                                <strong>Nota:</strong> O registo está temporariamente desativado. Por favor, <a href="{{ BASE_URL }}demo/access" class="alert-link">utilize a demonstração</a> para explorar o sistema.
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if true %}
                     <a href="{{ BASE_URL }}auth/google?source={{ direct_access|default(false) ? 'direct-access' : 'login' }}" class="btn btn-outline-secondary w-100 mb-3 d-flex align-items-center justify-content-center gap-2">
                         <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
                             <g fill="#000" fill-rule="evenodd">

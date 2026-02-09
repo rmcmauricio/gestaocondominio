@@ -30,7 +30,7 @@ class AuthController extends Controller
 
         $this->loadPageTranslations('login');
         
-        $isRegistrationDisabled = defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION;
+        $isRegistrationDisabled = defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION;
         
         $this->data += [
             'viewName' => 'pages/login.html.twig',
@@ -57,7 +57,7 @@ class AuthController extends Controller
     }
 
     /**
-     * Direct access login page (secret route - bypasses DISABLE_AUTH_REGISTRATION)
+     * Direct access login page (secret route - login is always allowed)
      * This route is not publicized and should not have visible links
      */
     public function directAccessLogin()
@@ -92,12 +92,11 @@ class AuthController extends Controller
     }
 
     /**
-     * Process direct access login (secret route - bypasses DISABLE_AUTH_REGISTRATION)
+     * Process direct access login (secret route - login is always allowed)
      */
     public function processDirectAccessLogin()
     {
-        // NOTE: This method does NOT check DISABLE_AUTH_REGISTRATION
-        // It allows login even when registration/login is disabled for public
+        // NOTE: Login is always allowed - no checks needed
 
         // Only accept POST requests
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -493,13 +492,7 @@ class AuthController extends Controller
 
     public function processLogin()
     {
-        // Check if auth/registration is disabled
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
-            http_response_code(403);
-            $_SESSION['login_error'] = 'O login está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
-            header('Location: ' . BASE_URL . 'login');
-            exit;
-        }
+        // Login is always allowed - no checks needed
 
         // Only accept POST requests
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -626,7 +619,7 @@ class AuthController extends Controller
             $tokenData = $registrationTokenModel->findByToken($token);
             
             if ($tokenData) {
-                // Valid token - allow registration even if DISABLE_AUTH_REGISTRATION is true
+                // Valid token - allow registration even if DISABLE_REGISTRATION is true (pioneers ignore this flag)
                 $hasValidToken = true;
                 $_SESSION['registration_token'] = $token;
                 $_SESSION['registration_token_email'] = $tokenData['email'];
@@ -638,8 +631,8 @@ class AuthController extends Controller
             }
         }
 
-        // Check if auth/registration is disabled (unless we have a valid token)
-        if ((defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) && !$hasValidToken) {
+        // Check if registration is disabled (unless we have a valid token - pioneers ignore this flag)
+        if ((defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION) && !$hasValidToken) {
             $_SESSION['login_error'] = 'O registo está temporariamente desativado. A aplicação encontra-se em fase de testes.';
             header('Location: ' . BASE_URL . 'login');
             exit;
@@ -698,8 +691,8 @@ class AuthController extends Controller
             }
         }
 
-        // Check if auth/registration is disabled (unless we have a valid token)
-        if ((defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) && !$hasValidToken) {
+        // Check if direct registration is disabled (unless we have a valid token - pioneers ignore this flag)
+        if ((defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION) && !$hasValidToken) {
             http_response_code(403);
             $_SESSION['error'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
             header('Location: ' . BASE_URL);
@@ -881,12 +874,7 @@ class AuthController extends Controller
 
     public function forgotPassword()
     {
-        // Check if auth/registration is disabled
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
-            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
-            header('Location: ' . BASE_URL);
-            exit;
-        }
+        // Password reset is always allowed - no checks needed
 
         $this->loadPageTranslations('login');
         
@@ -910,13 +898,7 @@ class AuthController extends Controller
 
     public function processForgotPassword()
     {
-        // Check if auth/registration is disabled
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
-            http_response_code(403);
-            $_SESSION['error'] = 'O reset de senha está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
-            header('Location: ' . BASE_URL);
-            exit;
-        }
+        // Password reset is always allowed - no checks needed
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'forgot-password');
@@ -989,12 +971,7 @@ class AuthController extends Controller
 
     public function resetPassword()
     {
-        // Check if auth/registration is disabled
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
-            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
-            header('Location: ' . BASE_URL);
-            exit;
-        }
+        // Password reset is always allowed - no checks needed
 
         // Security: Accept token from GET only for initial verification, then store in session
         $token = $_GET['token'] ?? '';
@@ -1059,13 +1036,7 @@ class AuthController extends Controller
 
     public function processResetPassword()
     {
-        // Check if auth/registration is disabled
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
-            http_response_code(403);
-            $_SESSION['error'] = 'O reset de senha está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
-            header('Location: ' . BASE_URL);
-            exit;
-        }
+        // Password reset is always allowed - no checks needed
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'login');
@@ -1288,13 +1259,9 @@ class AuthController extends Controller
      */
     public function googleAuth()
     {
-        // Check if auth/registration is disabled (allow if source is 'direct-access')
+        // Google OAuth is always allowed for login
+        // Registration blocking is checked in callback when user doesn't exist
         $source = $_GET['source'] ?? 'login';
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION && $source !== 'direct-access') {
-            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
-            header('Location: ' . BASE_URL);
-            exit;
-        }
 
         // If already logged in, redirect to dashboard
         if (isset($_SESSION['user'])) {
@@ -1324,13 +1291,9 @@ class AuthController extends Controller
      */
     public function googleCallback()
     {
-        // Check if auth/registration is disabled (allow if source is 'direct-access')
+        // Login via Google OAuth is always allowed
+        // Registration blocking is checked when user doesn't exist
         $source = $_SESSION['google_oauth_source'] ?? 'login';
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION && $source !== 'direct-access') {
-            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
-            header('Location: ' . BASE_URL);
-            exit;
-        }
 
         // If already logged in, redirect to dashboard
         if (isset($_SESSION['user'])) {
@@ -1432,7 +1395,15 @@ class AuthController extends Controller
                 exit;
             }
 
-            // User doesn't exist - ask for account type
+            // User doesn't exist - check if registration is allowed
+            if (defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION) {
+                // Registration is blocked - don't allow new user creation
+                $_SESSION['login_error'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
+                header('Location: ' . BASE_URL . 'login');
+                exit;
+            }
+            
+            // Registration is allowed - proceed with account creation
             if ($source === 'register') {
                 // Store Google OAuth data in session for account creation
                 $_SESSION['google_oauth_pending'] = [
@@ -1465,9 +1436,9 @@ class AuthController extends Controller
      */
     public function selectAccountType()
     {
-        // Check if auth/registration is disabled
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
-            $_SESSION['info'] = 'O registo e login estão temporariamente desativados. Por favor, utilize a demonstração para explorar o sistema.';
+        // Check if registration is disabled (registration via Google OAuth is considered direct registration)
+        if (defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION) {
+            $_SESSION['info'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
             header('Location: ' . BASE_URL);
             exit;
         }
@@ -1507,8 +1478,8 @@ class AuthController extends Controller
      */
     public function processAccountType()
     {
-        // Check if auth/registration is disabled
-        if (defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) {
+        // Check if registration is disabled (registration via Google OAuth is considered direct registration)
+        if (defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION) {
             http_response_code(403);
             $_SESSION['error'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
             header('Location: ' . BASE_URL);
@@ -1623,8 +1594,8 @@ class AuthController extends Controller
             }
         }
 
-        // Check if auth/registration is disabled (unless we have a valid token)
-        if ((defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) && !$hasValidToken) {
+        // Check if direct registration is disabled (unless we have a valid token - pioneers ignore this flag)
+        if ((defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION) && !$hasValidToken) {
             $_SESSION['register_error'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
             header('Location: ' . BASE_URL);
             exit;
@@ -1725,8 +1696,8 @@ class AuthController extends Controller
             }
         }
 
-        // Check if auth/registration is disabled (unless we have a valid token)
-        if ((defined('DISABLE_AUTH_REGISTRATION') && DISABLE_AUTH_REGISTRATION) && !$hasValidToken) {
+        // Check if direct registration is disabled (unless we have a valid token - pioneers ignore this flag)
+        if ((defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION) && !$hasValidToken) {
             http_response_code(403);
             $_SESSION['error'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
             header('Location: ' . BASE_URL);

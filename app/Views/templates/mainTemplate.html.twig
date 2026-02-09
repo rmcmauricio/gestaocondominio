@@ -161,7 +161,7 @@
     <script src="{{ BASE_URL }}assets/js/dashboard-notifications.js?v={{ VERSION }}"></script>
     {% endif %}
     
-    {% if DISABLE_AUTH_REGISTRATION and (viewName == 'pages/login.html.twig' or viewName == 'pages/home.html.twig') %}
+    {% if DISABLE_REGISTRATION and viewName == 'pages/login.html.twig' %}
     <script>
     // Show pilot signup modal after Bootstrap is loaded
     (function() {
