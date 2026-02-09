@@ -569,6 +569,7 @@ $router->get('/admin/newsletter-subscribers', 'App\Controllers\SuperAdminControl
 
 // Demo Access Requests (super admin only)
 $router->get('/admin/demo-access-requests', 'App\Controllers\SuperAdminController@demoAccessRequests');
+$router->post('/admin/demo-access-requests/delete', 'App\Controllers\SuperAdminController@deleteExpiredDemoTokens');
 
 // Add your routes here
 

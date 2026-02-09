@@ -5463,8 +5463,25 @@ class SuperAdminController extends Controller
 
         global $db;
 
-        // Get all demo access requests ordered by creation date (newest first)
-        $stmt = $db->query("
+        // Pagination parameters
+        $page = isset($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
+        $perPage = isset($_GET['per_page']) && $_GET['per_page'] > 0 ? min((int)$_GET['per_page'], 200) : 25; // Limit per_page to 200
+
+        // Get total count for statistics and pagination
+        $countStmt = $db->query("SELECT COUNT(*) as total FROM demo_access_tokens");
+        $totalCount = (int)$countStmt->fetch()['total'];
+        $totalPages = $totalCount > 0 ? ceil($totalCount / $perPage) : 1;
+
+        // Ensure page is within valid range
+        if ($page > $totalPages && $totalPages > 0) {
+            $page = $totalPages;
+        }
+
+        // Calculate offset
+        $offset = ($page - 1) * $perPage;
+
+        // Get paginated demo access requests ordered by creation date (newest first)
+        $stmt = $db->prepare("
             SELECT 
                 id,
                 email,
@@ -5477,33 +5494,31 @@ class SuperAdminController extends Controller
                 created_at
             FROM demo_access_tokens
             ORDER BY created_at DESC
+            LIMIT :limit OFFSET :offset
         ");
-
+        $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->execute();
         $requests = $stmt->fetchAll() ?: [];
 
-        // Calculate statistics
+        // Calculate statistics (need all records for accurate stats)
+        $statsStmt = $db->query("
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN used_at IS NOT NULL THEN 1 ELSE 0 END) as used,
+                SUM(CASE WHEN used_at IS NULL AND expires_at < NOW() THEN 1 ELSE 0 END) as expired,
+                SUM(CASE WHEN used_at IS NULL AND expires_at >= NOW() THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN wants_newsletter = 1 THEN 1 ELSE 0 END) as wants_newsletter
+            FROM demo_access_tokens
+        ");
+        $statsRow = $statsStmt->fetch();
         $stats = [
-            'total' => count($requests),
-            'used' => 0,
-            'pending' => 0,
-            'expired' => 0,
-            'wants_newsletter' => 0
+            'total' => (int)$statsRow['total'],
+            'used' => (int)$statsRow['used'],
+            'pending' => (int)$statsRow['pending'],
+            'expired' => (int)$statsRow['expired'],
+            'wants_newsletter' => (int)$statsRow['wants_newsletter']
         ];
-
-        $now = date('Y-m-d H:i:s');
-        foreach ($requests as $request) {
-            if ($request['used_at']) {
-                $stats['used']++;
-            } elseif ($request['expires_at'] < $now) {
-                $stats['expired']++;
-            } else {
-                $stats['pending']++;
-            }
-
-            if ($request['wants_newsletter']) {
-                $stats['wants_newsletter']++;
-            }
-        }
 
         $this->loadPageTranslations('dashboard');
 
@@ -5516,9 +5531,174 @@ class SuperAdminController extends Controller
             ],
             'requests' => $requests,
             'stats' => $stats,
-            'messages' => $messages
+            'messages' => $messages,
+            'csrf_token' => Security::generateCSRFToken(),
+            'pagination' => [
+                'current_page' => $page,
+                'total_pages' => $totalPages,
+                'total_count' => $totalCount,
+                'per_page' => $perPage
+            ]
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Delete expired demo access tokens (bulk or individual)
+     * Preserves tokens from users who subscribed to newsletter
+     */
+    public function deleteExpiredDemoTokens()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/demo-access-requests');
+            exit;
+        }
+
+        // Verify CSRF token
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/demo-access-requests');
+            exit;
+        }
+
+        global $db;
+
+        try {
+            $db->beginTransaction();
+
+            $deletedCount = 0;
+            $skippedCount = 0;
+            $errors = [];
+
+            // Handle bulk deletion
+            if (isset($_POST['bulk_delete']) && !empty($_POST['selected_ids'])) {
+                $selectedIds = $_POST['selected_ids'];
+                
+                // Validate IDs are integers
+                $validIds = [];
+                foreach ($selectedIds as $id) {
+                    $id = (int)$id;
+                    if ($id > 0) {
+                        $validIds[] = $id;
+                    }
+                }
+
+                if (!empty($validIds)) {
+                    $placeholders = implode(',', array_fill(0, count($validIds), '?'));
+                    
+                    // Get tokens to check for newsletter subscription
+                    $checkStmt = $db->prepare("
+                        SELECT id, email, wants_newsletter, expires_at 
+                        FROM demo_access_tokens 
+                        WHERE id IN ($placeholders)
+                    ");
+                    $checkStmt->execute($validIds);
+                    $tokens = $checkStmt->fetchAll();
+
+                    $idsToDelete = [];
+                    foreach ($tokens as $token) {
+                        // Only delete if expired AND not subscribed to newsletter
+                        $isExpired = $token['expires_at'] && strtotime($token['expires_at']) < time();
+                        
+                        if ($isExpired && !$token['wants_newsletter']) {
+                            $idsToDelete[] = $token['id'];
+                        } else {
+                            $skippedCount++;
+                            if ($token['wants_newsletter']) {
+                                $errors[] = "Token de {$token['email']} mantido (subscrito à newsletter)";
+                            } elseif (!$isExpired) {
+                                $errors[] = "Token de {$token['email']} mantido (ainda não expirado)";
+                            }
+                        }
+                    }
+
+                    if (!empty($idsToDelete)) {
+                        $deletePlaceholders = implode(',', array_fill(0, count($idsToDelete), '?'));
+                        $deleteStmt = $db->prepare("DELETE FROM demo_access_tokens WHERE id IN ($deletePlaceholders)");
+                        $deleteStmt->execute($idsToDelete);
+                        $deletedCount = $deleteStmt->rowCount();
+                    }
+                }
+            }
+            // Handle individual deletion
+            elseif (isset($_POST['delete_id'])) {
+                $tokenId = (int)$_POST['delete_id'];
+                
+                if ($tokenId > 0) {
+                    // Check if token exists and is expired
+                    $checkStmt = $db->prepare("
+                        SELECT id, email, wants_newsletter, expires_at 
+                        FROM demo_access_tokens 
+                        WHERE id = ?
+                    ");
+                    $checkStmt->execute([$tokenId]);
+                    $token = $checkStmt->fetch();
+
+                    if ($token) {
+                        $isExpired = $token['expires_at'] && strtotime($token['expires_at']) < time();
+                        
+                        if ($token['wants_newsletter']) {
+                            $_SESSION['error'] = 'Não é possível eliminar tokens de utilizadores subscritos à newsletter.';
+                            $db->rollBack();
+                            header('Location: ' . BASE_URL . 'admin/demo-access-requests');
+                            exit;
+                        } elseif (!$isExpired) {
+                            $_SESSION['error'] = 'Apenas tokens expirados podem ser eliminados.';
+                            $db->rollBack();
+                            header('Location: ' . BASE_URL . 'admin/demo-access-requests');
+                            exit;
+                        } else {
+                            $deleteStmt = $db->prepare("DELETE FROM demo_access_tokens WHERE id = ?");
+                            $deleteStmt->execute([$tokenId]);
+                            $deletedCount = $deleteStmt->rowCount();
+                        }
+                    } else {
+                        $_SESSION['error'] = 'Token não encontrado.';
+                        $db->rollBack();
+                        header('Location: ' . BASE_URL . 'admin/demo-access-requests');
+                        exit;
+                    }
+                }
+            }
+
+            $db->commit();
+
+            // Log audit
+            $this->logAudit([
+                'action' => 'demo_tokens_deleted',
+                'model' => 'demo_access_token',
+                'model_id' => null,
+                'description' => "Eliminados {$deletedCount} token(s) expirado(s) de acesso à demo" . 
+                    ($skippedCount > 0 ? ". {$skippedCount} token(s) mantido(s) (newsletter ou não expirados)" : '')
+            ]);
+
+            if ($deletedCount > 0) {
+                $message = "{$deletedCount} token(s) expirado(s) eliminado(s) com sucesso.";
+                if ($skippedCount > 0) {
+                    $message .= " {$skippedCount} token(s) mantido(s) (subscritos à newsletter ou não expirados).";
+                }
+                $_SESSION['success'] = $message;
+            } else {
+                $_SESSION['info'] = 'Nenhum token foi eliminado. Todos os tokens selecionados estão subscritos à newsletter ou ainda não expiraram.';
+            }
+
+        } catch (\Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log("Error deleting expired demo tokens: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao eliminar tokens: ' . $e->getMessage();
+        }
+
+        // Preserve pagination parameters
+        $page = isset($_GET['page']) ? '?page=' . (int)$_GET['page'] : '';
+        $perPage = isset($_GET['per_page']) ? ($page ? '&' : '?') . 'per_page=' . (int)$_GET['per_page'] : '';
+        
+        header('Location: ' . BASE_URL . 'admin/demo-access-requests' . $page . $perPage);
+        exit;
     }
 }
