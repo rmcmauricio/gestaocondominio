@@ -169,7 +169,7 @@
                         {% set paid_amount = fee.paid_amount|default(0) %}
                         {% set pending_amount = fee.pending_amount|default(fee.amount) %}
                         {% set calculated_status = fee.calculated_status|default(fee.status) %}
-                        <tr style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})" title="Clique para ver detalhes">
+                        <tr id="fee-row-{{ fee.id }}" style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})" title="Clique para ver detalhes" data-fee-id="{{ fee.id }}">
                             <td><strong>{% include 'blocks/fraction-popover.html.twig' with { identifier: fee.fraction_identifier, owner_name: fee.owner_name, floor: fee.fraction_floor, stop_propagation: true } only %}</strong></td>
                             <td>
                                 {% if fee.period_month %}
@@ -222,16 +222,11 @@
                                            title="Editar Quota Extra">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/{{ fee.id }}/delete" 
-                                              class="d-inline" 
-                                              onsubmit="return confirm('Tem certeza que deseja eliminar esta quota extra? Esta ação não pode ser desfeita.');">
-                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" 
-                                                    onclick="event.stopPropagation();"
-                                                    title="Eliminar Quota Extra">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </form>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                onclick="event.stopPropagation(); showDeleteFeeModal({{ fee.id }}, '{{ fee.fraction_identifier|e('js') }}', {{ fee.period_month|default(0) }}, {{ fee.period_year }}, {{ fee.amount|number_format(2, '.', '') }});"
+                                                title="Eliminar Quota Extra">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                         {% endif %}
                                     </div>
                                 {% endif %}
@@ -250,7 +245,7 @@
         {% set paid_amount = fee.paid_amount|default(0) %}
         {% set pending_amount = fee.pending_amount|default(fee.amount) %}
         {% set calculated_status = fee.calculated_status|default(fee.status) %}
-        <div class="card shadow-sm mb-3" style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})" title="Clique para ver detalhes">
+        <div id="fee-card-{{ fee.id }}" class="card shadow-sm mb-3" style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})" title="Clique para ver detalhes" data-fee-id="{{ fee.id }}">
             <div class="card-body">
                 <div class="mb-3">
                     <h6 class="mb-1 d-flex align-items-center gap-2">
@@ -310,16 +305,11 @@
                        title="Editar Quota Extra">
                         <i class="bi bi-pencil"></i> Editar
                     </a>
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/{{ fee.id }}/delete" 
-                          class="d-inline flex-fill" 
-                          onsubmit="return confirm('Tem certeza que deseja eliminar esta quota extra? Esta ação não pode ser desfeita.');">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button type="submit" class="btn btn-sm btn-outline-danger w-100" 
-                                onclick="event.stopPropagation();"
-                                title="Eliminar Quota Extra">
-                            <i class="bi bi-trash"></i> Eliminar
-                        </button>
-                    </form>
+                    <button type="button" class="btn btn-sm btn-outline-danger w-100 flex-fill" 
+                            onclick="event.stopPropagation(); showDeleteFeeModal({{ fee.id }}, '{{ fee.fraction_identifier|e('js') }}', {{ fee.period_month|default(0) }}, {{ fee.period_year }}, {{ fee.amount|number_format(2, '.', '') }});"
+                            title="Eliminar Quota Extra">
+                        <i class="bi bi-trash"></i> Eliminar
+                    </button>
                     {% endif %}
                 </div>
                 {% endif %}
@@ -343,97 +333,256 @@
             <div class="modal-content">
                 <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/generate" id="generateFeesForm">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="fee_mode" id="fee_mode" value="annual">
+                    <input type="hidden" name="annual_type" id="annual_type" value="">
+                    <input type="hidden" name="manual_use_permillage" id="manual_use_permillage" value="0">
+                    <input type="hidden" name="extra_use_permillage" id="extra_use_permillage" value="0">
+                    
                     <div class="modal-header">
                         <h5 class="modal-title">Gerar Quotas</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
+                    
                     <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="year" class="form-label">Ano <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="year" name="year" value="{{ current_year }}" min="2020" max="2100" required>
+                        <!-- Progress Steps Indicator -->
+                        <div class="mb-4">
+                            <div class="d-flex align-items-center" style="width: 100%;">
+                                <div class="step-indicator active" data-step="1">
+                                    <div class="step-number">1</div>
+                                    <div class="step-label">Ano</div>
+                                </div>
+                                <div class="step-line"></div>
+                                <div class="step-indicator" data-step="2">
+                                    <div class="step-number">2</div>
+                                    <div class="step-label">Tipo</div>
+                                </div>
+                                <div class="step-line"></div>
+                                <div class="step-indicator" data-step="3">
+                                    <div class="step-number">3</div>
+                                    <div class="step-label">Configuração</div>
+                                </div>
+                            </div>
                         </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Meses <span class="text-danger">*</span></label>
-                            <div class="row g-2" id="monthsContainer">
-                                {% set month_names = {
-                                    1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
-                                    5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
-                                    9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
-                                } %}
-                                {% for month_num in 1..12 %}
-                                <div class="col-6 col-md-4 col-lg-3">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="months[]" value="{{ month_num }}" id="month_{{ month_num }}" {% if month_num == current_month %}checked{% endif %}>
-                                        <label class="form-check-label" for="month_{{ month_num }}">
-                                            {{ month_num }} - {{ month_names[month_num] }}
+
+                        <!-- Step 1: Year Selection -->
+                        <div class="step-content" id="step1">
+                            <div class="mb-3">
+                                <label for="year" class="form-label">Ano <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="year" name="year" value="{{ current_year }}" min="2020" max="2100" required>
+                                <small class="text-muted">Selecione o ano para o qual deseja gerar as quotas</small>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Fee Type Selection -->
+                        <div class="step-content" id="step2" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Tipo de Quota <span class="text-danger">*</span></label>
+                                <!-- Alert shown when annual fees already generated -->
+                                <div class="alert alert-info mb-3" id="annual_fees_already_generated_alert" style="display: none;">
+                                    <i class="bi bi-info-circle"></i> As quotas anuais já foram geradas para este ano. Apenas quotas extras podem ser criadas.
+                                </div>
+                                <!-- Annual fees option - disabled when already generated -->
+                                <div class="form-check mb-2" id="fee_type_annual_container">
+                                    <input class="form-check-input" type="radio" name="fee_type_radio" id="fee_type_annual" value="annual" checked>
+                                    <label class="form-check-label" for="fee_type_annual" id="fee_type_annual_label">
+                                        <strong>Quotas Anuais</strong> - Gerar para todos os 12 meses
+                                    </label>
+                                </div>
+                                <div class="form-check" id="fee_type_extra_container">
+                                    <input class="form-check-input" type="radio" name="fee_type_radio" id="fee_type_extra" value="extra">
+                                    <label class="form-check-label" for="fee_type_extra">
+                                        <strong>Quotas Extras</strong> - Para obras ou outros motivos específicos
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 3A: Annual Fees Configuration -->
+                        <div class="step-content" id="step3_annual" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Método de Geração <span class="text-danger">*</span></label>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="annual_type_radio" id="annual_type_budget" value="budget">
+                                    <label class="form-check-label" for="annual_type_budget">
+                                        <strong>Com base no orçamento e permilagem</strong>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="annual_type_radio" id="annual_type_manual" value="manual">
+                                    <label class="form-check-label" for="annual_type_manual">
+                                        <strong>Manual</strong>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Budget-based generation -->
+                            <div id="annual_budget_section" style="display: none;">
+                                <div id="budget_status_info" class="alert alert-info">
+                                    <i class="bi bi-info-circle"></i> <span id="budget_status_text">A verificar status do orçamento...</span>
+                                </div>
+                                <div id="budget_generate_button" style="display: none;">
+                                    <button type="button" class="btn btn-success w-100" id="generateFromBudgetBtn">
+                                        <i class="bi bi-calculator"></i> Gerar Automaticamente para Todos os Meses
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Manual generation -->
+                            <div id="annual_manual_section" style="display: none;">
+                                <div class="mb-3">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="manual_use_permillage_check" value="1">
+                                        <label class="form-check-label" for="manual_use_permillage_check">
+                                            Aplicar permilagem
                                         </label>
                                     </div>
                                 </div>
-                                {% endfor %}
+
+                                <!-- Manual with permillage -->
+                                <div id="manual_with_permillage" style="display: none;">
+                                    <div class="mb-3">
+                                        <label for="total_amount" class="form-label">Valor Total da Quota Anual (€) <span class="text-danger">*</span></label>
+                                        <input type="number" class="form-control" id="total_amount" name="total_amount" step="0.01" min="0.01" placeholder="0.00">
+                                        <small class="text-muted">Valor total anual que será distribuído mensalmente e por permilagem</small>
+                                    </div>
+                                </div>
+
+                                <!-- Manual without permillage -->
+                                <div id="manual_without_permillage" style="display: none;">
+                                    <div class="mb-3">
+                                        <label class="form-label">Valor Anual por Fração (€) <span class="text-danger">*</span></label>
+                                        <div style="max-height: 300px; overflow-y: auto; overflow-x: hidden;">
+                                            <table class="table table-sm mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th style="width: 30%;">Fração</th>
+                                                        <th style="width: 70%;">Valor Anual (€)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for fraction in fractions %}
+                                                    <tr>
+                                                        <td>{{ fraction.identifier }}</td>
+                                                        <td>
+                                                            <input type="number" 
+                                                                   class="form-control form-control-sm fraction-amount-input" 
+                                                                   name="fraction_amounts[{{ fraction.id }}]" 
+                                                                   id="fraction_amount_{{ fraction.id }}"
+                                                                   step="0.01" 
+                                                                   min="0" 
+                                                                   placeholder="0.00"
+                                                                   style="max-width: 200px;">
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <small class="text-muted">Defina o valor anual para cada fração. Este valor será dividido pelos 12 meses.</small>
+                                    </div>
+                                </div>
                             </div>
-                            <small class="text-muted d-block mt-1">Selecione um ou mais meses para gerar as quotas</small>
                         </div>
 
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="is_extra" name="is_extra" value="1">
-                                <label class="form-check-label" for="is_extra">
-                                    <strong>Quota Extra</strong> (para obras ou outros motivos)
-                                </label>
-                            </div>
-                        </div>
-
-                        <div id="extraFields" style="display: none;">
+                        <!-- Step 3B: Extra Fees Configuration -->
+                        <div class="step-content" id="step3_extra" style="display: none;">
                             <div class="mb-3">
-                                <label for="extra_amount" class="form-label">Valor Total da Quota Extra (€) <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="extra_amount" name="extra_amount" step="0.01" min="0.01" placeholder="0.00">
-                                <small class="text-muted">Valor total da quota extra para todo o condomínio. O valor será distribuído por cada fração conforme a permilagem.</small>
+                                <label class="form-label">Método de Geração <span class="text-danger">*</span></label>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="extra_type_radio" id="extra_type_permillage" value="permillage">
+                                    <label class="form-check-label" for="extra_type_permillage">
+                                        <strong>À permilagem</strong>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="extra_type_radio" id="extra_type_manual" value="manual">
+                                    <label class="form-check-label" for="extra_type_manual">
+                                        <strong>Manual</strong>
+                                    </label>
+                                </div>
                             </div>
-                            
+
+                            <!-- Extra months selection -->
+                            <div class="mb-3">
+                                <label class="form-label">Meses <span class="text-danger">*</span></label>
+                                <div class="row g-2">
+                                    {% set month_names = {
+                                        1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
+                                        5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
+                                        9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+                                    } %}
+                                    {% for month_num in 1..12 %}
+                                    <div class="col-6 col-md-4 col-lg-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input extra-month-checkbox" type="checkbox" name="months[]" value="{{ month_num }}" id="extra_month_{{ month_num }}">
+                                            <label class="form-check-label" for="extra_month_{{ month_num }}">
+                                                {{ month_num }} - {{ month_names[month_num] }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <small class="text-muted d-block mt-1">Selecione um ou mais meses para gerar as quotas extras</small>
+                            </div>
+
+                            <!-- Extra description -->
                             <div class="mb-3">
                                 <label for="extra_description" class="form-label">Motivo/Descrição</label>
                                 <textarea class="form-control" id="extra_description" name="extra_description" rows="2" placeholder="Ex: Obras no telhado, Reparação do elevador, etc."></textarea>
                                 <small class="text-muted">Descrição do motivo da quota extra</small>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label">Frações</label>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="select_all_fractions" checked>
-                                    <label class="form-check-label" for="select_all_fractions">
-                                        <strong>Todas as frações</strong>
-                                    </label>
+                            <!-- Extra with permillage -->
+                            <div id="extra_with_permillage" style="display: none;">
+                                <div class="mb-3">
+                                    <label for="extra_total_amount" class="form-label">Valor Total da Quota Anual (€) <span class="text-danger">*</span></label>
+                                    <input type="number" class="form-control" id="extra_total_amount" name="extra_total_amount" step="0.01" min="0.01" placeholder="0.00">
+                                    <small class="text-muted">Valor total anual que será distribuído por permilagem</small>
                                 </div>
-                                <hr class="my-2">
-                                <div class="row g-2" id="fractionsContainer" style="max-height: 200px; overflow-y: auto;">
-                                    {% for fraction in fractions %}
-                                    <div class="col-6 col-md-4">
-                                        <div class="form-check">
-                                            <input class="form-check-input fraction-checkbox" type="checkbox" name="extra_fractions[]" value="{{ fraction.id }}" id="fraction_{{ fraction.id }}" checked>
-                                            <label class="form-check-label" for="fraction_{{ fraction.id }}">
-                                                {{ fraction.identifier }}
-                                            </label>
-                                        </div>
+                            </div>
+
+                            <!-- Extra manual -->
+                            <div id="extra_manual" style="display: none;">
+                                <div class="mb-3">
+                                    <label class="form-label">Valor Anual por Fração (€) <span class="text-danger">*</span></label>
+                                    <div style="max-height: 300px; overflow-y: auto; overflow-x: hidden;">
+                                        <table class="table table-sm mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 30%;">Fração</th>
+                                                    <th style="width: 70%;">Valor Anual (€)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for fraction in fractions %}
+                                                <tr>
+                                                    <td>{{ fraction.identifier }}</td>
+                                                    <td>
+                                                        <input type="number" 
+                                                               class="form-control form-control-sm extra-fraction-amount-input" 
+                                                               name="extra_fraction_amounts[{{ fraction.id }}]" 
+                                                               id="extra_fraction_amount_{{ fraction.id }}"
+                                                               step="0.01" 
+                                                               min="0" 
+                                                               placeholder="0.00"
+                                                               style="max-width: 200px;">
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
                                     </div>
-                                    {% endfor %}
+                                    <small class="text-muted">Defina o valor anual para cada fração</small>
                                 </div>
-                                <small class="text-muted d-block mt-1">Selecione as frações para aplicar a quota extra (deixe todas selecionadas para aplicar a todas)</small>
                             </div>
                         </div>
-
-                        <div id="regularInfo" class="alert alert-info">
-                            <i class="bi bi-info-circle"></i> As quotas serão calculadas automaticamente com base nas <strong>receitas</strong> do orçamento e permilagem de cada fração.
-                            <br><small>Certifique-se de que o orçamento está aprovado e tem receitas definidas.</small>
-                        </div>
-
-                        <div id="extraInfo" class="alert alert-warning" style="display: none;">
-                            <i class="bi bi-exclamation-triangle"></i> <strong>Quota Extra:</strong> O valor total será distribuído automaticamente por cada fração conforme a permilagem. Selecione as frações que devem receber a quota extra (deixe todas selecionadas para aplicar a todo o condomínio).
-                        </div>
                     </div>
+                    
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Gerar Quotas</button>
+                        <button type="button" class="btn btn-secondary" id="btnCancel" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-secondary" id="btnBack" style="display: none;">Voltar</button>
+                        <button type="button" class="btn btn-primary" id="btnNext">Continuar</button>
+                        <button type="submit" class="btn btn-primary" id="btnSubmit" style="display: none;">Gerar Quotas</button>
                     </div>
                 </form>
             </div>
@@ -472,6 +621,78 @@
         </div>
     </div>
 
+    <style>
+        .step-indicator {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 0 0 auto;
+            min-width: 80px;
+        }
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #e9ecef;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-bottom: 5px;
+            transition: all 0.3s;
+            flex-shrink: 0;
+        }
+        .step-indicator.active .step-number {
+            background-color: #0d6efd;
+            color: white;
+        }
+        .step-indicator.completed .step-number {
+            background-color: #198754;
+            color: white;
+        }
+        .step-label {
+            font-size: 0.875rem;
+            color: #6c757d;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100px;
+        }
+        .step-indicator.active .step-label {
+            color: #0d6efd;
+            font-weight: 600;
+        }
+        .step-indicator.completed .step-label {
+            color: #198754;
+        }
+        .step-line {
+            flex: 1 1 auto;
+            height: 2px;
+            background-color: #e9ecef;
+            margin: 0 10px;
+            margin-top: -20px;
+            align-self: center;
+            min-width: 20px;
+            max-width: 100%;
+        }
+        .step-content {
+            min-height: 300px;
+        }
+        .form-check input[type="radio"]:disabled + label {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .form-check input[type="radio"]:disabled {
+            cursor: not-allowed;
+        }
+        .form-check:has(input[type="radio"]:disabled) {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    </style>
+
     <script>
         // Function to filter fees and scroll to filters
         function filterFees() {
@@ -505,74 +726,705 @@
             }
         });
         
+        // Multi-step wizard for fee generation
         document.addEventListener('DOMContentLoaded', function() {
-            const isExtraCheckbox = document.getElementById('is_extra');
-            const extraFields = document.getElementById('extraFields');
-            const regularInfo = document.getElementById('regularInfo');
-            const extraInfo = document.getElementById('extraInfo');
-            const extraAmountInput = document.getElementById('extra_amount');
-            const selectAllFractions = document.getElementById('select_all_fractions');
-            const fractionCheckboxes = document.querySelectorAll('.fraction-checkbox');
+            let currentStep = 1;
             const form = document.getElementById('generateFeesForm');
+            const yearInput = document.getElementById('year');
+            let selectedFeeMode = 'annual';
+            let selectedAnnualType = '';
+            let selectedExtraType = '';
+            let budgetStatus = null;
+            let annualFeesGeneratedFlag = false; // Track if annual fees are already generated
 
-            // Toggle extra fields
-            isExtraCheckbox.addEventListener('change', function() {
-                if (this.checked) {
-                    extraFields.style.display = 'block';
-                    regularInfo.style.display = 'none';
-                    extraInfo.style.display = 'block';
-                    extraAmountInput.setAttribute('required', 'required');
-                } else {
-                    extraFields.style.display = 'none';
-                    regularInfo.style.display = 'block';
-                    extraInfo.style.display = 'none';
-                    extraAmountInput.removeAttribute('required');
+            // Step indicators
+            const stepIndicators = document.querySelectorAll('.step-indicator');
+            const stepContents = document.querySelectorAll('.step-content');
+            const btnNext = document.getElementById('btnNext');
+            const btnBack = document.getElementById('btnBack');
+            const btnSubmit = document.getElementById('btnSubmit');
+            const btnCancel = document.getElementById('btnCancel');
+
+            // Update step indicators
+            function updateStepIndicators(step) {
+                stepIndicators.forEach((indicator, index) => {
+                    if (index + 1 < step) {
+                        indicator.classList.add('completed');
+                        indicator.classList.remove('active');
+                    } else if (index + 1 === step) {
+                        indicator.classList.add('active');
+                        indicator.classList.remove('completed');
+                    } else {
+                        indicator.classList.remove('active', 'completed');
+                    }
+                });
+            }
+
+            // Show step
+            function showStep(step) {
+                stepContents.forEach(content => {
+                    content.style.display = 'none';
+                });
+
+                if (step === 1) {
+                    document.getElementById('step1').style.display = 'block';
+                } else if (step === 2) {
+                    document.getElementById('step2').style.display = 'block';
+                    
+                    // If flag is already true, immediately show annual option as disabled
+                    if (annualFeesGeneratedFlag) {
+                        const annualContainerImmediate = document.getElementById('fee_type_annual_container');
+                        const annualFeesAlertImmediate = document.getElementById('annual_fees_already_generated_alert');
+                        const feeTypeAnnualRadioImmediate = document.getElementById('fee_type_annual');
+                        const annualLabelImmediate = document.getElementById('fee_type_annual_label');
+                        const feeTypeExtraRadioImmediate = document.getElementById('fee_type_extra');
+                        
+                        if (annualContainerImmediate) {
+                            annualContainerImmediate.style.display = 'block';
+                            annualContainerImmediate.style.opacity = '0.6';
+                            annualContainerImmediate.style.cursor = 'not-allowed';
+                            annualContainerImmediate.style.pointerEvents = 'none';
+                        }
+                        if (annualFeesAlertImmediate) {
+                            annualFeesAlertImmediate.style.display = 'block';
+                        }
+                        if (feeTypeAnnualRadioImmediate) {
+                            feeTypeAnnualRadioImmediate.disabled = true;
+                            feeTypeAnnualRadioImmediate.checked = false;
+                        }
+                        if (annualLabelImmediate) {
+                            annualLabelImmediate.style.pointerEvents = 'none';
+                            annualLabelImmediate.style.cursor = 'not-allowed';
+                        }
+                        if (feeTypeExtraRadioImmediate) {
+                            feeTypeExtraRadioImmediate.checked = true;
+                            selectedFeeMode = 'extra';
+                            document.getElementById('fee_mode').value = 'extra';
+                        }
+                    }
+                    
+                    // Always check budget status when showing step 2 - this will update the UI
+                    const year = parseInt(yearInput.value);
+                    if (year && year >= 2020 && year <= 2100) {
+                        // Reset to enabled state while checking (will be updated based on response)
+                        if (!annualFeesGeneratedFlag) {
+                            const annualContainerCheck = document.getElementById('fee_type_annual_container');
+                            const annualFeesAlertCheck = document.getElementById('annual_fees_already_generated_alert');
+                            const feeTypeAnnualRadioCheck = document.getElementById('fee_type_annual');
+                            const annualLabelCheck = document.getElementById('fee_type_annual_label');
+                            
+                            if (annualContainerCheck) {
+                                annualContainerCheck.style.display = 'block';
+                                annualContainerCheck.style.opacity = '1';
+                                annualContainerCheck.style.cursor = 'pointer';
+                                annualContainerCheck.style.pointerEvents = 'auto';
+                            }
+                            if (annualFeesAlertCheck) {
+                                annualFeesAlertCheck.style.display = 'none';
+                            }
+                            if (feeTypeAnnualRadioCheck) {
+                                feeTypeAnnualRadioCheck.disabled = false;
+                            }
+                            if (annualLabelCheck) {
+                                annualLabelCheck.style.pointerEvents = 'auto';
+                                annualLabelCheck.style.cursor = 'pointer';
+                            }
+                        }
+                        
+                        checkBudgetStatus(year, true);
+                    } else {
+                        // If no valid year, ensure annual option is visible and enabled
+                        const annualContainerNoYear = document.getElementById('fee_type_annual_container');
+                        const annualFeesAlertNoYear = document.getElementById('annual_fees_already_generated_alert');
+                        const feeTypeAnnualRadioNoYear = document.getElementById('fee_type_annual');
+                        const annualLabelNoYear = document.getElementById('fee_type_annual_label');
+                        
+                        if (annualContainerNoYear) {
+                            annualContainerNoYear.style.display = 'block';
+                            annualContainerNoYear.style.opacity = '1';
+                            annualContainerNoYear.style.cursor = 'pointer';
+                            annualContainerNoYear.style.pointerEvents = 'auto';
+                        }
+                        if (annualFeesAlertNoYear) {
+                            annualFeesAlertNoYear.style.display = 'none';
+                        }
+                        if (feeTypeAnnualRadioNoYear) {
+                            feeTypeAnnualRadioNoYear.disabled = false;
+                        }
+                        if (annualLabelNoYear) {
+                            annualLabelNoYear.style.pointerEvents = 'auto';
+                            annualLabelNoYear.style.cursor = 'pointer';
+                        }
+                    }
+                } else if (step === 3) {
+                    if (selectedFeeMode === 'annual') {
+                        document.getElementById('step3_annual').style.display = 'block';
+                    } else {
+                        document.getElementById('step3_extra').style.display = 'block';
+                    }
+                }
+
+                updateStepIndicators(step);
+                updateButtons();
+            }
+
+            // Update button visibility
+            function updateButtons() {
+                btnBack.style.display = currentStep > 1 ? 'inline-block' : 'none';
+                btnNext.style.display = currentStep < 3 ? 'inline-block' : 'none';
+                btnSubmit.style.display = currentStep === 3 ? 'inline-block' : 'none';
+            }
+
+            // Check budget status via AJAX
+            function checkBudgetStatus(year, showInStep2 = false) {
+                const condominiumId = {{ condominium.id }};
+                const statusInfo = document.getElementById('budget_status_info');
+                const statusText = document.getElementById('budget_status_text');
+                const generateButton = document.getElementById('budget_generate_button');
+                const annualFeesAlert = document.getElementById('annual_fees_already_generated_alert');
+                const feeTypeExtraRadio = document.getElementById('fee_type_extra');
+                const annualContainer = document.getElementById('fee_type_annual_container');
+
+                // If flag is already true, immediately show annual option as disabled before AJAX
+                if (annualFeesGeneratedFlag && (showInStep2 || currentStep === 2)) {
+                    const annualLabel = document.getElementById('fee_type_annual_label');
+                    const feeTypeAnnualRadio = document.getElementById('fee_type_annual');
+                    
+                    if (annualContainer) {
+                        annualContainer.style.display = 'block';
+                        annualContainer.style.opacity = '0.6';
+                        annualContainer.style.cursor = 'not-allowed';
+                        annualContainer.style.pointerEvents = 'none';
+                    }
+                    if (annualFeesAlert) {
+                        annualFeesAlert.style.display = 'block';
+                    }
+                    if (feeTypeAnnualRadio) {
+                        feeTypeAnnualRadio.disabled = true;
+                        feeTypeAnnualRadio.checked = false;
+                    }
+                    if (annualLabel) {
+                        annualLabel.style.pointerEvents = 'none';
+                        annualLabel.style.cursor = 'not-allowed';
+                    }
+                    if (feeTypeExtraRadio) {
+                        feeTypeExtraRadio.checked = true;
+                        selectedFeeMode = 'extra';
+                        document.getElementById('fee_mode').value = 'extra';
+                    }
+                }
+
+                if (statusInfo && statusText) {
+                    statusText.textContent = 'A verificar status do orçamento...';
+                    statusInfo.className = 'alert alert-info';
+                }
+
+                fetch(`{{ BASE_URL }}condominiums/${condominiumId}/budgets/${year}/check-status`)
+                    .then(response => response.json())
+                    .then(data => {
+                        budgetStatus = data;
+                        
+                        // Update the global flag - ensure boolean conversion
+                        annualFeesGeneratedFlag = Boolean(data.annual_fees_generated);
+                        
+                        // Always update step 2 options if we're on step 2 or if explicitly requested
+                        if (showInStep2 || currentStep === 2) {
+                            // Re-fetch elements to ensure they exist
+                            const annualContainerEl = document.getElementById('fee_type_annual_container');
+                            const annualFeesAlertEl = document.getElementById('annual_fees_already_generated_alert');
+                            const feeTypeExtraRadioEl = document.getElementById('fee_type_extra');
+                            const feeTypeAnnualRadioEl = document.getElementById('fee_type_annual');
+                            const annualLabelEl = document.getElementById('fee_type_annual_label');
+                            
+                            if (annualFeesGeneratedFlag) {
+                                // Show annual fees option as disabled with message
+                                if (annualContainerEl) {
+                                    annualContainerEl.style.display = 'block';
+                                    annualContainerEl.style.opacity = '0.6';
+                                    annualContainerEl.style.cursor = 'not-allowed';
+                                    annualContainerEl.style.pointerEvents = 'none';
+                                }
+                                if (annualFeesAlertEl) {
+                                    annualFeesAlertEl.style.display = 'block';
+                                }
+                                if (feeTypeAnnualRadioEl) {
+                                    feeTypeAnnualRadioEl.disabled = true;
+                                    feeTypeAnnualRadioEl.checked = false;
+                                }
+                                if (annualLabelEl) {
+                                    annualLabelEl.style.pointerEvents = 'none';
+                                    annualLabelEl.style.cursor = 'not-allowed';
+                                }
+                                if (feeTypeExtraRadioEl) {
+                                    feeTypeExtraRadioEl.checked = true;
+                                    selectedFeeMode = 'extra';
+                                    const feeModeInput = document.getElementById('fee_mode');
+                                    if (feeModeInput) {
+                                        feeModeInput.value = 'extra';
+                                    }
+                                }
+                            } else {
+                                // Show annual fees option as enabled and hide message
+                                if (annualContainerEl) {
+                                    annualContainerEl.style.display = 'block';
+                                    annualContainerEl.style.opacity = '1';
+                                    annualContainerEl.style.cursor = 'pointer';
+                                    annualContainerEl.style.pointerEvents = 'auto';
+                                }
+                                if (annualFeesAlertEl) {
+                                    annualFeesAlertEl.style.display = 'none';
+                                }
+                                if (feeTypeAnnualRadioEl) {
+                                    feeTypeAnnualRadioEl.disabled = false;
+                                }
+                                if (annualLabelEl) {
+                                    annualLabelEl.style.pointerEvents = 'auto';
+                                    annualLabelEl.style.cursor = 'pointer';
+                                }
+                            }
+                        }
+                        
+                        // Update budget status info (for step 3)
+                        if (statusInfo && statusText) {
+                            if (data.exists) {
+                                if (data.annual_fees_generated) {
+                                    statusInfo.className = 'alert alert-warning';
+                                    statusText.innerHTML = '<i class="bi bi-exclamation-triangle"></i> ' + data.message;
+                                    if (generateButton) {
+                                        generateButton.style.display = 'none';
+                                    }
+                                } else if (data.approved) {
+                                    statusInfo.className = 'alert alert-success';
+                                    statusText.innerHTML = '<i class="bi bi-check-circle"></i> ' + data.message;
+                                    if (generateButton) {
+                                        generateButton.style.display = 'block';
+                                    }
+                                } else {
+                                    statusInfo.className = 'alert alert-danger';
+                                    statusText.innerHTML = '<i class="bi bi-x-circle"></i> ' + data.message;
+                                    if (generateButton) {
+                                        generateButton.style.display = 'none';
+                                    }
+                                }
+                            } else {
+                                statusInfo.className = 'alert alert-warning';
+                                statusText.innerHTML = '<i class="bi bi-info-circle"></i> ' + data.message;
+                                if (generateButton) {
+                                    generateButton.style.display = 'none';
+                                }
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro ao verificar orçamento:', error);
+                        if (statusInfo && statusText) {
+                            statusInfo.className = 'alert alert-danger';
+                            statusText.innerHTML = '<i class="bi bi-x-circle"></i> Erro ao verificar status do orçamento.';
+                        }
+                        if (generateButton) {
+                            generateButton.style.display = 'none';
+                        }
+                        // If we're on step 2 and flag is true, keep annual option disabled
+                        if ((showInStep2 || currentStep === 2) && annualFeesGeneratedFlag) {
+                            const annualContainerError = document.getElementById('fee_type_annual_container');
+                            const annualFeesAlertError = document.getElementById('annual_fees_already_generated_alert');
+                            const feeTypeExtraRadioError = document.getElementById('fee_type_extra');
+                            const feeTypeAnnualRadioError = document.getElementById('fee_type_annual');
+                            const annualLabelError = document.getElementById('fee_type_annual_label');
+                            
+                            if (annualContainerError) {
+                                annualContainerError.style.display = 'block';
+                                annualContainerError.style.opacity = '0.6';
+                                annualContainerError.style.cursor = 'not-allowed';
+                                annualContainerError.style.pointerEvents = 'none';
+                            }
+                            if (annualFeesAlertError) {
+                                annualFeesAlertError.style.display = 'block';
+                            }
+                            if (feeTypeAnnualRadioError) {
+                                feeTypeAnnualRadioError.disabled = true;
+                                feeTypeAnnualRadioError.checked = false;
+                            }
+                            if (annualLabelError) {
+                                annualLabelError.style.pointerEvents = 'none';
+                                annualLabelError.style.cursor = 'not-allowed';
+                            }
+                            if (feeTypeExtraRadioError) {
+                                feeTypeExtraRadioError.checked = true;
+                                selectedFeeMode = 'extra';
+                                document.getElementById('fee_mode').value = 'extra';
+                            }
+                        }
+                    });
+            }
+
+            // Validate step
+            function validateStep(step) {
+                if (step === 1) {
+                    const year = parseInt(yearInput.value);
+                    if (!year || year < 2020 || year > 2100) {
+                        alert('Por favor, selecione um ano válido.');
+                        return false;
+                    }
+                    return true;
+                } else if (step === 2) {
+                    const feeTypeRadio = document.querySelector('input[name="fee_type_radio"]:checked');
+                    if (!feeTypeRadio) {
+                        alert('Por favor, selecione o tipo de quota.');
+                        return false;
+                    }
+                    
+                    // If annual fees already generated, ensure extra is selected (annual should be hidden)
+                    if (annualFeesGeneratedFlag && feeTypeRadio.value === 'annual') {
+                        const extraRadio = document.getElementById('fee_type_extra');
+                        if (extraRadio) {
+                            extraRadio.checked = true;
+                            selectedFeeMode = 'extra';
+                            document.getElementById('fee_mode').value = 'extra';
+                        }
+                        return false;
+                    }
+                    
+                    selectedFeeMode = feeTypeRadio.value;
+                    document.getElementById('fee_mode').value = selectedFeeMode;
+                    return true;
+                } else if (step === 3) {
+                    if (selectedFeeMode === 'annual') {
+                        const annualTypeRadio = document.querySelector('input[name="annual_type_radio"]:checked');
+                        if (!annualTypeRadio) {
+                            alert('Por favor, selecione o método de geração.');
+                            return false;
+                        }
+                        selectedAnnualType = annualTypeRadio.value;
+                        document.getElementById('annual_type').value = selectedAnnualType;
+
+                        if (selectedAnnualType === 'budget') {
+                            // Budget-based: check if can generate
+                            if (!budgetStatus || !budgetStatus.approved || budgetStatus.annual_fees_generated) {
+                                alert('Não é possível gerar quotas automaticamente. Verifique o status do orçamento.');
+                                return false;
+                            }
+                            return true;
+                        } else {
+                            // Manual
+                            const usePermillage = document.getElementById('manual_use_permillage_check').checked;
+                            document.getElementById('manual_use_permillage').value = usePermillage ? '1' : '0';
+
+                            if (usePermillage) {
+                                const totalAmount = parseFloat(document.getElementById('total_amount').value);
+                                if (!totalAmount || totalAmount <= 0) {
+                                    alert('Por favor, insira um valor total válido.');
+                                    return false;
+                                }
+                            } else {
+                                const fractionInputs = document.querySelectorAll('.fraction-amount-input');
+                                let hasValue = false;
+                                fractionInputs.forEach(input => {
+                                    if (parseFloat(input.value) > 0) {
+                                        hasValue = true;
+                                    }
+                                });
+                                if (!hasValue) {
+                                    alert('Por favor, insira valores para pelo menos uma fração.');
+                                    return false;
+                                }
+                            }
+                            return true;
+                        }
+                    } else {
+                        // Extra fees
+                        const extraTypeRadio = document.querySelector('input[name="extra_type_radio"]:checked');
+                        if (!extraTypeRadio) {
+                            alert('Por favor, selecione o método de geração.');
+                            return false;
+                        }
+                        selectedExtraType = extraTypeRadio.value;
+                        document.getElementById('extra_use_permillage').value = selectedExtraType === 'permillage' ? '1' : '0';
+
+                        const monthsChecked = document.querySelectorAll('.extra-month-checkbox:checked');
+                        if (monthsChecked.length === 0) {
+                            alert('Por favor, selecione pelo menos um mês.');
+                            return false;
+                        }
+
+                        if (selectedExtraType === 'permillage') {
+                            const totalAmount = parseFloat(document.getElementById('extra_total_amount').value);
+                            if (!totalAmount || totalAmount <= 0) {
+                                alert('Por favor, insira um valor total válido.');
+                                return false;
+                            }
+                        } else {
+                            const fractionInputs = document.querySelectorAll('.extra-fraction-amount-input');
+                            let hasValue = false;
+                            fractionInputs.forEach(input => {
+                                if (parseFloat(input.value) > 0) {
+                                    hasValue = true;
+                                }
+                            });
+                            if (!hasValue) {
+                                alert('Por favor, insira valores para pelo menos uma fração.');
+                                return false;
+                            }
+                        }
+                        return true;
+                    }
+                }
+                return true;
+            }
+
+            // Next button
+            btnNext.addEventListener('click', function() {
+                if (validateStep(currentStep)) {
+                    if (currentStep === 1) {
+                        // Check budget status BEFORE moving to step 2
+                        const year = parseInt(yearInput.value);
+                        
+                        // Show step 2 first
+                        currentStep = 2;
+                        showStep(currentStep);
+                        
+                        // Then check and update options (this will hide annual option if needed)
+                        checkBudgetStatus(year, true); // Pass true to update step 2 options
+                    } else if (currentStep === 2) {
+                        currentStep = 3;
+                        showStep(currentStep);
+                        // Show appropriate sections based on selections
+                        if (selectedFeeMode === 'annual') {
+                            const annualTypeRadio = document.querySelector('input[name="annual_type_radio"]:checked');
+                            if (annualTypeRadio) {
+                                selectedAnnualType = annualTypeRadio.value;
+                                if (selectedAnnualType === 'budget') {
+                                    document.getElementById('annual_budget_section').style.display = 'block';
+                                    document.getElementById('annual_manual_section').style.display = 'none';
+                                } else {
+                                    document.getElementById('annual_budget_section').style.display = 'none';
+                                    document.getElementById('annual_manual_section').style.display = 'block';
+                                    
+                                    // Initialize manual section display based on checkbox state
+                                    const manualPermillageCheck = document.getElementById('manual_use_permillage_check');
+                                    if (manualPermillageCheck) {
+                                        if (manualPermillageCheck.checked) {
+                                            document.getElementById('manual_with_permillage').style.display = 'block';
+                                            document.getElementById('manual_without_permillage').style.display = 'none';
+                                        } else {
+                                            document.getElementById('manual_with_permillage').style.display = 'none';
+                                            document.getElementById('manual_without_permillage').style.display = 'block';
+                                        }
+                                    } else {
+                                        // Default: show without permillage
+                                        document.getElementById('manual_with_permillage').style.display = 'none';
+                                        document.getElementById('manual_without_permillage').style.display = 'block';
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             });
 
-            // Select all fractions toggle
-            selectAllFractions.addEventListener('change', function() {
-                fractionCheckboxes.forEach(function(checkbox) {
-                    checkbox.checked = selectAllFractions.checked;
+            // Back button
+            btnBack.addEventListener('click', function() {
+                if (currentStep > 1) {
+                    currentStep--;
+                    showStep(currentStep);
+                }
+            });
+
+            // Fee type radio change
+            document.querySelectorAll('input[name="fee_type_radio"]').forEach(radio => {
+                radio.addEventListener('change', function(e) {
+                    // If annual fees already generated, prevent selecting annual (shouldn't happen as it's hidden)
+                    if (this.value === 'annual' && annualFeesGeneratedFlag) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const extraRadio = document.getElementById('fee_type_extra');
+                        if (extraRadio) {
+                            extraRadio.checked = true;
+                            selectedFeeMode = 'extra';
+                            document.getElementById('fee_mode').value = 'extra';
+                        }
+                        this.checked = false;
+                        return false;
+                    }
+                    
+                    selectedFeeMode = this.value;
+                    document.getElementById('fee_mode').value = selectedFeeMode;
                 });
             });
 
-            // Update "select all" when individual checkboxes change
-            fractionCheckboxes.forEach(function(checkbox) {
-                checkbox.addEventListener('change', function() {
-                    const allChecked = Array.from(fractionCheckboxes).every(cb => cb.checked);
-                    const someChecked = Array.from(fractionCheckboxes).some(cb => cb.checked);
-                    selectAllFractions.checked = allChecked;
-                    selectAllFractions.indeterminate = someChecked && !allChecked;
+            // Annual type radio change
+            document.querySelectorAll('input[name="annual_type_radio"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    selectedAnnualType = this.value;
+                    if (this.value === 'budget') {
+                        document.getElementById('annual_budget_section').style.display = 'block';
+                        document.getElementById('annual_manual_section').style.display = 'none';
+                    } else {
+                        document.getElementById('annual_budget_section').style.display = 'none';
+                        document.getElementById('annual_manual_section').style.display = 'block';
+                        
+                        // Initialize manual section display based on checkbox state
+                        const manualPermillageCheck = document.getElementById('manual_use_permillage_check');
+                        if (manualPermillageCheck) {
+                            if (manualPermillageCheck.checked) {
+                                document.getElementById('manual_with_permillage').style.display = 'block';
+                                document.getElementById('manual_without_permillage').style.display = 'none';
+                            } else {
+                                document.getElementById('manual_with_permillage').style.display = 'none';
+                                document.getElementById('manual_without_permillage').style.display = 'block';
+                            }
+                        } else {
+                            // Default: show without permillage if checkbox doesn't exist
+                            document.getElementById('manual_with_permillage').style.display = 'none';
+                            document.getElementById('manual_without_permillage').style.display = 'block';
+                        }
+                    }
                 });
             });
 
-            // Form validation
+            // Manual use permillage checkbox
+            const manualPermillageCheck = document.getElementById('manual_use_permillage_check');
+            if (manualPermillageCheck) {
+                manualPermillageCheck.addEventListener('change', function() {
+                    if (this.checked) {
+                        document.getElementById('manual_with_permillage').style.display = 'block';
+                        document.getElementById('manual_without_permillage').style.display = 'none';
+                    } else {
+                        document.getElementById('manual_with_permillage').style.display = 'none';
+                        document.getElementById('manual_without_permillage').style.display = 'block';
+                    }
+                });
+            }
+
+            // Extra type radio change
+            document.querySelectorAll('input[name="extra_type_radio"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    selectedExtraType = this.value;
+                    if (this.value === 'permillage') {
+                        document.getElementById('extra_with_permillage').style.display = 'block';
+                        document.getElementById('extra_manual').style.display = 'none';
+                    } else {
+                        document.getElementById('extra_with_permillage').style.display = 'none';
+                        document.getElementById('extra_manual').style.display = 'block';
+                    }
+                });
+            });
+
+            // Generate from budget button
+            const generateFromBudgetBtn = document.getElementById('generateFromBudgetBtn');
+            if (generateFromBudgetBtn) {
+                generateFromBudgetBtn.addEventListener('click', function() {
+                    if (validateStep(3)) {
+                        form.submit();
+                    }
+                });
+            }
+
+            // Form submit
             form.addEventListener('submit', function(e) {
-                const monthsChecked = document.querySelectorAll('input[name="months[]"]:checked');
-                if (monthsChecked.length === 0) {
+                if (!validateStep(currentStep)) {
                     e.preventDefault();
-                    alert('Selecione pelo menos um mês para gerar as quotas.');
                     return false;
                 }
+            });
 
-                if (isExtraCheckbox.checked) {
-                    const extraAmount = parseFloat(extraAmountInput.value);
-                    if (!extraAmount || extraAmount <= 0) {
-                        e.preventDefault();
-                        alert('O valor da quota extra deve ser maior que zero.');
-                        extraAmountInput.focus();
-                        return false;
+            // Reset modal on close
+            const modal = document.getElementById('generateFeesModal');
+            if (modal) {
+                // Reset flag when modal opens
+                modal.addEventListener('show.bs.modal', function() {
+                    annualFeesGeneratedFlag = false;
+                    budgetStatus = null;
+                });
+                
+                modal.addEventListener('hidden.bs.modal', function() {
+                    currentStep = 1;
+                    selectedFeeMode = 'annual';
+                    selectedAnnualType = '';
+                    selectedExtraType = '';
+                    budgetStatus = null;
+                    annualFeesGeneratedFlag = false; // Reset flag when modal closes
+                    form.reset();
+                    
+                    // Reset fee type radio buttons
+                    const feeTypeAnnualRadio = document.getElementById('fee_type_annual');
+                    const feeTypeExtraRadio = document.getElementById('fee_type_extra');
+                    const annualContainerReset = document.getElementById('fee_type_annual_container');
+                    const annualFeesAlertReset = document.getElementById('annual_fees_already_generated_alert');
+                    const annualLabelReset = document.getElementById('fee_type_annual_label');
+                    
+                    // Show annual option as enabled and hide alert
+                    if (annualContainerReset) {
+                        annualContainerReset.style.display = 'block';
+                        annualContainerReset.style.opacity = '1';
+                        annualContainerReset.style.cursor = 'pointer';
+                        annualContainerReset.style.pointerEvents = 'auto';
                     }
+                    if (annualFeesAlertReset) {
+                        annualFeesAlertReset.style.display = 'none';
+                    }
+                    if (feeTypeAnnualRadio) {
+                        feeTypeAnnualRadio.disabled = false;
+                        feeTypeAnnualRadio.checked = true;
+                    }
+                    if (annualLabelReset) {
+                        annualLabelReset.style.pointerEvents = 'auto';
+                        annualLabelReset.style.cursor = 'pointer';
+                    }
+                    if (feeTypeExtraRadio) {
+                        feeTypeExtraRadio.checked = false;
+                    }
+                    
+                    // Reset all sections to hidden
+                    document.getElementById('annual_budget_section').style.display = 'none';
+                    document.getElementById('annual_manual_section').style.display = 'none';
+                    document.getElementById('manual_with_permillage').style.display = 'none';
+                    document.getElementById('manual_without_permillage').style.display = 'none';
+                    document.getElementById('extra_with_permillage').style.display = 'none';
+                    document.getElementById('extra_manual').style.display = 'none';
+                    
+                    showStep(1);
+                });
+            }
 
-                    const fractionsChecked = document.querySelectorAll('input[name="extra_fractions[]"]:checked');
-                    if (fractionsChecked.length === 0) {
-                        e.preventDefault();
-                        alert('Selecione pelo menos uma fração para aplicar a quota extra.');
-                        return false;
+            // Year input change - check status when year changes
+            yearInput.addEventListener('change', function() {
+                const year = parseInt(this.value);
+                if (year && year >= 2020 && year <= 2100) {
+                    // Reset flag when year changes (will be updated by checkBudgetStatus)
+                    annualFeesGeneratedFlag = false;
+                    
+                    // Reset annual option to enabled state (will be updated if needed after AJAX response)
+                    const annualContainerTemp = document.getElementById('fee_type_annual_container');
+                    const annualFeesAlertTemp = document.getElementById('annual_fees_already_generated_alert');
+                    const feeTypeAnnualRadioTemp = document.getElementById('fee_type_annual');
+                    const annualLabelTemp = document.getElementById('fee_type_annual_label');
+                    
+                    if (annualContainerTemp) {
+                        annualContainerTemp.style.display = 'block';
+                        annualContainerTemp.style.opacity = '1';
+                        annualContainerTemp.style.cursor = 'pointer';
+                        annualContainerTemp.style.pointerEvents = 'auto';
                     }
+                    if (annualFeesAlertTemp) {
+                        annualFeesAlertTemp.style.display = 'none';
+                    }
+                    if (feeTypeAnnualRadioTemp) {
+                        feeTypeAnnualRadioTemp.disabled = false;
+                    }
+                    if (annualLabelTemp) {
+                        annualLabelTemp.style.pointerEvents = 'auto';
+                        annualLabelTemp.style.cursor = 'pointer';
+                    }
+                    
+                    // If we're on step 2, update the options
+                    const isStep2 = currentStep === 2;
+                    checkBudgetStatus(year, isStep2);
                 }
             });
+
+            // Initialize
+            showStep(1);
         });
     </script>
 
@@ -874,10 +1726,259 @@ document.getElementById('payment_amount')?.addEventListener('input', function() 
 });
 
 // Bulk actions functions
+
+// Delete Fee Modal and AJAX
+let currentDeleteFeeId = null;
+let currentDeleteFeeRow = null;
+
+function showDeleteFeeModal(feeId, fractionIdentifier, month, year, amount) {
+    currentDeleteFeeId = feeId;
+    
+    // Find the row element using ID (more reliable)
+    let row = document.getElementById(`fee-row-${feeId}`);
+    if (row) {
+        currentDeleteFeeRow = row;
+    } else {
+        // Try mobile card view
+        const card = document.getElementById(`fee-card-${feeId}`);
+        if (card) {
+            currentDeleteFeeRow = card;
+        } else {
+            // Fallback: try data attribute
+            row = document.querySelector(`tr[data-fee-id="${feeId}"]`);
+            if (row) {
+                currentDeleteFeeRow = row;
+            } else {
+                const cardFallback = document.querySelector(`div[data-fee-id="${feeId}"]`);
+                if (cardFallback) {
+                    currentDeleteFeeRow = cardFallback;
+                }
+            }
+        }
+    }
+    
+    // Set modal content
+    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const monthName = monthNames[month - 1] || month;
+    
+    document.getElementById('deleteFeeDetails').innerHTML = `
+        <div><strong>Fração:</strong> ${fractionIdentifier}</div>
+        <div><strong>Período:</strong> ${monthName}/${year}</div>
+        <div><strong>Valor:</strong> €${parseFloat(amount).toFixed(2).replace('.', ',')}</div>
+    `;
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('deleteFeeModal'));
+    modal.show();
+}
+
+// Confirm delete button handler
+let isDeleting = false; // Flag to prevent multiple simultaneous deletions
+
+function handleDeleteFee() {
+    // Prevent multiple simultaneous deletions
+    if (isDeleting) {
+        return;
+    }
+    
+    if (!currentDeleteFeeId) {
+        alert('Erro: ID da quota não encontrado.');
+        return;
+    }
+    
+    isDeleting = true;
+    
+    const btn = document.getElementById('confirmDeleteFeeBtn');
+    if (!btn) {
+        isDeleting = false;
+        return;
+    }
+    
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>A eliminar...';
+    
+    const formData = new FormData();
+    formData.append('csrf_token', '{{ csrf_token }}');
+    
+    fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${currentDeleteFeeId}/delete`, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || `HTTP error! status: ${response.status}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.error) {
+            alert('Erro: ' + data.error);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            isDeleting = false;
+            return;
+        }
+        
+        // Success - remove row/card from DOM
+        if (currentDeleteFeeRow) {
+            const rowToRemove = currentDeleteFeeRow; // Store reference
+            
+            // Add fade out animation
+            rowToRemove.style.transition = 'opacity 0.3s, height 0.3s, margin 0.3s, padding 0.3s';
+            rowToRemove.style.opacity = '0';
+            
+            // If it's a table row, also animate height
+            if (rowToRemove.tagName === 'TR') {
+                const originalHeight = rowToRemove.offsetHeight;
+                rowToRemove.style.height = originalHeight + 'px';
+                setTimeout(() => {
+                    rowToRemove.style.height = '0';
+                    rowToRemove.style.margin = '0';
+                    rowToRemove.style.padding = '0';
+                }, 10);
+            }
+            
+            setTimeout(() => {
+                // Remove the element completely
+                if (rowToRemove && rowToRemove.parentNode) {
+                    rowToRemove.remove();
+                }
+                    
+                    // Show success message
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                    alertDiv.setAttribute('role', 'alert');
+                    alertDiv.innerHTML = `
+                        <i class="bi bi-check-circle me-2"></i>${data.message || 'Quota extra eliminada com sucesso!'}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    
+                    // Insert at the top of the fees table/cards
+                    const feesTable = document.querySelector('.table-responsive') || document.querySelector('.d-md-none');
+                    if (feesTable) {
+                        feesTable.parentNode.insertBefore(alertDiv, feesTable);
+                    } else {
+                        // Fallback: insert at top of page
+                        const container = document.querySelector('.container-fluid') || document.querySelector('.container');
+                        if (container) {
+                            container.insertBefore(alertDiv, container.firstChild);
+                        }
+                    }
+                    
+                    // Auto-dismiss alert after 5 seconds
+                    setTimeout(() => {
+                        if (alertDiv.parentNode) {
+                            alertDiv.classList.remove('show');
+                            setTimeout(() => alertDiv.remove(), 150);
+                        }
+                    }, 5000);
+                }, 300);
+            } else {
+                // Still show success message even if element not found
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                alertDiv.setAttribute('role', 'alert');
+                alertDiv.innerHTML = `
+                    <i class="bi bi-check-circle me-2"></i>${data.message || 'Quota extra eliminada com sucesso!'}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                const container = document.querySelector('.container-fluid') || document.querySelector('.container');
+                if (container) {
+                    container.insertBefore(alertDiv, container.firstChild);
+                }
+            }
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteFeeModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            currentDeleteFeeId = null;
+            currentDeleteFeeRow = null;
+            isDeleting = false; // Reset flag
+        })
+        .catch(error => {
+            alert('Erro ao eliminar a quota: ' + (error.message || 'Por favor, tente novamente.'));
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            isDeleting = false; // Reset flag on error
+        });
+}
+
+// Wait for DOM to be ready and attach event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Use event delegation to avoid multiple listeners
+    // Attach a single listener to the modal that handles clicks on the delete button
+    const deleteModal = document.getElementById('deleteFeeModal');
+    if (deleteModal) {
+        // Use event delegation - attach listener to modal, not button
+        deleteModal.addEventListener('click', function(e) {
+            // Check if the clicked element is the delete button or inside it
+            const deleteBtn = e.target.closest('#confirmDeleteFeeBtn');
+            if (deleteBtn && !deleteBtn.disabled && !isDeleting) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDeleteFee();
+            }
+        });
+        
+        // Reset modal when closed
+        deleteModal.addEventListener('hidden.bs.modal', function() {
+            currentDeleteFeeId = null;
+            currentDeleteFeeRow = null;
+            isDeleting = false;
+            const btn = document.getElementById('confirmDeleteFeeBtn');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-trash me-1"></i>Eliminar';
+            }
+        });
+    }
+});
 </script>
 
 <!-- Modal e Script para Detalhes da Quota (Mapa) -->
 {% include 'blocks/fees-map-modal.html.twig' with {'is_admin': is_admin, 'csrf_token': csrf_token} %}
+
+<!-- Modal para Eliminar Quota Extra -->
+<div class="modal fade" id="deleteFeeModal" tabindex="-1" aria-labelledby="deleteFeeModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteFeeModalLabel">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Eliminar Quota Extra
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja eliminar esta quota extra?</p>
+                <div class="alert alert-info mb-0">
+                    <div class="fw-bold mb-2">Detalhes da quota:</div>
+                    <div id="deleteFeeDetails"></div>
+                </div>
+                <div class="alert alert-warning mt-3 mb-0">
+                    <small><i class="bi bi-exclamation-triangle"></i> Esta ação não pode ser desfeita. Apenas quotas extras sem pagamentos podem ser eliminadas.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg me-1"></i>Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteFeeBtn">
+                    <i class="bi bi-trash me-1"></i>Eliminar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Modal para Editar Pagamento -->
 <div class="modal fade" id="editPaymentModal" tabindex="-1">

@@ -617,64 +617,121 @@ class FinanceController extends Controller
         }
 
         $year = (int)($_POST['year'] ?? date('Y'));
-        
-        // Get months array (can be single value or array)
-        $months = $_POST['months'] ?? [];
-        if (!is_array($months)) {
-            // Fallback to old single month format
-            $month = (int)($_POST['month'] ?? date('m'));
-            $months = [$month];
-        } else {
-            // Filter and convert to integers
-            $months = array_filter(array_map('intval', $months), function($m) {
-                return $m >= 1 && $m <= 12;
-            });
-        }
-
-        if (empty($months)) {
-            $_SESSION['error'] = 'Selecione pelo menos um mês para gerar as quotas.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
-            exit;
-        }
-
-        $isExtra = isset($_POST['is_extra']) && $_POST['is_extra'] === '1';
+        $feeMode = $_POST['fee_mode'] ?? 'annual'; // 'annual' or 'extra'
 
         try {
-            if ($isExtra) {
-                // Generate extra fees
-                $extraAmount = (float)($_POST['extra_amount'] ?? 0);
-                $extraDescription = Security::sanitize($_POST['extra_description'] ?? '');
-                $extraFractions = $_POST['extra_fractions'] ?? [];
-                
-                if ($extraAmount <= 0) {
-                    throw new \Exception('O valor da quota extra deve ser maior que zero.');
-                }
+            if ($feeMode === 'annual') {
+                // Annual fees generation
+                $annualType = $_POST['annual_type'] ?? 'budget'; // 'budget' or 'manual'
 
-                // Convert fraction IDs to array of integers
-                if (!is_array($extraFractions)) {
-                    $extraFractions = [];
+                if ($annualType === 'budget') {
+                    // Generate from approved budget
+                    $generated = $this->feeService->generateAnnualFeesFromBudget($condominiumId, $year);
+                    $_SESSION['success'] = count($generated) . ' quota(s) anual(is) gerada(s) automaticamente com base no orçamento para todos os 12 meses!';
                 } else {
-                    $extraFractions = array_filter(array_map('intval', $extraFractions));
+                    // Manual generation
+                    $usePermillage = isset($_POST['manual_use_permillage']) && $_POST['manual_use_permillage'] === '1';
+                    
+                    if ($usePermillage) {
+                        // Manual with permillage
+                        $totalAmount = (float)($_POST['total_amount'] ?? 0);
+                        if ($totalAmount <= 0) {
+                            throw new \Exception('O valor total da quota anual deve ser maior que zero.');
+                        }
+                        $generated = $this->feeService->generateAnnualFeesManual($condominiumId, $year, $totalAmount);
+                        $_SESSION['success'] = count($generated) . ' quota(s) anual(is) gerada(s) manualmente com permilagem para todos os 12 meses!';
+                    } else {
+                        // Manual without permillage - values per fraction
+                        $fractionAmounts = $_POST['fraction_amounts'] ?? [];
+                        if (empty($fractionAmounts)) {
+                            throw new \Exception('Deve fornecer valores para pelo menos uma fração.');
+                        }
+                        
+                        // Convert to proper format: fraction_id => annual_amount
+                        $amounts = [];
+                        foreach ($fractionAmounts as $fractionId => $amount) {
+                            $fractionId = (int)$fractionId;
+                            $amount = (float)$amount;
+                            if ($amount > 0) {
+                                $amounts[$fractionId] = $amount;
+                            }
+                        }
+                        
+                        if (empty($amounts)) {
+                            throw new \Exception('Deve fornecer valores válidos para pelo menos uma fração.');
+                        }
+                        
+                        $generated = $this->feeService->generateAnnualFeesManualPerFraction($condominiumId, $year, $amounts);
+                        $_SESSION['success'] = count($generated) . ' quota(s) anual(is) gerada(s) manualmente para todos os 12 meses!';
+                    }
+                }
+            } else {
+                // Extra fees generation
+                $extraUsePermillage = isset($_POST['extra_use_permillage']) && $_POST['extra_use_permillage'] === '1';
+                
+                // Get months array
+                $months = $_POST['months'] ?? [];
+                if (!is_array($months)) {
+                    $month = (int)($_POST['month'] ?? date('m'));
+                    $months = [$month];
+                } else {
+                    $months = array_filter(array_map('intval', $months), function($m) {
+                        return $m >= 1 && $m <= 12;
+                    });
                 }
 
-                $generated = $this->feeService->generateExtraFees(
-                    $condominiumId,
-                    $year,
-                    $months,
-                    $extraAmount,
-                    $extraDescription,
-                    $extraFractions
-                );
-                
-                $monthCount = count($months);
-                $fractionCount = empty($extraFractions) ? 'todas as frações' : count($extraFractions) . ' fração(ões)';
-                $_SESSION['success'] = count($generated) . ' quota(s) extra(s) gerada(s) com sucesso para ' . $monthCount . ' mês(es) e ' . $fractionCount . '!';
-            } else {
-                // Generate regular fees
-                $generated = $this->feeService->generateMonthlyFees($condominiumId, $year, $months);
-                
-                $monthCount = count($months);
-                $_SESSION['success'] = count($generated) . ' quota(s) gerada(s) com sucesso para ' . $monthCount . ' mês(es)!';
+                if (empty($months)) {
+                    throw new \Exception('Selecione pelo menos um mês para gerar as quotas extras.');
+                }
+
+                $extraDescription = Security::sanitize($_POST['extra_description'] ?? '');
+
+                if ($extraUsePermillage) {
+                    // Extra with permillage
+                    $totalAmount = (float)($_POST['extra_total_amount'] ?? 0);
+                    if ($totalAmount <= 0) {
+                        throw new \Exception('O valor total da quota extra deve ser maior que zero.');
+                    }
+                    $generated = $this->feeService->generateExtraFeesWithPermillage(
+                        $condominiumId,
+                        $year,
+                        $months,
+                        $totalAmount,
+                        $extraDescription
+                    );
+                    $monthCount = count($months);
+                    $_SESSION['success'] = count($generated) . ' quota(s) extra(s) gerada(s) com permilagem para ' . $monthCount . ' mês(es)!';
+                } else {
+                    // Extra manual - values per fraction
+                    $fractionAmounts = $_POST['extra_fraction_amounts'] ?? [];
+                    if (empty($fractionAmounts)) {
+                        throw new \Exception('Deve fornecer valores para pelo menos uma fração.');
+                    }
+                    
+                    // Convert to proper format: fraction_id => annual_amount
+                    $amounts = [];
+                    foreach ($fractionAmounts as $fractionId => $amount) {
+                        $fractionId = (int)$fractionId;
+                        $amount = (float)$amount;
+                        if ($amount > 0) {
+                            $amounts[$fractionId] = $amount;
+                        }
+                    }
+                    
+                    if (empty($amounts)) {
+                        throw new \Exception('Deve fornecer valores válidos para pelo menos uma fração.');
+                    }
+                    
+                    $generated = $this->feeService->generateExtraFeesManual(
+                        $condominiumId,
+                        $year,
+                        $months,
+                        $amounts,
+                        $extraDescription
+                    );
+                    $monthCount = count($months);
+                    $_SESSION['success'] = count($generated) . ' quota(s) extra(s) gerada(s) manualmente para ' . $monthCount . ' mês(es)!';
+                }
             }
             
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
@@ -691,6 +748,64 @@ class FinanceController extends Controller
             }
             
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            exit;
+        }
+    }
+
+    /**
+     * Check budget status for AJAX requests
+     */
+    public function checkBudgetStatus(int $condominiumId, int $year)
+    {
+        header('Content-Type: application/json');
+        
+        // Check authentication
+        if (!AuthMiddleware::user()) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Não autenticado']);
+            exit;
+        }
+        
+        // Check condominium access
+        if (!RoleMiddleware::canAccessCondominium($condominiumId)) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Não tem permissão para aceder a este condomínio.']);
+            exit;
+        }
+
+        try {
+            $budget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $year);
+            
+            if (!$budget) {
+                echo json_encode([
+                    'exists' => false,
+                    'approved' => false,
+                    'annual_fees_generated' => false,
+                    'status' => null,
+                    'message' => 'Orçamento não encontrado para este ano.'
+                ]);
+                exit;
+            }
+
+            $isApproved = in_array($budget['status'], ['approved', 'active']);
+            $annualFeesGenerated = $this->budgetModel->hasAnnualFeesGenerated($budget['id']);
+
+            echo json_encode([
+                'exists' => true,
+                'approved' => $isApproved,
+                'annual_fees_generated' => $annualFeesGenerated,
+                'status' => $budget['status'],
+                'budget_id' => $budget['id'],
+                'message' => $annualFeesGenerated 
+                    ? 'As quotas anuais já foram geradas automaticamente para este ano.' 
+                    : ($isApproved 
+                        ? 'Orçamento aprovado. Pode gerar quotas automaticamente.' 
+                        : 'Orçamento não está aprovado. Status: ' . $budget['status'])
+            ]);
+            exit;
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Erro ao verificar orçamento: ' . $e->getMessage()]);
             exit;
         }
     }
@@ -945,13 +1060,14 @@ class FinanceController extends Controller
 
         // Separate regular and extra fees
         $regularFee = null;
-        $extraFee = null;
+        $extraFees = []; // Array to hold all extra fees
+        
         foreach ($allFees as $f) {
             $feeType = $f['fee_type'] ?? 'regular';
             if ($feeType === 'regular' || ($feeType === null && !$regularFee)) {
                 $regularFee = $f;
             } elseif ($feeType === 'extra') {
-                $extraFee = $f;
+                $extraFees[] = $f;
             }
         }
 
@@ -992,11 +1108,35 @@ class FinanceController extends Controller
 
         // Calculate amounts
         $regularAmount = $regularFee ? (float)$regularFee['amount'] : 0;
-        $extraAmount = $extraFee ? (float)$extraFee['amount'] : 0;
+        $extraAmount = 0;
+        $extraFeesData = [];
+        
+        // Calculate paid amount per extra fee
+        foreach ($extraFees as $extraFee) {
+            $extraFeePaid = 0;
+            $extraFeePayments = $this->feePaymentModel->getByFee($extraFee['id']);
+            foreach ($extraFeePayments as $payment) {
+                $extraFeePaid += (float)$payment['amount'];
+            }
+            
+            $extraFeeAmount = (float)$extraFee['amount'];
+            $extraAmount += $extraFeeAmount;
+            
+            $extraFeesData[] = [
+                'id' => $extraFee['id'],
+                'amount' => $extraFeeAmount,
+                'paid_amount' => $extraFeePaid,
+                'pending_amount' => $extraFeeAmount - $extraFeePaid,
+                'due_date' => $extraFee['due_date'] ?? null,
+                'reference' => $extraFee['reference'] ?? null,
+                'notes' => $extraFee['notes'] ?? null,
+                'description' => $extraFee['notes'] ?? 'Quota Extra'
+            ];
+        }
+        
         $totalAmount = $regularAmount + $extraAmount;
         $pendingAmount = $totalAmount - $totalPaid;
         $regularPending = $regularAmount - $regularPaid;
-        $extraPending = $extraAmount - $extraPaid;
 
         // Get receipts (for all fees)
         $receiptModel = new \App\Models\Receipt();
@@ -1037,16 +1177,9 @@ class FinanceController extends Controller
                 'due_date' => $regularFee['due_date'] ?? null,
                 'reference' => $regularFee['reference'] ?? null
             ] : null,
-            'extra_fee' => $extraFee ? [
-                'id' => $extraFee['id'],
-                'amount' => $extraAmount,
-                'paid_amount' => $extraPaid,
-                'pending_amount' => $extraPending,
-                'due_date' => $extraFee['due_date'] ?? null,
-                'reference' => $extraFee['reference'] ?? null,
-                'notes' => $extraFee['notes'] ?? null,
-                'description' => $extraFee['notes'] ?? 'Quota Extra'
-            ] : null
+            'extra_fees' => $extraFeesData, // Array of all extra fees
+            // Keep extra_fee for backward compatibility (first extra fee if exists)
+            'extra_fee' => !empty($extraFeesData) ? $extraFeesData[0] : null
         ]);
         exit;
     }
@@ -2777,13 +2910,28 @@ class FinanceController extends Controller
         RoleMiddleware::requireCondominiumAccess($condominiumId);
         RoleMiddleware::requireAdminInCondominium($condominiumId);
 
+        // Check if this is an AJAX request
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                http_response_code(405);
+                echo json_encode(['error' => 'Método não permitido']);
+                exit;
+            }
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
             exit;
         }
 
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                http_response_code(403);
+                echo json_encode(['error' => 'Token de segurança inválido.']);
+                exit;
+            }
             $_SESSION['error'] = 'Token de segurança inválido.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
             exit;
@@ -2791,6 +2939,12 @@ class FinanceController extends Controller
 
         $fee = $this->feeModel->findById($feeId);
         if (!$fee || $fee['condominium_id'] != $condominiumId) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                http_response_code(404);
+                echo json_encode(['error' => 'Quota não encontrada.']);
+                exit;
+            }
             $_SESSION['error'] = 'Quota não encontrada.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
             exit;
@@ -2798,6 +2952,12 @@ class FinanceController extends Controller
 
         // Only allow deleting extra fees
         if (($fee['fee_type'] ?? 'regular') !== 'extra') {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                http_response_code(400);
+                echo json_encode(['error' => 'Apenas quotas extras podem ser eliminadas.']);
+                exit;
+            }
             $_SESSION['error'] = 'Apenas quotas extras podem ser eliminadas.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
             exit;
@@ -2806,6 +2966,12 @@ class FinanceController extends Controller
         // Check if fee has payments
         $totalPaid = $this->feePaymentModel->getTotalPaid($feeId);
         if ($totalPaid > 0) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                http_response_code(400);
+                echo json_encode(['error' => 'Não é possível eliminar uma quota que já possui pagamentos registados.']);
+                exit;
+            }
             $_SESSION['error'] = 'Não é possível eliminar uma quota que já possui pagamentos registados.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
             exit;
@@ -2815,6 +2981,17 @@ class FinanceController extends Controller
         global $db;
         $stmt = $db->prepare("DELETE FROM fees WHERE id = :id");
         $success = $stmt->execute([':id' => $feeId]);
+
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            if ($success) {
+                echo json_encode(['success' => true, 'message' => 'Quota extra eliminada com sucesso!']);
+            } else {
+                http_response_code(500);
+                echo json_encode(['error' => 'Erro ao eliminar a quota extra.']);
+            }
+            exit;
+        }
 
         if ($success) {
             $_SESSION['success'] = 'Quota extra eliminada com sucesso!';
