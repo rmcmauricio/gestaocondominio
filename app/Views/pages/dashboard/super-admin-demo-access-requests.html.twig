@@ -67,15 +67,45 @@
                 <div class="card-header bg-primary text-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="bi bi-list-ul"></i> Lista de Solicitações</h5>
-                        <span class="badge bg-light text-dark">{{ requests|length }} total</span>
+                        <div class="d-flex align-items-center gap-3">
+                            {% if pagination %}
+                            <div class="d-flex align-items-center">
+                                <label for="per_page_select" class="text-white me-2 mb-0" style="font-size: 0.875rem;">Por página:</label>
+                                <select id="per_page_select" class="form-select form-select-sm" style="width: auto;" onchange="changePerPage(this.value)">
+                                    <option value="25" {% if pagination.per_page == 25 %}selected{% endif %}>25</option>
+                                    <option value="50" {% if pagination.per_page == 50 %}selected{% endif %}>50</option>
+                                    <option value="100" {% if pagination.per_page == 100 %}selected{% endif %}>100</option>
+                                    <option value="200" {% if pagination.per_page == 200 %}selected{% endif %}>200</option>
+                                </select>
+                            </div>
+                            {% endif %}
+                            <span class="badge bg-light text-dark">{{ pagination.total_count|default(requests|length) }} total</span>
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">
                     {% if requests and requests|length > 0 %}
+                    <form id="bulkDeleteForm" method="POST" action="{{ BASE_URL }}admin/demo-access-requests/delete">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="bulk_delete" value="1">
+                        
+                        <div class="mb-3 d-flex justify-content-between align-items-center">
+                            <div>
+                                <button type="button" class="btn btn-sm btn-outline-danger" id="bulkDeleteBtn" disabled onclick="confirmBulkDelete()">
+                                    <i class="bi bi-trash"></i> Eliminar Selecionados (Expirados)
+                                </button>
+                                <span class="ms-2 text-muted small" id="selectedCount">0 selecionados</span>
+                            </div>
+                        </div>
+                    </form>
+                    
                     <div class="table-responsive">
                         <table class="table table-hover">
                             <thead>
                                 <tr>
+                                    <th style="width: 50px;">
+                                        <input type="checkbox" id="selectAll" title="Selecionar todos">
+                                    </th>
                                     <th>Email</th>
                                     <th>Data de Solicitação</th>
                                     <th>Expira em</th>
@@ -83,11 +113,25 @@
                                     <th>Newsletter</th>
                                     <th>IP</th>
                                     <th>Token</th>
+                                    <th style="width: 100px;">Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for request in requests %}
-                                <tr>
+                                {% set expires = request.expires_at ? request.expires_at|date('U') : null %}
+                                {% set now = 'now'|date('U') %}
+                                {% set isExpired = expires and expires < now %}
+                                {% set canDelete = isExpired and not request.wants_newsletter %}
+                                <tr data-request-id="{{ request.id }}" data-can-delete="{{ canDelete ? '1' : '0' }}" data-is-expired="{{ isExpired ? '1' : '0' }}" data-has-newsletter="{{ request.wants_newsletter ? '1' : '0' }}">
+                                    <td>
+                                        {% if canDelete %}
+                                        <input type="checkbox" class="request-checkbox" name="selected_ids[]" value="{{ request.id }}" onchange="updateBulkDeleteButton()">
+                                        {% else %}
+                                        <span class="text-muted" title="{% if request.wants_newsletter %}Subscrito à newsletter{% elseif not isExpired %}Ainda não expirado{% endif %}">
+                                            <i class="bi bi-lock"></i>
+                                        </span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         <strong>{{ request.email }}</strong>
                                     </td>
@@ -162,11 +206,115 @@
                                             <i class="bi bi-clipboard"></i>
                                         </button>
                                     </td>
+                                    <td>
+                                        {% if canDelete %}
+                                        <form method="POST" action="{{ BASE_URL }}admin/demo-access-requests/delete" style="display: inline;" onsubmit="return confirm('Tem a certeza que deseja eliminar este token expirado?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <input type="hidden" name="delete_id" value="{{ request.id }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar token expirado">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% else %}
+                                        <span class="text-muted small" title="{% if request.wants_newsletter %}Protegido (subscrito à newsletter){% elseif not isExpired %}Ainda não expirado{% endif %}">
+                                            <i class="bi bi-shield-lock"></i>
+                                        </span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
+
+                    {% if pagination and pagination.total_pages > 1 %}
+                    <!-- Pagination -->
+                    <nav aria-label="Paginação" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% set baseParams = [] %}
+                            {% if pagination.per_page %}{% set baseParams = baseParams|merge(['per_page=' ~ pagination.per_page]) %}{% endif %}
+                            {% set baseQuery = baseParams|join('&') %}
+                            
+                            <!-- Previous Button -->
+                            {% if pagination.current_page > 1 %}
+                                {% set prevPage = pagination.current_page - 1 %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ prevPage }}{% if baseQuery %}&{{ baseQuery }}{% endif %}" aria-label="Anterior">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link" aria-label="Anterior">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </span>
+                                </li>
+                            {% endif %}
+                            
+                            <!-- Page Numbers -->
+                            {% set startPage = max(1, pagination.current_page - 2) %}
+                            {% set endPage = min(pagination.total_pages, pagination.current_page + 2) %}
+                            
+                            {% if startPage > 1 %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1{% if baseQuery %}&{{ baseQuery }}{% endif %}">1</a>
+                                </li>
+                                {% if startPage > 2 %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">...</span>
+                                    </li>
+                                {% endif %}
+                            {% endif %}
+                            
+                            {% for i in startPage..endPage %}
+                                <li class="page-item {% if i == pagination.current_page %}active{% endif %}">
+                                    <a class="page-link" href="?page={{ i }}{% if baseQuery %}&{{ baseQuery }}{% endif %}">
+                                        {{ i }}
+                                    </a>
+                                </li>
+                            {% endfor %}
+                            
+                            {% if endPage < pagination.total_pages %}
+                                {% if endPage < pagination.total_pages - 1 %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">...</span>
+                                    </li>
+                                {% endif %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ pagination.total_pages }}{% if baseQuery %}&{{ baseQuery }}{% endif %}">
+                                        {{ pagination.total_pages }}
+                                    </a>
+                                </li>
+                            {% endif %}
+                            
+                            <!-- Next Button -->
+                            {% if pagination.current_page < pagination.total_pages %}
+                                {% set nextPage = pagination.current_page + 1 %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ nextPage }}{% if baseQuery %}&{{ baseQuery }}{% endif %}" aria-label="Próximo">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link" aria-label="Próximo">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                        
+                        <!-- Pagination Info -->
+                        <div class="text-center mt-2">
+                            <small class="text-muted">
+                                {% set startRecord = (pagination.current_page - 1) * pagination.per_page + 1 %}
+                                {% set endRecord = min(pagination.current_page * pagination.per_page, pagination.total_count) %}
+                                Mostrando {{ startRecord }} a {{ endRecord }} de {{ pagination.total_count }} registos
+                                (Página {{ pagination.current_page }} de {{ pagination.total_pages }})
+                            </small>
+                        </div>
+                    </nav>
+                    {% endif %}
                     {% else %}
                     <div class="text-center py-5">
                         <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
@@ -215,4 +363,60 @@ function copyToClipboard(text) {
         alert('Erro ao copiar token');
     });
 }
+
+function changePerPage(value) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('per_page', value);
+    url.searchParams.set('page', '1'); // Reset to first page when changing per_page
+    window.location.href = url.toString();
+}
+
+// Bulk delete functionality
+function updateBulkDeleteButton() {
+    const checkboxes = document.querySelectorAll('.request-checkbox:checked');
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    const count = checkboxes.length;
+    bulkDeleteBtn.disabled = count === 0;
+    selectedCount.textContent = count > 0 ? `${count} selecionado${count > 1 ? 's' : ''}` : '0 selecionados';
+}
+
+function confirmBulkDelete() {
+    const checkboxes = document.querySelectorAll('.request-checkbox:checked');
+    if (checkboxes.length === 0) {
+        alert('Por favor, selecione pelo menos um token para eliminar.');
+        return;
+    }
+    
+    const count = checkboxes.length;
+    if (confirm(`Tem a certeza que deseja eliminar ${count} token${count > 1 ? 's' : ''} expirado${count > 1 ? 's' : ''}?\n\nNota: Tokens de utilizadores subscritos à newsletter serão mantidos automaticamente.`)) {
+        document.getElementById('bulkDeleteForm').submit();
+    }
+}
+
+// Select all functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllCheckbox = document.getElementById('selectAll');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.request-checkbox');
+            checkboxes.forEach(checkbox => {
+                if (this.checked) {
+                    // Only check deletable items
+                    const row = checkbox.closest('tr');
+                    if (row && row.dataset.canDelete === '1') {
+                        checkbox.checked = true;
+                    }
+                } else {
+                    checkbox.checked = false;
+                }
+            });
+            updateBulkDeleteButton();
+        });
+    }
+    
+    // Update button state on page load
+    updateBulkDeleteButton();
+});
 </script>
