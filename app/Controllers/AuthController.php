@@ -829,7 +829,8 @@ class AuthController extends Controller
                 'role' => 'condomino',
                 'phone' => $phone ?: null,
                 'nif' => $nif ?: null,
-                'status' => 'active'
+                'status' => 'active',
+                'is_pioneer' => $hasValidToken // Mark as pioneer if registered with token
             ]);
 
             // Mark registration token as used if present
@@ -1269,6 +1270,13 @@ class AuthController extends Controller
             exit;
         }
 
+        // If coming from registration page with token, ensure token is preserved
+        // Token should already be in session from register() method, but we ensure it's there
+        if ($source === 'register' && isset($_SESSION['registration_token'])) {
+            // Token is already in session, just ensure it's preserved
+            // No action needed, session will persist through Google OAuth redirect
+        }
+
         try {
             $oauthService = new GoogleOAuthService();
             $authUrl = $oauthService->getAuthUrl();
@@ -1396,15 +1404,58 @@ class AuthController extends Controller
             }
 
             // User doesn't exist - check if registration is allowed
+            // Check for registration token in session (pioneers ignore DISABLE_REGISTRATION flag)
+            $registrationToken = $_SESSION['registration_token'] ?? null;
+            $hasValidToken = false;
+            $tokenEmail = null;
+            
+            if ($registrationToken) {
+                // Validate token
+                $registrationTokenModel = new \App\Models\RegistrationToken();
+                $tokenData = $registrationTokenModel->findByToken($registrationToken);
+                
+                if ($tokenData) {
+                    $hasValidToken = true;
+                    $tokenEmail = $tokenData['email'];
+                    // Verify email matches token email (pioneers must use the email from the token)
+                    if (strtolower($email) !== strtolower($tokenEmail)) {
+                        // Email doesn't match token - don't allow registration
+                        $_SESSION['login_error'] = 'O email do Google (' . htmlspecialchars($email) . ') não corresponde ao email do convite (' . htmlspecialchars($tokenEmail) . '). Por favor, use o email do convite.';
+                        header('Location: ' . BASE_URL . 'login');
+                        exit;
+                    }
+                }
+            }
+            
+            // Check if registration is allowed
+            // If DISABLE_REGISTRATION is true, only allow if we have a valid token (pioneer)
+            // If DISABLE_REGISTRATION is false, allow if source is 'register'
+            $canRegister = false;
             if (defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION) {
-                // Registration is blocked - don't allow new user creation
+                // Registration disabled - only allow with valid token
+                $canRegister = $hasValidToken;
+            } else {
+                // Registration enabled - allow if source is 'register'
+                $canRegister = ($source === 'register');
+            }
+            
+            if (!$canRegister) {
+                // Registration is blocked
                 $_SESSION['login_error'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
                 header('Location: ' . BASE_URL . 'login');
                 exit;
             }
             
             // Registration is allowed - proceed with account creation
-            if ($source === 'register') {
+            // If we have a valid token, preserve it in the Google OAuth pending data
+            if ($hasValidToken && $registrationToken) {
+                $_SESSION['registration_token'] = $registrationToken;
+                if ($tokenEmail) {
+                    $_SESSION['registration_token_email'] = $tokenEmail;
+                }
+            }
+            
+            if ($source === 'register' || $hasValidToken) {
                 // Store Google OAuth data in session for account creation
                 $_SESSION['google_oauth_pending'] = [
                     'email' => $email,
@@ -1436,8 +1487,21 @@ class AuthController extends Controller
      */
     public function selectAccountType()
     {
-        // Check if registration is disabled (registration via Google OAuth is considered direct registration)
-        if (defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION) {
+        // Check if registration is disabled (unless we have a valid token - pioneers ignore this flag)
+        $registrationToken = $_SESSION['registration_token'] ?? null;
+        $hasValidToken = false;
+        
+        if ($registrationToken) {
+            // Validate token
+            $registrationTokenModel = new \App\Models\RegistrationToken();
+            $tokenData = $registrationTokenModel->findByToken($registrationToken);
+            
+            if ($tokenData) {
+                $hasValidToken = true;
+            }
+        }
+        
+        if ((defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION) && !$hasValidToken) {
             $_SESSION['info'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
             header('Location: ' . BASE_URL);
             exit;
@@ -1478,8 +1542,21 @@ class AuthController extends Controller
      */
     public function processAccountType()
     {
-        // Check if registration is disabled (registration via Google OAuth is considered direct registration)
-        if (defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION) {
+        // Check if registration is disabled (unless we have a valid token - pioneers ignore this flag)
+        $registrationToken = $_SESSION['registration_token'] ?? null;
+        $hasValidToken = false;
+        
+        if ($registrationToken) {
+            // Validate token
+            $registrationTokenModel = new \App\Models\RegistrationToken();
+            $tokenData = $registrationTokenModel->findByToken($registrationToken);
+            
+            if ($tokenData) {
+                $hasValidToken = true;
+            }
+        }
+        
+        if ((defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION) && !$hasValidToken) {
             http_response_code(403);
             $_SESSION['error'] = 'O registo está temporariamente desativado. Por favor, utilize a demonstração para explorar o sistema.';
             header('Location: ' . BASE_URL);
@@ -1519,6 +1596,17 @@ class AuthController extends Controller
         // If user (condomino), create account directly
         if ($accountType === 'user') {
             try {
+                // Check for registration token (pioneer)
+                $registrationToken = $_SESSION['registration_token'] ?? null;
+                $hasValidToken = false;
+                if ($registrationToken) {
+                    $registrationTokenModel = new \App\Models\RegistrationToken();
+                    $tokenData = $registrationTokenModel->findByToken($registrationToken);
+                    if ($tokenData) {
+                        $hasValidToken = true;
+                    }
+                }
+                
                 // Get verified_email from Google OAuth data if available
                 $userData = [
                     'email' => $googleData['email'],
@@ -1526,7 +1614,8 @@ class AuthController extends Controller
                     'role' => 'condomino',
                     'status' => 'active',
                     'google_id' => $googleData['google_id'],
-                    'auth_provider' => $googleData['auth_provider']
+                    'auth_provider' => $googleData['auth_provider'],
+                    'is_pioneer' => $hasValidToken // Mark as pioneer if registered with token
                 ];
                 
                 // If email is verified by Google, set email_verified_at
@@ -1536,8 +1625,18 @@ class AuthController extends Controller
                 
                 $userId = $this->userModel->create($userData);
 
+                // Mark registration token as used if present (pioneer registration)
+                if ($hasValidToken && $registrationToken) {
+                    $registrationTokenModel = new \App\Models\RegistrationToken();
+                    $tokenData = $registrationTokenModel->findByToken($registrationToken);
+                    if ($tokenData) {
+                        $registrationTokenModel->markAsUsed($registrationToken);
+                        unset($_SESSION['registration_token'], $_SESSION['registration_token_email']);
+                    }
+                }
+
                 // Log audit
-                $this->logAudit($userId, 'register', 'User registered via Google OAuth');
+                $this->logAudit($userId, 'register', 'User registered via Google OAuth' . ($registrationToken ? ' via registration invite' : ''));
 
                 // Auto login
                 $user = $this->userModel->findById($userId);
@@ -1666,6 +1765,7 @@ class AuthController extends Controller
             'plans' => $plans,
             'plan_promotions' => $planPromotions,
             'error' => $_SESSION['register_error'] ?? null,
+            'is_pioneer' => $hasValidToken, // Flag to indicate pioneer user
             'csrf_token' => Security::generateCSRFToken()
         ];
         
@@ -1754,12 +1854,24 @@ class AuthController extends Controller
         }
 
         try {
+            // Check for registration token (pioneer)
+            $registrationToken = $_SESSION['registration_token'] ?? null;
+            $hasValidToken = false;
+            if ($registrationToken) {
+                $registrationTokenModel = new \App\Models\RegistrationToken();
+                $tokenData = $registrationTokenModel->findByToken($registrationToken);
+                if ($tokenData && $tokenData['email'] === $pendingData['email']) {
+                    $hasValidToken = true;
+                }
+            }
+            
             // Create user account
             $userData = [
                 'email' => $pendingData['email'],
                 'name' => $pendingData['name'],
                 'role' => 'admin',
-                'status' => 'active'
+                'status' => 'active',
+                'is_pioneer' => $hasValidToken // Mark as pioneer if registered with token
             ];
 
             if ($isGoogleOAuth) {
@@ -1782,11 +1894,10 @@ class AuthController extends Controller
             $userId = $this->userModel->create($userData);
 
             // Mark registration token as used if present
-            $registrationToken = $_SESSION['registration_token'] ?? null;
-            if ($registrationToken) {
+            if ($hasValidToken && $registrationToken) {
                 $registrationTokenModel = new \App\Models\RegistrationToken();
                 $tokenData = $registrationTokenModel->findByToken($registrationToken);
-                if ($tokenData && $tokenData['email'] === $pendingData['email']) {
+                if ($tokenData) {
                     $registrationTokenModel->markAsUsed($registrationToken);
                     // Clear token from session
                     unset($_SESSION['registration_token'], $_SESSION['registration_token_email']);

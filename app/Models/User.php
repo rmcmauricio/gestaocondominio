@@ -152,6 +152,12 @@ class User extends Model
             $params[':email_verified_at'] = $data['email_verified_at'];
         }
 
+        if (isset($data['is_pioneer'])) {
+            $fields[] = 'is_pioneer';
+            $values[] = ':is_pioneer';
+            $params[':is_pioneer'] = $data['is_pioneer'] ? 1 : 0;
+        }
+
         $sql = "INSERT INTO users (" . implode(', ', $fields) . ") VALUES (" . implode(', ', $values) . ")";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
