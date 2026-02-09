@@ -16,6 +16,7 @@ use App\Models\Promotion;
 use App\Models\PlanExtraCondominiumsPricing;
 use App\Models\PlanPricingTier;
 use App\Models\EmailTemplate;
+use App\Models\AppSettings;
 use App\Services\AuditService;
 use App\Services\PaymentService;
 use App\Services\LogService;
@@ -4551,6 +4552,135 @@ class SuperAdminController extends Controller
      * Get and clear session messages
      * Helper method to ensure messages are only shown once
      */
+    /**
+     * Show pioneer settings page
+     */
+    public function pioneerSettings()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $appSettings = new AppSettings();
+        $currentDate = $appSettings->getPioneerTrialEndDate();
+        $pioneersCount = $appSettings->countPioneersWithActiveTrials();
+
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+
+        $this->loadPageTranslations('dashboard');
+
+        $this->data += [
+            'viewName' => 'pages/admin/pioneer-settings.html.twig',
+            'page' => ['titulo' => 'Configurações de Pioneiros'],
+            'current_date' => $currentDate,
+            'pioneers_count' => $pioneersCount,
+            'error' => $messages['error'],
+            'success' => $messages['success'],
+            'info' => $messages['info'],
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Update pioneer settings
+     */
+    public function updatePioneerSettings()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        // Validate CSRF token
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/pioneer-settings');
+            exit;
+        }
+
+        $date = Security::sanitize($_POST['pioneer_trial_end_date'] ?? '');
+        
+        // Validate date format
+        if (!empty($date)) {
+            $dateObj = \DateTime::createFromFormat('Y-m-d', $date);
+            if (!$dateObj || $dateObj->format('Y-m-d') !== $date) {
+                $_SESSION['error'] = 'Formato de data inválido.';
+                header('Location: ' . BASE_URL . 'admin/pioneer-settings');
+                exit;
+            }
+
+            // Validate date is in the future
+            $today = new \DateTime('today');
+            if ($dateObj < $today) {
+                $_SESSION['error'] = 'A data deve ser no futuro.';
+                header('Location: ' . BASE_URL . 'admin/pioneer-settings');
+                exit;
+            }
+        }
+
+        $appSettings = new AppSettings();
+        
+        // Save the date (can be null to clear the setting)
+        $description = 'Data de fim de trial para utilizadores pioneiros. Aplicada a todos os pioneiros, incluindo os já registados.';
+        $success = $appSettings->setPioneerTrialEndDate($date ?: null, $description);
+
+        if (!$success) {
+            $_SESSION['error'] = 'Erro ao salvar configuração.';
+            header('Location: ' . BASE_URL . 'admin/pioneer-settings');
+            exit;
+        }
+
+        // If date was set, update all existing pioneer trials
+        $updatedCount = 0;
+        if ($date) {
+            global $db;
+            if ($db) {
+                // Convert date to datetime format (end of day)
+                $trialEndsAt = $date . ' 23:59:59';
+                
+                // Update all pioneer trials
+                $sql = "
+                    UPDATE subscriptions s
+                    INNER JOIN users u ON s.user_id = u.id
+                    SET s.trial_ends_at = :trial_ends_at, s.updated_at = NOW()
+                    WHERE u.is_pioneer = 1 
+                      AND s.status = 'trial'
+                      AND s.trial_ends_at IS NOT NULL
+                ";
+                
+                $stmt = $db->prepare($sql);
+                $stmt->execute([':trial_ends_at' => $trialEndsAt]);
+                $updatedCount = $stmt->rowCount();
+
+                // Log audit
+                $this->logAudit([
+                    'action' => 'pioneer_trial_date_updated',
+                    'model' => 'app_settings',
+                    'description' => "Data de fim de trial para pioneiros atualizada para {$date}. {$updatedCount} trials atualizados."
+                ]);
+            }
+        } else {
+            // Date was cleared
+            $this->logAudit([
+                'action' => 'pioneer_trial_date_cleared',
+                'model' => 'app_settings',
+                'description' => 'Data de fim de trial para pioneiros removida. Novos trials usarão o padrão de 14 dias.'
+            ]);
+        }
+
+        if ($date) {
+            $_SESSION['success'] = "Data de fim de trial atualizada com sucesso para {$date}." . 
+                ($updatedCount > 0 ? " {$updatedCount} trial(s) de pioneiro(s) foram atualizado(s)." : '');
+        } else {
+            $_SESSION['success'] = 'Configuração removida com sucesso. Novos trials usarão o padrão de 14 dias.';
+        }
+
+        header('Location: ' . BASE_URL . 'admin/pioneer-settings');
+        exit;
+    }
+
     protected function getSessionMessages(): array
     {
         $error = $_SESSION['error'] ?? null;

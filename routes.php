@@ -538,6 +538,10 @@ $router->post('/admin/promotions/{id}', 'App\Controllers\SuperAdminController@up
 $router->post('/admin/promotions/{id}/toggle-active', 'App\Controllers\SuperAdminController@togglePromotionActive');
 $router->post('/admin/promotions/{id}/delete', 'App\Controllers\SuperAdminController@deletePromotion');
 
+// Configurações de Pioneiros
+$router->get('/admin/pioneer-settings', 'App\Controllers\SuperAdminController@pioneerSettings');
+$router->post('/admin/pioneer-settings/update', 'App\Controllers\SuperAdminController@updatePioneerSettings');
+
 // PHP Logs (super admin only)
 $router->get('/admin/php-logs', 'App\Controllers\SuperAdminController@phpLogs');
 $router->post('/admin/php-logs/clear', 'App\Controllers\SuperAdminController@clearPhpLog');

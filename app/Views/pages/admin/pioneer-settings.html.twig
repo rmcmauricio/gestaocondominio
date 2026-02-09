@@ -1,0 +1,136 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Configurações de Pioneiros</h2>
+            <p class="text-muted mb-0">Definir data de fim de trial para utilizadores pioneiros</p>
+        </div>
+        <a href="{{ BASE_URL }}admin/dashboard" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="alert alert-info alert-dismissible fade show mb-4" role="alert" style="border-left: 4px solid #0dcaf0;">
+        <div class="d-flex align-items-start">
+            <i class="bi bi-info-circle me-3 mt-1" style="font-size: 1.25rem;"></i>
+            <div class="flex-grow-1">
+                <strong>Informação Importante:</strong>
+                <p class="mb-0">Esta data será aplicada a <strong>TODOS</strong> os pioneiros, incluindo os já registados. Quando atualizar a data, todos os trials existentes de pioneiros serão atualizados automaticamente para a nova data configurada.</p>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-calendar-event"></i> Data de Fim de Trial</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ BASE_URL }}admin/pioneer-settings/update" id="pioneerSettingsForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-4">
+                            <label for="pioneer_trial_end_date" class="form-label">
+                                <strong>Data de Fim de Trial para Pioneiros</strong>
+                            </label>
+                            <input 
+                                type="date" 
+                                class="form-control form-control-lg" 
+                                id="pioneer_trial_end_date" 
+                                name="pioneer_trial_end_date" 
+                                value="{{ current_date|default('') }}"
+                                min="{{ "now"|date("Y-m-d") }}"
+                            >
+                            <small class="form-text text-muted">
+                                <i class="bi bi-info-circle"></i> 
+                                Defina uma data futura para o fim do trial. Deixe em branco para usar o padrão de 14 dias.
+                            </small>
+                        </div>
+
+                        {% if pioneers_count > 0 %}
+                        <div class="alert alert-warning mb-4">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-people-fill me-2" style="font-size: 1.25rem;"></i>
+                                <div>
+                                    <strong>{{ pioneers_count }}</strong> pioneiro(s) com trial(s) ativo(s) serão afetados por esta atualização.
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-secondary mb-4">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-info-circle me-2"></i>
+                                <div>
+                                    Não existem pioneiros com trials ativos no momento.
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                {% if current_date %}
+                                <small class="text-muted">
+                                    <i class="bi bi-calendar-check"></i> 
+                                    Data atual configurada: <strong>{{ current_date|date("d/m/Y") }}</strong>
+                                </small>
+                                {% else %}
+                                <small class="text-muted">
+                                    <i class="bi bi-calendar-x"></i> 
+                                    Nenhuma data configurada. Novos trials usarão o padrão de 14 dias.
+                                </small>
+                                {% endif %}
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-save"></i> Guardar Configuração
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-question-circle"></i> Como Funciona</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-3">
+                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                            <strong>Novos Trials:</strong> Quando um pioneiro cria uma nova subscrição, a data configurada será aplicada automaticamente.
+                        </li>
+                        <li class="mb-3">
+                            <i class="bi bi-arrow-repeat text-primary me-2"></i>
+                            <strong>Trials Existentes:</strong> Ao atualizar a data, todos os trials ativos de pioneiros serão atualizados automaticamente.
+                        </li>
+                        <li class="mb-3">
+                            <i class="bi bi-calendar-x text-warning me-2"></i>
+                            <strong>Sem Data:</strong> Se não houver data configurada, novos trials usarão o padrão de 14 dias.
+                        </li>
+                        <li>
+                            <i class="bi bi-shield-check text-info me-2"></i>
+                            <strong>Segurança:</strong> Apenas utilizadores com permissões de super administrador podem alterar esta configuração.
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

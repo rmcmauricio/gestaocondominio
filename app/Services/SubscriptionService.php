@@ -9,6 +9,7 @@ use App\Models\SubscriptionCondominium;
 use App\Models\Condominium;
 use App\Models\Fraction;
 use App\Models\User;
+use App\Models\AppSettings;
 use App\Services\AuditService;
 use App\Services\InvoiceService;
 use App\Services\LicenseService;
@@ -53,7 +54,28 @@ class SubscriptionService
         }
 
         $now = date('Y-m-d H:i:s');
-        $trialEndsAt = date('Y-m-d H:i:s', strtotime("+{$trialDays} days"));
+        
+        // Check if user is a pioneer and use configured trial end date if available
+        $userModel = new User();
+        $user = $userModel->findById($userId);
+        $isPioneer = isset($user['is_pioneer']) && $user['is_pioneer'] == 1;
+        
+        $trialEndsAt = null;
+        if ($isPioneer) {
+            $appSettings = new AppSettings();
+            $pioneerTrialEndDate = $appSettings->getPioneerTrialEndDate();
+            
+            if ($pioneerTrialEndDate) {
+                // Use configured date (end of day)
+                $trialEndsAt = $pioneerTrialEndDate . ' 23:59:59';
+            }
+        }
+        
+        // Fallback to default calculation if not pioneer or no date configured
+        if (!$trialEndsAt) {
+            $trialEndsAt = date('Y-m-d H:i:s', strtotime("+{$trialDays} days"));
+        }
+        
         $periodEnd = date('Y-m-d H:i:s', strtotime("+1 month"));
 
         // Handle promotion
@@ -699,6 +721,27 @@ class SubscriptionService
         $now = date('Y-m-d H:i:s');
         $periodEnd = date('Y-m-d H:i:s', strtotime("+1 month"));
 
+        // Check if user is a pioneer and use configured trial end date if available
+        $userModel = new User();
+        $user = $userModel->findById($userId);
+        $isPioneer = isset($user['is_pioneer']) && $user['is_pioneer'] == 1;
+        
+        $trialEndsAt = null;
+        if ($isPioneer) {
+            $appSettings = new AppSettings();
+            $pioneerTrialEndDate = $appSettings->getPioneerTrialEndDate();
+            
+            if ($pioneerTrialEndDate) {
+                // Use configured date (end of day)
+                $trialEndsAt = $pioneerTrialEndDate . ' 23:59:59';
+            }
+        }
+        
+        // Fallback to default calculation if not pioneer or no date configured
+        if (!$trialEndsAt) {
+            $trialEndsAt = date('Y-m-d H:i:s', strtotime("+14 days"));
+        }
+
         // Calculate initial license count
         $usedLicenses = 0;
         if ($condominiumId) {
@@ -752,7 +795,7 @@ class SubscriptionService
             'proration_mode' => 'none',
             'charge_minimum' => true,
             'status' => 'trial',
-            'trial_ends_at' => date('Y-m-d H:i:s', strtotime("+14 days")),
+            'trial_ends_at' => $trialEndsAt,
             'current_period_start' => $now,
             'current_period_end' => $periodEnd
         ];
