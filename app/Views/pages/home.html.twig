@@ -67,6 +67,172 @@
     </div>
 </section>
 
+{# Banner convidativo para user piloto quando registo está desativado #}
+{% if is_registration_disabled|default(false) %}
+<section class="pilot-invite-banner py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card border-0 shadow-lg" id="pilotSignupCard" style="background: linear-gradient(135deg, #e07920 0%, #c7650e 100%); border-radius: 1rem;">
+                    <div class="card-body p-4 p-md-5">
+                        {# Conteúdo inicial do card #}
+                        <div id="pilotSignupContent">
+                            <div class="row align-items-center">
+                                <div class="col-md-8 mb-3 mb-md-0">
+                                    <div class="d-flex align-items-start gap-3">
+                                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle" style="width: 60px; height: 60px; background: rgba(255, 255, 255, 0.2); flex-shrink: 0;">
+                                            <i class="bi bi-lightbulb text-white" style="font-size: 1.8rem;"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h3 class="mb-2 text-white" style="font-weight: 600;">
+                                                <i class="bi bi-star-fill text-warning me-2"></i>
+                                                Torne-se um Utilizador Piloto
+                                            </h3>
+                                            <p class="mb-2 text-white" style="font-size: 1.05rem;">
+                                                A nossa aplicação encontra-se ainda em fase de testes. Se tiver interesse em participar como utilizador piloto e ajudar-nos a melhorar o sistema, deixe-nos o seu email e entraremos em contacto em breve.
+                                            </p>
+                                            <p class="mb-3 text-white" style="font-size: 1.05rem;">
+                                                <strong style="color: #053463;">Ao participar na fase de testes, será um utilizador pioneiro beneficiando de descontos no lançamento.</strong>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <form id="pilotSignupFormHome" method="POST" action="{{ BASE_URL }}pilot/signup">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <input type="hidden" name="source" value="homepage">
+                                        <div class="mb-3">
+                                            <label for="pilot_email_home" class="form-label text-white d-flex align-items-center gap-2">
+                                                <i class="bi bi-envelope"></i>
+                                                <span>Email</span>
+                                            </label>
+                                            <input type="email" class="form-control form-control-lg" id="pilot_email_home" name="email" placeholder="seu@email.com" required>
+                                        </div>
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-light btn-lg d-flex align-items-center justify-content-center gap-2" style="border: none; padding: 0.75rem 2rem; font-weight: 600; color: #e07920;">
+                                                <i class="bi bi-send-fill"></i>
+                                                <span>Inscrever-me</span>
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {# Mensagem de sucesso (inicialmente oculta) #}
+                        <div id="pilotSignupSuccess" style="display: none;">
+                            <div class="text-center">
+                                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3 mx-auto" style="width: 80px; height: 80px; background: rgba(255, 255, 255, 0.2);">
+                                    <i class="bi bi-check-circle-fill text-white" style="font-size: 2.5rem;"></i>
+                                </div>
+                                <h3 class="mb-3 text-white" style="font-weight: 600;">
+                                    Obrigado pelo seu interesse!
+                                </h3>
+                                <p class="mb-2 text-white" style="font-size: 1.1rem;">
+                                    Receberá um convite para registo brevemente.
+                                </p>
+                                <p class="mb-0 text-white" style="font-size: 1.05rem;">
+                                    Verifique o seu email e aguarde o nosso contacto.
+                                </p>
+                            </div>
+                        </div>
+                        
+                        {# Mensagem de erro (inicialmente oculta) #}
+                        <div id="pilotSignupError" style="display: none;">
+                            <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                <div class="flex-grow-1" id="pilotSignupErrorMessage"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('pilotSignupFormHome');
+    const successDiv = document.getElementById('pilotSignupSuccess');
+    const errorDiv = document.getElementById('pilotSignupError');
+    const contentDiv = document.getElementById('pilotSignupContent');
+    const errorMessage = document.getElementById('pilotSignupErrorMessage');
+    
+    // Check for session messages on page load
+    {% if pilot_signup_success %}
+    if (contentDiv && successDiv) {
+        contentDiv.style.display = 'none';
+        successDiv.style.display = 'block';
+    }
+    {% endif %}
+    
+    {% if pilot_signup_error %}
+    if (errorDiv && errorMessage) {
+        errorMessage.textContent = '{{ pilot_signup_error }}';
+        errorDiv.style.display = 'block';
+    }
+    {% endif %}
+    
+    if (form) {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Hide error message if visible
+            errorDiv.style.display = 'none';
+            
+            // Get form data
+            const formData = new FormData(form);
+            
+            // Disable submit button
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>A processar...';
+            
+            try {
+                const response = await fetch('{{ BASE_URL }}pilot/signup', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                
+                // Check content type
+                const contentType = response.headers.get('content-type') || '';
+                
+                if (contentType.includes('application/json')) {
+                    // Parse JSON response
+                    const data = await response.json();
+                    if (data.success) {
+                        contentDiv.style.display = 'none';
+                        successDiv.style.display = 'block';
+                    } else {
+                        errorMessage.textContent = data.message || 'Erro ao processar inscrição. Por favor, tente novamente.';
+                        errorDiv.style.display = 'block';
+                    }
+                } else {
+                    // If not JSON (redirect response), assume success
+                    // This handles cases where the server redirects instead of returning JSON
+                    contentDiv.style.display = 'none';
+                    successDiv.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                errorMessage.textContent = 'Erro ao processar inscrição. Por favor, tente novamente.';
+                errorDiv.style.display = 'block';
+            } finally {
+                // Re-enable submit button
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        });
+    }
+});
+</script>
+{% endif %}
+
 <!-- Features Section -->
 <section id="funcionalidades" class="features-section">
     <div class="container">
@@ -903,84 +1069,3 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-
-{# Modal para fase de testes / users piloto #}
-{% if is_registration_disabled|default(false) %}
-<div class="modal fade" id="pilotSignupModal" tabindex="-1" aria-labelledby="pilotSignupModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header border-0 pb-2" style="background: linear-gradient(135deg, #e07920 0%, #c7650e 100%); color: white;">
-                <h5 class="modal-title d-flex align-items-center gap-2" id="pilotSignupModalLabel">
-                    <i class="bi bi-code-slash" style="font-size: 1.5rem;"></i>
-                    <span>Aplicação em Fase de Testes</span>
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body pt-4">
-                {% if pilot_signup_error %}
-                <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill"></i>
-                    <div class="flex-grow-1">{{ pilot_signup_error }}</div>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-                {% endif %}
-
-                {% if pilot_signup_success %}
-                <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
-                    <i class="bi bi-check-circle-fill"></i>
-                    <div class="flex-grow-1">{{ pilot_signup_success }}</div>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-                {% endif %}
-
-                <div class="text-center mb-4">
-                    <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3 mx-auto" style="width: 80px; height: 80px; background: linear-gradient(135deg, #e07920 0%, #c7650e 100%); box-shadow: 0 8px 25px rgba(224, 121, 32, 0.5);">
-                        <i class="bi bi-lightbulb text-white" style="font-size: 2.5rem;"></i>
-                    </div>
-                </div>
-                
-                <div class="mb-4">
-                    <p class="d-flex align-items-start gap-2 mb-3">
-                        <i class="bi bi-info-circle-fill text-primary mt-1" style="font-size: 1.2rem;"></i>
-                        <span>A nossa aplicação encontra-se ainda em fase de testes.</span>
-                    </p>
-                    <p class="d-flex align-items-start gap-2 mb-3">
-                        <i class="bi bi-envelope-heart-fill text-danger mt-1" style="font-size: 1.2rem;"></i>
-                        <span>Se tiver interesse em participar como utilizador piloto e ajudar-nos a melhorar o sistema, deixe-nos o seu email e entraremos em contacto em breve.</span>
-                    </p>
-                    <div class="alert alert-warning d-flex align-items-start gap-2 mb-0" role="alert">
-                        <i class="bi bi-star-fill text-warning mt-1" style="font-size: 1.2rem;"></i>
-                        <div>
-                            <strong>Ao participar na fase de testes, será um utilizador pioneiro beneficiando de descontos no lançamento.</strong>
-                        </div>
-                    </div>
-                </div>
-                
-                <form id="pilotSignupForm" method="POST" action="{{ BASE_URL }}pilot/signup">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <input type="hidden" name="source" value="homepage">
-                    <div class="mb-3">
-                        <label for="pilot_email" class="form-label d-flex align-items-center gap-2">
-                            <i class="bi bi-envelope"></i>
-                            <span>Email</span>
-                        </label>
-                        <input type="email" class="form-control form-control-lg" id="pilot_email" name="email" placeholder="seu@email.com" required>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary btn-lg d-flex align-items-center justify-content-center gap-2">
-                            <i class="bi bi-send-fill"></i>
-                            <span>Inscrever-me</span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer border-0 pt-2">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-lg me-1"></i>
-                    Fechar
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}

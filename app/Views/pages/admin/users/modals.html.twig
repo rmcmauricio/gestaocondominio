@@ -1,0 +1,314 @@
+<!-- Modal para Atribuir Super Admin -->
+<div class="modal fade" id="assignSuperAdminModal" tabindex="-1" aria-labelledby="assignSuperAdminModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="assignSuperAdminModalLabel">
+                    <i class="bi bi-shield-check"></i> Atribuir Cargo de Super Admin
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/assign-super-admin">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="assign_user_id">
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção!</strong>
+                        <p class="mb-0 mt-2">Tem a certeza que deseja atribuir o cargo de Super Admin ao utilizador:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Nome:</strong> <span id="assign_user_name"></span></p>
+                            <p class="mb-0"><strong>Email:</strong> <span id="assign_user_email"></span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> O utilizador terá acesso completo a todas as funcionalidades administrativas do sistema.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-shield-check"></i> Confirmar Atribuição
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Remover Super Admin -->
+<div class="modal fade" id="removeSuperAdminModal" tabindex="-1" aria-labelledby="removeSuperAdminModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="removeSuperAdminModalLabel">
+                    <i class="bi bi-person-x"></i> Remover Cargo de Super Admin
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/remove-super-admin">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="remove_user_id">
+                    
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção!</strong>
+                        <p class="mb-0 mt-2">Tem a certeza que deseja remover o cargo de Super Admin do utilizador:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Nome:</strong> <span id="remove_user_name"></span></p>
+                            <p class="mb-0"><strong>Email:</strong> <span id="remove_user_email"></span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="new_role" class="form-label">Atribuir novo role:</label>
+                        <select class="form-select" id="new_role" name="new_role" required>
+                            <option value="admin">Admin</option>
+                            <option value="user">User</option>
+                            <option value="condomino">Condomino</option>
+                        </select>
+                        <small class="form-text text-muted">Escolha o novo role que o utilizador terá após remover o cargo de Super Admin.</small>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-shield-check"></i> <strong>Nota de Segurança:</strong>
+                        <p class="mb-0 mt-2">Não é possível remover o seu próprio cargo de Super Admin. Esta proteção garante que sempre exista pelo menos um Super Admin no sistema.</p>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> O utilizador perderá acesso a todas as funcionalidades administrativas do sistema.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-person-x"></i> Confirmar Remoção
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Apagar Admin Trial -->
+<div class="modal fade" id="deleteTrialAdminModal" tabindex="-1" aria-labelledby="deleteTrialAdminModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteTrialAdminModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Apagar Admin Trial
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/delete-trial-admin">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="delete_trial_user_id">
+                    
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção!</strong>
+                        <p class="mb-0 mt-2">Esta ação irá <strong>remover permanentemente</strong>:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Utilizador:</strong> <span id="delete_trial_user_name"></span></p>
+                            <p class="mb-1"><strong>Email:</strong> <span id="delete_trial_user_email"></span></p>
+                            <p class="mb-0"><strong>Condomínios a remover:</strong> <span id="delete_trial_condominium_count" class="badge bg-danger">0</span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> <strong>Será removido:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Todos os condomínios criados pelo utilizador</li>
+                            <li>Todos os dados relacionados (frações, quotas, documentos, etc.)</li>
+                            <li>Todas as subscrições do utilizador</li>
+                            <li>O próprio utilizador</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_trial" required>
+                        <label class="form-check-label" for="confirm_delete_trial">
+                            Confirmo que desejo apagar permanentemente este utilizador e todos os seus dados
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger" id="submit_delete_trial" disabled>
+                        <i class="bi bi-trash"></i> Confirmar Remoção
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Apagar User Sem Plano Ativo -->
+<div class="modal fade" id="deleteUserNoActivePlanModal" tabindex="-1" aria-labelledby="deleteUserNoActivePlanModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteUserNoActivePlanModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Apagar Utilizador Sem Plano Ativo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/delete-user-no-active-plan">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="delete_no_plan_user_id">
+                    
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção Crítica!</strong>
+                        <p class="mb-0 mt-2">Esta ação irá <strong>remover permanentemente</strong>:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Utilizador:</strong> <span id="delete_no_plan_user_name"></span></p>
+                            <p class="mb-1"><strong>Email:</strong> <span id="delete_no_plan_user_email"></span></p>
+                            <p class="mb-0"><strong>Condomínios a remover:</strong> <span id="delete_no_plan_condominium_count" class="badge bg-danger">0</span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> <strong>Será removido:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Todos os condomínios criados pelo utilizador</li>
+                            <li>Todos os dados relacionados (frações, quotas, documentos, etc.)</li>
+                            <li>Todas as subscrições do utilizador</li>
+                            <li>O próprio utilizador</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-shield-check"></i> <strong>Verificação de Segurança:</strong>
+                        <p class="mb-0 mt-2">Este utilizador não possui planos ativos no momento. Esta ação é irreversível.</p>
+                    </div>
+                    
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_no_plan_1" required>
+                        <label class="form-check-label" for="confirm_delete_no_plan_1">
+                            Confirmo que verifiquei que este utilizador não possui planos ativos
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_no_plan_2" required>
+                        <label class="form-check-label" for="confirm_delete_no_plan_2">
+                            Entendo que todos os condomínios e dados relacionados serão removidos permanentemente
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_no_plan_3" required>
+                        <label class="form-check-label" for="confirm_delete_no_plan_3">
+                            Confirmo que desejo prosseguir com a remoção completa deste utilizador
+                        </label>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="delete_no_plan_reason" class="form-label">Motivo da remoção (obrigatório):</label>
+                        <textarea class="form-control" id="delete_no_plan_reason" name="reason" rows="3" required placeholder="Descreva o motivo da remoção deste utilizador..."></textarea>
+                        <small class="form-text text-muted">Este motivo será registado no log de auditoria.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger" id="submit_delete_no_plan" disabled>
+                        <i class="bi bi-trash"></i> Confirmar Remoção Completa
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Apagar User Sem Condomínio -->
+<div class="modal fade" id="deleteUserNoCondominiumModal" tabindex="-1" aria-labelledby="deleteUserNoCondominiumModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteUserNoCondominiumModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Apagar Utilizador Sem Condomínio
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ BASE_URL }}admin/users/delete-user-no-condominium">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" id="delete_no_condo_user_id">
+                    
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção!</strong>
+                        <p class="mb-0 mt-2">Esta ação irá <strong>remover permanentemente</strong> o utilizador:</p>
+                    </div>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Nome:</strong> <span id="delete_no_condo_user_name"></span></p>
+                            <p class="mb-0"><strong>Email:</strong> <span id="delete_no_condo_user_email"></span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> <strong>Será removido:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Todas as subscrições do utilizador</li>
+                            <li>Todas as notificações</li>
+                            <li>Preferências de email</li>
+                            <li>Outros dados relacionados</li>
+                            <li>O próprio utilizador</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="confirm_delete_no_condo" required>
+                        <label class="form-check-label" for="confirm_delete_no_condo">
+                            Confirmo que desejo apagar permanentemente este utilizador
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger" id="submit_delete_no_condo" disabled>
+                        <i class="bi bi-trash"></i> Confirmar Remoção
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Estatísticas do Condomínio -->
+<div class="modal fade" id="condominiumStatsModal" tabindex="-1" aria-labelledby="condominiumStatsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="condominiumStatsModalLabel">
+                    <i class="bi bi-graph-up"></i> Estatísticas do Condomínio
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe id="statsIframe" src="" style="width: 100%; height: 80vh; border: none;"></iframe>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <a id="openInNewTab" href="#" target="_blank" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-up-right"></i> Abrir em Nova Aba
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

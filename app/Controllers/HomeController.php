@@ -87,6 +87,8 @@ class HomeController extends Controller
             }
         }
         
+        $isRegistrationDisabled = defined('DISABLE_REGISTRATION') && DISABLE_REGISTRATION;
+        
         $this->data += [
             'viewName' => 'pages/home.html.twig',
             'page' => [
@@ -101,7 +103,8 @@ class HomeController extends Controller
             'plan_pricing_tiers' => $planPricingTiers,
             'pilot_signup_error' => $_SESSION['pilot_signup_error'] ?? null,
             'pilot_signup_success' => $_SESSION['pilot_signup_success'] ?? null,
-            'csrf_token' => \App\Core\Security::generateCSRFToken()
+            'csrf_token' => \App\Core\Security::generateCSRFToken(),
+            'is_registration_disabled' => $isRegistrationDisabled
         ];
         
         // Clear error messages after displaying
