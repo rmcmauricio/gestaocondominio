@@ -1,0 +1,218 @@
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="mb-0"><i class="bi bi-rocket-takeoff"></i> Solicitações de Acesso à Demo</h1>
+                <a href="{{ BASE_URL }}dashboard" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
+                </a>
+            </div>
+
+            {% if messages.success %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i>{{ messages.success }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
+
+            {% if messages.error %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ messages.error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
+
+            {% if stats %}
+            <div class="row mb-4">
+                <div class="col-md-3 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted mb-2">Total</h6>
+                            <h3 class="mb-0">{{ stats.total }}</h3>
+                            <small class="text-muted">Solicitações</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card border-success">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted mb-2">Pendentes</h6>
+                            <h3 class="mb-0 text-success">{{ stats.pending }}</h3>
+                            <small class="text-muted">Aguardando uso</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card border-primary">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted mb-2">Utilizadas</h6>
+                            <h3 class="mb-0 text-primary">{{ stats.used }}</h3>
+                            <small class="text-muted">Já acedidas</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card border-warning">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted mb-2">Expiradas</h6>
+                            <h3 class="mb-0 text-warning">{{ stats.expired }}</h3>
+                            <small class="text-muted">Válidas por 24h</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Lista de Solicitações</h5>
+                        <span class="badge bg-light text-dark">{{ requests|length }} total</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if requests and requests|length > 0 %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Email</th>
+                                    <th>Data de Solicitação</th>
+                                    <th>Expira em</th>
+                                    <th>Status</th>
+                                    <th>Newsletter</th>
+                                    <th>IP</th>
+                                    <th>Token</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for request in requests %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ request.email }}</strong>
+                                    </td>
+                                    <td>
+                                        {{ request.created_at|date('d/m/Y H:i') }}
+                                    </td>
+                                    <td>
+                                        {% if request.expires_at %}
+                                            {% set expires = request.expires_at|date('U') %}
+                                            {% set now = 'now'|date('U') %}
+                                            {% if expires < now %}
+                                                <span class="text-danger">
+                                                    <i class="bi bi-x-circle"></i> Expirado
+                                                </span>
+                                                <br><small class="text-muted">{{ request.expires_at|date('d/m/Y H:i') }}</small>
+                                            {% else %}
+                                                {{ request.expires_at|date('d/m/Y H:i') }}
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if request.used_at %}
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check-circle"></i> Utilizado
+                                            </span>
+                                            <br><small class="text-muted">{{ request.used_at|date('d/m/Y H:i') }}</small>
+                                        {% elseif request.expires_at %}
+                                            {% set expires = request.expires_at|date('U') %}
+                                            {% set now = 'now'|date('U') %}
+                                            {% if expires < now %}
+                                                <span class="badge bg-secondary">
+                                                    <i class="bi bi-clock-history"></i> Expirado
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-warning">
+                                                    <i class="bi bi-hourglass-split"></i> Pendente
+                                                </span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="badge bg-warning">
+                                                <i class="bi bi-hourglass-split"></i> Pendente
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if request.wants_newsletter %}
+                                            <span class="badge bg-info">
+                                                <i class="bi bi-envelope-check"></i> Sim
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">
+                                                <i class="bi bi-envelope-x"></i> Não
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if request.ip_address %}
+                                            <code class="small">{{ request.ip_address }}</code>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <code class="small" style="font-size: 0.75rem;">{{ request.token|slice(0, 16) }}...</code>
+                                        <button 
+                                            class="btn btn-sm btn-outline-secondary ms-1" 
+                                            onclick="copyToClipboard('{{ request.token }}')"
+                                            title="Copiar token completo"
+                                        >
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                        <p class="text-muted mt-3">Nenhuma solicitação encontrada.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mt-4 shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informações</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li><strong>Pendente:</strong> Token válido que ainda não foi utilizado.</li>
+                        <li><strong>Utilizado:</strong> Token que já foi usado para aceder à demo.</li>
+                        <li><strong>Expirado:</strong> Token que passou do prazo de validade (24 horas).</li>
+                        <li>Os tokens são válidos por 24 horas após a criação.</li>
+                        <li>Cada token só pode ser usado uma vez.</li>
+                        <li>Os utilizadores que marcaram "Newsletter" também foram adicionados à lista de newsletter.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        // Show temporary success feedback
+        const btn = event.target.closest('button');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check"></i>';
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-success');
+        
+        setTimeout(function() {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
+        }, 2000);
+    }).catch(function(err) {
+        console.error('Erro ao copiar:', err);
+        alert('Erro ao copiar token');
+    });
+}
+</script>

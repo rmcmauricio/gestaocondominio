@@ -5449,4 +5449,76 @@ class SuperAdminController extends Controller
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
     }
+
+    /**
+     * List demo access requests
+     */
+    public function demoAccessRequests()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        // Get session messages and clear them
+        $messages = $this->getSessionMessages();
+
+        global $db;
+
+        // Get all demo access requests ordered by creation date (newest first)
+        $stmt = $db->query("
+            SELECT 
+                id,
+                email,
+                token,
+                used_at,
+                expires_at,
+                ip_address,
+                user_agent,
+                wants_newsletter,
+                created_at
+            FROM demo_access_tokens
+            ORDER BY created_at DESC
+        ");
+
+        $requests = $stmt->fetchAll() ?: [];
+
+        // Calculate statistics
+        $stats = [
+            'total' => count($requests),
+            'used' => 0,
+            'pending' => 0,
+            'expired' => 0,
+            'wants_newsletter' => 0
+        ];
+
+        $now = date('Y-m-d H:i:s');
+        foreach ($requests as $request) {
+            if ($request['used_at']) {
+                $stats['used']++;
+            } elseif ($request['expires_at'] < $now) {
+                $stats['expired']++;
+            } else {
+                $stats['pending']++;
+            }
+
+            if ($request['wants_newsletter']) {
+                $stats['wants_newsletter']++;
+            }
+        }
+
+        $this->loadPageTranslations('dashboard');
+
+        $this->data += [
+            'viewName' => 'pages/dashboard/super-admin-demo-access-requests.html.twig',
+            'page' => [
+                'titulo' => 'Solicitações de Acesso à Demo',
+                'description' => 'Visualizar todas as solicitações de acesso à demo',
+                'keywords' => 'demo, acesso, solicitações'
+            ],
+            'requests' => $requests,
+            'stats' => $stats,
+            'messages' => $messages
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
 }
