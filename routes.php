@@ -567,5 +567,8 @@ $router->post('/admin/pilot-users/send-invite', 'App\Controllers\SuperAdminContr
 // Newsletter Subscribers (super admin only)
 $router->get('/admin/newsletter-subscribers', 'App\Controllers\SuperAdminController@newsletterSubscribers');
 
+// Demo Access Requests (super admin only)
+$router->get('/admin/demo-access-requests', 'App\Controllers\SuperAdminController@demoAccessRequests');
+
 // Add your routes here
 
