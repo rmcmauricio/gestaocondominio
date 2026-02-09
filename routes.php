@@ -197,6 +197,7 @@ $router->get('/condominiums/{condominium_id}/fees/{id}/details', 'App\Controller
 $router->get('/condominiums/{condominium_id}/fees/{id}/edit', 'App\Controllers\FinanceController@editFee');
 $router->post('/condominiums/{condominium_id}/fees/{id}/update', 'App\Controllers\FinanceController@updateFee');
 $router->post('/condominiums/{condominium_id}/fees/{id}/delete', 'App\Controllers\FinanceController@deleteFee');
+$router->get('/condominiums/{condominium_id}/budgets/{year}/check-status', 'App\Controllers\FinanceController@checkBudgetStatus');
 
 // Receipt routes
 $router->get('/condominiums/{condominium_id}/receipts', 'App\Controllers\ReceiptController@index');

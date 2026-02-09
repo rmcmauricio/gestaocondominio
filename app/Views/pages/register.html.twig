@@ -1,4 +1,85 @@
 <div class="container py-5">
+    {# Banner convidativo para user piloto quando registo está desativado #}
+    {% if is_registration_disabled|default(false) %}
+    <div class="row justify-content-center mb-4">
+        <div class="col-lg-10">
+            <div class="card border-0 shadow-lg" id="pilotSignupCardRegister" style="background: linear-gradient(135deg, #e07920 0%, #c7650e 100%); border-radius: 1rem;">
+                <div class="card-body p-4 p-md-5">
+                    {# Conteúdo inicial do card #}
+                    <div id="pilotSignupContentRegister">
+                        <div class="row align-items-center">
+                            <div class="col-md-8 mb-3 mb-md-0">
+                                <div class="d-flex align-items-start gap-3">
+                                    <div class="d-inline-flex align-items-center justify-content-center rounded-circle" style="width: 60px; height: 60px; background: rgba(255, 255, 255, 0.2); flex-shrink: 0;">
+                                        <i class="bi bi-lightbulb text-white" style="font-size: 1.8rem;"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <h3 class="mb-2 text-white" style="font-weight: 600;">
+                                            <i class="bi bi-star-fill text-warning me-2"></i>
+                                            Torne-se um Utilizador Piloto
+                                        </h3>
+                                        <p class="mb-2 text-white" style="font-size: 1.05rem;">
+                                            A nossa aplicação encontra-se ainda em fase de testes. Se tiver interesse em participar como utilizador piloto e ajudar-nos a melhorar o sistema, deixe-nos o seu email e entraremos em contacto em breve.
+                                        </p>
+                                        <p class="mb-3 text-white" style="font-size: 1.05rem;">
+                                            <strong style="color: #053463;">Ao participar na fase de testes, será um utilizador pioneiro beneficiando de descontos no lançamento.</strong>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <form id="pilotSignupFormRegister" method="POST" action="{{ BASE_URL }}pilot/signup">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="source" value="register">
+                                    <div class="mb-3">
+                                        <label for="pilot_email_register" class="form-label text-white d-flex align-items-center gap-2">
+                                            <i class="bi bi-envelope"></i>
+                                            <span>Email</span>
+                                        </label>
+                                        <input type="email" class="form-control form-control-lg" id="pilot_email_register" name="email" placeholder="seu@email.com" required>
+                                    </div>
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-light btn-lg d-flex align-items-center justify-content-center gap-2" style="border: none; padding: 0.75rem 2rem; font-weight: 600; color: #e07920;">
+                                            <i class="bi bi-send-fill"></i>
+                                            <span>Inscrever-me</span>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {# Mensagem de sucesso (inicialmente oculta) #}
+                    <div id="pilotSignupSuccessRegister" style="display: none;">
+                        <div class="text-center">
+                            <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3 mx-auto" style="width: 80px; height: 80px; background: rgba(255, 255, 255, 0.2);">
+                                <i class="bi bi-check-circle-fill text-white" style="font-size: 2.5rem;"></i>
+                            </div>
+                            <h3 class="mb-3 text-white" style="font-weight: 600;">
+                                Obrigado pelo seu interesse!
+                            </h3>
+                            <p class="mb-2 text-white" style="font-size: 1.1rem;">
+                                Receberá um convite para registo brevemente.
+                            </p>
+                            <p class="mb-0 text-white" style="font-size: 1.05rem;">
+                                Verifique o seu email e aguarde o nosso contacto.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {# Mensagem de erro (inicialmente oculta) #}
+                    <div id="pilotSignupErrorRegister" style="display: none;">
+                        <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <div class="flex-grow-1" id="pilotSignupErrorMessageRegister"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
     <div class="row justify-content-center">
         <div class="col-md-8 col-lg-6">
             <div class="card shadow-lg border-0">
@@ -7,6 +88,18 @@
                         <h1 class="h2 fw-bold mb-2">Criar Conta</h1>
                         <p class="text-muted">Escolha o tipo de conta e comece hoje mesmo</p>
                     </div>
+                    
+                    {% if is_registration_disabled|default(false) %}
+                    <div class="alert alert-info alert-dismissible fade show mb-4" role="alert" style="border-radius: 0.5rem; border-left: 4px solid #3b82f6;">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-info-circle me-2" style="font-size: 1.25rem;"></i>
+                            <div class="flex-grow-1">
+                                <strong>Nota:</strong> O registo está temporariamente desativado. Por favor, utilize o formulário acima para se inscrever como utilizador piloto.
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                        </div>
+                    </div>
+                    {% endif %}
                     
                     {% if error %}
                     <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -30,6 +123,7 @@
                     </div>
                     {% endif %}
 
+                    {% if not is_registration_disabled|default(false) %}
                     <a href="{{ BASE_URL }}auth/google?source=register" class="btn btn-outline-secondary w-100 mb-3 d-flex align-items-center justify-content-center gap-2">
                         <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
                             <g fill="#000" fill-rule="evenodd">
@@ -41,6 +135,7 @@
                         </svg>
                         Continuar com Google
                     </a>
+                    {% endif %}
 
                     <div class="d-flex align-items-center mb-4">
                         <hr class="flex-grow-1">
@@ -48,20 +143,20 @@
                         <hr class="flex-grow-1">
                     </div>
 
-                    <form method="POST" action="{{ BASE_URL }}register/process" id="registerForm">
+                    <form method="POST" action="{{ BASE_URL }}register/process" id="registerForm" {% if is_registration_disabled|default(false) %}onsubmit="return false;"{% endif %}>
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         
                         <div class="mb-3">
                             <label class="form-label">Tipo de Conta <span class="text-danger">*</span></label>
                             <div class="form-check mb-2">
-                                <input class="form-check-input" type="radio" name="account_type" id="account_type_user" value="user" required>
+                                <input class="form-check-input" type="radio" name="account_type" id="account_type_user" value="user" {% if is_registration_disabled|default(false) %}disabled{% endif %} required>
                                 <label class="form-check-label" for="account_type_user">
                                     <strong>Utilizador (Condomino)</strong>
                                     <small class="d-block text-muted">Acesso completo sem necessidade de subscrição</small>
                                 </label>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="account_type" id="account_type_admin" value="admin" required>
+                                <input class="form-check-input" type="radio" name="account_type" id="account_type_admin" value="admin" {% if is_registration_disabled|default(false) %}disabled{% endif %} required>
                                 <label class="form-check-label" for="account_type_admin">
                                     <strong>Administrador</strong>
                                     <small class="d-block text-muted">Gerir condomínios - requer subscrição com período experimental</small>
@@ -71,30 +166,30 @@
                         
                         <div class="mb-3">
                             <label for="name" class="form-label">Nome Completo <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control form-control-lg" id="name" name="name" required autofocus>
+                            <input type="text" class="form-control form-control-lg" id="name" name="name" {% if is_registration_disabled|default(false) %}disabled{% endif %} required autofocus>
                         </div>
 
                         <div class="mb-3">
                             <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control form-control-lg" id="email" name="email" value="{{ registration_token_email|default('') }}" {% if has_registration_token %}readonly{% endif %} required>
+                            <input type="email" class="form-control form-control-lg" id="email" name="email" value="{{ registration_token_email|default('') }}" {% if has_registration_token %}readonly{% endif %} {% if is_registration_disabled|default(false) %}disabled{% endif %} required>
                             <div class="form-text">Usaremos este email para comunicar consigo{% if has_registration_token %} (pré-preenchido pelo convite){% endif %}</div>
                         </div>
 
                         <div class="mb-3">
                             <label for="phone" class="form-label">Telefone</label>
-                            <input type="tel" class="form-control form-control-lg" id="phone" name="phone" placeholder="+351 XXX XXX XXX">
+                            <input type="tel" class="form-control form-control-lg" id="phone" name="phone" {% if is_registration_disabled|default(false) %}disabled{% endif %} placeholder="+351 XXX XXX XXX">
                         </div>
 
                         <div class="mb-3">
                             <label for="nif" class="form-label">NIF</label>
-                            <input type="text" class="form-control form-control-lg" id="nif" name="nif" placeholder="123456789">
+                            <input type="text" class="form-control form-control-lg" id="nif" name="nif" {% if is_registration_disabled|default(false) %}disabled{% endif %} placeholder="123456789">
                         </div>
 
                         <div class="mb-3">
                             <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
                             <div class="input-group">
-                                <input type="password" class="form-control form-control-lg" id="password" name="password" required minlength="8">
-                                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                <input type="password" class="form-control form-control-lg" id="password" name="password" {% if is_registration_disabled|default(false) %}disabled{% endif %} required minlength="8">
+                                <button class="btn btn-outline-secondary" type="button" id="togglePassword" {% if is_registration_disabled|default(false) %}disabled{% endif %}>
                                     <i class="bi bi-eye" id="eyeIcon"></i>
                                 </button>
                             </div>
@@ -104,21 +199,21 @@
                         <div class="mb-3">
                             <label for="password_confirm" class="form-label">Confirmar Password <span class="text-danger">*</span></label>
                             <div class="input-group">
-                                <input type="password" class="form-control form-control-lg" id="password_confirm" name="password_confirm" required minlength="8">
-                                <button class="btn btn-outline-secondary" type="button" id="togglePasswordConfirm">
+                                <input type="password" class="form-control form-control-lg" id="password_confirm" name="password_confirm" {% if is_registration_disabled|default(false) %}disabled{% endif %} required minlength="8">
+                                <button class="btn btn-outline-secondary" type="button" id="togglePasswordConfirm" {% if is_registration_disabled|default(false) %}disabled{% endif %}>
                                     <i class="bi bi-eye" id="eyeIconConfirm"></i>
                                 </button>
                             </div>
                         </div>
 
                         <div class="mb-4 form-check">
-                            <input type="checkbox" class="form-check-input" id="terms" name="terms" required>
+                            <input type="checkbox" class="form-check-input" id="terms" name="terms" {% if is_registration_disabled|default(false) %}disabled{% endif %} required>
                             <label class="form-check-label" for="terms">
                                 Aceito os <a href="#" target="_blank">Termos e Condições</a> e a <a href="#" target="_blank">Política de Privacidade</a> <span class="text-danger">*</span>
                             </label>
                         </div>
 
-                        <button type="submit" class="btn btn-primary btn-lg w-100 mb-3">Criar Conta</button>
+                        <button type="submit" class="btn btn-primary btn-lg w-100 mb-3" {% if is_registration_disabled|default(false) %}disabled{% endif %}>Criar Conta</button>
                         
                         <div class="text-center">
                             <p class="mb-0">
@@ -189,6 +284,87 @@ document.getElementById('registerForm')?.addEventListener('submit', function(e) 
         return false;
     }
 });
+
+// Pilot signup form handling for register page
+{% if is_registration_disabled|default(false) %}
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('pilotSignupFormRegister');
+    const successDiv = document.getElementById('pilotSignupSuccessRegister');
+    const errorDiv = document.getElementById('pilotSignupErrorRegister');
+    const contentDiv = document.getElementById('pilotSignupContentRegister');
+    const errorMessage = document.getElementById('pilotSignupErrorMessageRegister');
+    
+    // Check for session messages on page load
+    {% if pilot_signup_success %}
+    if (contentDiv && successDiv) {
+        contentDiv.style.display = 'none';
+        successDiv.style.display = 'block';
+    }
+    {% endif %}
+    
+    {% if pilot_signup_error %}
+    if (errorDiv && errorMessage) {
+        errorMessage.textContent = '{{ pilot_signup_error }}';
+        errorDiv.style.display = 'block';
+    }
+    {% endif %}
+    
+    if (form) {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Hide error message if visible
+            errorDiv.style.display = 'none';
+            
+            // Get form data
+            const formData = new FormData(form);
+            
+            // Disable submit button
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>A processar...';
+            
+            try {
+                const response = await fetch('{{ BASE_URL }}pilot/signup', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                
+                // Check content type
+                const contentType = response.headers.get('content-type') || '';
+                
+                if (contentType.includes('application/json')) {
+                    // Parse JSON response
+                    const data = await response.json();
+                    if (data.success) {
+                        contentDiv.style.display = 'none';
+                        successDiv.style.display = 'block';
+                    } else {
+                        errorMessage.textContent = data.message || 'Erro ao processar inscrição. Por favor, tente novamente.';
+                        errorDiv.style.display = 'block';
+                    }
+                } else {
+                    // If not JSON (redirect response), assume success
+                    contentDiv.style.display = 'none';
+                    successDiv.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                errorMessage.textContent = 'Erro ao processar inscrição. Por favor, tente novamente.';
+                errorDiv.style.display = 'block';
+            } finally {
+                // Re-enable submit button
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        });
+    }
+});
+{% endif %}
 </script>
 
 

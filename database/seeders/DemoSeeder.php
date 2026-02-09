@@ -1938,14 +1938,26 @@ class DemoSeeder
         }
 
         // Generate fees for all months in 2025
+        $feesGenerated = false;
         for ($month = 1; $month <= 12; $month++) {
             try {
                 $feeService->generateMonthlyFees($this->demoCondominiumId, 2025, $month);
+                $feesGenerated = true;
             } catch (\Exception $e) {
                 // If fees already exist, continue
                 if (strpos($e->getMessage(), 'already exists') === false) {
                     throw $e;
                 }
+            }
+        }
+
+        // Mark annual fees as generated for 2025 budget
+        if ($feesGenerated) {
+            $budgetModel = new Budget();
+            $budget2025 = $budgetModel->getByCondominiumAndYear($this->demoCondominiumId, 2025);
+            if ($budget2025) {
+                $budgetModel->markAnnualFeesGenerated($budget2025['id']);
+                echo "   Quotas anuais marcadas como geradas para o orçamento 2025\n";
             }
         }
 
@@ -3387,14 +3399,26 @@ class DemoSeeder
         $liquidationService = new LiquidationService();
 
         // Generate regular fees for all months in 2026
+        $feesGenerated = false;
         for ($month = 1; $month <= 12; $month++) {
             try {
                 $feeService->generateMonthlyFees($this->demoCondominiumId, 2026, $month);
+                $feesGenerated = true;
             } catch (\Exception $e) {
                 // If fees already exist, continue
                 if (strpos($e->getMessage(), 'already exists') === false) {
                     throw $e;
                 }
+            }
+        }
+
+        // Mark annual fees as generated for 2026 budget
+        if ($feesGenerated) {
+            $budgetModel = new Budget();
+            $budget2026 = $budgetModel->getByCondominiumAndYear($this->demoCondominiumId, 2026);
+            if ($budget2026) {
+                $budgetModel->markAnnualFeesGenerated($budget2026['id']);
+                echo "   Quotas anuais marcadas como geradas para o orçamento 2026\n";
             }
         }
 

@@ -146,5 +146,36 @@ class Budget extends Model
         $stmt->execute([':id' => $id]);
         return $stmt->fetch() ?: null;
     }
+
+    /**
+     * Check if annual fees have been generated for this budget
+     */
+    public function hasAnnualFeesGenerated(int $budgetId): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $budget = $this->findById($budgetId);
+        if (!$budget) {
+            return false;
+        }
+
+        return (bool)($budget['annual_fees_generated'] ?? false);
+    }
+
+    /**
+     * Mark annual fees as generated for this budget
+     */
+    public function markAnnualFeesGenerated(int $budgetId): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        return $this->update($budgetId, [
+            'annual_fees_generated' => true
+        ]);
+    }
 }
 

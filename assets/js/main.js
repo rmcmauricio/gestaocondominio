@@ -165,68 +165,6 @@
   /**
    * Initialize all functions when DOM is ready
    */
-  /**
-   * Initialize Language Dropdown
-   */
-  function initLanguageDropdown() {
-    const languageDropdown = document.getElementById('languageDropdown');
-    const dropdown = languageDropdown?.closest('.dropdown');
-    const dropdownMenu = dropdown?.querySelector('.dropdown-menu');
-    
-    if (languageDropdown && dropdown && dropdownMenu) {
-      // Ensure dropdown is closed on page load - force hide
-      dropdown.classList.remove('show');
-      languageDropdown.setAttribute('aria-expanded', 'false');
-      dropdownMenu.style.display = 'none';
-      dropdownMenu.style.opacity = '0';
-      dropdownMenu.style.visibility = 'hidden';
-      
-      // Toggle dropdown on button click
-      languageDropdown.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const isExpanded = this.getAttribute('aria-expanded') === 'true';
-        
-        if (isExpanded) {
-          dropdown.classList.remove('show');
-          this.setAttribute('aria-expanded', 'false');
-          dropdownMenu.style.display = 'none';
-          dropdownMenu.style.opacity = '0';
-          dropdownMenu.style.visibility = 'hidden';
-        } else {
-          dropdown.classList.add('show');
-          this.setAttribute('aria-expanded', 'true');
-          dropdownMenu.style.display = 'block';
-          dropdownMenu.style.opacity = '1';
-          dropdownMenu.style.visibility = 'visible';
-        }
-      });
-      
-      // Close dropdown when clicking outside
-      document.addEventListener('click', function(event) {
-        if (!dropdown.contains(event.target)) {
-          dropdown.classList.remove('show');
-          languageDropdown.setAttribute('aria-expanded', 'false');
-          dropdownMenu.style.display = 'none';
-          dropdownMenu.style.opacity = '0';
-          dropdownMenu.style.visibility = 'hidden';
-        }
-      });
-      
-      // Close dropdown when clicking a language option
-      const languageLinks = dropdownMenu.querySelectorAll('a');
-      languageLinks.forEach(link => {
-        link.addEventListener('click', function() {
-          dropdown.classList.remove('show');
-          languageDropdown.setAttribute('aria-expanded', 'false');
-          dropdownMenu.style.display = 'none';
-          dropdownMenu.style.opacity = '0';
-          dropdownMenu.style.visibility = 'hidden';
-        });
-      });
-    }
-  }
 
   /**
    * Initialize Demo Profile Dropdown
@@ -333,7 +271,6 @@
         initSmoothScroll();
         initFormValidation();
         initAutoHideAlerts();
-        initLanguageDropdown();
         initDemoProfileDropdown();
         initQuickActionsDropdowns();
       });
@@ -343,7 +280,6 @@
       initSmoothScroll();
       initFormValidation();
       initAutoHideAlerts();
-      initLanguageDropdown();
       initDemoProfileDropdown();
       initQuickActionsDropdowns();
     }
