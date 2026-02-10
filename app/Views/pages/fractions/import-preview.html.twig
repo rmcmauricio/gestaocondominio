@@ -20,50 +20,98 @@
         </div>
         <div class="card-body">
             <p class="text-muted">
-                Serão importadas <strong>{{ parsedData|length }}</strong> fração(ões).
-                Revise os dados abaixo e confirme para importar.
+                Pode corrigir ou completar os dados abaixo antes de confirmar a importação.
+                Linhas com erros podem ser editadas para corrigir; pode também excluir linhas que não deseja importar.
             </p>
 
-            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/import/process">
+            <form id="fractionPreviewForm" method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/import/process">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="edited_data" id="edited_data_input" value="{}">
 
-                <div class="table-responsive">
-                    <table class="table table-hover table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Identificador</th>
-                                <th>Permilagem</th>
-                                <th>Piso</th>
-                                <th>Tipologia</th>
-                                <th>Área (m²)</th>
-                                <th>Notas</th>
-                                <th>Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in parsedData %}
-                            <tr class="{% if not row._valid %}table-danger{% endif %}">
-                                <td>{{ row.identifier|default('-') }}</td>
-                                <td>{{ row.permillage|default(0) }}</td>
-                                <td>{{ row.floor|default('-') }}</td>
-                                <td>{{ row.typology|default('-') }}</td>
-                                <td>{{ row.area is defined and row.area is not null ? row.area : '-' }}</td>
-                                <td>{{ row.notes|default('-')|slice(0, 50) }}{% if row.notes|default('')|length > 50 %}...{% endif %}</td>
-                                <td>
-                                    {% if row._valid %}
-                                        <span class="badge bg-success">OK</span>
-                                    {% else %}
-                                        <span class="badge bg-danger" title="{{ row._errors|join(' ') }}">Erro</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                <div id="fraction-preview-cards" class="d-flex flex-column gap-3">
+                    {% for row in parsedData %}
+                    <div data-row-index="{{ loop.index0 }}" class="card fraction-preview-row border {% if not row._valid %}border-danger{% endif %}">
+                        <div class="card-header d-flex justify-content-between align-items-center py-2">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <strong class="text-nowrap">Fração</strong>
+                                <input type="text" class="form-control form-control-sm editable-field d-inline-block" style="width: 6rem;" data-field="identifier" data-index="{{ loop.index0 }}" value="{{ row.identifier|default('') }}" placeholder="Id">
+                                {% if row._valid %}
+                                    <span class="badge bg-success">OK</span>
+                                {% else %}
+                                    <span class="badge bg-danger" title="{{ row._errors|join(' ') }}">Erro</span>
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-row-btn" data-index="{{ loop.index0 }}" title="Excluir esta linha da importação">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="row g-2">
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label small text-muted mb-0">Permilagem</label>
+                                    <input type="number" step="0.0001" min="0" class="form-control form-control-sm editable-field" data-field="permillage" data-index="{{ loop.index0 }}" value="{{ row.permillage is defined and row.permillage is not null ? row.permillage : '' }}" placeholder="0">
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label small text-muted mb-0">Piso</label>
+                                    <input type="text" class="form-control form-control-sm editable-field" data-field="floor" data-index="{{ loop.index0 }}" value="{{ row.floor|default('') }}" placeholder="-">
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label small text-muted mb-0">Tipologia</label>
+                                    <input type="text" class="form-control form-control-sm editable-field" data-field="typology" data-index="{{ loop.index0 }}" value="{{ row.typology|default('') }}" placeholder="-">
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label small text-muted mb-0">Área (m²)</label>
+                                    <input type="number" step="0.01" min="0" class="form-control form-control-sm editable-field" data-field="area" data-index="{{ loop.index0 }}" value="{{ row.area is defined and row.area is not null ? row.area : '' }}" placeholder="-">
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-8">
+                                    <label class="form-label small text-muted mb-0">Notas</label>
+                                    <input type="text" class="form-control form-control-sm editable-field" data-field="notes" data-index="{{ loop.index0 }}" value="{{ row.notes|default('') }}" placeholder="-">
+                                </div>
+                            </div>
+                            <hr class="my-2">
+                            <p class="small text-muted mb-2 mt-0"><strong>Condómino</strong></p>
+                            <div class="row g-2">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label small text-muted mb-0">Nome</label>
+                                    <input type="text" class="form-control form-control-sm editable-field" data-field="owner_name" data-index="{{ loop.index0 }}" value="{{ row.owner_name|default('') }}" placeholder="-">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label small text-muted mb-0">Email</label>
+                                    <input type="text" class="form-control form-control-sm editable-field" data-field="owner_email" data-index="{{ loop.index0 }}" value="{{ row.owner_email|default('') }}" placeholder="-">
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label small text-muted mb-0">NIF</label>
+                                    <input type="text" class="form-control form-control-sm editable-field" data-field="owner_nif" data-index="{{ loop.index0 }}" value="{{ row.owner_nif|default('') }}" placeholder="-">
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label small text-muted mb-0">Telefone</label>
+                                    <input type="text" class="form-control form-control-sm editable-field" data-field="owner_phone" data-index="{{ loop.index0 }}" value="{{ row.owner_phone|default('') }}" placeholder="-">
+                                </div>
+                                <div class="col-12 col-lg-4">
+                                    <label class="form-label small text-muted mb-0">Tipo</label>
+                                    <select class="form-select form-select-sm editable-field" data-field="owner_role" data-index="{{ loop.index0 }}">
+                                        <option value="">-</option>
+                                        <option value="condomino" {% if (row.owner_role|default('')) == 'condomino' %}selected{% endif %}>Condómino</option>
+                                        <option value="proprietario" {% if (row.owner_role|default('')) == 'proprietario' %}selected{% endif %}>Proprietário</option>
+                                        <option value="arrendatario" {% if (row.owner_role|default('')) == 'arrendatario' %}selected{% endif %}>Arrendatário</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small text-muted mb-0">Morada alternativa</label>
+                                    <input type="text" class="form-control form-control-sm editable-field" data-field="owner_alternative_address" data-index="{{ loop.index0 }}" value="{{ row.owner_alternative_address|default('') }}" placeholder="-">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="mt-3 text-muted small">
+                    <span id="fractionRowCount">{{ parsedData|length }}</span> linha(s) a importar <span id="fractionDeletedCount" style="display: none;"> (<span id="fractionDeletedNum">0</span> excluída(s))</span>
                 </div>
 
                 <div class="mt-4 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" id="submitImportBtn">
                         <i class="bi bi-check-circle"></i> Confirmar Importação
                     </button>
                     <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/import" class="btn btn-secondary">
@@ -74,3 +122,94 @@
         </div>
     </div>
 </div>
+
+<script>
+(function() {
+    const editedData = {};
+    const deletedRows = new Set();
+    const form = document.getElementById('fractionPreviewForm');
+    const editedInput = document.getElementById('edited_data_input');
+    const totalRows = {{ parsedData|length }};
+
+    function updateDeletedCount() {
+        const num = deletedRows.size;
+        const el = document.getElementById('fractionDeletedCount');
+        const numEl = document.getElementById('fractionDeletedNum');
+        if (el && numEl) {
+            if (num > 0) {
+                el.style.display = '';
+                numEl.textContent = num;
+            } else {
+                el.style.display = 'none';
+            }
+        }
+        const remaining = totalRows - num;
+        const countEl = document.getElementById('fractionRowCount');
+        if (countEl) countEl.textContent = remaining;
+    }
+
+    document.querySelectorAll('.editable-field').forEach(function(field) {
+        field.addEventListener('input', function() {
+            const index = this.dataset.index;
+            const fieldName = this.dataset.field;
+            if (!index || !fieldName) return;
+            if (!editedData[index]) editedData[index] = {};
+            let val = this.value;
+            if (this.type === 'number' && val !== '') {
+                val = this.value.includes('.') ? parseFloat(this.value) : parseInt(this.value, 10);
+                if (isNaN(val)) val = this.value;
+            }
+            editedData[index][fieldName] = val;
+        });
+        field.addEventListener('change', function() {
+            const index = this.dataset.index;
+            const fieldName = this.dataset.field;
+            if (!index || !fieldName) return;
+            if (!editedData[index]) editedData[index] = {};
+            let val = this.value;
+            if (this.type === 'number' && val !== '') {
+                val = this.value.includes('.') ? parseFloat(this.value) : parseInt(this.value, 10);
+                if (isNaN(val)) val = this.value;
+            }
+            editedData[index][fieldName] = val;
+        });
+    });
+
+    document.querySelectorAll('.delete-row-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const index = parseInt(this.dataset.index, 10);
+            const row = form.querySelector('.fraction-preview-row[data-row-index="' + index + '"]');
+            if (!row) return;
+            if (deletedRows.has(index)) {
+                deletedRows.delete(index);
+                row.style.display = '';
+                this.classList.remove('btn-danger');
+                this.classList.add('btn-outline-danger');
+                this.title = 'Excluir esta linha da importação';
+            } else {
+                deletedRows.add(index);
+                row.style.display = 'none';
+                this.classList.remove('btn-outline-danger');
+                this.classList.add('btn-danger');
+                this.title = 'Restaurar linha';
+            }
+            updateDeletedCount();
+        });
+    });
+
+    form.addEventListener('submit', function(e) {
+        const submitBtn = document.getElementById('submitImportBtn');
+        if (submitBtn && !submitBtn.disabled) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> A importar...';
+        }
+        editedInput.value = JSON.stringify(editedData);
+        const deletedInput = document.createElement('input');
+        deletedInput.type = 'hidden';
+        deletedInput.name = 'deleted_rows';
+        deletedInput.value = JSON.stringify(Array.from(deletedRows));
+        form.appendChild(deletedInput);
+    });
+    updateDeletedCount();
+})();
+</script>

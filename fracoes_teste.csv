@@ -1,11 +1,11 @@
-Identificador;Permilagem;Piso;Tipologia;Área;Notas
-A;100;0;T1;45;Fração tipo 1
-B;100;0;T1;45;
-C;150;1;T2;68;Primeiro andar
-D;150;1;T2;68;
-E;100;2;T1;45;Último andar
-F;100;2;T1;45;
-G;125;-1;T1+1;52;Rés-do-chão
-H;125;-1;T1+1;52;
-I;75;0;Studio;32;Fração pequena
-J;75;0;Studio;32;
+Identificador;Permilagem;Piso;Tipologia;Área;Notas;Nome;Email;NIF;Telefone;Morada alternativa;Tipo
+A;100;0;T1;45;Fração tipo 1;Maria Silva;maria.silva@exemplo.com;123456789;912345678;Rua das Flores 1;proprietario
+B;100;0;T1;45;;João Santos;joao.santos@exemplo.com;987654321;923456789;;condomino
+C;150;1;T2;68;Primeiro andar;Ana Costa;ana.costa@exemplo.com;111222333;934567890;Av. Central 10;proprietario
+D;150;1;T2;68;;Pedro Oliveira;;456789123;945678901;Apartado 123;arrendatario
+E;100;2;T1;45;Último andar;Sofia Ferreira;sofia@exemplo.com;;912345678;;condomino
+F;100;2;T1;45;;Carlos Mendes;carlos.mendes@exemplo.com;555666777;967890123;Morada alternativa F;proprietario
+G;125;-1;T1+1;52;Rés-do-chão;Rita Pereira;rita.pereira@exemplo.com;888999000;978901234;;condomino
+H;125;-1;T1+1;52;;Luís Almeida;;;919876543;;arrendatario
+I;75;0;Studio;32;Fração pequena;Inês Rodrigues;ines@exemplo.com;333444555;921234567;Rua Pequena 5;proprietario
+J;75;0;Studio;32;;;;;;;;

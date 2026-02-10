@@ -64,12 +64,21 @@
                         <li><strong>Identificador</strong> — Código ou designação única da fração (ex.: A, 1, RC-A). Não pode estar vazio nem repetir um identificador já existente no condomínio.</li>
                     </ul>
                     <p class="mb-1"><strong>Opcionais:</strong></p>
-                    <ul class="mb-0">
+                    <ul class="mb-2">
                         <li><strong>Permilagem</strong> — Valor numérico (ex.: 100 para 100‰)</li>
                         <li><strong>Piso</strong> — Andar ou piso (ex.: 0, 1, -1 para rés-do-chão)</li>
                         <li><strong>Tipologia</strong> — Tipo de fração (ex.: T1, T2, Studio)</li>
                         <li><strong>Área</strong> — Área em m² (valor numérico)</li>
                         <li><strong>Notas</strong> — Texto livre</li>
+                    </ul>
+                    <p class="mb-1"><strong>Dados do condómino (opcionais):</strong></p>
+                    <ul class="mb-0">
+                        <li><strong>Nome do condómino</strong></li>
+                        <li><strong>Email</strong> — Se preenchido, será enviado um convite para aceitar e associar à fração</li>
+                        <li><strong>NIF</strong></li>
+                        <li><strong>Telefone</strong></li>
+                        <li><strong>Morada alternativa</strong></li>
+                        <li><strong>Tipo</strong> — Condómino, Proprietário ou Arrendatário</li>
                     </ul>
                 </div>
             </div>
@@ -261,7 +270,13 @@ const fractionFields = [
     { key: 'floor', label: 'Piso', required: false, description: '(opcional)' },
     { key: 'typology', label: 'Tipologia', required: false, description: '(opcional)' },
     { key: 'area', label: 'Área (m²)', required: false, description: '(opcional)' },
-    { key: 'notes', label: 'Notas', required: false, description: '(opcional)' }
+    { key: 'notes', label: 'Notas', required: false, description: '(opcional)' },
+    { key: 'owner_name', label: 'Nome do condómino', required: false, description: '(opcional)' },
+    { key: 'owner_email', label: 'Email do condómino', required: false, description: '(opcional - envia convite)' },
+    { key: 'owner_nif', label: 'NIF', required: false, description: '(opcional)' },
+    { key: 'owner_phone', label: 'Telefone', required: false, description: '(opcional)' },
+    { key: 'owner_alternative_address', label: 'Morada alternativa', required: false, description: '(opcional)' },
+    { key: 'owner_role', label: 'Tipo', required: false, description: '(condomino/proprietario/arrendatario)' }
 ];
 
 function showMappingSection(data) {

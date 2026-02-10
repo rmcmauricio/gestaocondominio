@@ -339,6 +339,29 @@ class InvitationService
     }
 
     /**
+     * Find a pending (not accepted) invitation for a fraction.
+     * Returns the invitation row or null.
+     */
+    public function findPendingByFraction(int $condominiumId, int $fractionId): ?array
+    {
+        global $db;
+        if (!$db) {
+            return null;
+        }
+        $stmt = $db->prepare("
+            SELECT id, email, name, role, nif, phone, alternative_address 
+            FROM invitations 
+            WHERE condominium_id = :condominium_id AND fraction_id = :fraction_id AND accepted_at IS NULL 
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':fraction_id' => $fractionId,
+        ]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
      * Update invitation details (name, email, role)
      */
     public function updateInvitation(int $invitationId, int $condominiumId, array $data): bool

@@ -757,7 +757,8 @@ class FractionController extends Controller
         }
 
         try {
-            $importService = new FractionImportService();
+            global $db;
+            $importService = new FractionImportService($db);
             $tmpFile = $_FILES['file']['tmp_name'];
             $fileData = $importService->readFile($tmpFile, $hasHeader, $originalName);
             $parsedData = $importService->parseRows($fileData['rows'], $columnMapping);
@@ -858,7 +859,53 @@ class FractionController extends Controller
         $parsedData = $importData['parsed_data'] ?? [];
         $subscriptionId = $importData['subscription_id'] ?? null;
 
+        // Aplicar edições e linhas excluídas do preview
+        $editedData = json_decode($_POST['edited_data'] ?? '{}', true);
+        $deletedRows = json_decode($_POST['deleted_rows'] ?? '[]', true);
+        if (!is_array($editedData)) {
+            $editedData = [];
+        }
+        if (!is_array($deletedRows)) {
+            $deletedRows = [];
+        }
+        $deletedRows = array_map('intval', $deletedRows);
+
+        $indexMapping = [];
+        $newIndex = 0;
+        foreach ($parsedData as $oldIndex => $row) {
+            if (!in_array($oldIndex, $deletedRows, true)) {
+                $indexMapping[$oldIndex] = $newIndex;
+                $newIndex++;
+            }
+        }
+        foreach ($deletedRows as $idx) {
+            unset($parsedData[$idx]);
+        }
+        $parsedData = array_values($parsedData);
+
+        foreach ($editedData as $oldIndex => $editedRow) {
+            if (isset($indexMapping[$oldIndex]) && isset($parsedData[$indexMapping[$oldIndex]])) {
+                $rowRef = &$parsedData[$indexMapping[$oldIndex]];
+                foreach ($editedRow as $key => $value) {
+                    if ($key !== '_valid' && $key !== '_errors') {
+                        if ($key === 'permillage' || $key === 'area') {
+                            $rowRef[$key] = is_numeric($value) ? (float)$value : ($rowRef[$key] ?? 0);
+                        } else {
+                            $rowRef[$key] = $value === '' ? null : $value;
+                        }
+                    }
+                }
+                // Se o utilizador editou a linha no preview, considerar válida para processar (correção de erros)
+                if (!empty($editedRow)) {
+                    $rowRef['_errors'] = [];
+                    $rowRef['_valid'] = true;
+                }
+            }
+        }
+        unset($rowRef);
+
         $created = 0;
+        $skippedDuplicates = 0;
         $errors = [];
 
         foreach ($parsedData as $row) {
@@ -866,17 +913,67 @@ class FractionController extends Controller
                 $errors[] = 'Fração ' . ($row['identifier'] ?? '?') . ': ' . implode(' ', $row['_errors']);
                 continue;
             }
+            $identifier = Security::sanitize($row['identifier'] ?? '');
+            $data = [
+                'permillage' => (float)($row['permillage'] ?? 0),
+                'floor' => !empty($row['floor']) ? Security::sanitize($row['floor']) : null,
+                'typology' => !empty($row['typology']) ? Security::sanitize($row['typology']) : null,
+                'area' => isset($row['area']) && $row['area'] !== '' && $row['area'] !== null ? (float)$row['area'] : null,
+                'notes' => !empty($row['notes']) ? Security::sanitize($row['notes']) : null,
+            ];
             try {
-                $this->fractionModel->create([
-                    'condominium_id' => $condominiumId,
-                    'identifier' => Security::sanitize($row['identifier'] ?? ''),
-                    'permillage' => (float)($row['permillage'] ?? 0),
-                    'floor' => !empty($row['floor']) ? Security::sanitize($row['floor']) : null,
-                    'typology' => !empty($row['typology']) ? Security::sanitize($row['typology']) : null,
-                    'area' => isset($row['area']) && $row['area'] !== '' && $row['area'] !== null ? (float)$row['area'] : null,
-                    'notes' => !empty($row['notes']) ? Security::sanitize($row['notes']) : null,
-                ]);
-                $created++;
+                // Se existir uma fração inativa (soft-deleted) com o mesmo identificador, reativá-la em vez de inserir
+                $inactive = $this->fractionModel->findInactiveByCondominiumAndIdentifier($condominiumId, $identifier);
+                if ($inactive) {
+                    $data['is_active'] = true;
+                    $this->fractionModel->update((int)$inactive['id'], $data);
+                    $fractionId = (int)$inactive['id'];
+                    $created++;
+                } else {
+                    $fractionId = $this->fractionModel->create([
+                        'condominium_id' => $condominiumId,
+                        'identifier' => $identifier,
+                        'permillage' => $data['permillage'],
+                        'floor' => $data['floor'],
+                        'typology' => $data['typology'],
+                        'area' => $data['area'],
+                        'notes' => $data['notes'],
+                    ]);
+                    $created++;
+                }
+
+                // Criar ou atualizar convite quando há dados do condómino
+                $ownerName = trim((string)($row['owner_name'] ?? ''));
+                $ownerEmail = trim((string)($row['owner_email'] ?? ''));
+                if ($ownerName !== '' || $ownerEmail !== '') {
+                    $contactData = [
+                        'nif' => isset($row['owner_nif']) && $row['owner_nif'] !== '' ? $row['owner_nif'] : null,
+                        'phone' => isset($row['owner_phone']) && $row['owner_phone'] !== '' ? $row['owner_phone'] : null,
+                        'alternative_address' => isset($row['owner_alternative_address']) && $row['owner_alternative_address'] !== '' ? $row['owner_alternative_address'] : null,
+                    ];
+                    $role = in_array($row['owner_role'] ?? '', ['condomino', 'proprietario', 'arrendatario'], true) ? $row['owner_role'] : 'condomino';
+                    $pending = $this->invitationService->findPendingByFraction($condominiumId, $fractionId);
+                    if ($pending) {
+                        $this->invitationService->updateInvitation($pending['id'], $condominiumId, [
+                            'name' => $ownerName !== '' ? $ownerName : ($pending['name'] ?? ''),
+                            'email' => $ownerEmail !== '' ? $ownerEmail : ($pending['email'] ?? null),
+                            'role' => $role,
+                            'nif' => $contactData['nif'],
+                            'phone' => $contactData['phone'],
+                            'alternative_address' => $contactData['alternative_address'],
+                        ]);
+                    } else {
+                        $nameForInvitation = $ownerName !== '' ? $ownerName : 'Condómino';
+                        $this->invitationService->createInvitation($condominiumId, $fractionId, $ownerEmail !== '' ? $ownerEmail : null, $nameForInvitation, $role, $contactData);
+                    }
+                }
+            } catch (\PDOException $e) {
+                $isDuplicate = ($e->getCode() === '23000' || strpos($e->getMessage(), '1062') !== false);
+                if ($isDuplicate) {
+                    $skippedDuplicates++;
+                } else {
+                    $errors[] = 'Fração ' . ($row['identifier'] ?? '?') . ': ' . $e->getMessage();
+                }
             } catch (\Exception $e) {
                 $errors[] = 'Fração ' . ($row['identifier'] ?? '?') . ': ' . $e->getMessage();
             }
@@ -891,11 +988,21 @@ class FractionController extends Controller
 
         if ($created > 0) {
             $_SESSION['success'] = $created . ' fração(ões) importada(s) com sucesso.';
+            if ($skippedDuplicates > 0) {
+                $_SESSION['success'] .= ' ' . $skippedDuplicates . ' fração(ões) já existiam e foram ignoradas.';
+            }
             if (!empty($errors)) {
                 $_SESSION['success'] .= ' Avisos: ' . implode('; ', array_slice($errors, 0, 5));
             }
         } else {
-            $_SESSION['error'] = empty($errors) ? 'Nenhuma fração importada.' : implode(' ', array_slice($errors, 0, 5));
+            $msg = [];
+            if ($skippedDuplicates > 0) {
+                $msg[] = $skippedDuplicates . ' fração(ões) já existiam e foram ignoradas.';
+            }
+            if (!empty($errors)) {
+                $msg[] = implode(' ', array_slice($errors, 0, 5));
+            }
+            $_SESSION['error'] = empty($msg) ? 'Nenhuma fração importada.' : implode(' ', $msg);
         }
 
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');

@@ -46,6 +46,28 @@ class Fraction extends Model
     }
 
     /**
+     * Find an inactive (soft-deleted) fraction by condominium and identifier.
+     * Used on import to re-activate instead of failing on unique constraint.
+     */
+    public function findInactiveByCondominiumAndIdentifier(int $condominiumId, string $identifier): ?array
+    {
+        if (!$this->db) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT * FROM fractions 
+            WHERE condominium_id = :condominium_id AND identifier = :identifier AND is_active = 0 
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':identifier' => $identifier,
+        ]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
      * Create fraction
      */
     public function create(array $data): int
