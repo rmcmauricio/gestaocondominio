@@ -222,7 +222,7 @@ class PlanPricingTierSeederTest extends TestCase
                 'sort_order' => 1
             ],
             [
-                'name' => 'Professional',
+                'name' => 'Profissional',
                 'slug' => 'professional',
                 'description' => 'Plano completo para gestão profissional com múltiplos condomínios',
                 'price_monthly' => 39.99,
@@ -351,9 +351,9 @@ class PlanPricingTierSeederTest extends TestCase
     }
 
     /**
-     * Test that Professional plan tiers are seeded correctly
+     * Test that Profissional plan tiers are seeded correctly
      */
-    public function testProfessionalTiersAreSeeded(): void
+    public function testProfissionalTiersAreSeeded(): void
     {
         require_once __DIR__ . '/../../../database/seeders/PlanPricingTierSeeder.php';
         
@@ -363,7 +363,7 @@ class PlanPricingTierSeederTest extends TestCase
         // Get plan ID
         $planStmt = $this->db->query("SELECT id FROM plans WHERE slug = 'professional'");
         $plan = $planStmt->fetch();
-        $this->assertNotFalse($plan, 'Professional plan should exist');
+        $this->assertNotFalse($plan, 'Profissional plan should exist');
         $planId = $plan['id'];
 
         // Get tiers
@@ -376,7 +376,7 @@ class PlanPricingTierSeederTest extends TestCase
         $tiers = $tiersStmt->fetchAll();
 
         // Should have 3 tiers
-        $this->assertCount(3, $tiers, 'Professional plan should have 3 tiers');
+        $this->assertCount(3, $tiers, 'Profissional plan should have 3 tiers');
 
         // Verify first tier
         $this->assertEquals(50, (int)$tiers[0]['min_licenses']);

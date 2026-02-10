@@ -351,7 +351,7 @@ class InvitationService
 
         // Verify invitation belongs to condominium and is not accepted
         $stmt = $db->prepare("
-            SELECT id, email FROM invitations 
+            SELECT id, email, token FROM invitations 
             WHERE id = :invitation_id 
             AND condominium_id = :condominium_id
             AND accepted_at IS NULL
@@ -379,7 +379,7 @@ class InvitationService
         }
 
         // If email is being added or changed, generate token and expiration
-        $token = $invitation['token'];
+        $token = $invitation['token'] ?? null;
         $expiresAt = null;
         
         if (!empty($email)) {
@@ -393,6 +393,14 @@ class InvitationService
                 $stmt->execute([':invitation_id' => $invitationId]);
                 $existing = $stmt->fetch();
                 $expiresAt = $existing['expires_at'] ?? null;
+            }
+        }
+
+        // Ensure we always have a token (e.g. legacy rows or missing column)
+        if (empty($token)) {
+            $token = Security::generateToken(32);
+            if ($expiresAt === null && !empty($email)) {
+                $expiresAt = date('Y-m-d H:i:s', strtotime('+7 days'));
             }
         }
 

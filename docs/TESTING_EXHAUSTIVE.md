@@ -412,7 +412,7 @@ AND expires_at < NOW();
 **Resultado Esperado**:
 - Lista de planos exibida:
   - Condomínio Base
-  - Professional
+  - Profissional
   - Enterprise
 - Informações de cada plano visíveis:
   - Preço mensal/anual
@@ -454,12 +454,12 @@ WHERE s.user_id = [user_id];
 -- used_licenses = número de frações ativas
 ```
 
-#### Teste 2.1.3: Criação de Subscrição - Plano Professional
+#### Teste 2.1.3: Criação de Subscrição - Plano Profissional
 
-**Objetivo**: Verificar criação de subscrição Professional com múltiplos condomínios.
+**Objetivo**: Verificar criação de subscrição Profissional com múltiplos condomínios.
 
 **Passos**:
-1. Selecionar plano "Professional"
+1. Selecionar plano "Profissional"
 2. Criar subscrição
 3. Associar primeiro condomínio
 4. Associar segundo condomínio
@@ -659,12 +659,12 @@ AND s.used_licenses BETWEEN pt.min_licenses AND pt.max_licenses;
 
 ### 2.5 Associação de Condomínios
 
-#### Teste 2.5.1: Associar Condomínio a Subscrição Professional
+#### Teste 2.5.1: Associar Condomínio a Subscrição Profissional
 
 **Objetivo**: Verificar associação de condomínio a subscrição que permite múltiplos.
 
 **Passos**:
-1. Subscrição Professional ativa
+1. Subscrição Profissional ativa
 2. Aceder a `/subscription/attach-condominium`
 3. Selecionar condomínio existente
 4. Confirmar associação
@@ -829,12 +829,12 @@ WHERE id = [subscription_id];
 
 #### Teste 2.8.1: Upgrade de Plano
 
-**Objetivo**: Verificar upgrade de Condomínio Base para Professional.
+**Objetivo**: Verificar upgrade de Condomínio Base para Profissional.
 
 **Passos**:
 1. Subscrição Condomínio Base ativa
 2. Aceder a `/subscription`
-3. Selecionar "Mudar para Professional"
+3. Selecionar "Mudar para Profissional"
 4. Confirmar mudança
 
 **Resultado Esperado**:
@@ -848,7 +848,7 @@ WHERE id = [subscription_id];
 **Objetivo**: Verificar downgrade com validação de limites.
 
 **Passos**:
-1. Subscrição Professional com 100 frações
+1. Subscrição Profissional com 100 frações
 2. Tentar fazer downgrade para Condomínio Base (limite 40 frações)
 
 **Resultado Esperado**:
