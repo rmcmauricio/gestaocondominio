@@ -631,7 +631,13 @@ class FractionController extends Controller
             $licenseService = new LicenseService();
             $licenseService->recalculateAndUpdate($subscription['id']);
             $usedLicenses = (int)($this->subscriptionModel->calculateUsedLicenses($subscription['id']));
-            $licenseLimit = isset($subscription['license_limit']) ? (int)$subscription['license_limit'] : null;
+            $planModel = new \App\Models\Plan();
+            $plan = $planModel->findById($subscription['plan_id']);
+            $licenseMin = $plan ? (int)($plan['license_min'] ?? 0) : 0;
+            // Limite efetivo: subscrição, depois plano (license_limit ou license_min)
+            $licenseLimit = isset($subscription['license_limit']) && $subscription['license_limit'] !== null
+                ? (int)$subscription['license_limit']
+                : ($plan ? (int)($plan['license_limit'] ?? $licenseMin) : null);
             $allowOverage = !empty($subscription['allow_overage']);
             if ($licenseLimit !== null && !$allowOverage) {
                 $availableSlots = max(0, $licenseLimit - $usedLicenses);
@@ -792,8 +798,11 @@ class FractionController extends Controller
                     $current = (int)($validation['current'] ?? $subscription['used_licenses'] ?? 0);
                     $limit = (int)($validation['limit'] ?? $subscription['license_limit'] ?? 0);
                     $maxAllowed = max(0, $limit - $current);
-                    $limitWarning = 'Apenas as primeiras ' . $maxAllowed . ' frações serão importadas devido ao limite da subscrição.';
                     $parsedData = array_slice($parsedData, 0, $maxAllowed);
+                    // Só mostrar aviso quando realmente se cortaram linhas (limite aplicado)
+                    if ($maxAllowed > 0 && $validCount > $maxAllowed) {
+                        $limitWarning = 'Apenas as primeiras ' . $maxAllowed . ' frações serão importadas devido ao limite da subscrição.';
+                    }
                 }
             }
 

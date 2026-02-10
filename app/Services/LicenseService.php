@@ -57,22 +57,24 @@ class LicenseService
         }
 
         $currentLicenses = $subscription['used_licenses'] ?? 0;
-        $licenseLimit = $subscription['license_limit'] ?? null;
-        $allowOverage = $subscription['allow_overage'] ?? false;
         $licenseMin = (int)($plan['license_min'] ?? 0);
+        // Effective limit: subscription override, then plan limit, then plan minimum (e.g. Enterprise 200)
+        $licenseLimit = $subscription['license_limit'] ?? $plan['license_limit'] ?? ($licenseMin > 0 ? $licenseMin : null);
+        $allowOverage = $subscription['allow_overage'] ?? false;
 
         // Calculate projected total
         $projectedTotal = $currentLicenses + $additionalLicenses;
 
         // Check minimum requirement only if NOT adding extras to an active subscription
         // When adding extras, user can add any number up to the limit (no minimum for extras)
-        if (!$isAddingExtras && $projectedTotal < $licenseMin) {
+        if (!$isAddingExtras && $licenseMin > 0 && $projectedTotal < $licenseMin) {
             return [
                 'available' => false,
                 'reason' => "Mínimo de {$licenseMin} licenças necessário. Projetado: {$projectedTotal}",
                 'current' => $currentLicenses,
                 'projected' => $projectedTotal,
-                'minimum' => $licenseMin
+                'minimum' => $licenseMin,
+                'limit' => $licenseLimit,
             ];
         }
 
