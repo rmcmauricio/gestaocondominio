@@ -90,7 +90,7 @@ class DatabaseSeeder
                 'sort_order' => 1
             ],
             [
-                'name' => 'Professional',
+                'name' => 'Profissional',
                 'slug' => 'professional',
                 'description' => 'Plano completo para gestão profissional com múltiplos condomínios',
                 'price_monthly' => 39.99, // Preço base (será calculado por tier)

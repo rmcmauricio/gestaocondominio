@@ -23,9 +23,9 @@ class PlanPricingTierSeeder
             $this->seedCondominioTiers($planIds['condominio']);
         }
 
-        // Seed pricing tiers for Professional plan
+        // Seed pricing tiers for Profissional plan
         if (isset($planIds['professional'])) {
-            $this->seedProfessionalTiers($planIds['professional']);
+            $this->seedProfissionalTiers($planIds['professional']);
         }
 
         // Seed pricing tiers for Enterprise plan
@@ -58,7 +58,7 @@ class PlanPricingTierSeeder
         $this->insertTiers($planId, $tiers);
     }
 
-    protected function seedProfessionalTiers(int $planId): void
+    protected function seedProfissionalTiers(int $planId): void
     {
         $tiers = [
             ['min_licenses' => 50, 'max_licenses' => 199, 'price_per_license' => 0.85, 'sort_order' => 1],

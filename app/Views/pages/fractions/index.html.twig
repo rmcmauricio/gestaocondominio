@@ -1,7 +1,10 @@
 <div class="container py-4">
     {% set page_actions %}
         {% if is_admin %}
-        <div class="page-header-actions">
+        <div class="page-header-actions d-flex gap-2">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/import" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-upload"></i> Importar
+            </a>
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/create" class="btn btn-primary btn-sm">
                 <i class="bi bi-plus-circle"></i> Nova Fração
             </a>
@@ -650,7 +653,7 @@
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                                 <button type="submit" class="btn btn-primary">
-                                    <i class="bi bi-envelope"></i> Adicionar Email e Enviar Convite
+                                    <i class="bi bi-envelope"></i> Enviar Convite
                                 </button>
                             </div>
                         </form>

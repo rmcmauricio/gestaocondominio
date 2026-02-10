@@ -1,0 +1,11 @@
+Identificador;Permilagem;Piso;Tipologia;Área;Notas
+A;100;0;T1;45;Fração tipo 1
+B;100;0;T1;45;
+C;150;1;T2;68;Primeiro andar
+D;150;1;T2;68;
+E;100;2;T1;45;Último andar
+F;100;2;T1;45;
+G;125;-1;T1+1;52;Rés-do-chão
+H;125;-1;T1+1;52;
+I;75;0;Studio;32;Fração pequena
+J;75;0;Studio;32;

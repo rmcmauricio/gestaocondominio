@@ -15,7 +15,7 @@ O sistema foi refatorado para implementar um modelo de subscrições baseado em 
 
 **Novo Modelo:**
 - Licenças dinâmicas baseadas em frações ativas
-- Planos: Condomínio (Base), Professional, Enterprise
+- Planos: Condomínio (Base), Profissional, Enterprise
 - Pricing por escalões (tiered pricing)
 - Associação múltipla de condomínios (Pro/Enterprise)
 - Licenças extras configuráveis
@@ -29,7 +29,7 @@ O sistema foi refatorado para implementar um modelo de subscrições baseado em 
 - **Overage**: Não permitido
 - **Pricing**: Escalões de 10-14, 15-19, 20-29, 30-39, 40+ frações
 
-### 2. Professional
+### 2. Profissional
 - **Tipo**: `professional`
 - **Licenças Mínimas**: 50 frações
 - **Múltiplos Condomínios**: Sim
@@ -109,7 +109,7 @@ archived_at TIMESTAMP NULL             -- Quando arquivada, não conta
 - Aplica mínimo de 10 frações se necessário
 - Fórmula: `max(license_min, frações_ativas_do_condomínio)`
 
-### Planos Professional/Enterprise
+### Planos Profissional/Enterprise
 - Soma frações ativas de todos os condomínios associados
 - Aplica mínimo do plano (50 ou 200)
 - Fórmula: `max(license_min, soma_frações_ativas_todos_condomínios)`
@@ -132,7 +132,7 @@ Todos as licenças são cobradas ao preço do escalão em que o total se enquadr
 ### Modo Progressive
 As licenças são cobradas progressivamente por escalão.
 
-**Exemplo (Plano Professional):**
+**Exemplo (Plano Profissional):**
 - 150 frações:
   - Primeiras 50-99: 50 frações × €0.60 = €30.00
   - Próximas 100-199: 51 frações × €0.50 = €25.50
@@ -141,7 +141,7 @@ As licenças são cobradas progressivamente por escalão.
 ## Gestão de Condomínios
 
 ### Associar Condomínio
-- Disponível apenas para planos Professional/Enterprise
+- Disponível apenas para planos Profissional/Enterprise
 - Valida limites de licenças antes de associar
 - Recalcula licenças automaticamente após associação
 
@@ -154,7 +154,7 @@ As licenças são cobradas progressivamente por escalão.
 ## Licenças Extras
 
 ### Adicionar Licenças Extras
-- Disponível para subscrições ativas (Professional/Enterprise)
+- Disponível para subscrições ativas (Profissional/Enterprise)
 - Cria invoice para pagamento das licenças adicionais
 - Atualiza `extra_licenses` e `license_limit`
 
@@ -308,7 +308,7 @@ POST /subscription/add-active-licenses
 
 ### Erro: "Plano Base permite apenas um condomínio"
 - O plano Condomínio (Base) só permite associar um condomínio
-- Para múltiplos condomínios, fazer upgrade para Professional ou Enterprise
+- Para múltiplos condomínios, fazer upgrade para Profissional ou Enterprise
 
 ### Erro: "Excederia o limite de licenças"
 - Verificar `license_limit` da subscrição
@@ -333,7 +333,7 @@ O mínimo de licenças (`license_min`) é aplicado automaticamente. Se um condom
 **Exemplo:** Plano Base com mínimo de 10 licenças, mas condomínio tem apenas 6 frações ativas → cobra por 10 licenças.
 
 ### Posso exceder o limite de licenças?
-Apenas planos Enterprise permitem exceder o limite (`allow_overage = true`). Planos Condomínio e Professional bloqueiam operações quando o limite é atingido.
+Apenas planos Enterprise permitem exceder o limite (`allow_overage = true`). Planos Condomínio e Profissional bloqueiam operações quando o limite é atingido.
 
 ### Como adicionar mais licenças?
 1. Via interface: `POST /subscription/add-active-licenses` com `extra_licenses`
@@ -364,7 +364,7 @@ GET /subscription
 Response: {
     "subscription": {
         "id": 1,
-        "plan_name": "Professional",
+        "plan_name": "Profissional",
         "used_licenses": 70,
         "license_limit": 100,
         "remaining_licenses": 30
@@ -394,7 +394,7 @@ Response: {
 }
 ```
 
-### Associar condomínio (Professional/Enterprise)
+### Associar condomínio (Profissional/Enterprise)
 ```php
 POST /subscription/attach-condominium
 Body: {

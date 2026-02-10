@@ -59,7 +59,7 @@ Este documento fornece soluções para problemas comuns relacionados ao sistema 
 - Tentativa de associar segundo condomínio a plano Condomínio (Base)
 
 **Soluções:**
-1. Fazer upgrade para plano Professional ou Enterprise
+1. Fazer upgrade para plano Profissional ou Enterprise
 2. Desassociar condomínio atual antes de associar novo (não recomendado)
 
 ### 4. Erro: "Excederia o limite de licenças"

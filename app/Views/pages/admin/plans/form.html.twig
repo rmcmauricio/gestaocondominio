@@ -68,7 +68,7 @@
                                 <select class="form-select" id="plan_type" name="plan_type">
                                     <option value="">-- Selecione --</option>
                                     <option value="condominio" {% if plan.plan_type|default('') == 'condominio' %}selected{% endif %}>Condomínio (Base)</option>
-                                    <option value="professional" {% if plan.plan_type|default('') == 'professional' %}selected{% endif %}>Professional</option>
+                                    <option value="professional" {% if plan.plan_type|default('') == 'professional' %}selected{% endif %}>Profissional</option>
                                     <option value="enterprise" {% if plan.plan_type|default('') == 'enterprise' %}selected{% endif %}>Enterprise</option>
                                 </select>
                                 <small class="form-text text-muted">Tipo do plano no novo modelo baseado em licenças</small>

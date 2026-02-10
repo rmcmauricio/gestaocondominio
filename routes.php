@@ -135,6 +135,10 @@ $router->post('/admin-transfers/reject', 'App\Controllers\AdminTransferControlle
 $router->get('/condominiums/{condominium_id}/fractions', 'App\Controllers\FractionController@index');
 $router->get('/condominiums/{condominium_id}/fractions/create', 'App\Controllers\FractionController@create');
 $router->post('/condominiums/{condominium_id}/fractions', 'App\Controllers\FractionController@store');
+$router->get('/condominiums/{condominium_id}/fractions/import', 'App\Controllers\FractionController@import');
+$router->post('/condominiums/{condominium_id}/fractions/import/upload', 'App\Controllers\FractionController@uploadImport');
+$router->post('/condominiums/{condominium_id}/fractions/import/preview', 'App\Controllers\FractionController@previewImport');
+$router->post('/condominiums/{condominium_id}/fractions/import/process', 'App\Controllers\FractionController@processImport');
 $router->get('/condominiums/{condominium_id}/fractions/{id}/edit', 'App\Controllers\FractionController@edit');
 $router->post('/condominiums/{condominium_id}/fractions/{id}', 'App\Controllers\FractionController@update');
 $router->post('/condominiums/{condominium_id}/fractions/{id}/delete', 'App\Controllers\FractionController@delete');

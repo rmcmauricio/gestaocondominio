@@ -11,6 +11,8 @@ use App\Models\Condominium;
 use App\Models\Subscription;
 use App\Models\CondominiumUser;
 use App\Services\InvitationService;
+use App\Services\FractionImportService;
+use App\Services\LicenseService;
 use App\Core\EmailService;
 use App\Middleware\DemoProtectionMiddleware;
 use App\Models\UserEmailPreference;
@@ -592,6 +594,308 @@ class FractionController extends Controller
             }
         } catch (\Exception $e) {
             $_SESSION['error'] = 'Erro ao atualizar dados: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+        exit;
+    }
+
+    /**
+     * Show fraction import page (upload + mapping)
+     */
+    public function import(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $userId = AuthMiddleware::userId();
+        // Frações que existem neste condomínio (para mostrar ao utilizador)
+        $fractionsInCondominium = $this->fractionModel->getActiveCountByCondominium($condominiumId);
+
+        $subscription = $this->subscriptionModel->getActiveSubscription($userId);
+        $usedLicenses = 0;
+        $licenseLimit = null;
+        $allowOverage = false;
+        $availableSlots = null; // null = unlimited or N/A
+
+        if ($subscription) {
+            // Recalcular licenças utilizadas para refletir o estado real da subscrição
+            $licenseService = new LicenseService();
+            $licenseService->recalculateAndUpdate($subscription['id']);
+            $usedLicenses = (int)($this->subscriptionModel->calculateUsedLicenses($subscription['id']));
+            $licenseLimit = isset($subscription['license_limit']) ? (int)$subscription['license_limit'] : null;
+            $allowOverage = !empty($subscription['allow_overage']);
+            if ($licenseLimit !== null && !$allowOverage) {
+                $availableSlots = max(0, $licenseLimit - $usedLicenses);
+            }
+        }
+
+        $this->loadPageTranslations('fractions');
+
+        $this->data += [
+            'viewName' => 'pages/fractions/import.html.twig',
+            'page' => ['titulo' => 'Importar Frações'],
+            'condominium' => $condominium,
+            'csrf_token' => Security::generateCSRFToken(),
+            'fractions_in_condominium' => $fractionsInCondominium,
+            'used_licenses' => $usedLicenses,
+            'license_limit' => $licenseLimit,
+            'allow_overage' => $allowOverage,
+            'available_slots' => $availableSlots,
+            'error' => $_SESSION['error'] ?? null,
+            'success' => $_SESSION['success'] ?? null,
+        ];
+
+        unset($_SESSION['error'], $_SESSION['success']);
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Upload file and return headers + suggested mapping (AJAX JSON)
+     */
+    public function uploadImport(int $condominiumId)
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $oldDisplay = ini_get('display_errors');
+        ini_set('display_errors', '0');
+
+        try {
+            AuthMiddleware::require();
+            RoleMiddleware::requireCondominiumAccess($condominiumId);
+            RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                echo json_encode(['success' => false, 'error' => 'Método não permitido']);
+                exit;
+            }
+
+            $csrfToken = $_POST['csrf_token'] ?? '';
+            if (!Security::verifyCSRFToken($csrfToken)) {
+                echo json_encode(['success' => false, 'error' => 'Token de segurança inválido']);
+                exit;
+            }
+
+            if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+                echo json_encode(['success' => false, 'error' => 'Erro no upload do ficheiro']);
+                exit;
+            }
+
+            $originalName = $_FILES['file']['name'] ?? '';
+            $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['xlsx', 'xls', 'csv'])) {
+                echo json_encode(['success' => false, 'error' => 'Formato não suportado. Use .xlsx, .xls ou .csv']);
+                exit;
+            }
+
+            $tmpFile = $_FILES['file']['tmp_name'];
+            $hasHeader = isset($_POST['has_header']) && $_POST['has_header'] === '1';
+
+            $importService = new FractionImportService();
+            $fileData = $importService->readFile($tmpFile, $hasHeader, $originalName);
+            $suggestedMapping = $importService->suggestMapping($fileData['headers']);
+
+            echo json_encode([
+                'success' => true,
+                'headers' => $fileData['headers'],
+                'suggestedMapping' => $suggestedMapping,
+                'rowCount' => $fileData['rowCount'],
+            ]);
+        } catch (\Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+        ini_set('display_errors', $oldDisplay);
+    }
+
+    /**
+     * Preview import: parse file, validate rows, check license limit, show preview
+     */
+    public function previewImport(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Método não permitido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions/import');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions/import');
+            exit;
+        }
+
+        if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+            $_SESSION['error'] = 'Erro no upload do ficheiro.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions/import');
+            exit;
+        }
+
+        $originalName = $_FILES['file']['name'] ?? '';
+        $hasHeader = isset($_POST['has_header']) && $_POST['has_header'] === '1';
+        $columnMappingJson = $_POST['column_mapping'] ?? '{}';
+        $columnMapping = json_decode($columnMappingJson, true);
+        if (!is_array($columnMapping)) {
+            $columnMapping = [];
+        }
+
+        if (!in_array('identifier', $columnMapping)) {
+            $_SESSION['error'] = 'Deve mapear uma coluna para o campo "Identificador".';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions/import');
+            exit;
+        }
+
+        try {
+            $importService = new FractionImportService();
+            $tmpFile = $_FILES['file']['tmp_name'];
+            $fileData = $importService->readFile($tmpFile, $hasHeader, $originalName);
+            $parsedData = $importService->parseRows($fileData['rows'], $columnMapping);
+
+            $existingInFile = [];
+            $validRows = [];
+            foreach ($parsedData as $row) {
+                $validation = $importService->validateRow($row, $condominiumId, $existingInFile);
+                $row['_valid'] = $validation['valid'];
+                $row['_errors'] = $validation['errors'];
+                if ($validation['valid']) {
+                    $existingInFile[] = trim((string)$row['identifier']);
+                }
+                $validRows[] = $row;
+            }
+            $parsedData = $validRows;
+
+            $validCount = count(array_filter($parsedData, function ($r) {
+                return !empty($r['_valid']);
+            }));
+
+            $userId = AuthMiddleware::userId();
+            $subscription = $this->subscriptionModel->getActiveSubscription($userId);
+            $licenseService = new LicenseService();
+            $maxAllowed = $validCount;
+            $limitWarning = null;
+
+            if ($subscription && $validCount > 0) {
+                $validation = $licenseService->validateLicenseAvailability($subscription['id'], $validCount);
+                if (!$validation['available'] && empty($subscription['allow_overage'])) {
+                    $current = (int)($validation['current'] ?? $subscription['used_licenses'] ?? 0);
+                    $limit = (int)($validation['limit'] ?? $subscription['license_limit'] ?? 0);
+                    $maxAllowed = max(0, $limit - $current);
+                    $limitWarning = 'Apenas as primeiras ' . $maxAllowed . ' frações serão importadas devido ao limite da subscrição.';
+                    $parsedData = array_slice($parsedData, 0, $maxAllowed);
+                }
+            }
+
+            $_SESSION['fraction_import_data'] = [
+                'condominium_id' => $condominiumId,
+                'parsed_data' => $parsedData,
+                'column_mapping' => $columnMapping,
+                'max_allowed' => $maxAllowed,
+                'limit_warning' => $limitWarning,
+                'subscription_id' => $subscription ? ($subscription['id'] ?? null) : null,
+            ];
+
+            $condominium = $this->condominiumModel->findById($condominiumId);
+            $this->loadPageTranslations('fractions');
+
+            $this->data += [
+                'viewName' => 'pages/fractions/import-preview.html.twig',
+                'page' => ['titulo' => 'Preview da Importação de Frações'],
+                'condominium' => $condominium,
+                'parsedData' => $parsedData,
+                'max_allowed' => $maxAllowed,
+                'limit_warning' => $limitWarning,
+                'csrf_token' => Security::generateCSRFToken(),
+            ];
+
+            echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao processar ficheiro: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions/import');
+            exit;
+        }
+    }
+
+    /**
+     * Process import: create fractions from session data, then recalculate licenses
+     */
+    public function processImport(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Método não permitido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
+            exit;
+        }
+
+        $importData = $_SESSION['fraction_import_data'] ?? null;
+        if (!$importData || (int)($importData['condominium_id'] ?? 0) !== (int)$condominiumId) {
+            $_SESSION['error'] = 'Dados de importação não encontrados ou expirados.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions/import');
+            exit;
+        }
+
+        $parsedData = $importData['parsed_data'] ?? [];
+        $subscriptionId = $importData['subscription_id'] ?? null;
+
+        $created = 0;
+        $errors = [];
+
+        foreach ($parsedData as $row) {
+            if (!empty($row['_errors'])) {
+                $errors[] = 'Fração ' . ($row['identifier'] ?? '?') . ': ' . implode(' ', $row['_errors']);
+                continue;
+            }
+            try {
+                $this->fractionModel->create([
+                    'condominium_id' => $condominiumId,
+                    'identifier' => Security::sanitize($row['identifier'] ?? ''),
+                    'permillage' => (float)($row['permillage'] ?? 0),
+                    'floor' => !empty($row['floor']) ? Security::sanitize($row['floor']) : null,
+                    'typology' => !empty($row['typology']) ? Security::sanitize($row['typology']) : null,
+                    'area' => isset($row['area']) && $row['area'] !== '' && $row['area'] !== null ? (float)$row['area'] : null,
+                    'notes' => !empty($row['notes']) ? Security::sanitize($row['notes']) : null,
+                ]);
+                $created++;
+            } catch (\Exception $e) {
+                $errors[] = 'Fração ' . ($row['identifier'] ?? '?') . ': ' . $e->getMessage();
+            }
+        }
+
+        if ($subscriptionId) {
+            $licenseService = new LicenseService();
+            $licenseService->recalculateAndUpdate($subscriptionId);
+        }
+
+        unset($_SESSION['fraction_import_data']);
+
+        if ($created > 0) {
+            $_SESSION['success'] = $created . ' fração(ões) importada(s) com sucesso.';
+            if (!empty($errors)) {
+                $_SESSION['success'] .= ' Avisos: ' . implode('; ', array_slice($errors, 0, 5));
+            }
+        } else {
+            $_SESSION['error'] = empty($errors) ? 'Nenhuma fração importada.' : implode(' ', array_slice($errors, 0, 5));
         }
 
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');

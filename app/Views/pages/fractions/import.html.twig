@@ -1,0 +1,337 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Importar Frações</h2>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if license_limit is not null and available_slots is not null %}
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle"></i>
+        <strong>Frações neste condomínio:</strong> {{ fractions_in_condominium }}.
+        <strong>Limite da subscrição:</strong> {{ used_licenses }} licenças utilizadas / {{ license_limit }}.
+        Pode importar até <strong>{{ available_slots }}</strong> frações.
+    </div>
+    {% elseif license_limit is not null and allow_overage %}
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle"></i>
+        <strong>Frações neste condomínio:</strong> {{ fractions_in_condominium }}.
+        Licenças utilizadas: {{ used_licenses }} / {{ license_limit }}. O seu plano permite exceder o limite (overage).
+    </div>
+    {% elseif license_limit is null %}
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle"></i>
+        <strong>Frações neste condomínio:</strong> {{ fractions_in_condominium }}. Sem limite de frações na subscrição.
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Requisitos do ficheiro e campos</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-2">Tipos de ficheiro aceites</h6>
+                    <ul class="mb-0">
+                        <li><strong>.xlsx</strong> — Excel (2007 ou posterior)</li>
+                        <li><strong>.xls</strong> — Excel (97–2003)</li>
+                        <li><strong>.csv</strong> — Valores separados por vírgula ou ponto e vírgula</li>
+                    </ul>
+                    <p class="small text-muted mt-2 mb-0">
+                        A primeira linha pode conter os nomes das colunas (cabeçalhos). No passo seguinte poderá mapear cada coluna do ficheiro para os campos do sistema.
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-2">Campos na importação</h6>
+                    <p class="mb-1"><strong>Obrigatório:</strong></p>
+                    <ul class="mb-2">
+                        <li><strong>Identificador</strong> — Código ou designação única da fração (ex.: A, 1, RC-A). Não pode estar vazio nem repetir um identificador já existente no condomínio.</li>
+                    </ul>
+                    <p class="mb-1"><strong>Opcionais:</strong></p>
+                    <ul class="mb-0">
+                        <li><strong>Permilagem</strong> — Valor numérico (ex.: 100 para 100‰)</li>
+                        <li><strong>Piso</strong> — Andar ou piso (ex.: 0, 1, -1 para rés-do-chão)</li>
+                        <li><strong>Tipologia</strong> — Tipo de fração (ex.: T1, T2, Studio)</li>
+                        <li><strong>Área</strong> — Área em m² (valor numérico)</li>
+                        <li><strong>Notas</strong> — Texto livre</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-upload"></i> Passo 1: Upload do Ficheiro
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="uploadForm" enctype="multipart/form-data" data-condominium-id="{{ condominium.id }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="file" class="form-label">Ficheiro <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls,.csv" required>
+                            <small class="form-text text-muted">
+                                .xlsx, .xls ou .csv
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="has_header" name="has_header" value="1" checked>
+                                <label class="form-check-label" for="has_header">
+                                    Primeira linha contém cabeçalhos
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-upload"></i> Carregar e Analisar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="mappingSection" class="card shadow-sm mt-4" style="display: none;">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-list-columns"></i> Passo 2: Mapeamento de Colunas
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        Mapeie cada coluna do ficheiro para o campo correspondente. <strong>Campo obrigatório:</strong> Identificador.
+                    </div>
+
+                    <form id="mappingForm" method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/import/preview" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="has_header" id="mapping_has_header" value="1">
+                        <input type="file" name="file" id="mapping_file" style="display: none;">
+                        <input type="hidden" name="column_mapping" id="column_mapping_input">
+
+                        <div id="mappingTable"></div>
+
+                        <div class="mt-4">
+                            <div class="alert alert-warning" id="mappingErrors" style="display: none;"></div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-eye"></i> Ver Preview
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="resetMapping()">
+                                <i class="bi bi-arrow-counterclockwise"></i> Reiniciar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="alertModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" id="alertModalHeader">
+                <h5 class="modal-title" id="alertModalLabel">Aviso</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="alertModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const IMPORT_BASE_URL = {{ BASE_URL|json_encode|raw }};
+const IMPORT_CONDOMINIUM_ID = {{ condominium.id|default(0) }};
+
+function escapeHtml(text) {
+    if (text == null) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
+function showAlertModal(title, message, type) {
+    const modal = document.getElementById('alertModal');
+    const label = document.getElementById('alertModalLabel');
+    const body = document.getElementById('alertModalBody');
+    const header = document.getElementById('alertModalHeader');
+    if (!modal || !label || !body) {
+        alert(title + ': ' + message);
+        return;
+    }
+    label.textContent = title;
+    body.innerHTML = '<p class="mb-0">' + escapeHtml(message) + '</p>';
+    header.className = 'modal-header';
+    if (type === 'error' || type === 'danger') header.classList.add('bg-danger', 'text-white');
+    else if (type === 'success') header.classList.add('bg-success', 'text-white');
+    else header.classList.add('bg-warning', 'text-dark');
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        new bootstrap.Modal(modal).show();
+    }
+}
+
+let fileData = null;
+
+function initImportForm() {
+    const form = document.getElementById('uploadForm');
+    if (!form) {
+        setTimeout(initImportForm, 100);
+        return;
+    }
+    form.addEventListener('submit', handleUploadSubmit);
+    form.onsubmit = function(e) { e.preventDefault(); return false; };
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initImportForm);
+} else {
+    initImportForm();
+}
+
+async function handleUploadSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const fileInput = document.getElementById('file');
+    if (!fileInput || !fileInput.files[0]) {
+        showAlertModal('Atenção', 'Selecione um ficheiro', 'warning');
+        return false;
+    }
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (!submitBtn) return false;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> A processar...';
+
+    const formData = new FormData(form);
+    const uploadUrl = IMPORT_BASE_URL + 'condominiums/' + IMPORT_CONDOMINIUM_ID + '/fractions/import/upload';
+
+    try {
+        const response = await fetch(uploadUrl, { method: 'POST', body: formData });
+        const result = await response.json().catch(function() { return { success: false, error: 'Resposta inválida' }; });
+        if (result.success) {
+            fileData = result;
+            const mappingFile = document.getElementById('mapping_file');
+            if (fileInput.files[0] && mappingFile) {
+                const dt = new DataTransfer();
+                dt.items.add(fileInput.files[0]);
+                mappingFile.files = dt.files;
+            }
+            const hasHeader = document.getElementById('has_header');
+            const mappingHasHeader = document.getElementById('mapping_has_header');
+            if (hasHeader && mappingHasHeader) mappingHasHeader.value = hasHeader.checked ? '1' : '0';
+            showMappingSection(result);
+        } else {
+            showAlertModal('Erro', result.error || 'Erro desconhecido', 'error');
+        }
+    } catch (err) {
+        showAlertModal('Erro', err.message || 'Erro de rede', 'error');
+    }
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i class="bi bi-upload"></i> Carregar e Analisar';
+    return false;
+}
+
+const fractionFields = [
+    { key: 'identifier', label: 'Identificador', required: true, description: '(obrigatório)' },
+    { key: 'permillage', label: 'Permilagem', required: false, description: '(opcional)' },
+    { key: 'floor', label: 'Piso', required: false, description: '(opcional)' },
+    { key: 'typology', label: 'Tipologia', required: false, description: '(opcional)' },
+    { key: 'area', label: 'Área (m²)', required: false, description: '(opcional)' },
+    { key: 'notes', label: 'Notas', required: false, description: '(opcional)' }
+];
+
+function showMappingSection(data) {
+    if (!data || !data.headers || !Array.isArray(data.headers)) {
+        showAlertModal('Erro', 'Dados do ficheiro inválidos.', 'error');
+        return;
+    }
+    const section = document.getElementById('mappingSection');
+    const table = document.getElementById('mappingTable');
+    if (!section || !table) return;
+
+    const suggested = data.suggestedMapping || {};
+    const fieldToIndex = {};
+    Object.keys(suggested).forEach(function(colIdx) {
+        const f = suggested[colIdx];
+        if (f && !fieldToIndex[f]) fieldToIndex[f] = parseInt(colIdx, 10);
+    });
+
+    let html = '<table class="table table-bordered"><thead><tr><th>Campo do Sistema</th><th>Coluna do Ficheiro</th></tr></thead><tbody>';
+    fractionFields.forEach(function(field) {
+        const suggestedIdx = fieldToIndex[field.key];
+        const hasAuto = suggestedIdx !== undefined && suggestedIdx !== null;
+        html += '<tr><td><strong>' + escapeHtml(field.label) + '</strong> <span class="text-muted">' + escapeHtml(field.description) + '</span>';
+        if (field.required) html += ' <span class="text-danger">*</span>';
+        if (hasAuto) html += ' <span class="badge bg-info ms-1">Auto</span>';
+        html += '</td><td><select class="form-select field-mapping" data-field="' + field.key + '"><option value="">-- Não mapear --</option>';
+        data.headers.forEach(function(header, idx) {
+            const label = header || ('Coluna ' + (idx + 1));
+            html += '<option value="' + idx + '"' + (suggestedIdx === idx ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+        });
+        html += '</select></td></tr>';
+    });
+    html += '</tbody></table>';
+    table.innerHTML = html;
+
+    document.querySelectorAll('.field-mapping').forEach(function(sel) {
+        sel.addEventListener('change', validateFractionMapping);
+    });
+    validateFractionMapping();
+    section.style.display = 'block';
+    section.scrollIntoView({ behavior: 'smooth' });
+}
+
+function validateFractionMapping() {
+    const mappings = {};
+    let hasIdentifier = false;
+    document.querySelectorAll('.field-mapping').forEach(function(sel) {
+        const field = sel.dataset.field;
+        const val = sel.value;
+        if (val !== '') {
+            mappings[val] = field;
+            if (field === 'identifier') hasIdentifier = true;
+        }
+    });
+    const errDiv = document.getElementById('mappingErrors');
+    const submitBtn = document.querySelector('#mappingForm button[type="submit"]');
+    if (!hasIdentifier) {
+        errDiv.innerHTML = '<strong>Erro:</strong> Deve mapear uma coluna para o campo Identificador.';
+        errDiv.style.display = 'block';
+        if (submitBtn) submitBtn.disabled = true;
+    } else {
+        errDiv.style.display = 'none';
+        if (submitBtn) submitBtn.disabled = false;
+    }
+    document.getElementById('column_mapping_input').value = JSON.stringify(mappings);
+}
+
+function resetMapping() {
+    document.getElementById('mappingSection').style.display = 'none';
+    document.getElementById('uploadForm').reset();
+    fileData = null;
+}
+</script>
