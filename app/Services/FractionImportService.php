@@ -174,6 +174,30 @@ class FractionImportService
                 'patterns' => ['/^notas$/i', '/notes|notas|observa|observações|obs/i'],
                 'priority' => [10, 6],
             ],
+            'owner_name' => [
+                'patterns' => ['/^nome$/i', '/nome|name|condómino|condomino/i'],
+                'priority' => [10, 6],
+            ],
+            'owner_email' => [
+                'patterns' => ['/^email$/i', '/email|e-mail/i'],
+                'priority' => [10, 6],
+            ],
+            'owner_nif' => [
+                'patterns' => ['/^nif$/i', '/nif|contribuinte/i'],
+                'priority' => [10, 6],
+            ],
+            'owner_phone' => [
+                'patterns' => ['/^telefone$/i', '/telefone|phone|tel|telemóvel|telemovel/i'],
+                'priority' => [10, 6],
+            ],
+            'owner_alternative_address' => [
+                'patterns' => ['/^morada\s+alternativa$/i', '/morada alternativa|morada|alternative_address|endereço|endereco/i'],
+                'priority' => [10, 6],
+            ],
+            'owner_role' => [
+                'patterns' => ['/^tipo$/i', '/role|proprietario|arrendatario|condomino/i'],
+                'priority' => [10, 6],
+            ],
         ];
 
         foreach ($headers as $index => $header) {
@@ -226,6 +250,12 @@ class FractionImportService
                 'typology' => null,
                 'area' => null,
                 'notes' => null,
+                'owner_name' => null,
+                'owner_email' => null,
+                'owner_nif' => null,
+                'owner_phone' => null,
+                'owner_alternative_address' => null,
+                'owner_role' => null,
             ];
 
             foreach ($columnMapping as $fileColumnIndex => $systemField) {
@@ -256,6 +286,19 @@ class FractionImportService
                             ? (float)str_replace(',', '.', $value)
                             : 0;
                     }
+                } elseif ($systemField === 'owner_role') {
+                    if ($value !== null && $value !== '') {
+                        $roleLower = mb_strtolower((string)$value, 'UTF-8');
+                        if (in_array($roleLower, ['proprietario', 'arrendatario', 'condomino'], true)) {
+                            $rowData[$systemField] = $roleLower;
+                        } elseif (preg_match('/proprietário|proprietario/i', $roleLower)) {
+                            $rowData[$systemField] = 'proprietario';
+                        } elseif (preg_match('/arrendatário|arrendatario/i', $roleLower)) {
+                            $rowData[$systemField] = 'arrendatario';
+                        } else {
+                            $rowData[$systemField] = 'condomino';
+                        }
+                    }
                 } else {
                     $rowData[$systemField] = $value !== null && $value !== '' ? $value : null;
                 }
@@ -283,6 +326,21 @@ class FractionImportService
         $permillage = $row['permillage'] ?? 0;
         if (!is_numeric($permillage) || (float)$permillage < 0) {
             $errors[] = 'Permilagem deve ser um número >= 0.';
+        }
+
+        $hasOwnerData = !empty(trim((string)($row['owner_name'] ?? ''))) || !empty(trim((string)($row['owner_email'] ?? '')))
+            || !empty(trim((string)($row['owner_nif'] ?? ''))) || !empty(trim((string)($row['owner_phone'] ?? '')))
+            || !empty(trim((string)($row['owner_alternative_address'] ?? ''))) || !empty(trim((string)($row['owner_role'] ?? '')));
+        if ($hasOwnerData && empty(trim((string)($row['owner_name'] ?? '')))) {
+            $errors[] = 'Nome do condómino é obrigatório quando há dados do condómino.';
+        }
+        $ownerEmail = trim((string)($row['owner_email'] ?? ''));
+        if ($ownerEmail !== '' && !filter_var($ownerEmail, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Email do condómino inválido.';
+        }
+        $ownerRole = trim((string)($row['owner_role'] ?? ''));
+        if ($ownerRole !== '' && !in_array($ownerRole, ['condomino', 'proprietario', 'arrendatario'], true)) {
+            $errors[] = 'Tipo do condómino deve ser condomino, proprietario ou arrendatario.';
         }
 
         if (!empty($existingIdentifiers) && in_array($identifier, $existingIdentifiers, true)) {
@@ -321,6 +379,12 @@ class FractionImportService
             'typology' => 'Tipologia',
             'area' => 'Área (m²)',
             'notes' => 'Notas',
+            'owner_name' => 'Nome do condómino',
+            'owner_email' => 'Email do condómino',
+            'owner_nif' => 'NIF',
+            'owner_phone' => 'Telefone',
+            'owner_alternative_address' => 'Morada alternativa',
+            'owner_role' => 'Tipo (condomino/proprietario/arrendatario)',
         ];
     }
 }
