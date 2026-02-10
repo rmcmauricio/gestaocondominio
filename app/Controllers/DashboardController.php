@@ -110,6 +110,7 @@ class DashboardController extends Controller
         $info = $_SESSION['info'] ?? null;
         unset($_SESSION['error'], $_SESSION['success'], $_SESSION['info']);
 
+        // Super admin always has access to create condominiums (subscription limits do not apply)
         $this->data += [
             'viewName' => 'pages/dashboard/super-admin.html.twig',
             'page' => ['titulo' => 'Painel Super Admin'],
@@ -118,6 +119,7 @@ class DashboardController extends Controller
             'admin_condominiums' => $adminCondominiums,
             'condomino_condominiums' => $condominoCondominiums,
             'pending_transfers' => $pendingTransfers,
+            'can_create_condominium' => true,
             'error' => $error,
             'success' => $success,
             'info' => $info
