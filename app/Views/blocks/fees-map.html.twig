@@ -1,13 +1,13 @@
 {# Mapa de Quotas - Bloco Reutilizável #}
-{# Variáveis necessárias:
-   - condominium: objeto do condomínio (deve ter 'id')
-   - fractions: array de frações
-   - fees_map: array associativo [month][fraction_id] = fee
-   - month_names: array com nomes dos meses (índice 1-12)
-   - selected_fees_year: ano selecionado
-   - available_years: array de anos disponíveis
-   - BASE_URL: URL base (geralmente já disponível globalmente)
-#}
+{# Variáveis: condominium, fractions, fees_map [period_index][fraction_id],
+   fee_period_labels (1=>'Jan', ... ou 1=>'Q1', ...), month_names, selected_fees_year, available_years #}
+{% set period_columns = fee_period_labels|default({}) %}
+{% if period_columns is empty %}
+    {% set period_columns = {} %}
+    {% for m in 1..12 %}
+        {% set period_columns = period_columns|merge({(m): (month_names|default({})[m]|default(m))[:3]}) %}
+    {% endfor %}
+{% endif %}
 
 <div class="col-12">
     <div class="card shadow-sm mb-4">
@@ -50,8 +50,8 @@
                     <thead class="table-light">
                         <tr>
                             <th class="text-center fw-bold" style="min-width: 80px;">Fração</th>
-                            {% for month in 1..12 %}
-                            <th class="text-center" style="min-width: 50px;">{{ month_names[month][:3] }}</th>
+                            {% for period_idx, period_label in period_columns %}
+                            <th class="text-center" style="min-width: 50px;">{{ period_label }}</th>
                             {% endfor %}
                             <th class="text-center fw-bold" style="min-width: 80px;">Total</th>
                             <th class="text-center fw-bold" style="min-width: 80px;">Pago</th>
@@ -67,9 +67,9 @@
                             {% set fraction_total = 0 %}
                             {% set fraction_paid = 0 %}
                             {% set fraction_pending = 0 %}
-                            {% for month in 1..12 %}
-                                {% set month_data = fees_map[month]|default({}) %}
-                                {% set fee = month_data[fraction.id]|default(null) %}
+                            {% for period_idx, period_label in period_columns %}
+                                {% set slot_data = fees_map[period_idx]|default({}) %}
+                                {% set fee = slot_data[fraction.id]|default(null) %}
                                 {% set is_overdue = fee and fee.is_overdue|default(false) %}
                                 {% set has_multiple_fees = fee and fee.all_fees|default([])|length > 1 %}
                                 {% if fee %}
@@ -78,13 +78,12 @@
                                     {% set fraction_pending = fraction_pending + (fee.remaining_amount|default(fee.amount)) %}
                                 {% endif %}
                                 
-                                {# Build tooltip with all fees details #}
                                 {% set tooltip_parts = [] %}
                                 {% if fee %}
                                     {% if is_overdue %}
                                         {% set tooltip_parts = tooltip_parts|merge(['⚠️ Em Atraso']) %}
                                     {% endif %}
-                                    {% set tooltip_parts = tooltip_parts|merge(['Fração: ' ~ fee.fraction_identifier, month_names[month] ~ '/' ~ selected_fees_year]) %}
+                                    {% set tooltip_parts = tooltip_parts|merge(['Fração: ' ~ fee.fraction_identifier, period_label ~ '/' ~ selected_fees_year]) %}
                                     {% if fee.due_date %}
                                         {% set tooltip_parts = tooltip_parts|merge(['Vencimento: ' ~ (fee.due_date|date('d/m/Y'))]) %}
                                     {% endif %}

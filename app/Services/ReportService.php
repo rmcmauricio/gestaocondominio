@@ -108,7 +108,7 @@ class ReportService
         }
 
         $sql .= " GROUP BY f.id
-                  ORDER BY f.period_year DESC, f.period_month DESC, fr.identifier ASC";
+                  ORDER BY f.period_year DESC, COALESCE(f.period_index, f.period_month) DESC, fr.identifier ASC";
 
         $stmt = $db->prepare($sql);
         $stmt->execute($params);

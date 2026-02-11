@@ -203,7 +203,7 @@ class NotificationService
             $totalAmount += (float)$fee['pending_amount'];
             $feesList[] = [
                 'reference' => $fee['reference'] ?? '',
-                'period' => $fee['period_year'] . '/' . str_pad($fee['period_month'] ?? 0, 2, '0', STR_PAD_LEFT),
+                'period' => \App\Models\Fee::formatPeriodForDisplay($fee),
                 'amount' => (float)$fee['pending_amount'],
                 'due_date' => $fee['due_date']
             ];

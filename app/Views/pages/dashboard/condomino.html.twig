@@ -295,7 +295,7 @@
                                     {% for fee in pending_fees %}
                                     <div class="list-group-item">
                                         <div class="d-flex w-100 justify-content-between">
-                                            <h6 class="mb-1">Quota {{ fee.period_year }}/{{ fee.period_month|default('N/A') }}</h6>
+                                            <h6 class="mb-1">Quota {{ fee.period_display|default(fee.period_year) }}</h6>
                                             <strong>€{{ fee.amount|number_format(2, ',', '.') }}</strong>
                                         </div>
                                         <p class="mb-1 text-muted">Vencimento: {{ fee.due_date|date('d/m/Y') }}</p>

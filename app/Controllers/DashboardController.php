@@ -388,6 +388,10 @@ class DashboardController extends Controller
         foreach ($userCondominiums as $uc) {
             if ($uc['fraction_id']) {
                 $fees = $feeModel->getPendingByFraction($uc['fraction_id']);
+                foreach ($fees as &$f) {
+                    $f['period_display'] = \App\Models\Fee::formatPeriodForDisplay($f);
+                }
+                unset($f);
                 $pendingFees = array_merge($pendingFees, $fees);
                 $totalPending += $feeModel->getTotalPendingByFraction($uc['fraction_id']);
             }

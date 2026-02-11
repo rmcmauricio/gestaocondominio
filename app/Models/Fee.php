@@ -56,7 +56,7 @@ class Fee extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT f.id, f.amount, f.reference, f.period_year, f.period_month, f.fee_type, f.condominium_id
+            SELECT f.id, f.amount, f.reference, f.period_year, f.period_month, f.period_index, f.period_type, f.fee_type, f.condominium_id
             FROM fees f
             WHERE f.fraction_id = :fraction_id
             AND f.status IN ('pending', 'overdue')
@@ -64,7 +64,7 @@ class Fee extends Model
                 (SELECT SUM(fp.amount) FROM fee_payments fp WHERE fp.fee_id = f.id),
                 0
             )) > 0
-            ORDER BY f.period_year ASC, f.period_month ASC,
+            ORDER BY f.period_year ASC, COALESCE(f.period_index, f.period_month) ASC,
                      (CASE WHEN f.fee_type = 'regular' THEN 0 ELSE 1 END) ASC,
                      f.id ASC
         ");
@@ -84,12 +84,12 @@ class Fee extends Model
         $stmt = $this->db->prepare("
             INSERT INTO fees (
                 condominium_id, fraction_id, period_type, fee_type, period_year,
-                period_month, period_quarter, amount, base_amount,
+                period_month, period_quarter, period_index, amount, base_amount,
                 status, due_date, reference, notes, is_historical
             )
             VALUES (
                 :condominium_id, :fraction_id, :period_type, :fee_type, :period_year,
-                :period_month, :period_quarter, :amount, :base_amount,
+                :period_month, :period_quarter, :period_index, :amount, :base_amount,
                 :status, :due_date, :reference, :notes, :is_historical
             )
         ");
@@ -102,6 +102,7 @@ class Fee extends Model
             ':period_year' => $data['period_year'],
             ':period_month' => $data['period_month'] ?? null,
             ':period_quarter' => $data['period_quarter'] ?? null,
+            ':period_index' => $data['period_index'] ?? null,
             ':amount' => $data['amount'],
             ':base_amount' => $data['base_amount'] ?? $data['amount'],
             ':status' => $data['status'] ?? 'pending',
@@ -119,33 +120,113 @@ class Fee extends Model
         return $feeId;
     }
 
+    private const PERIOD_COUNTS = [
+        'monthly' => 12,
+        'bimonthly' => 6,
+        'quarterly' => 4,
+        'semiannual' => 2,
+        'annual' => 1,
+        'yearly' => 1,
+    ];
+
+    /** Months included in each period_index (1-based). Used to aggregate extras into period columns. */
+    private const PERIOD_MONTH_RANGES = [
+        'bimonthly' => [1 => [1, 2], 2 => [3, 4], 3 => [5, 6], 4 => [7, 8], 5 => [9, 10], 6 => [11, 12]],
+        'quarterly' => [1 => [1, 2, 3], 2 => [4, 5, 6], 3 => [7, 8, 9], 4 => [10, 11, 12]],
+        'semiannual' => [1 => [1, 2, 3, 4, 5, 6], 2 => [7, 8, 9, 10, 11, 12]],
+        'annual' => [1 => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]],
+        'yearly' => [1 => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]],
+    ];
+
+    public static function getMonthsForPeriod(string $periodType, int $periodIndex): array
+    {
+        $ranges = self::PERIOD_MONTH_RANGES[$periodType] ?? null;
+        if ($ranges && isset($ranges[$periodIndex])) {
+            return $ranges[$periodIndex];
+        }
+        if ($periodType === 'monthly' && $periodIndex >= 1 && $periodIndex <= 12) {
+            return [$periodIndex];
+        }
+        return [];
+    }
+
+    /** Short labels for period_index by period_type (used in formatPeriodLabel). */
+    private const PERIOD_INDEX_LABELS = [
+        'bimonthly' => [1 => 'Jan-Fev', 2 => 'Mar-Abr', 3 => 'Mai-Jun', 4 => 'Jul-Ago', 5 => 'Set-Out', 6 => 'Nov-Dez'],
+        'quarterly' => [1 => 'Q1', 2 => 'Q2', 3 => 'Q3', 4 => 'Q4'],
+        'semiannual' => [1 => '1º Sem', 2 => '2º Sem'],
+        'annual' => [1 => 'Anual'],
+        'yearly' => [1 => 'Anual'],
+    ];
+
     /**
-     * Check if annual (regular) fees have been generated for all 12 months for this condominium and year.
-     * Uses actual fee data as source of truth - more reliable than the budget flag which can get out of sync.
+     * Build human-readable period label for a fee (e.g. "01/2025", "Q1/2025", "Anual 2025").
+     * Fee array must contain period_year and at least one of: period_month, (period_index + period_type).
      */
-    public function hasAnnualFeesForYear(int $condominiumId, int $year): bool
+    public static function formatPeriodLabel(array $f): string
+    {
+        if (($f['fee_type'] ?? '') === 'extra' && !empty($f['reference'])) {
+            return 'Quota extra: ' . $f['reference'];
+        }
+        $year = (int)($f['period_year'] ?? 0);
+        $pt = $f['period_type'] ?? 'monthly';
+        $pidx = isset($f['period_index']) ? (int)$f['period_index'] : null;
+        $pmonth = isset($f['period_month']) ? (int)$f['period_month'] : null;
+
+        if ($pt === 'monthly' && $pmonth >= 1 && $pmonth <= 12) {
+            return 'Quota ' . sprintf('%02d/%d', $pmonth, $year);
+        }
+        if ($pidx !== null && isset(self::PERIOD_INDEX_LABELS[$pt][$pidx])) {
+            $label = self::PERIOD_INDEX_LABELS[$pt][$pidx];
+            if ($pt === 'annual' || $pt === 'yearly') {
+                return 'Quota ' . $label . ' ' . $year;
+            }
+            return 'Quota ' . $label . '/' . $year;
+        }
+        if ($pmonth >= 1 && $pmonth <= 12) {
+            return 'Quota ' . sprintf('%02d/%d', $pmonth, $year);
+        }
+        return 'Quota ' . $year;
+    }
+
+    /**
+     * Return period display string for receipts, reports, emails (e.g. "01/2025", "Q1/2025", "Anual 2025").
+     */
+    public static function formatPeriodForDisplay(array $f): string
+    {
+        $label = self::formatPeriodLabel($f);
+        return preg_replace('/^Quota\s+/', '', $label);
+    }
+
+    /**
+     * Check if annual (regular) fees have been generated for this condominium and year.
+     * @param string|null $periodType If null, tries condominium_fee_periods first, else assumes monthly
+     */
+    public function hasAnnualFeesForYear(int $condominiumId, int $year, ?string $periodType = null): bool
     {
         if (!$this->db) {
             return false;
         }
 
+        if ($periodType === null) {
+            $cfp = new \App\Models\CondominiumFeePeriod();
+            $periodType = $cfp->get($condominiumId, $year);
+        }
+        $expectedCount = $periodType ? (self::PERIOD_COUNTS[$periodType] ?? 12) : 12;
+
         $stmt = $this->db->prepare("
-            SELECT COUNT(DISTINCT period_month) as month_count
+            SELECT COUNT(DISTINCT COALESCE(period_index, period_month)) as cnt
             FROM fees
-            WHERE condominium_id = :condominium_id
-            AND period_year = :year
-            AND period_month BETWEEN 1 AND 12
+            WHERE condominium_id = :condominium_id AND period_year = :year
             AND (fee_type = 'regular' OR fee_type IS NULL)
             AND COALESCE(is_historical, 0) = 0
+            AND (period_month BETWEEN 1 AND 12 OR period_index BETWEEN 1 AND 12 OR (period_index IS NULL AND period_month IS NULL))
         ");
-        $stmt->execute([
-            ':condominium_id' => $condominiumId,
-            ':year' => $year
-        ]);
+        $stmt->execute([':condominium_id' => $condominiumId, ':year' => $year]);
         $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-        $monthCount = (int)($result['month_count'] ?? 0);
+        $count = (int)($result['cnt'] ?? 0);
 
-        return $monthCount >= 12;
+        return $count >= $expectedCount;
     }
 
     /**
@@ -197,7 +278,7 @@ class Fee extends Model
             return [];
         }
         $stmt = $this->db->prepare("
-            SELECT f.id, f.period_year, f.period_month, f.fee_type, f.reference, f.amount, f.due_date, f.status,
+            SELECT f.id, f.period_year, f.period_month, f.period_index, f.period_type, f.fee_type, f.reference, f.amount, f.due_date, f.status,
                    COALESCE(paid.t, 0) AS paid,
                    (f.amount - COALESCE(paid.t, 0)) AS remaining
             FROM fees f
@@ -205,7 +286,7 @@ class Fee extends Model
             WHERE f.fraction_id = :fraction_id
             AND f.status IN ('pending', 'overdue')
             AND (f.amount - COALESCE(paid.t, 0)) > 0
-            ORDER BY f.period_year ASC, f.period_month ASC, (CASE WHEN f.fee_type = 'regular' THEN 0 ELSE 1 END) ASC, f.id ASC
+            ORDER BY f.period_year ASC, COALESCE(f.period_index, f.period_month) ASC, (CASE WHEN f.fee_type = 'regular' THEN 0 ELSE 1 END) ASC, f.id ASC
         ");
         $stmt->execute([':fraction_id' => $fractionId]);
         return $stmt->fetchAll() ?: [];
@@ -359,132 +440,121 @@ class Fee extends Model
     }
 
     /**
-     * Get fees map by year (organized by month and fraction)
-     * Returns array: [month => [fraction_id => fee_data]]
-     * Now sums all fees (regular + extra) for each month/fraction combination
-     * Includes historical fees if the year is in the past
+     * Get fees map by year. Returns [period_index => [fraction_id => fee_data]].
+     * Supports mixed scenario: regular fees by period (monthly/bimonthly/quarterly/etc) + extra fees (always monthly).
+     * @param string|null $periodType monthly|bimonthly|quarterly|semiannual|annual. If null, infers from data (12 slots = monthly).
      */
-    public function getFeesMapByYear(int $condominiumId, int $year, bool $includeHistorical = null): array
+    public function getFeesMapByYear(int $condominiumId, int $year, bool $includeHistorical = null, ?string $periodType = null): array
     {
         if (!$this->db) {
             return [];
         }
 
-        // If includeHistorical is not specified, include historical fees if year is in the past
         if ($includeHistorical === null) {
-            $currentYear = (int)date('Y');
-            $includeHistorical = $year < $currentYear;
+            $includeHistorical = $year < (int)date('Y');
         }
 
         $sql = "
-            SELECT 
-                f.id,
-                f.fraction_id,
-                f.period_month,
-                f.amount,
-                f.status,
-                f.due_date,
-                f.paid_at,
-                f.fee_type,
-                f.notes,
-                f.is_historical,
+            SELECT f.id, f.fraction_id, f.period_month, f.period_index, f.period_type, f.amount,
+                f.status, f.due_date, f.paid_at, f.fee_type, f.notes, f.is_historical,
                 fr.identifier as fraction_identifier,
-                COALESCE((
-                    SELECT SUM(fp.amount) 
-                    FROM fee_payments fp 
-                    WHERE fp.fee_id = f.id
-                ), 0) as paid_amount
+                COALESCE((SELECT SUM(fp.amount) FROM fee_payments fp WHERE fp.fee_id = f.id), 0) as paid_amount
             FROM fees f
             INNER JOIN fractions fr ON fr.id = f.fraction_id
-            WHERE f.condominium_id = :condominium_id
-            AND f.period_year = :year
-            AND f.period_month IS NOT NULL";
-
-        // Include historical fees if requested
+            WHERE f.condominium_id = :condominium_id AND f.period_year = :year
+            AND (f.period_month IS NOT NULL OR f.period_index IS NOT NULL)";
         if (!$includeHistorical) {
-            // Exclude historical fees
             $sql .= " AND COALESCE(f.is_historical, 0) = 0";
         }
-        // If includeHistorical is true, don't filter by is_historical (include all)
-
-        $sql .= " ORDER BY f.period_month ASC, fr.identifier ASC, f.fee_type ASC, f.created_at ASC";
+        $sql .= " ORDER BY COALESCE(f.period_index, f.period_month) ASC, fr.identifier ASC, f.fee_type ASC, f.created_at ASC";
 
         $stmt = $this->db->prepare($sql);
-
-        $stmt->execute([
-            ':condominium_id' => $condominiumId,
-            ':year' => $year
-        ]);
-
+        $stmt->execute([':condominium_id' => $condominiumId, ':year' => $year]);
         $fees = $stmt->fetchAll() ?: [];
-        
-        // Organize by month and fraction, summing amounts
+
+        $periodCount = $periodType ? (self::PERIOD_COUNTS[$periodType] ?? 12) : 12;
+        $isMonthly = ($periodType === 'monthly' || $periodType === null);
+
         $map = [];
         foreach ($fees as $fee) {
-            $month = (int)$fee['period_month'];
             $fractionId = (int)$fee['fraction_id'];
-            
-            if (!isset($map[$month])) {
-                $map[$month] = [];
+            $feeType = $fee['fee_type'] ?? 'regular';
+            $periodMonth = isset($fee['period_month']) ? (int)$fee['period_month'] : null;
+            $periodIndex = isset($fee['period_index']) ? (int)$fee['period_index'] : null;
+
+            $slot = null;
+            if ($feeType === 'regular') {
+                $slot = $periodIndex ?? $periodMonth;
+            } else {
+                $slot = $this->slotForExtraFee($periodMonth, $periodType ?? 'monthly', $periodCount);
             }
-            
-            if (!isset($map[$month][$fractionId])) {
-                // Initialize with first fee data
+            if ($slot === null || $slot < 1 || $slot > $periodCount) {
+                continue;
+            }
+
+            if (!isset($map[$slot])) {
+                $map[$slot] = [];
+            }
+            if (!isset($map[$slot][$fractionId])) {
                 $isOverdue = false;
                 if ($fee['status'] === 'pending' && !empty($fee['due_date'])) {
-                    $dueDate = new \DateTime($fee['due_date']);
-                    $today = new \DateTime();
-                    $isOverdue = $dueDate < $today;
+                    $isOverdue = (new \DateTime($fee['due_date'])) < new \DateTime();
                 }
-                
-                $map[$month][$fractionId] = [
-                    'id' => (int)$fee['id'], // Keep first fee ID for modal
+                $map[$slot][$fractionId] = [
+                    'id' => (int)$fee['id'],
                     'fraction_id' => $fractionId,
                     'fraction_identifier' => $fee['fraction_identifier'],
-                    'amount' => 0, // Start at 0, will sum below
-                    'paid_amount' => 0, // Start at 0, will sum below
+                    'amount' => 0,
+                    'paid_amount' => 0,
                     'status' => $fee['status'],
                     'due_date' => $fee['due_date'],
                     'paid_at' => $fee['paid_at'],
                     'is_overdue' => $isOverdue,
                     'has_extra' => false,
-                    'all_fees' => [] // Store all fees for this month/fraction
+                    'all_fees' => [],
                 ];
             }
-            
-            // Add this fee to the list
-            $map[$month][$fractionId]['all_fees'][] = [
+
+            $map[$slot][$fractionId]['all_fees'][] = [
                 'id' => (int)$fee['id'],
-                'fee_type' => $fee['fee_type'] ?? 'regular',
+                'fee_type' => $feeType,
                 'amount' => (float)$fee['amount'],
-                'notes' => $fee['notes']
+                'notes' => $fee['notes'],
             ];
-            
-            // Sum amounts (always sum, including first fee)
-            $map[$month][$fractionId]['amount'] += (float)$fee['amount'];
-            $map[$month][$fractionId]['paid_amount'] += (float)$fee['paid_amount'];
-            
-            // Check if has extra fees
-            if (($fee['fee_type'] ?? 'regular') === 'extra') {
-                $map[$month][$fractionId]['has_extra'] = true;
+            $map[$slot][$fractionId]['amount'] += (float)$fee['amount'];
+            $map[$slot][$fractionId]['paid_amount'] += (float)$fee['paid_amount'];
+            if ($feeType === 'extra') {
+                $map[$slot][$fractionId]['has_extra'] = true;
             }
-            
-            // Update status: if any is overdue, mark as overdue
-            if ($fee['status'] === 'pending' && !empty($fee['due_date'])) {
-                $dueDate = new \DateTime($fee['due_date']);
-                $today = new \DateTime();
-                if ($dueDate < $today) {
-                    $map[$month][$fractionId]['is_overdue'] = true;
-                    $map[$month][$fractionId]['status'] = 'overdue';
-                }
+            if ($fee['status'] === 'pending' && !empty($fee['due_date']) && (new \DateTime($fee['due_date'])) < new \DateTime()) {
+                $map[$slot][$fractionId]['is_overdue'] = true;
+                $map[$slot][$fractionId]['status'] = 'overdue';
             }
-            
-            // Update remaining amount
-            $map[$month][$fractionId]['remaining_amount'] = 
-                $map[$month][$fractionId]['amount'] - $map[$month][$fractionId]['paid_amount'];
+            $map[$slot][$fractionId]['remaining_amount'] =
+                $map[$slot][$fractionId]['amount'] - $map[$slot][$fractionId]['paid_amount'];
         }
 
         return $map;
+    }
+
+    private function slotForExtraFee(?int $periodMonth, string $periodType, int $periodCount): ?int
+    {
+        if ($periodMonth === null || $periodMonth < 1 || $periodMonth > 12) {
+            return null;
+        }
+        if ($periodType === 'monthly') {
+            return $periodMonth;
+        }
+        $ranges = self::PERIOD_MONTH_RANGES[$periodType] ?? null;
+        if (!$ranges) {
+            return 1;
+        }
+        foreach ($ranges as $idx => $months) {
+            if (in_array($periodMonth, $months)) {
+                return $idx;
+            }
+        }
+        return 1;
     }
 
     /**

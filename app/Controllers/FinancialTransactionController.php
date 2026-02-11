@@ -1887,13 +1887,7 @@ class FinancialTransactionController extends Controller
 
     private static function feeLabel(array $f): string
     {
-        if (($f['fee_type'] ?? '') === 'extra' && !empty($f['reference'])) {
-            return 'Quota extra: ' . $f['reference'];
-        }
-        if (!empty($f['period_month']) && !empty($f['period_year'])) {
-            return 'Quota ' . sprintf('%02d/%d', $f['period_month'], $f['period_year']);
-        }
-        return 'Quota ' . ($f['period_year'] ?? '');
+        return \App\Models\Fee::formatPeriodLabel($f);
     }
 
     public function liquidateQuotas(int $condominiumId, int $id)

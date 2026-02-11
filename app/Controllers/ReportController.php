@@ -565,7 +565,7 @@ class ReportController extends Controller
             $html .= "
                 <tr>
                     <td>{$fee['fraction_identifier']}</td>
-                    <td>{$fee['period_year']}/{$fee['period_month']}</td>
+                    <td>" . htmlspecialchars(\App\Models\Fee::formatPeriodForDisplay($fee)) . "</td>
                     <td>€" . number_format($fee['amount'], 2, ',', '.') . "</td>
                     <td>" . $this->translateStatus($fee['status']) . "</td>
                     <td>{$paymentDates}</td>
@@ -2464,7 +2464,7 @@ class ReportController extends Controller
             $html .= "
                 <tr>
                     <td>{$fee['fraction_identifier']}</td>
-                    <td>{$fee['period_year']}/{$fee['period_month']}</td>
+                    <td>" . htmlspecialchars(\App\Models\Fee::formatPeriodForDisplay($fee)) . "</td>
                     <td>€" . number_format($fee['amount'], 2, ',', '.') . "</td>
                     <td>" . $this->translateStatus($fee['status']) . "</td>
                     <td>{$paymentDates}</td>
@@ -2803,7 +2803,7 @@ class ReportController extends Controller
                     }
                     $this->addExcelRow($sheet, $row, [
                         $fee['fraction_identifier'],
-                        $fee['period_year'] . '/' . $fee['period_month'],
+                        \App\Models\Fee::formatPeriodForDisplay($fee),
                         number_format($fee['amount'], 2, ',', '.'),
                         $this->translateStatus($fee['status']),
                         $paymentDates

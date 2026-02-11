@@ -104,13 +104,7 @@
                             {% if not is_admin %}
                             <td>{{ receipt.condominium_name }}</td>
                             {% endif %}
-                            <td>
-                                {% if receipt.period_month %}
-                                    {{ receipt.period_month }}/{{ receipt.period_year }}
-                                {% else %}
-                                    {{ receipt.period_year }}
-                                {% endif %}
-                            </td>
+                            <td>{{ receipt.period_display|default(receipt.period_year) }}</td>
                             <td>
                                 <strong>€{{ receipt.amount|number_format(2, ',', '.') }}</strong>
                             </td>
@@ -148,13 +142,7 @@
                 <div class="d-flex align-items-center mb-2" style="flex-wrap: nowrap; gap: 0.5rem;">
                     <code class="small mb-0">{{ receipt.receipt_number }}</code>
                     <span class="badge bg-secondary">{{ receipt.fraction_identifier }}</span>
-                    <span class="small text-muted">
-                        {% if receipt.period_month %}
-                            {{ receipt.period_month }}/{{ receipt.period_year }}
-                        {% else %}
-                            {{ receipt.period_year }}
-                        {% endif %}
-                    </span>
+                    <span class="small text-muted">{{ receipt.period_display|default(receipt.period_year) }}</span>
                     <div style="flex: 1;"></div>
                     <strong class="text-primary fs-6">€{{ receipt.amount|number_format(2, ',', '.') }}</strong>
                 </div>

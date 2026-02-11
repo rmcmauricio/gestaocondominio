@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CondominiumFeePeriod;
 use App\Models\Fee;
 use App\Models\Fraction;
 use App\Models\Budget;
@@ -9,6 +10,16 @@ use App\Models\BudgetItem;
 
 class FeeService
 {
+    /** Period config: count per year, last month of each period for due_date */
+    private const PERIOD_CONFIG = [
+        'monthly' => ['count' => 12, 'lastMonths' => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]],
+        'bimonthly' => ['count' => 6, 'lastMonths' => [2, 4, 6, 8, 10, 12]],
+        'quarterly' => ['count' => 4, 'lastMonths' => [3, 6, 9, 12]],
+        'semiannual' => ['count' => 2, 'lastMonths' => [6, 12]],
+        'annual' => ['count' => 1, 'lastMonths' => [12]],
+        'yearly' => ['count' => 1, 'lastMonths' => [12]], // alias
+    ];
+
     protected $feeModel;
     protected $fractionModel;
     protected $budgetModel;
@@ -250,12 +261,39 @@ class FeeService
     }
 
     /**
-     * Generate fee reference
+     * Generate fee reference (month-based or period-based)
      */
-    protected function generateFeeReference(int $condominiumId, int $fractionId, int $year, int $month): string
+    protected function generateFeeReference(int $condominiumId, int $fractionId, int $year, int $monthOrIndex, bool $usePeriodIndex = false): string
     {
-        $monthStr = str_pad($month, 2, '0', STR_PAD_LEFT);
-        return sprintf('Q%03d-%02d-%04d%02d', $condominiumId, $fractionId, $year, $monthStr);
+        $suffix = str_pad((string)$monthOrIndex, 2, '0', STR_PAD_LEFT);
+        return sprintf('Q%03d-%02d-%04d%02d', $condominiumId, $fractionId, $year, $suffix);
+    }
+
+    /**
+     * Get due date for a period (last day of last month in period)
+     */
+    protected function getDueDateForPeriod(int $year, string $periodType, int $periodIndex): string
+    {
+        $config = self::PERIOD_CONFIG[$periodType] ?? self::PERIOD_CONFIG['monthly'];
+        $lastMonth = $config['lastMonths'][$periodIndex - 1] ?? 12;
+        $lastDay = (int)date('t', strtotime("{$year}-{$lastMonth}-01"));
+        return sprintf('%04d-%02d-%02d', $year, $lastMonth, min(10, $lastDay));
+    }
+
+    /**
+     * Calculate amounts per period with floor on first N-1 and adjustment on last (for clean liquidation)
+     */
+    protected function splitAmountByPeriod(float $annualAmount, int $periodCount): array
+    {
+        if ($periodCount <= 1) {
+            return [1 => round($annualAmount, 2)];
+        }
+        $baseAmount = floor($annualAmount * 100 / $periodCount) / 100;
+        $firstNMinus1Sum = $baseAmount * ($periodCount - 1);
+        $lastAmount = round($annualAmount - $firstNMinus1Sum, 2);
+        $amounts = array_fill(1, $periodCount, $baseAmount);
+        $amounts[$periodCount] = $lastAmount;
+        return $amounts;
     }
 
     /**
@@ -271,134 +309,125 @@ class FeeService
     }
 
     /**
-     * Generate annual fees for all 12 months based on approved budget
+     * Generate annual fees for all periods based on approved budget
      * @param int $condominiumId
      * @param int $year
+     * @param string $periodType monthly|bimonthly|quarterly|semiannual|annual
      * @return array Array of generated fee IDs
      */
-    public function generateAnnualFeesFromBudget(int $condominiumId, int $year): array
+    public function generateAnnualFeesFromBudget(int $condominiumId, int $year, string $periodType = 'monthly'): array
     {
-        // Get budget for the year
+        $periodType = $this->normalizePeriodType($periodType);
+
         $budget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $year);
-        
         if (!$budget) {
             throw new \Exception("Orçamento não encontrado para o ano {$year}. Crie um orçamento primeiro.");
         }
-        
-        // Check if budget is approved
         if ($budget['status'] !== 'approved' && $budget['status'] !== 'active') {
             throw new \Exception("O orçamento deve estar aprovado para gerar quotas automaticamente. Status atual: {$budget['status']}");
         }
-        
-        // Check if annual fees have already been generated (use actual fee data as source of truth)
-        if ($this->feeModel->hasAnnualFeesForYear($condominiumId, $year)) {
+        if ($this->feeModel->hasAnnualFeesForYear($condominiumId, $year, $periodType)) {
             throw new \Exception("As quotas anuais já foram geradas automaticamente para este ano. Não é possível gerar novamente.");
         }
-        
-        // Generate for all 12 months
-        $allMonths = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-        $generatedFees = $this->generateMonthlyFees($condominiumId, $year, $allMonths);
-        
-        // Mark as generated
+
+        $items = $this->budgetItemModel->getByBudget($budget['id']);
+        $revenueItems = array_filter($items, fn($i) => strpos($i['category'], 'Receita:') === 0);
+        $totalRevenue = array_sum(array_column($revenueItems, 'amount'));
+        if ($totalRevenue <= 0) {
+            throw new \Exception("O orçamento não tem receitas definidas. Adicione receitas ao orçamento primeiro.");
+        }
+
+        $fractions = $this->fractionModel->getByCondominiumId($condominiumId);
+        $totalPermillage = $this->fractionModel->getTotalPermillage($condominiumId);
+        if (empty($fractions) || $totalPermillage == 0) {
+            throw new \Exception("Nenhuma fração encontrada ou permilagem zero.");
+        }
+
+        $fractionAmounts = [];
+        foreach ($fractions as $f) {
+            $fractionAmounts[$f['id']] = ($totalRevenue * (float)$f['permillage']) / $totalPermillage;
+        }
+
+        $generatedFees = $this->generateRegularFeesByPeriod($condominiumId, $year, $fractionAmounts, $periodType);
+
         if (!empty($generatedFees)) {
             $this->budgetModel->markAnnualFeesGenerated($budget['id']);
+            (new CondominiumFeePeriod())->set($condominiumId, $year, $periodType);
         }
-        
+
         return $generatedFees;
     }
 
+    protected function normalizePeriodType(string $type): string
+    {
+        $type = strtolower($type);
+        if ($type === 'yearly') {
+            return 'annual';
+        }
+        return in_array($type, CondominiumFeePeriod::PERIOD_TYPES) ? $type : 'monthly';
+    }
+
     /**
-     * Generate annual fees manually with permillage
-     * @param int $condominiumId
-     * @param int $year
-     * @param float $totalAnnualAmount - Total annual amount (will be distributed monthly and by permillage)
-     * @return array Array of generated fee IDs
+     * Core: generate regular fees by period type (amounts per fraction = annual values)
      */
-    public function generateAnnualFeesManual(int $condominiumId, int $year, float $totalAnnualAmount): array
+    protected function generateRegularFeesByPeriod(int $condominiumId, int $year, array $fractionAmounts, string $periodType): array
     {
         global $db;
-        
         if (!$db) {
             return [];
         }
 
-        if ($totalAnnualAmount <= 0) {
-            throw new \Exception("O valor total anual deve ser maior que zero.");
-        }
-
-        // Get all active fractions
-        $fractions = $this->fractionModel->getByCondominiumId($condominiumId);
-        
-        if (empty($fractions)) {
-            throw new \Exception("Nenhuma fração encontrada no condomínio.");
-        }
-
-        // Calculate total permillage
-        $totalPermillage = $this->fractionModel->getTotalPermillage($condominiumId);
-        
-        if ($totalPermillage == 0) {
-            throw new \Exception("Permilagem total não pode ser zero. Verifique as frações.");
-        }
-
+        $periodType = $this->normalizePeriodType($periodType);
+        $config = self::PERIOD_CONFIG[$periodType] ?? self::PERIOD_CONFIG['monthly'];
+        $periodCount = $config['count'];
         $generatedFees = [];
-        $allMonths = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
-        // Pre-calculate: months 1-11 round DOWN, month 12 adjusts (sum = annual). Enables trimestre/semestre liquidation.
-        $fractionMonthlyAmounts = [];
-        foreach ($fractions as $fraction) {
-            $annualFraction = ($totalAnnualAmount * (float)$fraction['permillage']) / $totalPermillage;
-            $baseMonthly = floor($annualFraction * 100 / 12) / 100;
-            $first11Sum = $baseMonthly * 11;
-            $lastMonthAmount = round($annualFraction - $first11Sum, 2);
-            $fractionMonthlyAmounts[$fraction['id']] = array_fill(1, 12, $baseMonthly);
-            $fractionMonthlyAmounts[$fraction['id']][12] = $lastMonthAmount;
-        }
+        foreach ($fractionAmounts as $fractionId => $annualAmount) {
+            $fractionId = (int)$fractionId;
+            $annualAmount = (float)$annualAmount;
+            if ($annualAmount <= 0) {
+                continue;
+            }
 
-        foreach ($allMonths as $month) {
-            $dueDate = date('Y-m-d', strtotime("{$year}-{$month}-10"));
+            $amounts = $this->splitAmountByPeriod($annualAmount, $periodCount);
 
-            foreach ($fractions as $fraction) {
-                $feeAmount = $fractionMonthlyAmounts[$fraction['id']][$month];
-
-                // Check if regular fee already exists
+            for ($periodIndex = 1; $periodIndex <= $periodCount; $periodIndex++) {
+                $lastMonth = $config['lastMonths'][$periodIndex - 1] ?? 12;
                 $existing = $db->prepare("
-                    SELECT id FROM fees 
-                    WHERE condominium_id = :condominium_id 
-                    AND fraction_id = :fraction_id 
-                    AND period_year = :year 
-                    AND period_month = :month
-                    AND fee_type = 'regular'
+                    SELECT id FROM fees WHERE condominium_id = :cid AND fraction_id = :fid
+                    AND period_year = :year AND fee_type = 'regular'
+                    AND (period_index = :pidx OR (period_index IS NULL AND period_month = :month))
                 ");
-
                 $existing->execute([
-                    ':condominium_id' => $condominiumId,
-                    ':fraction_id' => $fraction['id'],
+                    ':cid' => $condominiumId,
+                    ':fid' => $fractionId,
                     ':year' => $year,
-                    ':month' => $month
+                    ':pidx' => $periodIndex,
+                    ':month' => $lastMonth
                 ]);
-
                 if ($existing->fetch()) {
-                    continue; // Regular fee already exists
+                    continue;
                 }
 
-                // Generate reference
-                $reference = $this->generateFeeReference($condominiumId, $fraction['id'], $year, $month);
+                $dueDate = $this->getDueDateForPeriod($year, $periodType, $periodIndex);
+                $refSuffix = ($periodType === 'monthly') ? $periodIndex : $periodIndex;
+                $reference = $this->generateFeeReference($condominiumId, $fractionId, $year, $refSuffix);
 
-                // Create fee
                 $feeId = $this->feeModel->create([
                     'condominium_id' => $condominiumId,
-                    'fraction_id' => $fraction['id'],
-                    'period_type' => 'monthly',
+                    'fraction_id' => $fractionId,
+                    'period_type' => $periodType,
                     'fee_type' => 'regular',
                     'period_year' => $year,
-                    'period_month' => $month,
-                    'amount' => round($feeAmount, 2),
-                    'base_amount' => round($feeAmount, 2),
+                    'period_month' => ($periodType === 'monthly') ? $periodIndex : null,
+                    'period_quarter' => ($periodType === 'quarterly') ? $periodIndex : null,
+                    'period_index' => $periodIndex,
+                    'amount' => round($amounts[$periodIndex], 2),
+                    'base_amount' => round($amounts[$periodIndex], 2),
                     'status' => 'pending',
                     'due_date' => $dueDate,
                     'reference' => $reference
                 ]);
-
                 $generatedFees[] = $feeId;
             }
         }
@@ -407,32 +436,55 @@ class FeeService
     }
 
     /**
+     * Generate annual fees manually with permillage
+     * @param int $condominiumId
+     * @param int $year
+     * @param float $totalAnnualAmount
+     * @param string $periodType monthly|bimonthly|quarterly|semiannual|annual
+     * @return array Array of generated fee IDs
+     */
+    public function generateAnnualFeesManual(int $condominiumId, int $year, float $totalAnnualAmount, string $periodType = 'monthly'): array
+    {
+        $periodType = $this->normalizePeriodType($periodType);
+        if ($totalAnnualAmount <= 0) {
+            throw new \Exception("O valor total anual deve ser maior que zero.");
+        }
+
+        $fractions = $this->fractionModel->getByCondominiumId($condominiumId);
+        if (empty($fractions)) {
+            throw new \Exception("Nenhuma fração encontrada no condomínio.");
+        }
+        $totalPermillage = $this->fractionModel->getTotalPermillage($condominiumId);
+        if ($totalPermillage == 0) {
+            throw new \Exception("Permilagem total não pode ser zero. Verifique as frações.");
+        }
+
+        $fractionAmounts = [];
+        foreach ($fractions as $f) {
+            $fractionAmounts[$f['id']] = ($totalAnnualAmount * (float)$f['permillage']) / $totalPermillage;
+        }
+
+        $generatedFees = $this->generateRegularFeesByPeriod($condominiumId, $year, $fractionAmounts, $periodType);
+        if (!empty($generatedFees)) {
+            (new CondominiumFeePeriod())->set($condominiumId, $year, $periodType);
+        }
+        return $generatedFees;
+    }
+
+    /**
      * Generate annual fees manually with specific amounts per fraction
      * @param int $condominiumId
      * @param int $year
      * @param array $fractionAmounts - Array with fraction_id => annual_amount
+     * @param string $periodType monthly|bimonthly|quarterly|semiannual|annual
      * @return array Array of generated fee IDs
      */
-    public function generateAnnualFeesManualPerFraction(int $condominiumId, int $year, array $fractionAmounts): array
+    public function generateAnnualFeesManualPerFraction(int $condominiumId, int $year, array $fractionAmounts, string $periodType = 'monthly'): array
     {
-        global $db;
-        
-        if (!$db) {
-            return [];
-        }
-
         if (empty($fractionAmounts)) {
             throw new \Exception("Deve fornecer valores para pelo menos uma fração.");
         }
 
-        // Get all active fractions
-        $fractions = $this->fractionModel->getByCondominiumId($condominiumId);
-        
-        if (empty($fractions)) {
-            throw new \Exception("Nenhuma fração encontrada no condomínio.");
-        }
-
-        // Validate all fractions exist and belong to condominium
         foreach ($fractionAmounts as $fractionId => $annualAmount) {
             $fraction = $this->fractionModel->findById((int)$fractionId);
             if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
@@ -443,69 +495,11 @@ class FeeService
             }
         }
 
-        $generatedFees = [];
-        $allMonths = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-
-        foreach ($fractionAmounts as $fractionId => $annualAmount) {
-            $fractionId = (int)$fractionId;
-            $annualAmount = (float)$annualAmount;
-
-            // Months 1-11: round DOWN so trimestre (110€) / semestre (220€) liquidate correctly, cents stay as saldo
-            // Month 12: adjusts so sum = exact annualAmount
-            $baseMonthly = floor($annualAmount * 100 / 12) / 100;
-            $first11Sum = $baseMonthly * 11;
-            $lastMonthAmount = round($annualAmount - $first11Sum, 2);
-
-            $monthlyAmounts = array_fill(1, 12, $baseMonthly);
-            $monthlyAmounts[12] = $lastMonthAmount;
-
-            foreach ($allMonths as $month) {
-                $monthlyAmount = $monthlyAmounts[$month];
-                $dueDate = date('Y-m-d', strtotime("{$year}-{$month}-10"));
-
-                // Check if regular fee already exists
-                $existing = $db->prepare("
-                    SELECT id FROM fees 
-                    WHERE condominium_id = :condominium_id 
-                    AND fraction_id = :fraction_id 
-                    AND period_year = :year 
-                    AND period_month = :month
-                    AND fee_type = 'regular'
-                ");
-
-                $existing->execute([
-                    ':condominium_id' => $condominiumId,
-                    ':fraction_id' => $fractionId,
-                    ':year' => $year,
-                    ':month' => $month
-                ]);
-
-                if ($existing->fetch()) {
-                    continue; // Regular fee already exists
-                }
-
-                // Generate reference
-                $reference = $this->generateFeeReference($condominiumId, $fractionId, $year, $month);
-
-                // Create fee
-                $feeId = $this->feeModel->create([
-                    'condominium_id' => $condominiumId,
-                    'fraction_id' => $fractionId,
-                    'period_type' => 'monthly',
-                    'fee_type' => 'regular',
-                    'period_year' => $year,
-                    'period_month' => $month,
-                    'amount' => round($monthlyAmount, 2),
-                    'base_amount' => round($monthlyAmount, 2),
-                    'status' => 'pending',
-                    'due_date' => $dueDate,
-                    'reference' => $reference
-                ]);
-
-                $generatedFees[] = $feeId;
-            }
+        $periodType = $this->normalizePeriodType($periodType);
+        $generatedFees = $this->generateRegularFeesByPeriod($condominiumId, $year, $fractionAmounts, $periodType);
+        if (!empty($generatedFees)) {
+            (new CondominiumFeePeriod())->set($condominiumId, $year, $periodType);
         }
-
         return $generatedFees;
     }
 
