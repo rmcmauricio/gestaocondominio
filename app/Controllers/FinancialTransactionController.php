@@ -626,13 +626,13 @@ class FinancialTransactionController extends Controller
         $liquidatedFees = [];
         if ($transaction['transaction_type'] === 'income') {
             $stmt = $db->prepare("
-                SELECT DISTINCT fp.id, fp.amount, f.period_year, f.period_month, f.fee_type, f.reference as fee_reference
+                SELECT DISTINCT fp.id, fp.amount, f.period_year, f.period_month, f.period_type, f.period_index, f.fee_type, f.reference as fee_reference
                 FROM fee_payments fp
                 INNER JOIN fees f ON f.id = fp.fee_id
                 LEFT JOIN fraction_account_movements fam ON fam.source_reference_id = fp.id
                     AND fam.type = 'debit' AND fam.source_type = 'quota_application'
                 WHERE (fp.financial_transaction_id = :tid OR fam.source_financial_transaction_id = :tid2)
-                ORDER BY f.period_year ASC, f.period_month ASC
+                ORDER BY f.period_year ASC, COALESCE(f.period_index, f.period_month) ASC
             ");
             $stmt->execute([':tid' => $id, ':tid2' => $id]);
             $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -642,7 +642,9 @@ class FinancialTransactionController extends Controller
                         'fee_type' => $r['fee_type'],
                         'reference' => $r['fee_reference'],
                         'period_year' => $r['period_year'],
-                        'period_month' => $r['period_month']
+                        'period_month' => $r['period_month'],
+                        'period_type' => $r['period_type'] ?? null,
+                        'period_index' => isset($r['period_index']) ? (int)$r['period_index'] : null
                     ]),
                     'amount' => (float)$r['amount']
                 ];
