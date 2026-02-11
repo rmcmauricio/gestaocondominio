@@ -110,7 +110,7 @@ class CondominiumBackupService
             $this->copyCondominiumDocuments($condominiumId, $tempDir . '/documents_storage');
 
             $safeName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $condominium['name']);
-            $filename = 'backup_' . $safeName . '_' . date('Y-m-d_H-i-s') . '.backup';
+            $filename = 'backup_' . $condominiumId . '_' . $safeName . '_' . date('Y-m-d_H-i-s') . '.backup';
             $zipPath = $this->backupPath . '/' . $filename;
 
             $this->createZip($tempDir, $zipPath);
@@ -168,6 +168,18 @@ class CondominiumBackupService
                 throw new \Exception("Backup corrompido");
             }
 
+            $condo = $data['tables']['condominiums'][0] ?? null;
+            if (!$condo) {
+                throw new \Exception("Backup inválido: condomínio não encontrado");
+            }
+
+            $oldCondominiumId = (int)$condo['id'];
+            $restoreInPlace = $this->condominiumExists($oldCondominiumId);
+            if ($restoreInPlace) {
+                $deletionService = new CondominiumDeletionService();
+                $deletionService->deleteCondominiumData($oldCondominiumId, false);
+            }
+
             $this->db->beginTransaction();
 
             try {
@@ -189,19 +201,14 @@ class CondominiumBackupService
                     }
                 }
 
-                // 2. Condominium
-                $condo = $data['tables']['condominiums'][0] ?? null;
-                if (!$condo) {
-                    throw new \Exception("Backup inválido: condomínio não encontrado");
-                }
-
+                // 2. Condominium (same ID when restoring in place)
                 $adminUserId = $targetAdminUserId ?? ($map['users'][$condo['user_id']] ?? null);
                 if (!$adminUserId) {
                     throw new \Exception("Utilizador administrador não encontrado. Certifique-se que o email existe ou indique um admin.");
                 }
 
-                $oldCondominiumId = (int)$condo['id'];
-                $newCondominiumId = $this->insertCondominium($condo, $adminUserId);
+                $forceId = $restoreInPlace ? $oldCondominiumId : null;
+                $newCondominiumId = $this->insertCondominium($condo, $adminUserId, $forceId);
                 $map['condominiums'][$condo['id']] = $newCondominiumId;
                 $map['admin_user_id'] = $adminUserId;
 
@@ -408,21 +415,34 @@ class CondominiumBackupService
                     $supplierId = !empty($row['supplier_id']) ? ($map['suppliers'][$row['supplier_id']] ?? null) : null;
                     $this->insertRow("expenses", $row, ['condominium_id' => $newCondominiumId, 'fraction_id' => $fracId, 'supplier_id' => $supplierId]);
                 }
-                foreach ($data['tables']['receipts'] ?? [] as $row) {
+                // Receipts: when restore in place keep original receipt_number; when new condominium generate new numbers (UNIQUE is global)
+                $receiptsRows = $data['tables']['receipts'] ?? [];
+                usort($receiptsRows, function ($a, $b) {
+                    $t = (strtotime($a['generated_at'] ?? '') ?: 0) <=> (strtotime($b['generated_at'] ?? '') ?: 0);
+                    return $t !== 0 ? $t : ((int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0));
+                });
+                $receiptSeqByYear = [];
+                foreach ($receiptsRows as $row) {
                     $fracId = $map['fractions'][$row['fraction_id']] ?? null;
                     $feeId = $map['fees'][$row['fee_id']] ?? null;
                     $feePaymentId = !empty($row['fee_payment_id']) ? ($map['fee_payments'][$row['fee_payment_id']] ?? null) : null;
                     $filePath = $this->remapDocumentFilePath($row['file_path'] ?? '', $oldCondominiumId, $newCondominiumId);
                     $generatedBy = !empty($row['generated_by']) ? ($map['users'][$row['generated_by']] ?? null) : null;
                     if ($fracId && $feeId) {
-                        $this->insertRow("receipts", $row, [
+                        $overrides = [
                             'condominium_id' => $newCondominiumId,
                             'fraction_id' => $fracId,
                             'fee_id' => $feeId,
                             'fee_payment_id' => $feePaymentId,
                             'file_path' => $filePath,
-                            'generated_by' => $generatedBy
-                        ]);
+                            'generated_by' => $generatedBy,
+                        ];
+                        if (!$restoreInPlace) {
+                            $year = date('Y', strtotime($row['generated_at'] ?? 'now') ?: time());
+                            $receiptSeqByYear[$year] = ($receiptSeqByYear[$year] ?? 0) + 1;
+                            $overrides['receipt_number'] = sprintf('REC-%d-%s-%03d', $newCondominiumId, $year, $receiptSeqByYear[$year]);
+                        }
+                        $this->insertRow("receipts", $row, $overrides);
                     }
                 }
 
@@ -556,8 +576,8 @@ class CondominiumBackupService
     }
 
     /**
-     * List available backup files
-     * @return array
+     * List available backup files (all)
+     * @return array [ path, name, size_kb, modified ]
      */
     public function listBackups(): array
     {
@@ -569,11 +589,61 @@ class CondominiumBackupService
             $files[] = [
                 'path' => $path,
                 'name' => basename($path),
+                'size_kb' => (int)ceil(filesize($path) / 1024),
                 'modified' => filemtime($path)
             ];
         }
         usort($files, fn($a, $b) => $b['modified'] <=> $a['modified']);
         return $files;
+    }
+
+    /**
+     * List backup files for a specific condominium (filename must start with backup_{id}_)
+     * @param int $condominiumId Condominium ID
+     * @return array [ path, name, size_kb, modified ]
+     */
+    public function listBackupsForCondominium(int $condominiumId): array
+    {
+        if (!is_dir($this->backupPath)) {
+            return [];
+        }
+        $prefix = 'backup_' . $condominiumId . '_';
+        $files = [];
+        foreach (glob($this->backupPath . '/*.backup') as $path) {
+            if (strpos(basename($path), $prefix) === 0) {
+                $files[] = [
+                    'path' => $path,
+                    'name' => basename($path),
+                    'size_kb' => (int)ceil(filesize($path) / 1024),
+                    'modified' => filemtime($path)
+                ];
+            }
+        }
+        usort($files, fn($a, $b) => $b['modified'] <=> $a['modified']);
+        return $files;
+    }
+
+    /**
+     * Delete a backup file. Path must be inside the backups directory.
+     * @param string $path Full path to the .backup file
+     * @throws \Exception If path is invalid or outside backups dir
+     */
+    public function deleteBackup(string $path): void
+    {
+        $realPath = realpath($path);
+        $realBackupPath = realpath($this->backupPath);
+        if ($realPath === false || $realBackupPath === false) {
+            throw new \Exception("Caminho inválido");
+        }
+        if (strpos($realPath, $realBackupPath) !== 0) {
+            throw new \Exception("Backup não encontrado");
+        }
+        if (!is_file($realPath) || pathinfo($realPath, PATHINFO_EXTENSION) !== 'backup') {
+            throw new \Exception("Ficheiro inválido");
+        }
+        if (!@unlink($realPath)) {
+            throw new \Exception("Não foi possível apagar o backup");
+        }
     }
 
     // --- Private helpers ---
@@ -764,12 +834,17 @@ class CondominiumBackupService
         return (int)$this->db->lastInsertId();
     }
 
-    private function insertCondominium(array $row, int $userId): int
+    private function insertCondominium(array $row, int $userId, ?int $forceId = null): int
     {
         $exclude = ['id', 'user_id', 'subscription_id', 'created_at', 'updated_at'];
         $cols = [];
         $vals = [];
         $params = [':user_id' => $userId];
+        if ($forceId !== null) {
+            $cols[] = 'id';
+            $vals[] = ':id';
+            $params[':id'] = $forceId;
+        }
         foreach ($row as $k => $v) {
             if (in_array($k, $exclude)) continue;
             if ($k === 'user_id') continue;
@@ -785,7 +860,14 @@ class CondominiumBackupService
         $vals[] = 'NOW()';
         $sql = "INSERT INTO condominiums (" . implode(',', $cols) . ") VALUES (" . implode(',', $vals) . ")";
         $this->db->prepare($sql)->execute($params);
-        return (int)$this->db->lastInsertId();
+        return $forceId !== null ? $forceId : (int)$this->db->lastInsertId();
+    }
+
+    private function condominiumExists(int $condominiumId): bool
+    {
+        $stmt = $this->db->prepare("SELECT 1 FROM condominiums WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $condominiumId]);
+        return (bool)$stmt->fetch();
     }
 
     private function insertFraction(array $row, int $condominiumId): int

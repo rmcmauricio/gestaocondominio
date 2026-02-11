@@ -69,7 +69,7 @@
                     <select name="existing_backup" class="form-select">
                         <option value="">-- Escolha um backup --</option>
                         {% for backup in backups %}
-                        <option value="{{ backup.path }}">{{ backup.name }} ({{ backup.modified|date('d/m/Y H:i') }})</option>
+                        <option value="{{ backup.path }}">{{ backup.name }} — {{ backup.size_kb|default(0) }} KB — {{ backup.modified|date('d/m/Y H:i') }}</option>
                         {% endfor %}
                     </select>
                 </div>

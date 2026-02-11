@@ -1174,6 +1174,84 @@ class SuperAdminController extends Controller
     }
 
     /**
+     * Create backup via POST and return JSON (for modal flow)
+     */
+    public function createBackupCondominium(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        header('Content-Type: application/json; charset=utf-8');
+
+        $condominium = $this->condominiumModel->findById($id);
+        if (!$condominium) {
+            echo json_encode(['success' => false, 'error' => 'Condomínio não encontrado.']);
+            exit;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            echo json_encode(['success' => false, 'error' => 'Método inválido.']);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            echo json_encode(['success' => false, 'error' => 'Token de segurança inválido.']);
+            exit;
+        }
+
+        try {
+            $backupService = new CondominiumBackupService();
+            $backupPath = $backupService->backup($id);
+            $filename = basename($backupPath);
+            $sizeKb = (int) ceil(filesize($backupPath) / 1024);
+
+            echo json_encode([
+                'success' => true,
+                'name' => $filename,
+                'size_kb' => $sizeKb,
+                'download_url' => BASE_URL . 'admin/condominiums/backup-download?file=' . rawurlencode($filename),
+            ]);
+        } catch (\Exception $e) {
+            error_log("CondominiumBackupService create: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    /**
+     * Download a backup file by filename (must be in backups dir)
+     */
+    public function downloadBackupFile()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $filename = $_GET['file'] ?? '';
+        $filename = basename($filename);
+        if (empty($filename) || pathinfo($filename, PATHINFO_EXTENSION) !== 'backup') {
+            $_SESSION['error'] = 'Ficheiro inválido.';
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        $backupPath = __DIR__ . '/../../storage/backups/' . $filename;
+        $realPath = realpath($backupPath);
+        $realBackupDir = realpath(__DIR__ . '/../../storage/backups');
+        if ($realPath === false || $realBackupDir === false || strpos($realPath, $realBackupDir) !== 0 || !is_file($realPath)) {
+            $_SESSION['error'] = 'Backup não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . filesize($realPath));
+        readfile($realPath);
+        exit;
+    }
+
+    /**
      * Restore condominium from backup
      */
     public function restoreCondominium()
@@ -1222,7 +1300,7 @@ class SuperAdminController extends Controller
                 @unlink($backupPath);
             }
 
-            $_SESSION['success'] = 'Condomínio restaurado com sucesso. Novo ID: ' . $newCondominiumId;
+            $_SESSION['success'] = 'Condomínio restaurado com sucesso. ID: ' . $newCondominiumId;
             header('Location: ' . BASE_URL . 'admin/condominiums');
             exit;
         } catch (\Exception $e) {
@@ -1263,6 +1341,88 @@ class SuperAdminController extends Controller
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * List backups for a condominium and allow restore or delete
+     */
+    public function restoreCondominiumBackupsList(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $condominium = (new Condominium())->findById($id);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        $backupService = new CondominiumBackupService();
+        $backups = $backupService->listBackupsForCondominium($id);
+
+        global $db;
+        $stmt = $db->query("SELECT id, name, email FROM users WHERE role = 'super_admin' OR role = 'admin' ORDER BY name");
+        $adminUsers = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $this->loadPageTranslations('dashboard');
+        $messages = $this->getSessionMessages();
+
+        $this->data += [
+            'viewName' => 'pages/admin/condominiums/restore-condominium.html.twig',
+            'page' => ['titulo' => 'Restaurar condomínio: ' . $condominium['name']],
+            'condominium' => $condominium,
+            'condominium_id' => $id,
+            'backups' => $backups,
+            'admin_users' => $adminUsers,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user(),
+            'error' => $messages['error'],
+            'success' => $messages['success']
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Delete a backup file (POST)
+     */
+    public function deleteBackupFile()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        $backupPath = $_POST['backup_path'] ?? '';
+        $redirectUrl = $_POST['redirect_url'] ?? BASE_URL . 'admin/condominiums';
+
+        if (empty($backupPath)) {
+            $_SESSION['error'] = 'Backup não indicado.';
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+
+        try {
+            $backupService = new CondominiumBackupService();
+            $backupService->deleteBackup($backupPath);
+            $_SESSION['success'] = 'Backup apagado com sucesso.';
+        } catch (\Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+        }
+
+        header('Location: ' . $redirectUrl);
+        exit;
     }
 
     /**

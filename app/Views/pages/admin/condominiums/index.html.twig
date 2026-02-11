@@ -173,8 +173,8 @@ th.sortable[style*="color: rgb(13, 110, 253)"] .sort-icon {
                                 <a href="{{ BASE_URL }}admin/condominiums/{{ condominium.id }}/stats" class="btn btn-sm btn-info">
                                     <i class="bi bi-graph-up"></i> Estatísticas
                                 </a>
-                                <a href="{{ BASE_URL }}admin/condominiums/{{ condominium.id }}/backup" class="btn btn-sm btn-secondary ms-1" title="Descarregar backup completo">
-                                    <i class="bi bi-download"></i> Backup
+                                <a href="{{ BASE_URL }}admin/condominiums/{{ condominium.id }}/restore" class="btn btn-sm btn-secondary ms-1" title="Criar backup ou restaurar">
+                                    <i class="bi bi-archive"></i> Backup / Restaurar
                                 </a>
                                 <button type="button" class="btn btn-sm btn-danger ms-1" data-bs-toggle="modal" data-bs-target="#deleteCondominiumModal" data-condominium-id="{{ condominium.id }}" data-condominium-name="{{ condominium.name|e('html_attr') }}">
                                     <i class="bi bi-trash"></i> Apagar
