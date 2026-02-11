@@ -872,6 +872,37 @@ class EmailService
         return $this->sendEmail($superAdminEmail, $subject, $html, $text, 'pilot_user_notification');
     }
 
+    /**
+     * Send condominium deletion confirmation email to superadmin
+     */
+    public function sendCondominiumDeletionConfirmEmail(string $email, string $nome, string $condominiumName, string $confirmUrl): bool
+    {
+        $template = $this->emailTemplateModel->findByKey('condominium_deletion_confirm');
+        if ($template) {
+            $subject = $template['subject'] ?? 'Confirmar eliminação de condomínio';
+            $html = $this->renderTemplate('condominium_deletion_confirm', [
+                'nome' => $nome,
+                'condominiumName' => $condominiumName,
+                'confirmUrl' => $confirmUrl,
+                'baseUrl' => BASE_URL
+            ]);
+            $text = $this->renderTextTemplate('condominium_deletion_confirm', [
+                'nome' => $nome,
+                'condominiumName' => $condominiumName,
+                'confirmUrl' => $confirmUrl,
+                'baseUrl' => BASE_URL
+            ]);
+            if (empty($html)) {
+                error_log("EmailService: Failed to render 'condominium_deletion_confirm' template.");
+                return false;
+            }
+        } else {
+            error_log("EmailService: Template 'condominium_deletion_confirm' not found. Please run seeder.");
+            return false;
+        }
+        return $this->sendEmailInternal($email, $subject, $html, $text);
+    }
+
     private function getLogoInline(): string
     {
         // Get APP_ENV to determine if we should use URL or base64

@@ -1,0 +1,92 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Restaurar Condomínio</h2>
+            <p class="text-muted mb-0">Restaurar um condomínio a partir de um ficheiro de backup</p>
+        </div>
+        <a href="{{ BASE_URL }}admin/condominiums" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-upload"></i> Restaurar a partir de backup</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{{ BASE_URL }}admin/condominiums/restore" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Ficheiro de backup (.backup)</label>
+                    <input type="file" name="backup_file" class="form-control" accept=".backup">
+                    <small class="text-muted">Ou selecione um backup existente abaixo</small>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Administrador do condomínio restaurado (opcional)</label>
+                    <select name="target_admin_user_id" class="form-select">
+                        <option value="">Usar administrador original (por email)</option>
+                        {% for admin in admin_users %}
+                        <option value="{{ admin.id }}">{{ admin.name }} ({{ admin.email }})</option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted">Se indicar um admin, o condomínio restaurado ficará associado a esse utilizador. Caso contrário, serão usados os emails do backup.</small>
+                </div>
+
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-upload"></i> Restaurar Condomínio
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {% if backups|length > 0 %}
+    <div class="card shadow-sm">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0"><i class="bi bi-archive"></i> Backups disponíveis</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">Seleccione um backup existente para restaurar (em vez de fazer upload):</p>
+            <form method="post" action="{{ BASE_URL }}admin/condominiums/restore">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="mb-3">
+                    <label class="form-label">Backup</label>
+                    <select name="existing_backup" class="form-select">
+                        <option value="">-- Escolha um backup --</option>
+                        {% for backup in backups %}
+                        <option value="{{ backup.path }}">{{ backup.name }} ({{ backup.modified|date('d/m/Y H:i') }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Administrador (opcional)</label>
+                    <select name="target_admin_user_id" class="form-select">
+                        <option value="">Usar administrador original</option>
+                        {% for admin in admin_users %}
+                        <option value="{{ admin.id }}">{{ admin.name }} ({{ admin.email }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-upload"></i> Restaurar a partir deste backup
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</div>

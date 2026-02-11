@@ -1099,6 +1099,48 @@ O que pode fazer:
                     ['key' => '{adminUrl}', 'description' => 'URL do painel de users piloto', 'required' => true],
                     ['key' => '{baseUrl}', 'description' => 'URL base do sistema', 'required' => false]
                 ]
+            ],
+            [
+                'template_key' => 'condominium_deletion_confirm',
+                'name' => 'Confirmação de Eliminação de Condomínio',
+                'description' => 'Email enviado ao super admin para confirmar eliminação de condomínio (dupla autenticação)',
+                'subject' => 'Confirmar eliminação do condomínio - O Meu Prédio',
+                'html_body' => '<div class="greeting">Olá {nome}!</div>
+<div class="message">Solicitou a eliminação do condomínio <strong>{condominiumName}</strong>.</div>
+<div class="warning">
+    <div class="warning-title">
+        <span>⚠️</span>
+        <span>Atenção</span>
+    </div>
+    <ul>
+        <li>Esta ação é <strong>irreversível</strong> - todos os dados do condomínio serão apagados permanentemente</li>
+        <li>O link expira em 1 hora</li>
+        <li>Se não solicitou esta ação, ignore este email</li>
+    </ul>
+</div>
+<div style="text-align: center; margin: 35px 0;">
+    <a href="{confirmUrl}" class="button" style="background: #dc3545; color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; display: inline-block;">Confirmar Eliminação</a>
+</div>
+<div class="link-box">
+    <div class="link-label">Se o botão não funcionar, copie e cole este link no seu navegador:</div>
+    {confirmUrl}
+</div>',
+                'text_body' => 'Olá {nome}!
+
+Solicitou a eliminação do condomínio {condominiumName}.
+
+⚠️ Atenção:
+- Esta ação é irreversível - todos os dados do condomínio serão apagados permanentemente
+- O link expira em 1 hora
+- Se não solicitou esta ação, ignore este email
+
+Confirmar eliminação: {confirmUrl}',
+                'available_fields' => [
+                    ['key' => '{nome}', 'description' => 'Nome do super admin', 'required' => true],
+                    ['key' => '{condominiumName}', 'description' => 'Nome do condomínio a eliminar', 'required' => true],
+                    ['key' => '{confirmUrl}', 'description' => 'URL de confirmação com token', 'required' => true],
+                    ['key' => '{baseUrl}', 'description' => 'URL base do sistema', 'required' => false]
+                ]
             ]
         ];
 

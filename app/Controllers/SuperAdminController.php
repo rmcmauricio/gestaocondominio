@@ -21,7 +21,9 @@ use App\Services\AuditService;
 use App\Services\PaymentService;
 use App\Services\LogService;
 use App\Services\CondominiumDeletionService;
+use App\Services\CondominiumBackupService;
 use App\Core\DebugLogger;
+use App\Core\EmailService;
 
 class SuperAdminController extends Controller
 {
@@ -1008,6 +1010,259 @@ class SuperAdminController extends Controller
 
             echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
         }
+    }
+
+    /**
+     * Request condominium deletion (step 1 - sends confirmation email to superadmin)
+     */
+    public function requestCondominiumDelete(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        global $db;
+
+        $condominium = $this->condominiumModel->findById($id);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        $user = AuthMiddleware::user();
+        if (!$user || $user['role'] !== 'super_admin') {
+            $_SESSION['error'] = 'Ação não autorizada.';
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        // Invalidate any previous pending request for this condominium
+        $db->exec("DELETE FROM condominium_deletion_requests WHERE condominium_id = " . (int)$id);
+
+        $token = bin2hex(random_bytes(32));
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
+
+        $stmt = $db->prepare("INSERT INTO condominium_deletion_requests (condominium_id, user_id, token, expires_at) VALUES (:condominium_id, :user_id, :token, :expires_at)");
+        $stmt->execute([
+            ':condominium_id' => $id,
+            ':user_id' => $user['id'],
+            ':token' => $token,
+            ':expires_at' => $expiresAt
+        ]);
+
+        $confirmUrl = BASE_URL . 'admin/condominiums/confirm-delete?token=' . urlencode($token);
+
+        $emailService = new EmailService();
+        $sent = $emailService->sendCondominiumDeletionConfirmEmail(
+            $user['email'],
+            $user['name'],
+            $condominium['name'],
+            $confirmUrl
+        );
+
+        if (!$sent) {
+            $db->exec("DELETE FROM condominium_deletion_requests WHERE condominium_id = " . (int)$id);
+            $_SESSION['error'] = 'Não foi possível enviar o email de confirmação. Tente novamente.';
+        } else {
+            $_SESSION['success'] = 'Foi enviado um email de confirmação para ' . $user['email'] . '. Clique no link no email para confirmar a eliminação (válido por 1 hora).';
+        }
+
+        header('Location: ' . BASE_URL . 'admin/condominiums');
+        exit;
+    }
+
+    /**
+     * Confirm condominium deletion via email link (step 2 - executes deletion)
+     */
+    public function confirmCondominiumDelete()
+    {
+        $token = $_GET['token'] ?? '';
+        if (empty($token)) {
+            $_SESSION['error'] = 'Link de confirmação inválido ou expirado.';
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        global $db;
+
+        $stmt = $db->prepare("
+            SELECT cdr.*, u.role
+            FROM condominium_deletion_requests cdr
+            INNER JOIN users u ON u.id = cdr.user_id
+            WHERE cdr.token = :token AND cdr.expires_at > NOW()
+        ");
+        $stmt->execute([':token' => $token]);
+        $request = $stmt->fetch();
+
+        if (!$request || $request['role'] !== 'super_admin') {
+            $_SESSION['error'] = 'Link de confirmação inválido ou expirado.';
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        $condominiumId = (int)$request['condominium_id'];
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $db->exec("DELETE FROM condominium_deletion_requests WHERE id = " . (int)$request['id']);
+            $_SESSION['error'] = 'O condomínio já foi eliminado ou não existe.';
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+        $condominiumName = $condominium['name'];
+
+        try {
+            $deletionService = new CondominiumDeletionService();
+            $deletionService->deleteCondominiumData($condominiumId, false);
+        } catch (\Exception $e) {
+            error_log("CondominiumDeletionService error: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao eliminar o condomínio: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        // Remove the request
+        $db->exec("DELETE FROM condominium_deletion_requests WHERE id = " . (int)$request['id']);
+
+        $_SESSION['success'] = 'O condomínio "' . htmlspecialchars($condominiumName) . '" foi eliminado com sucesso.';
+        header('Location: ' . BASE_URL . 'admin/condominiums');
+        exit;
+    }
+
+    /**
+     * Create backup of a condominium (download)
+     */
+    public function backupCondominium(int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $condominium = $this->condominiumModel->findById($id);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        try {
+            $backupService = new CondominiumBackupService();
+            $backupPath = $backupService->backup($id);
+            $filename = basename($backupPath);
+
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Content-Length: ' . filesize($backupPath));
+            readfile($backupPath);
+            exit;
+        } catch (\Exception $e) {
+            error_log("CondominiumBackupService: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao criar backup: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+    }
+
+    /**
+     * Restore condominium from backup
+     */
+    public function restoreCondominium()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Método inválido.';
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        }
+
+        $backupPath = null;
+        $targetAdminUserId = !empty($_POST['target_admin_user_id']) ? (int)$_POST['target_admin_user_id'] : null;
+
+        if (!empty($_FILES['backup_file']['tmp_name']) && is_uploaded_file($_FILES['backup_file']['tmp_name'])) {
+            $backupPath = $_FILES['backup_file']['tmp_name'];
+        } elseif (!empty($_POST['existing_backup'])) {
+            $backupPath = $_POST['existing_backup'];
+            if (!file_exists($backupPath) || strpos(realpath($backupPath), realpath(__DIR__ . '/../../storage/backups')) !== 0) {
+                $_SESSION['error'] = 'Backup selecionado inválido.';
+                header('Location: ' . BASE_URL . 'admin/condominiums/restore');
+                exit;
+            }
+        }
+
+        if (!$backupPath || !file_exists($backupPath)) {
+            $_SESSION['error'] = 'Selecione um ficheiro de backup ou escolha um backup existente.';
+            header('Location: ' . BASE_URL . 'admin/condominiums/restore');
+            exit;
+        }
+
+        try {
+            $backupService = new CondominiumBackupService();
+            $newCondominiumId = $backupService->restore($backupPath, $targetAdminUserId ?: null);
+
+            if (isset($_FILES['backup_file']['tmp_name'])) {
+                @unlink($backupPath);
+            }
+
+            $_SESSION['success'] = 'Condomínio restaurado com sucesso. Novo ID: ' . $newCondominiumId;
+            header('Location: ' . BASE_URL . 'admin/condominiums');
+            exit;
+        } catch (\Exception $e) {
+            error_log("CondominiumBackupService restore: " . $e->getMessage());
+            $_SESSION['error'] = 'Erro ao restaurar: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'admin/condominiums/restore');
+            exit;
+        }
+    }
+
+    /**
+     * Show restore form with backup list
+     */
+    public function restoreCondominiumForm()
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireSuperAdmin();
+
+        $backupService = new CondominiumBackupService();
+        $backups = $backupService->listBackups();
+
+        global $db;
+        $stmt = $db->query("SELECT id, name, email FROM users WHERE role = 'super_admin' OR role = 'admin' ORDER BY name");
+        $adminUsers = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $this->loadPageTranslations('dashboard');
+        $messages = $this->getSessionMessages();
+
+        $this->data += [
+            'viewName' => 'pages/admin/condominiums/restore.html.twig',
+            'page' => ['titulo' => 'Restaurar Condomínio'],
+            'backups' => $backups,
+            'admin_users' => $adminUsers,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user(),
+            'error' => $messages['error'],
+            'success' => $messages['success']
+        ];
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
     }
 
     /**

@@ -29,9 +29,14 @@ th.sortable[style*="color: rgb(13, 110, 253)"] .sort-icon {
             <h2>Gestão de Condomínios</h2>
             <p class="text-muted mb-0">Visualizar condomínios e estatísticas por administrador</p>
         </div>
-        <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Voltar
-        </a>
+        <div class="d-flex gap-2">
+            <a href="{{ BASE_URL }}admin/condominiums/restore" class="btn btn-success">
+                <i class="bi bi-upload"></i> Restaurar Condomínio
+            </a>
+            <a href="{{ BASE_URL }}dashboard" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
     </div>
 
     <!-- Ranking Top 20 -->
@@ -168,6 +173,12 @@ th.sortable[style*="color: rgb(13, 110, 253)"] .sort-icon {
                                 <a href="{{ BASE_URL }}admin/condominiums/{{ condominium.id }}/stats" class="btn btn-sm btn-info">
                                     <i class="bi bi-graph-up"></i> Estatísticas
                                 </a>
+                                <a href="{{ BASE_URL }}admin/condominiums/{{ condominium.id }}/backup" class="btn btn-sm btn-secondary ms-1" title="Descarregar backup completo">
+                                    <i class="bi bi-download"></i> Backup
+                                </a>
+                                <button type="button" class="btn btn-sm btn-danger ms-1" data-bs-toggle="modal" data-bs-target="#deleteCondominiumModal" data-condominium-id="{{ condominium.id }}" data-condominium-name="{{ condominium.name|e('html_attr') }}">
+                                    <i class="bi bi-trash"></i> Apagar
+                                </button>
                             </td>
                         </tr>
                         {% else %}
@@ -206,7 +217,42 @@ th.sortable[style*="color: rgb(13, 110, 253)"] .sort-icon {
     </div>
 </div>
 
+<!-- Modal de confirmação de eliminação -->
+<div class="modal fade" id="deleteCondominiumModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Solicitar Eliminação de Condomínio</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Esta ação irá enviar um email de confirmação para o seu endereço. Será necessário clicar no link nesse email para <strong>confirmar</strong> a eliminação.</p>
+                <p class="mb-0">Tem a certeza que deseja solicitar a eliminação do condomínio <strong id="deleteCondominiumName"></strong>?</p>
+                <p class="text-danger small mt-2 mb-0"><i class="bi bi-info-circle"></i> A eliminação é irreversível e apaga todos os dados associados ao condomínio.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="deleteCondominiumForm" method="post" action="" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-envelope"></i> Enviar email de confirmação
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+// Modal de eliminação - preencher dados ao abrir
+document.getElementById('deleteCondominiumModal').addEventListener('show.bs.modal', function(e) {
+    const btn = e.relatedTarget;
+    const id = btn.dataset.condominiumId;
+    const name = btn.dataset.condominiumName;
+    document.getElementById('deleteCondominiumName').textContent = name;
+    document.getElementById('deleteCondominiumForm').action = '{{ BASE_URL }}admin/condominiums/' + id + '/request-delete';
+});
+
 // Table sorting and pagination functionality
 document.addEventListener('DOMContentLoaded', function() {
     const table = document.getElementById('condominiumsTable');

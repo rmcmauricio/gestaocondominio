@@ -505,7 +505,12 @@ $router->post('/admin/subscriptions-manage/detach-condominium', 'App\Controllers
 $router->post('/admin/subscriptions-manage/recalculate-licenses', 'App\Controllers\Admin\SubscriptionManagementController@recalculateLicenses');
 $router->post('/admin/subscriptions-manage/toggle-condominium-lock', 'App\Controllers\Admin\SubscriptionManagementController@toggleCondominiumLock');
 $router->get('/admin/condominiums', 'App\Controllers\SuperAdminController@condominiums');
+$router->get('/admin/condominiums/confirm-delete', 'App\Controllers\SuperAdminController@confirmCondominiumDelete');
+$router->get('/admin/condominiums/restore', 'App\Controllers\SuperAdminController@restoreCondominiumForm');
+$router->post('/admin/condominiums/restore', 'App\Controllers\SuperAdminController@restoreCondominium');
+$router->get('/admin/condominiums/{id}/backup', 'App\Controllers\SuperAdminController@backupCondominium');
 $router->get('/admin/condominiums/{id}/stats', 'App\Controllers\SuperAdminController@condominiumStats');
+$router->post('/admin/condominiums/{id}/request-delete', 'App\Controllers\SuperAdminController@requestCondominiumDelete');
 $router->get('/admin/payments', 'App\Controllers\SuperAdminController@payments');
 
 // Planos
