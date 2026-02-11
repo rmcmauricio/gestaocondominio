@@ -189,20 +189,23 @@ class FinancialTransactionController extends Controller
         $feePaymentModel = new FeePayment();
         $feeModel = new Fee();
         
-        // Get liquidated fees for all income transactions
+        // Get liquidated fees for all income transactions (direct link OR via fraction_account_movements)
         foreach ($transactions as $transaction) {
             // Check all income transactions, regardless of related_type
             if ($transaction['transaction_type'] === 'income') {
-                // Get fee payments linked to this transaction
+                // Get fee payments: direct (fp.financial_transaction_id) OR via liquidation (fam.source_financial_transaction_id)
                 global $db;
                 $stmt = $db->prepare("
-                    SELECT fp.*, f.period_year, f.period_month, f.fee_type, f.reference as fee_reference
+                    SELECT DISTINCT fp.id, fp.fee_id, fp.amount, f.period_year, f.period_month, f.fee_type, f.reference as fee_reference
                     FROM fee_payments fp
                     INNER JOIN fees f ON f.id = fp.fee_id
-                    WHERE fp.financial_transaction_id = :transaction_id
+                    LEFT JOIN fraction_account_movements fam ON fam.source_reference_id = fp.id
+                        AND fam.type = 'debit' AND fam.source_type = 'quota_application'
+                    WHERE (fp.financial_transaction_id = :transaction_id
+                       OR fam.source_financial_transaction_id = :transaction_id2)
                     ORDER BY f.period_year ASC, f.period_month ASC
                 ");
-                $stmt->execute([':transaction_id' => $transaction['id']]);
+                $stmt->execute([':transaction_id' => $transaction['id'], ':transaction_id2' => $transaction['id']]);
                 $feePayments = $stmt->fetchAll() ?: [];
                 
                 if (!empty($feePayments)) {
@@ -590,7 +593,8 @@ class FinancialTransactionController extends Controller
     }
 
     /**
-     * JSON: dados do movimento financeiro (para modal na conta da fração).
+     * JSON: dados do movimento financeiro (para modal de detalhes).
+     * Inclui conta, fração (se aplicável) e quotas associadas/liquidadas.
      */
     public function getTransactionInfo(int $condominiumId, int $id)
     {
@@ -598,14 +602,57 @@ class FinancialTransactionController extends Controller
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
 
-        $transaction = $this->transactionModel->findById($id);
-        if (!$transaction || (int)($transaction['condominium_id'] ?? 0) != $condominiumId) {
+        global $db;
+        $stmt = $db->prepare("
+            SELECT ft.*, 
+                   ba.name as account_name, ba.account_type,
+                   ba2.name as transfer_to_account_name,
+                   fr.identifier as fraction_identifier
+            FROM financial_transactions ft
+            LEFT JOIN bank_accounts ba ON ba.id = ft.bank_account_id
+            LEFT JOIN bank_accounts ba2 ON ba2.id = ft.transfer_to_account_id
+            LEFT JOIN fractions fr ON fr.id = ft.fraction_id
+            WHERE ft.id = :id AND ft.condominium_id = :condominium_id
+        ");
+        $stmt->execute([':id' => $id, ':condominium_id' => $condominiumId]);
+        $transaction = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$transaction) {
             http_response_code(404);
             echo json_encode(['error' => 'Movimento não encontrado']);
             exit;
         }
 
-        echo json_encode(['transaction' => $transaction]);
+        $liquidatedFees = [];
+        if ($transaction['transaction_type'] === 'income') {
+            $stmt = $db->prepare("
+                SELECT DISTINCT fp.id, fp.amount, f.period_year, f.period_month, f.fee_type, f.reference as fee_reference
+                FROM fee_payments fp
+                INNER JOIN fees f ON f.id = fp.fee_id
+                LEFT JOIN fraction_account_movements fam ON fam.source_reference_id = fp.id
+                    AND fam.type = 'debit' AND fam.source_type = 'quota_application'
+                WHERE (fp.financial_transaction_id = :tid OR fam.source_financial_transaction_id = :tid2)
+                ORDER BY f.period_year ASC, f.period_month ASC
+            ");
+            $stmt->execute([':tid' => $id, ':tid2' => $id]);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            foreach ($rows as $r) {
+                $liquidatedFees[] = [
+                    'label' => self::feeLabel([
+                        'fee_type' => $r['fee_type'],
+                        'reference' => $r['fee_reference'],
+                        'period_year' => $r['period_year'],
+                        'period_month' => $r['period_month']
+                    ]),
+                    'amount' => (float)$r['amount']
+                ];
+            }
+        }
+
+        echo json_encode([
+            'transaction' => $transaction,
+            'liquidated_fees' => $liquidatedFees
+        ]);
         exit;
     }
 
@@ -1551,6 +1598,10 @@ class FinancialTransactionController extends Controller
                         $selectedFeeIds = array_map('intval', explode(',', $quotaSelectedInput));
                         $selectedFeeIds = array_filter($selectedFeeIds); // Remove empty values
                     }
+                    $quotaRemainingDest = $_POST['quota_remaining_destination_' . $index] ?? 'oldest';
+                    if (!in_array($quotaRemainingDest, ['oldest', 'unregistered', 'balance'])) {
+                        $quotaRemainingDest = 'oldest';
+                    }
                 }
 
                 if ($isTransfer) {
@@ -1642,7 +1693,8 @@ class FinancialTransactionController extends Controller
                         $selectedFeeIds,
                         $userId,
                         $rowData['transaction_date'],
-                        $transactionId
+                        $transactionId,
+                        $quotaRemainingDest
                     );
 
                     // Update description with liquidated fees
@@ -1654,6 +1706,11 @@ class FinancialTransactionController extends Controller
                     foreach (array_keys($result['partially_paid'] ?? []) as $fid) {
                         $f = $this->feeModel->findById($fid);
                         $parts[] = ($f ? self::feeLabel($f) : ('Quota #' . $fid)) . ' (parcial)';
+                    }
+                    $creditRemaining = (float)($result['credit_remaining'] ?? 0);
+                    if ($creditRemaining > 0 && $quotaRemainingDest !== 'oldest') {
+                        $remainingLabels = ['unregistered' => 'Valor restante para quotas antigas não registadas', 'balance' => 'Valor restante em saldo'];
+                        $parts[] = ($remainingLabels[$quotaRemainingDest] ?? '') . ': ' . number_format($creditRemaining, 2, ',', '.') . ' €';
                     }
                     $builtDesc = implode(', ', $parts);
                     if ($builtDesc !== '') {
@@ -1879,6 +1936,10 @@ class FinancialTransactionController extends Controller
 
         $fractionId = !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null;
         $selectedFeeIds = !empty($_POST['selected_fee_ids']) ? array_map('intval', $_POST['selected_fee_ids']) : [];
+        $remainingDestination = $_POST['remaining_destination'] ?? 'oldest';
+        if (!in_array($remainingDestination, ['oldest', 'unregistered', 'balance'])) {
+            $remainingDestination = 'oldest';
+        }
 
         if (!$fractionId) {
             $_SESSION['error'] = 'Por favor, selecione uma fração.';
@@ -1928,11 +1989,16 @@ class FinancialTransactionController extends Controller
                 $selectedFeeIds,
                 $userId,
                 $paymentDate,
-                $id
+                $id,
+                $remainingDestination
             );
 
-            // Update transaction
+            // Update transaction - complement description with fraction and set reference for receipts
+            $fractionIdentifier = $fraction['identifier'] ?? '';
             $description = $transaction['description'];
+            if ($fractionIdentifier) {
+                $description .= ' | Fração ' . $fractionIdentifier;
+            }
             $fullyPaidCount = is_array($result['fully_paid']) ? count($result['fully_paid']) : (int)$result['fully_paid'];
             $partiallyPaidCount = is_array($result['partially_paid']) ? count($result['partially_paid']) : (int)$result['partially_paid'];
             
@@ -1946,18 +2012,29 @@ class FinancialTransactionController extends Controller
                 }
                 $description .= ' | ' . implode(', ', $liquidationDetails);
             }
+            $creditRemaining = (float)($result['credit_remaining'] ?? 0);
+            if ($creditRemaining > 0 && $remainingDestination !== 'oldest') {
+                $remainingLabels = [
+                    'unregistered' => 'Valor restante para quotas antigas não registadas',
+                    'balance' => 'Valor restante em saldo'
+                ];
+                $description .= ' | ' . ($remainingLabels[$remainingDestination] ?? '') . ': ' . number_format($creditRemaining, 2, ',', '.') . ' €';
+            }
+
+            $reference = 'REF' . $condominiumId . $fractionId . date('YmdHis') . $id;
 
             $this->transactionModel->update($id, [
                 'fraction_id' => $fractionId,
-                'income_entry_type' => 'quota_payment',
+                'income_entry_type' => 'quota',
                 'category' => 'Quotas',
                 'related_type' => 'fee_payment',
-                'description' => $description
+                'description' => $description,
+                'reference' => $reference
             ]);
 
             // Update fraction account movement description
-            if ($movementId && ($fullyPaidCount > 0 || $partiallyPaidCount > 0)) {
-                $builtDesc = 'Crédito por liquidação de quotas - Movimento #' . $id;
+            if ($movementId) {
+                $builtDesc = 'Crédito por liquidação de quotas - Fração ' . $fractionIdentifier . ' - Movimento #' . $id;
                 if ($fullyPaidCount > 0 || $partiallyPaidCount > 0) {
                     $liquidationDetails = [];
                     if ($fullyPaidCount > 0) {
@@ -1968,6 +2045,10 @@ class FinancialTransactionController extends Controller
                     }
                     $builtDesc .= ' | ' . implode(', ', $liquidationDetails);
                 }
+                if ($creditRemaining > 0 && $remainingDestination !== 'oldest') {
+                    $remainingLabels = ['unregistered' => 'Restante para quotas antigas não registadas', 'balance' => 'Restante em saldo'];
+                    $builtDesc .= ' | ' . ($remainingLabels[$remainingDestination] ?? '') . ': ' . number_format($creditRemaining, 2, ',', '.') . ' €';
+                }
                 (new FractionAccountMovement())->update($movementId, ['description' => $builtDesc]);
             }
 
@@ -1976,7 +2057,7 @@ class FinancialTransactionController extends Controller
                 $receiptService = new ReceiptService();
                 foreach ($result['fully_paid'] as $feeId) {
                     try {
-                        $receiptService->generateReceiptForFee($feeId, $userId);
+                        $receiptService->generateForFullyPaidFee($feeId, null, $condominiumId, $userId);
                     } catch (\Exception $e) {
                         // Log error but don't fail the whole operation
                         error_log("Error generating receipt for fee {$feeId}: " . $e->getMessage());

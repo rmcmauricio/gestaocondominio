@@ -139,7 +139,7 @@ class LiquidationService
     }
 
     /**
-     * Apply fraction account balance to selected fees first, then oldest pending fees.
+     * Apply fraction account balance to selected fees first, then oldest pending fees (unless remaining_destination says otherwise).
      * Similar to liquidate() but allows selecting specific fees to liquidate first.
      *
      * @param int $fractionId
@@ -147,6 +147,7 @@ class LiquidationService
      * @param int|null $createdBy User ID for fee_payments created_by (audit)
      * @param string|null $paymentDate Date for fee_payments (Y-m-d). Default: today
      * @param int|null $financialTransactionId ID do movimento financeiro que originou o crédito
+     * @param string $remainingDestination 'oldest'=apply to oldest, 'unregistered'=for old unregistered quotas, 'balance'=stays as balance
      * @return array ['fully_paid' => [fee_id,...], 'fully_paid_payments' => [fee_id=>payment_id], 'partially_paid' => [fee_id => remaining,...], 'credit_remaining' => float]
      */
     public function liquidateSelectedFees(
@@ -154,7 +155,8 @@ class LiquidationService
         array $selectedFeeIds, 
         ?int $createdBy = null, 
         ?string $paymentDate = null, 
-        ?int $financialTransactionId = null
+        ?int $financialTransactionId = null,
+        string $remainingDestination = 'oldest'
     ): array
     {
         $result = ['fully_paid' => [], 'fully_paid_payments' => [], 'partially_paid' => [], 'credit_remaining' => 0.0];
@@ -290,8 +292,8 @@ class LiquidationService
             }
         }
 
-        // If balance remains, apply to oldest pending fees (excluding already processed selected fees)
-        if ($balance > 0 && !empty($otherFees)) {
+        // If balance remains, apply to oldest pending fees (unless admin chose unregistered or balance)
+        if ($balance > 0 && !empty($otherFees) && $remainingDestination === 'oldest') {
             foreach ($otherFees as $fee) {
                 if ($balance <= 0) {
                     break;

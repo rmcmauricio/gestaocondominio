@@ -49,17 +49,16 @@
     <div class="card shadow-sm mb-4">
         <div class="card-body">
             <form method="GET" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="row g-3" id="filtersForm" onsubmit="event.preventDefault(); filterFees(); return false;">
-                <div class="col-12 col-sm-6 col-md-3">
+                <div class="col-12 col-sm-6 col-md-2">
                     <label for="year" class="form-label">Ano</label>
                     <select class="form-select form-select-sm" id="year" name="year">
-                        <option value="">Todos</option>
+                        <option value="" {% if selected_year is null or selected_year == '' %}selected{% endif %}>Todos</option>
                         {% for y in available_filter_years|default([])|sort|reverse %}
-                        {% set is_selected = (selected_year is not empty and selected_year == y) or (selected_year is empty and y == current_year) %}
-                        <option value="{{ y }}" {% if is_selected %}selected{% endif %}>{{ y }}</option>
+                        <option value="{{ y }}" {% if selected_year is not null and selected_year == y %}selected{% endif %}>{{ y }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-12 col-sm-6 col-md-3">
+                <div class="col-12 col-sm-6 col-md-2">
                     <label for="month" class="form-label">Mês</label>
                     <select class="form-select form-select-sm" id="month" name="month">
                         <option value="">Todos</option>
@@ -102,7 +101,7 @@
                 </div>
                 <div class="col-12 col-sm-6 col-md-2 d-flex align-items-end">
                     <div class="form-check form-switch w-100">
-                        <input class="form-check-input" type="checkbox" id="show_historical" name="show_historical" value="1" {% if show_historical %}checked{% endif %} onchange="document.getElementById('filtersForm').submit()">
+                        <input class="form-check-input" type="checkbox" id="show_historical" name="show_historical" value="1" {% if show_historical %}checked{% endif %} onchange="filterFees()">
                         <label class="form-check-label" for="show_historical">Incluir Dívidas</label>
                     </div>
                 </div>
@@ -317,6 +316,54 @@
         </div>
         {% endfor %}
     </div>
+
+    {% if pagination is defined and pagination.total_count > 0 %}
+    <nav aria-label="Paginação das quotas" class="mt-4">
+        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <span class="text-muted small">
+                    Mostrando {{ pagination.from }}-{{ pagination.to }} de {{ pagination.total_count }} quotas
+                    {% if pagination.total_pages > 1 %}
+                    | Página {{ pagination.current_page }} de {{ pagination.total_pages }}
+                    {% endif %}
+                </span>
+                <label class="d-flex align-items-center gap-1 small mb-0">
+                    <span class="text-muted">Por página:</span>
+                    <select class="form-select form-select-sm" id="per_page" name="per_page" style="width: auto;" onchange="changePerPage(this.value)">
+                        <option value="25" {% if pagination.per_page|default(25) == 25 %}selected{% endif %}>25</option>
+                        <option value="50" {% if pagination.per_page|default(25) == 50 %}selected{% endif %}>50</option>
+                        <option value="100" {% if pagination.per_page|default(25) == 100 %}selected{% endif %}>100</option>
+                    </select>
+                </label>
+            </div>
+            {% if pagination.total_pages > 1 %}
+            <ul class="pagination pagination-sm mb-0">
+                {% if pagination.current_page > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ pagination.current_page - 1 }}{% if pagination.base_query %}&{{ pagination.base_query }}{% endif %}" aria-label="Anterior">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+                {% set startPage = max(1, pagination.current_page - 2) %}
+                {% set endPage = min(pagination.total_pages, pagination.current_page + 2) %}
+                {% for i in range(startPage, endPage) %}
+                <li class="page-item {% if i == pagination.current_page %}active{% endif %}">
+                    <a class="page-link" href="?page={{ i }}{% if pagination.base_query %}&{{ pagination.base_query }}{% endif %}">{{ i }}</a>
+                </li>
+                {% endfor %}
+                {% if pagination.current_page < pagination.total_pages %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ pagination.current_page + 1 }}{% if pagination.base_query %}&{{ pagination.base_query }}{% endif %}" aria-label="Próximo">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+            {% endif %}
+        </div>
+    </nav>
+    {% endif %}
     {% else %}
     <div class="card shadow">
         <div class="card-body text-center py-5">
@@ -367,8 +414,8 @@
                         <!-- Step 1: Year Selection -->
                         <div class="step-content" id="step1">
                             <div class="mb-3">
-                                <label for="year" class="form-label">Ano <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="year" name="year" value="{{ current_year }}" min="2020" max="2100" required>
+                                <label for="generate_fee_year" class="form-label">Ano <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="generate_fee_year" name="year" value="{{ current_year }}" min="2020" max="2100" required>
                                 <small class="text-muted">Selecione o ano para o qual deseja gerar as quotas</small>
                             </div>
                         </div>
@@ -700,18 +747,32 @@
             const formData = new FormData(form);
             const params = new URLSearchParams();
             
-            // Add all form fields to params
+            // Add all form fields to params (incluir year, month e per_page mesmo vazios)
             for (const [key, value] of formData.entries()) {
-                if (value) {
+                if (value || ['year', 'month', 'per_page'].includes(key)) {
                     params.append(key, value);
                 }
             }
+            params.set('page', '1');  // Ao filtrar, voltar à primeira página
             
             // Build URL with filters
             const url = form.action + (params.toString() ? '?' + params.toString() : '');
             
             // Submit form normally but scroll to filters after load
             window.location.href = url + '#filtersForm';
+        }
+
+        function changePerPage(perPage) {
+            const form = document.getElementById('filtersForm');
+            const formData = new FormData(form);
+            const params = new URLSearchParams();
+            for (const [key, value] of formData.entries()) {
+                if (value || ['year', 'month'].includes(key)) params.append(key, value);
+            }
+            params.set('per_page', perPage);
+            params.set('page', '1');
+            const url = form.action + (params.toString() ? '?' + params.toString() : '');
+            window.location.href = url;
         }
         
         // Scroll to filters if hash is present
@@ -730,7 +791,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             let currentStep = 1;
             const form = document.getElementById('generateFeesForm');
-            const yearInput = document.getElementById('year');
+            const yearInput = document.getElementById('generate_fee_year');
             let selectedFeeMode = 'annual';
             let selectedAnnualType = '';
             let selectedExtraType = '';
@@ -1443,53 +1504,21 @@
                 <h5 class="modal-title">Registar Pagamento</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" id="paymentForm">
+            <form method="POST" id="paymentForm" onsubmit="syncPaymentMethodBeforeSubmit(event)">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="payment_method" id="payment_method_hidden" value="">
+                {% if selected_year is defined %}<input type="hidden" name="redirect_year" value="{{ selected_year }}">{% endif %}
+                {% if selected_month is defined %}<input type="hidden" name="redirect_month" value="{{ selected_month }}">{% endif %}
+                {% if selected_status is defined %}<input type="hidden" name="redirect_status" value="{{ selected_status }}">{% endif %}
+                {% if selected_fraction is defined %}<input type="hidden" name="redirect_fraction_id" value="{{ selected_fraction }}">{% endif %}
+                {% if show_historical is defined and show_historical %}<input type="hidden" name="redirect_show_historical" value="1">{% endif %}
+                {% if selected_fees_year is defined %}<input type="hidden" name="redirect_fees_year" value="{{ selected_fees_year }}">{% endif %}
                 <div class="modal-body">
                     <div id="feeInfo" class="alert alert-info mb-3" style="display: block !important;">
                         <small>Carregando informações...</small>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="payment_amount" class="form-label">Valor do Pagamento (€) <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">€</span>
-                            <input type="number" class="form-control" id="payment_amount" name="amount" 
-                                   step="0.01" min="0.01" required placeholder="0.00">
-                        </div>
-                        <small class="text-muted" id="maxAmountHint">Valor máximo: €0,00</small>
-                    </div>
 
-                    <div class="mb-3">
-                        <label for="payment_method" class="form-label">Método de Pagamento <span class="text-danger">*</span></label>
-                        <select class="form-select" id="payment_method" name="payment_method" required onchange="handlePaymentMethodChange()">
-                            <option value="">Selecione...</option>
-                            <option value="transfer">Transferência</option>
-                            <option value="cash">Dinheiro</option>
-                        </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="payment_date" class="form-label">Data do Pagamento <span class="text-danger">*</span></label>
-                        <input type="date" class="form-control" id="payment_date" name="payment_date" 
-                               value="{{ "now"|date("Y-m-d") }}" required>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="payment_reference" class="form-label">Referência</label>
-                        <input type="text" class="form-control" id="payment_reference" name="reference" 
-                               readonly style="background-color: #e9ecef; cursor: not-allowed;">
-                        <small class="form-text text-muted">Referência gerada automaticamente</small>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="payment_notes" class="form-label">Notas</label>
-                        <textarea class="form-control" id="payment_notes" name="notes" rows="2" 
-                                  placeholder="Informações adicionais sobre o pagamento"></textarea>
-                    </div>
-
-                    <hr>
-
+                    {# Movimento Financeiro - no topo para definir fluxo (criar vs associar) #}
                     <div class="mb-3">
                         <label class="form-label">Movimento Financeiro <span class="text-danger">*</span></label>
                         <div class="form-check mb-2">
@@ -1537,13 +1566,22 @@
 
                     <div id="associate-transaction-fields" style="display: none;">
                         <div class="mb-3">
+                            <label for="payment_method_associate" class="form-label">Método de Pagamento <span class="text-danger">*</span></label>
+                            <select class="form-select" id="payment_method_associate" required onchange="handleAssociateMethodChange(); syncPaymentMethodHidden();">
+                                <option value="">Selecione o método (transferência ou dinheiro)...</option>
+                                <option value="transfer">Transferência (banco)</option>
+                                <option value="cash">Dinheiro (caixa)</option>
+                            </select>
+                            <small class="form-text text-muted">Selecione primeiro para filtrar os movimentos por conta bancária ou caixa</small>
+                        </div>
+                        <div class="mb-3">
                             <label for="existing_transaction_id" class="form-label">Movimento Existente <span class="text-danger">*</span></label>
-                            <select class="form-select" id="existing_transaction_id" name="existing_transaction_id">
+                            <select class="form-select" id="existing_transaction_id" name="existing_transaction_id" onchange="handleExistingTransactionChange()" disabled>
                                 <option value="">Selecione um movimento...</option>
                                 {% if available_transactions %}
                                 {% for transaction in available_transactions %}
                                 {% if transaction.transaction_type == 'income' and not transaction.related_id %}
-                                <option value="{{ transaction.id }}">
+                                <option value="{{ transaction.id }}" data-transaction-date="{{ transaction.transaction_date|date('Y-m-d') }}" data-account-type="{{ transaction.account_type|default('bank') }}">
                                     {{ transaction.transaction_date|date('d/m/Y') }} - 
                                     {{ transaction.description|slice(0, 50) }}{% if transaction.description|length > 50 %}...{% endif %} - 
                                     €{{ transaction.amount|number_format(2, ',', '.') }} 
@@ -1553,8 +1591,50 @@
                                 {% endfor %}
                                 {% endif %}
                             </select>
-                            <small class="form-text text-muted">Apenas movimentos de entrada (receitas) não associados podem ser usados</small>
+                            <small class="form-text text-muted" id="associateTransactionHint">Selecione o método de pagamento para ver os movimentos disponíveis</small>
                         </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="mb-3" id="payment-method-create-wrapper">
+                        <label for="payment_method" class="form-label">Método de Pagamento <span class="text-danger">*</span></label>
+                        <select class="form-select" id="payment_method" required onchange="handlePaymentMethodChange(); syncPaymentMethodHidden();">
+                            <option value="">Selecione...</option>
+                            <option value="transfer">Transferência</option>
+                            <option value="cash">Dinheiro</option>
+                        </select>
+                        <small class="form-text text-muted">Selecionada automaticamente conforme o método de pagamento</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="payment_amount" class="form-label">Valor do Pagamento (€) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">€</span>
+                            <input type="number" class="form-control" id="payment_amount" name="amount" 
+                                   step="0.01" min="0.01" required placeholder="0.00">
+                        </div>
+                        <small class="text-muted" id="maxAmountHint">Valor máximo: €0,00</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="payment_date" class="form-label">Data do Pagamento <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="payment_date" name="payment_date" 
+                               value="{{ "now"|date("Y-m-d") }}" required>
+                        <small class="form-text text-muted" id="paymentDateHint" style="display: none;">Com "Associar existente", a data é preenchida pela data do movimento selecionado</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="payment_reference" class="form-label">Referência</label>
+                        <input type="text" class="form-control" id="payment_reference" name="reference" 
+                               readonly style="background-color: #e9ecef; cursor: not-allowed;">
+                        <small class="form-text text-muted">Referência gerada automaticamente</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="payment_notes" class="form-label">Notas</label>
+                        <textarea class="form-control" id="payment_notes" name="notes" rows="2" 
+                                  placeholder="Informações adicionais sobre o pagamento"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1574,23 +1654,113 @@ function toggleTransactionFields() {
     const createRadio = document.getElementById('transaction_create');
     const createFields = document.getElementById('create-transaction-fields');
     const associateFields = document.getElementById('associate-transaction-fields');
+    const paymentMethodCreateWrapper = document.getElementById('payment-method-create-wrapper');
     const bankAccountSelect = document.getElementById('bank_account_id');
     const transactionSelect = document.getElementById('existing_transaction_id');
+    const paymentMethodAssociate = document.getElementById('payment_method_associate');
+    const paymentDateInput = document.getElementById('payment_date');
+    const paymentDateHint = document.getElementById('paymentDateHint');
     
     if (createRadio.checked) {
         createFields.style.display = 'block';
         associateFields.style.display = 'none';
+        if (paymentMethodCreateWrapper) paymentMethodCreateWrapper.style.display = 'block';
+        const methodCreate = document.getElementById('payment_method');
+        if (methodCreate) methodCreate.setAttribute('required', 'required');
         bankAccountSelect.removeAttribute('required');
         transactionSelect.removeAttribute('required');
         transactionSelect.value = '';
-        // Trigger payment method change to auto-select account
+        if (paymentMethodAssociate) {
+            paymentMethodAssociate.value = '';
+            paymentMethodAssociate.removeAttribute('required');
+        }
+        if (transactionSelect) transactionSelect.disabled = true;
+        if (paymentDateInput) paymentDateInput.value = new Date().toISOString().slice(0, 10);
+        if (paymentDateHint) paymentDateHint.style.display = 'none';
         handlePaymentMethodChange();
+        syncPaymentMethodHidden();
     } else {
         createFields.style.display = 'none';
+        if (paymentMethodCreateWrapper) paymentMethodCreateWrapper.style.display = 'none';
         associateFields.style.display = 'block';
+        const methodCreate = document.getElementById('payment_method');
+        if (methodCreate) methodCreate.removeAttribute('required');
         bankAccountSelect.removeAttribute('required');
         bankAccountSelect.value = '';
         transactionSelect.setAttribute('required', 'required');
+        if (paymentMethodAssociate) paymentMethodAssociate.setAttribute('required', 'required');
+        if (paymentDateInput) paymentDateInput.value = '';
+        if (paymentDateHint) paymentDateHint.style.display = 'block';
+        transactionSelect.value = '';
+        if (transactionSelect) transactionSelect.disabled = true;
+        handleAssociateMethodChange();
+        syncPaymentMethodHidden();
+    }
+}
+
+function syncPaymentMethodHidden() {
+    const hidden = document.getElementById('payment_method_hidden');
+    const createRadio = document.getElementById('transaction_create');
+    const methodCreate = document.getElementById('payment_method');
+    const methodAssociate = document.getElementById('payment_method_associate');
+    if (!hidden) return;
+    const source = createRadio && createRadio.checked ? methodCreate : methodAssociate;
+    hidden.value = source && source.value ? source.value : '';
+}
+
+function syncPaymentMethodBeforeSubmit(e) {
+    syncPaymentMethodHidden();
+}
+
+function handleAssociateMethodChange() {
+    const methodSelect = document.getElementById('payment_method_associate');
+    const transactionSelect = document.getElementById('existing_transaction_id');
+    const hintEl = document.getElementById('associateTransactionHint');
+    if (!methodSelect || !transactionSelect) return;
+    
+    const method = methodSelect.value;
+    const targetAccountType = method === 'cash' ? 'cash' : (method === 'transfer' ? 'bank' : null);
+    
+    if (!targetAccountType) {
+        transactionSelect.disabled = true;
+        transactionSelect.value = '';
+        transactionSelect.querySelectorAll('option[data-account-type]').forEach(opt => { opt.hidden = false; });
+        if (hintEl) hintEl.textContent = 'Selecione o método de pagamento para ver os movimentos disponíveis';
+        return;
+    }
+    
+    // Filter options by account type (options with data-account-type)
+    const options = transactionSelect.querySelectorAll('option[data-account-type]');
+    let visibleCount = 0;
+    options.forEach(opt => {
+        const accountType = opt.getAttribute('data-account-type') || 'bank';
+        const match = (targetAccountType === 'cash' && accountType === 'cash') || (targetAccountType === 'bank' && accountType === 'bank');
+        opt.hidden = !match;
+        if (match) visibleCount++;
+    });
+    
+    transactionSelect.disabled = false;
+    transactionSelect.value = '';
+    if (hintEl) {
+        hintEl.textContent = visibleCount > 0 
+            ? `Mostrando movimentos de ${targetAccountType === 'cash' ? 'caixa' : 'banco'} (${visibleCount} disponíveis)`
+            : 'Nenhum movimento disponível para este método';
+    }
+    handleExistingTransactionChange();
+}
+
+function handleExistingTransactionChange() {
+    const transactionSelect = document.getElementById('existing_transaction_id');
+    const paymentDateInput = document.getElementById('payment_date');
+    if (!transactionSelect || !paymentDateInput) return;
+    
+    const selectedOption = transactionSelect.options[transactionSelect.selectedIndex];
+    const transactionDate = selectedOption && selectedOption.value ? selectedOption.getAttribute('data-transaction-date') : null;
+    
+    if (transactionDate) {
+        paymentDateInput.value = transactionDate;
+    } else if (document.getElementById('transaction_associate').checked) {
+        paymentDateInput.value = '';
     }
 }
 
@@ -1946,7 +2116,18 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!-- Modal e Script para Detalhes da Quota (Mapa) -->
-{% include 'blocks/fees-map-modal.html.twig' with {'is_admin': is_admin, 'csrf_token': csrf_token} %}
+{% include 'blocks/fees-map-modal.html.twig' with {
+    'is_admin': is_admin,
+    'csrf_token': csrf_token,
+    'fees_redirect_params': {
+        'year': selected_year|default(null),
+        'month': selected_month|default(null),
+        'status': selected_status|default(null),
+        'fraction_id': selected_fraction|default(null),
+        'show_historical': show_historical|default(false),
+        'fees_year': selected_fees_year|default(null)
+    }
+} %}
 
 <!-- Modal para Eliminar Quota Extra -->
 <div class="modal fade" id="deleteFeeModal" tabindex="-1" aria-labelledby="deleteFeeModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
@@ -1992,6 +2173,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" id="edit_payment_id" name="payment_id">
                 <input type="hidden" id="edit_payment_fee_id" name="fee_id">
+                {% if selected_year is defined %}<input type="hidden" name="redirect_year" value="{{ selected_year }}">{% endif %}
+                {% if selected_month is defined %}<input type="hidden" name="redirect_month" value="{{ selected_month }}">{% endif %}
+                {% if selected_status is defined %}<input type="hidden" name="redirect_status" value="{{ selected_status }}">{% endif %}
+                {% if selected_fraction is defined %}<input type="hidden" name="redirect_fraction_id" value="{{ selected_fraction }}">{% endif %}
+                {% if show_historical is defined and show_historical %}<input type="hidden" name="redirect_show_historical" value="1">{% endif %}
+                {% if selected_fees_year is defined %}<input type="hidden" name="redirect_fees_year" value="{{ selected_fees_year }}">{% endif %}
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="edit_payment_amount" class="form-label">Valor do Pagamento (€) <span class="text-danger">*</span></label>

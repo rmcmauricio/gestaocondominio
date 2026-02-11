@@ -26,6 +26,9 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                     <i class="bi bi-x-lg me-1"></i>Fechar
                 </button>
+                <button type="button" class="btn btn-primary btn-register-payment-from-details" id="btnRegisterPaymentFromDetails" style="display: none;" title="Registar pagamento para esta quota">
+                    <i class="bi bi-cash-coin me-1"></i>Registrar Pagamento
+                </button>
             </div>
         </div>
     </div>
@@ -39,6 +42,8 @@ function showFeeDetails(feeId) {
 
     // Show loading
     contentDiv.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">A carregar...</span></div><p class="text-muted mt-3 mb-0">A carregar detalhes...</p></div>';
+    const btnRegister = document.getElementById('btnRegisterPaymentFromDetails');
+    if (btnRegister) { btnRegister.style.display = 'none'; btnRegister.onclick = null; }
     modal.show();
 
     fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)
@@ -57,6 +62,8 @@ function showFeeDetails(feeId) {
         .then(data => {
             if (data.error) {
                 contentDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                const btnRegister = document.getElementById('btnRegisterPaymentFromDetails');
+                if (btnRegister) { btnRegister.style.display = 'none'; btnRegister.onclick = null; }
                 return;
             }
 
@@ -166,6 +173,21 @@ function showFeeDetails(feeId) {
             const period = data.fee && data.fee.period_month ?
                 `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][data.fee.period_month - 1]}/${data.fee.period_year}` :
                 (data.fee ? data.fee.period_year : '-');
+
+            // Show/hide "Registrar Pagamento" button (only when admin, pending > 0, and payment modal exists)
+            const btnRegister = document.getElementById('btnRegisterPaymentFromDetails');
+            if (btnRegister) {
+                if (isAdmin && parseFloat(pendingAmount || 0) > 0 && typeof showPaymentModal === 'function') {
+                    btnRegister.style.display = 'inline-block';
+                    btnRegister.onclick = function() {
+                        bootstrap.Modal.getInstance(document.getElementById('feeDetailsModal')).hide();
+                        showPaymentModal(feeId);
+                    };
+                } else {
+                    btnRegister.style.display = 'none';
+                    btnRegister.onclick = null;
+                }
+            }
 
             contentDiv.innerHTML = `
                 <!-- Informações Básicas -->
@@ -440,6 +462,8 @@ function showFeeDetails(feeId) {
         .catch(error => {
             console.error('Erro ao carregar detalhes:', error);
             contentDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> ${error.message || 'Erro ao carregar detalhes da quota. Por favor, tente novamente.'}</div>`;
+            const btnRegister = document.getElementById('btnRegisterPaymentFromDetails');
+            if (btnRegister) { btnRegister.style.display = 'none'; btnRegister.onclick = null; }
         });
 }
 
@@ -505,6 +529,25 @@ function deletePayment(paymentId, feeId) {
     csrfInput.name = 'csrf_token';
     csrfInput.value = '{{ csrf_token }}';
     form.appendChild(csrfInput);
+    
+    {# Preservar filtros no redirect - adicionar hidden inputs (quando fees_redirect_params existe) #}
+    {% if fees_redirect_params is defined and fees_redirect_params %}
+    function addRedirectParam(name, value) {
+        if (value != null && value !== '' && value !== false) {
+            const inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = name;
+            inp.value = value === true ? '1' : value;
+            form.appendChild(inp);
+        }
+    }
+    addRedirectParam('redirect_year', {{ fees_redirect_params.year is defined and fees_redirect_params.year != null ? fees_redirect_params.year : 'null' }});
+    addRedirectParam('redirect_month', {{ fees_redirect_params.month is defined and fees_redirect_params.month != null ? fees_redirect_params.month : 'null' }});
+    addRedirectParam('redirect_status', '{{ fees_redirect_params.status|default("") }}');
+    addRedirectParam('redirect_fraction_id', {{ fees_redirect_params.fraction_id is defined and fees_redirect_params.fraction_id != null ? fees_redirect_params.fraction_id : 'null' }});
+    {% if fees_redirect_params.show_historical %}addRedirectParam('redirect_show_historical', '1');{% endif %}
+    addRedirectParam('redirect_fees_year', {{ fees_redirect_params.fees_year ?? 'null' }});
+    {% endif %}
     
     document.body.appendChild(form);
     form.submit();

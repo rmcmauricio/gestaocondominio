@@ -25,6 +25,9 @@
                         {% if selected_status is defined and selected_status %}
                         <input type="hidden" name="status" value="{{ selected_status }}">
                         {% endif %}
+                        {% if selected_fraction is defined and selected_fraction %}
+                        <input type="hidden" name="fraction_id" value="{{ selected_fraction }}">
+                        {% endif %}
                         {% if show_historical is defined and show_historical %}
                         <input type="hidden" name="show_historical" value="1">
                         {% endif %}
@@ -178,7 +181,7 @@
                     <span class="badge bg-success" style="font-size: 0.65rem; padding: 0.15rem 0.35rem;">Pago</span>
                     <span class="badge bg-warning" style="font-size: 0.65rem; padding: 0.15rem 0.35rem;">Pendente</span>
                     <span class="badge bg-danger" style="font-size: 0.65rem; padding: 0.15rem 0.35rem;">Em Atraso</span>
-                    | Clique numa célula para ver detalhes da quota
+                    | Clique numa célula para ver detalhes e registar pagamento
                 </small>
             </div>
         </div>
