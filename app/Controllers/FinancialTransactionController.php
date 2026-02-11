@@ -1708,9 +1708,11 @@ class FinancialTransactionController extends Controller
                         $parts[] = ($f ? self::feeLabel($f) : ('Quota #' . $fid)) . ' (parcial)';
                     }
                     $creditRemaining = (float)($result['credit_remaining'] ?? 0);
-                    if ($creditRemaining > 0 && $quotaRemainingDest !== 'oldest') {
-                        $remainingLabels = ['unregistered' => 'Valor restante para quotas antigas não registadas', 'balance' => 'Valor restante em saldo'];
-                        $parts[] = ($remainingLabels[$quotaRemainingDest] ?? '') . ': ' . number_format($creditRemaining, 2, ',', '.') . ' €';
+                    $unregisteredAmount = (float)($result['unregistered_amount'] ?? 0);
+                    if ($creditRemaining > 0 && $quotaRemainingDest === 'balance') {
+                        $parts[] = 'Valor restante em saldo: ' . number_format($creditRemaining, 2, ',', '.') . ' €';
+                    } elseif ($unregisteredAmount > 0 && $quotaRemainingDest === 'unregistered') {
+                        $parts[] = 'Quotas antigas não registadas: ' . number_format($unregisteredAmount, 2, ',', '.') . ' €';
                     }
                     $builtDesc = implode(', ', $parts);
                     if ($builtDesc !== '') {
@@ -2013,12 +2015,11 @@ class FinancialTransactionController extends Controller
                 $description .= ' | ' . implode(', ', $liquidationDetails);
             }
             $creditRemaining = (float)($result['credit_remaining'] ?? 0);
-            if ($creditRemaining > 0 && $remainingDestination !== 'oldest') {
-                $remainingLabels = [
-                    'unregistered' => 'Valor restante para quotas antigas não registadas',
-                    'balance' => 'Valor restante em saldo'
-                ];
-                $description .= ' | ' . ($remainingLabels[$remainingDestination] ?? '') . ': ' . number_format($creditRemaining, 2, ',', '.') . ' €';
+            $unregisteredAmount = (float)($result['unregistered_amount'] ?? 0);
+            if ($creditRemaining > 0 && $remainingDestination === 'balance') {
+                $description .= ' | Valor restante em saldo: ' . number_format($creditRemaining, 2, ',', '.') . ' €';
+            } elseif ($unregisteredAmount > 0 && $remainingDestination === 'unregistered') {
+                $description .= ' | Quotas antigas não registadas: ' . number_format($unregisteredAmount, 2, ',', '.') . ' €';
             }
 
             $reference = 'REF' . $condominiumId . $fractionId . date('YmdHis') . $id;
@@ -2045,9 +2046,10 @@ class FinancialTransactionController extends Controller
                     }
                     $builtDesc .= ' | ' . implode(', ', $liquidationDetails);
                 }
-                if ($creditRemaining > 0 && $remainingDestination !== 'oldest') {
-                    $remainingLabels = ['unregistered' => 'Restante para quotas antigas não registadas', 'balance' => 'Restante em saldo'];
-                    $builtDesc .= ' | ' . ($remainingLabels[$remainingDestination] ?? '') . ': ' . number_format($creditRemaining, 2, ',', '.') . ' €';
+                if ($creditRemaining > 0 && $remainingDestination === 'balance') {
+                    $builtDesc .= ' | Restante em saldo: ' . number_format($creditRemaining, 2, ',', '.') . ' €';
+                } elseif ($unregisteredAmount > 0 && $remainingDestination === 'unregistered') {
+                    $builtDesc .= ' | Quotas antigas não registadas: ' . number_format($unregisteredAmount, 2, ',', '.') . ' €';
                 }
                 (new FractionAccountMovement())->update($movementId, ['description' => $builtDesc]);
             }

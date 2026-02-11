@@ -84,8 +84,8 @@ class PlanPricingTierSeeder
     protected function insertTiers(int $planId, array $tiers): void
     {
         $checkStmt = $this->db->prepare("
-            SELECT id FROM plan_pricing_tiers 
-            WHERE plan_id = :plan_id AND min_licenses = :min_licenses 
+            SELECT id FROM plan_pricing_tiers
+            WHERE plan_id = :plan_id AND min_licenses = :min_licenses
             LIMIT 1
         ");
 

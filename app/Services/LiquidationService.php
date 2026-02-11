@@ -159,8 +159,9 @@ class LiquidationService
         string $remainingDestination = 'oldest'
     ): array
     {
-        $result = ['fully_paid' => [], 'fully_paid_payments' => [], 'partially_paid' => [], 'credit_remaining' => 0.0];
+        $result = ['fully_paid' => [], 'fully_paid_payments' => [], 'partially_paid' => [], 'credit_remaining' => 0.0, 'unregistered_amount' => 0.0];
         $payDate = $paymentDate ?: date('Y-m-d');
+        $unregisteredAmount = 0.0;
 
         $account = $this->fractionAccountModel->getByFraction($fractionId);
         if (!$account || (float)($account['balance'] ?? 0) <= 0) {
@@ -292,6 +293,22 @@ class LiquidationService
             }
         }
 
+        // When unregistered: remaining value is for old quotas not in system - must NOT stay as saldo.
+        // Debit it from fraction account (consumed for unregistered quotas, not kept as balance).
+        $unregisteredAmount = 0.0;
+        if ($balance > 0 && $remainingDestination === 'unregistered') {
+            $unregisteredAmount = $balance;
+            $this->fractionAccountModel->addDebit(
+                $fractionAccountId,
+                $balance,
+                'other',
+                null,
+                'Quotas antigas não registadas no sistema',
+                $financialTransactionId
+            );
+            $balance = 0.0;
+        }
+
         // If balance remains, apply to oldest pending fees (unless admin chose unregistered or balance)
         if ($balance > 0 && !empty($otherFees) && $remainingDestination === 'oldest') {
             foreach ($otherFees as $fee) {
@@ -375,6 +392,7 @@ class LiquidationService
         }
 
         $result['credit_remaining'] = $balance;
+        $result['unregistered_amount'] = $unregisteredAmount;
         return $result;
     }
 
