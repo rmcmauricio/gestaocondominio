@@ -943,12 +943,50 @@ class FinanceController extends Controller
             exit;
         }
 
-        // Get current paid amount
-        $totalPaid = $this->feePaymentModel->getTotalPaid($feeId);
-        $remainingAmount = (float)$fee['amount'] - $totalPaid;
+        // Todas as quotas do mesmo período (regular + extras) para poder distribuir o pagamento
+        $allFeesInPeriod = [];
+        if (!empty($fee['period_year']) && (!empty($fee['period_month']) || isset($fee['period_index']))) {
+            if (!empty($fee['period_month'])) {
+                $allFeesInPeriod = $this->feeModel->getByMonthAndFraction(
+                    $condominiumId,
+                    (int)$fee['period_year'],
+                    (int)$fee['period_month'],
+                    (int)$fee['fraction_id']
+                );
+            }
+            if (empty($allFeesInPeriod)) {
+                $allFeesInPeriod = [$fee];
+            }
+        } else {
+            $allFeesInPeriod = [$fee];
+        }
 
-        if ($amount > $remainingAmount) {
-            $_SESSION['error'] = 'O valor do pagamento não pode ser superior ao valor pendente (€' . number_format($remainingAmount, 2, ',', '.') . ').';
+        // Ordenar: regular primeiro, depois extras por created_at; calcular pendente por quota
+        $feesWithRemaining = [];
+        foreach ($allFeesInPeriod as $f) {
+            $paid = $this->feePaymentModel->getTotalPaid($f['id']);
+            $remaining = (float)$f['amount'] - $paid;
+            if ($remaining > 0) {
+                $feesWithRemaining[] = [
+                    'fee' => $f,
+                    'remaining' => $remaining
+                ];
+            }
+        }
+        usort($feesWithRemaining, function ($a, $b) {
+            $typeA = $a['fee']['fee_type'] ?? 'regular';
+            $typeB = $b['fee']['fee_type'] ?? 'regular';
+            if ($typeA === 'regular' && $typeB !== 'regular') return -1;
+            if ($typeA !== 'regular' && $typeB === 'regular') return 1;
+            $createdA = strtotime($a['fee']['created_at'] ?? '0');
+            $createdB = strtotime($b['fee']['created_at'] ?? '0');
+            return $createdA <=> $createdB;
+        });
+
+        $totalPeriodRemaining = array_sum(array_column($feesWithRemaining, 'remaining'));
+
+        if ($amount > $totalPeriodRemaining) {
+            $_SESSION['error'] = 'O valor do pagamento não pode ser superior ao valor pendente do período (€' . number_format($totalPeriodRemaining, 2, ',', '.') . ').';
             header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
@@ -1018,70 +1056,81 @@ class FinanceController extends Controller
                         'category' => 'Quotas',
                         'reference' => $reference,
                         'related_type' => 'fee_payment',
-                        'related_id' => null, // Will be set after payment creation
+                        'related_id' => null, // Will be set after first payment creation
                         'created_by' => $userId
                     ]);
                 }
-                
-                // Create payment with transaction ID
-                $paymentId = $this->feePaymentModel->create([
-                    'fee_id' => $feeId,
-                    'financial_transaction_id' => $financialTransactionId,
-                    'amount' => $amount,
-                    'payment_method' => $paymentMethod,
-                    'payment_date' => $paymentDate,
-                    'reference' => $reference,
-                    'notes' => $notes,
-                    'created_by' => $userId
-                ]);
-                
-                // Log fee payment creation
-                $oldStatus = $fee['status'] ?? 'pending';
-                $this->auditService->logFinancial([
-                    'condominium_id' => $condominiumId,
-                    'entity_type' => 'fee_payment',
-                    'entity_id' => $paymentId,
-                    'action' => 'fee_payment_created',
-                    'user_id' => $userId,
-                    'amount' => $amount,
-                    'new_status' => 'completed',
-                    'description' => "Pagamento de quota criado manualmente. Quota ID: {$feeId}, Valor: €" . number_format($amount, 2, ',', '.') . ", Método: {$paymentMethod}" . ($reference ? ", Referência: {$reference}" : '')
-                ]);
-                
-                // Update transaction with payment ID if it was created new
-                if ($transactionAction === 'create') {
-                    global $db;
+
+                // Distribuir o valor pelas quotas do período (mais antigas primeiro: regular, depois extras por created_at)
+                $amountLeft = $amount;
+                $firstPaymentId = null;
+                foreach ($feesWithRemaining as $item) {
+                    if ($amountLeft <= 0) {
+                        break;
+                    }
+                    $allocated = min($item['remaining'], $amountLeft);
+                    $allocated = round($allocated, 2);
+                    if ($allocated <= 0) {
+                        continue;
+                    }
+                    $targetFee = $item['fee'];
+                    $targetFeeId = (int)$targetFee['id'];
+
+                    $paymentId = $this->feePaymentModel->create([
+                        'fee_id' => $targetFeeId,
+                        'financial_transaction_id' => $financialTransactionId,
+                        'amount' => $allocated,
+                        'payment_method' => $paymentMethod,
+                        'payment_date' => $paymentDate,
+                        'reference' => $reference,
+                        'notes' => $notes,
+                        'created_by' => $userId
+                    ]);
+                    if ($firstPaymentId === null) {
+                        $firstPaymentId = $paymentId;
+                    }
+
+                    $oldStatus = $targetFee['status'] ?? 'pending';
+                    $this->auditService->logFinancial([
+                        'condominium_id' => $condominiumId,
+                        'entity_type' => 'fee_payment',
+                        'entity_id' => $paymentId,
+                        'action' => 'fee_payment_created',
+                        'user_id' => $userId,
+                        'amount' => $allocated,
+                        'new_status' => 'completed',
+                        'description' => "Pagamento de quota criado manualmente. Quota ID: {$targetFeeId}, Valor: €" . number_format($allocated, 2, ',', '.') . ", Método: {$paymentMethod}" . ($reference ? ", Referência: {$reference}" : '')
+                    ]);
+
+                    $newTotalPaid = $this->feePaymentModel->getTotalPaid($targetFeeId);
+                    $isFullyPaid = $newTotalPaid >= (float)$targetFee['amount'];
+                    if ($isFullyPaid) {
+                        $this->feeModel->markAsPaid($targetFeeId);
+                        $this->auditService->logFinancial([
+                            'condominium_id' => $condominiumId,
+                            'entity_type' => 'fee',
+                            'entity_id' => $targetFeeId,
+                            'action' => 'fee_marked_as_paid',
+                            'user_id' => $userId,
+                            'amount' => $targetFee['amount'],
+                            'old_status' => $oldStatus,
+                            'new_status' => 'paid',
+                            'description' => "Quota marcada como paga após pagamento manual. Quota ID: {$targetFeeId}, Valor total: €" . number_format($targetFee['amount'], 2, ',', '.') . (isset($targetFee['reference']) && $targetFee['reference'] ? " - Referência: {$targetFee['reference']}" : '')
+                        ]);
+                    }
+                    $this->generateReceipts($targetFeeId, $paymentId, $condominiumId, $userId, $isFullyPaid);
+
+                    $amountLeft -= $allocated;
+                }
+
+                if ($transactionAction === 'create' && $firstPaymentId !== null) {
                     $stmt = $db->prepare("UPDATE financial_transactions SET related_id = :related_id WHERE id = :id");
                     $stmt->execute([
-                        ':related_id' => $paymentId,
+                        ':related_id' => $firstPaymentId,
                         ':id' => $financialTransactionId
                     ]);
                 }
-                
-                // Check if fee is now fully paid
-                $newTotalPaid = $this->feePaymentModel->getTotalPaid($feeId);
-                $isFullyPaid = $newTotalPaid >= (float)$fee['amount'];
-                
-                if ($isFullyPaid) {
-                    $this->feeModel->markAsPaid($feeId);
-                    
-                    // Log fee status change to paid
-                    $this->auditService->logFinancial([
-                        'condominium_id' => $condominiumId,
-                        'entity_type' => 'fee',
-                        'entity_id' => $feeId,
-                        'action' => 'fee_marked_as_paid',
-                        'user_id' => $userId,
-                        'amount' => $fee['amount'],
-                        'old_status' => $oldStatus,
-                        'new_status' => 'paid',
-                        'description' => "Quota marcada como paga após pagamento manual. Quota ID: {$feeId}, Valor total: €" . number_format($fee['amount'], 2, ',', '.') . ($fee['reference'] ? " - Referência: {$fee['reference']}" : '')
-                    ]);
-                }
-                
-                // Generate receipts
-                $this->generateReceipts($feeId, $paymentId, $condominiumId, $userId, $isFullyPaid);
-                
+
                 $db->commit();
                 $_SESSION['success'] = 'Pagamento registado com sucesso!';
             } catch (\Exception $e) {
@@ -1231,6 +1280,10 @@ class FinanceController extends Controller
         $pendingAmount = $totalAmount - $totalPaid;
         $regularPending = $regularAmount - $regularPaid;
 
+        // Pendente apenas da quota a que se está a registar o pagamento (addPayment valida contra este valor)
+        $currentFeePaid = $this->feePaymentModel->getTotalPaid($feeId);
+        $currentFeePendingAmount = (float)$fee['amount'] - $currentFeePaid;
+
         // Get receipts (for all fees)
         $receiptModel = new \App\Models\Receipt();
         $receipts = [];
@@ -1264,6 +1317,7 @@ class FinanceController extends Controller
             'total_amount' => $totalAmount,
             'total_paid' => $totalPaid,
             'pending_amount' => $pendingAmount,
+            'current_fee_pending_amount' => $currentFeePendingAmount,
             'regular_fee' => $regularFee ? [
                 'id' => $regularFee['id'],
                 'amount' => $regularAmount,

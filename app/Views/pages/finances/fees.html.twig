@@ -1580,7 +1580,7 @@
                                 {% if available_transactions %}
                                 {% for transaction in available_transactions %}
                                 {% if transaction.transaction_type == 'income' and not transaction.related_id %}
-                                <option value="{{ transaction.id }}" data-transaction-date="{{ transaction.transaction_date|date('Y-m-d') }}" data-account-type="{{ transaction.account_type|default('bank') }}">
+                                <option value="{{ transaction.id }}" data-transaction-date="{{ transaction.transaction_date|date('Y-m-d') }}" data-account-type="{{ transaction.account_type|default('bank') }}" data-amount="{{ transaction.amount }}">
                                     {{ transaction.transaction_date|date('d/m/Y') }} - 
                                     {{ transaction.description|slice(0, 50) }}{% if transaction.description|length > 50 %}...{% endif %} - 
                                     €{{ transaction.amount|number_format(2, ',', '.') }} 
@@ -1638,7 +1638,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Registar Pagamento</button>
+                    <button type="submit" class="btn btn-primary" id="btnRegistarPagamento">Registar Pagamento</button>
                 </div>
             </form>
         </div>
@@ -1751,15 +1751,24 @@ function handleAssociateMethodChange() {
 function handleExistingTransactionChange() {
     const transactionSelect = document.getElementById('existing_transaction_id');
     const paymentDateInput = document.getElementById('payment_date');
+    const paymentAmountInput = document.getElementById('payment_amount');
     if (!transactionSelect || !paymentDateInput) return;
     
     const selectedOption = transactionSelect.options[transactionSelect.selectedIndex];
     const transactionDate = selectedOption && selectedOption.value ? selectedOption.getAttribute('data-transaction-date') : null;
+    const movementAmount = selectedOption && selectedOption.value ? parseFloat(selectedOption.getAttribute('data-amount') || '0') : null;
     
     if (transactionDate) {
         paymentDateInput.value = transactionDate;
     } else if (document.getElementById('transaction_associate').checked) {
         paymentDateInput.value = '';
+    }
+    
+    // Ao associar a movimento existente: se o valor do movimento for menor que o pendente, usar o valor do movimento no pagamento
+    if (paymentAmountInput && movementAmount != null && document.getElementById('transaction_associate').checked) {
+        const maxPending = parseFloat(paymentAmountInput.getAttribute('max')) || 0;
+        const amountToSet = maxPending > 0 ? Math.min(movementAmount, maxPending) : movementAmount;
+        paymentAmountInput.value = amountToSet.toFixed(2);
     }
 }
 
@@ -1833,9 +1842,11 @@ function showPaymentModal(feeId) {
         fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)
             .then(response => response.json())
             .then(data => {
-                const pendingAmount = data.pending_amount;
                 const totalAmount = data.total_amount;
                 const paidAmount = data.total_paid;
+                const pendingAmount = data.pending_amount;
+                // Valor máximo = pendente total do período (regular + todas as extras). O backend distribui o pagamento pelas quotas.
+                const maxPaymentAmount = parseFloat(pendingAmount);
                 
                 // Update fee info - keep it visible permanently
                 if (feeInfoElement) {
@@ -1850,13 +1861,14 @@ function showPaymentModal(feeId) {
                 
                 const paymentAmountInput = document.getElementById('payment_amount');
                 if (paymentAmountInput) {
-                    paymentAmountInput.max = pendingAmount;
-                    paymentAmountInput.value = parseFloat(pendingAmount).toFixed(2);
+                    paymentAmountInput.setAttribute('max', maxPaymentAmount);
+                    paymentAmountInput.max = maxPaymentAmount;
+                    paymentAmountInput.value = parseFloat(maxPaymentAmount).toFixed(2);
                 }
                 
                 const maxAmountHint = document.getElementById('maxAmountHint');
                 if (maxAmountHint) {
-                    maxAmountHint.textContent = `Valor máximo: €${parseFloat(pendingAmount).toFixed(2).replace('.', ',')}`;
+                    maxAmountHint.textContent = `Valor máximo (período): €${parseFloat(maxPaymentAmount).toFixed(2).replace('.', ',')}`;
                 }
                 
                 const paymentForm = document.getElementById('paymentForm');
