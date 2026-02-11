@@ -1308,9 +1308,20 @@ class FinanceController extends Controller
 
         $fee['period_display'] = \App\Models\Fee::formatPeriodForDisplay($fee);
 
+        // Para o botão "Aplicar crédito às quotas" no modal de detalhes
+        $faModel = new FractionAccount();
+        $account = $faModel->getByFraction($fee['fraction_id']);
+        $fractionBalance = $account ? (float)$account['balance'] : 0.0;
+        $fractionEmFalta = $this->feeModel->getTotalDueByFraction($fee['fraction_id']);
+        $canApplyCredit = $fractionBalance > 0 && $fractionEmFalta > 0;
+
         echo json_encode([
             'fee' => $fee,
             'fraction' => $fraction,
+            'fraction_id' => (int)$fee['fraction_id'],
+            'fraction_balance' => $fractionBalance,
+            'fraction_em_falta' => $fractionEmFalta,
+            'can_apply_credit' => $canApplyCredit,
             'payments' => $allPayments,
             'receipts' => $receipts,
             'payment_history' => $paymentHistory,
@@ -1915,6 +1926,10 @@ class FinanceController extends Controller
         $success = $_SESSION['success'] ?? null;
         unset($_SESSION['error'], $_SESSION['success']);
         
+        // Pre-fill from URL params (e.g. from "Aplicar crédito às quotas" on fraction account page)
+        $preFractionId = !empty($_GET['fraction_id']) ? (int)$_GET['fraction_id'] : null;
+        $preUseBalance = !empty($_GET['use_balance']);
+        
         $this->data += [
             'viewName' => 'pages/finances/liquidate-quotas.html.twig',
             'page' => ['titulo' => 'Liquidar Quotas'],
@@ -1923,7 +1938,9 @@ class FinanceController extends Controller
             'bank_accounts' => $bankAccounts,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $error,
-            'success' => $success
+            'success' => $success,
+            'pre_fraction_id' => $preFractionId,
+            'pre_use_balance' => $preUseBalance
         ];
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);

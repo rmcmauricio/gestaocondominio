@@ -4,14 +4,20 @@
     - condominium_id: ID do condomínio
     - form_id_prefix: prefixo para IDs dos campos (opcional, padrão: 'lq_')
     - modal_id: ID do modal (opcional, se for modal)
+    - pre_fraction_id: ID da fração para pré-selecionar (ex: de ?fraction_id=X)
+    - pre_use_balance: se deve marcar "Usar apenas saldo" (ex: de ?use_balance=1)
 #}
 {% set form_id_prefix = form_id_prefix|default('lq_') %}
 {% set modal_id = modal_id|default(null) %}
+{% set pre_fraction_id = pre_fraction_id|default(null) %}
+{% set pre_use_balance = pre_use_balance|default(false) %}
 
 <script>
 (function() {
     const condominiumId = {{ condominium_id }};
     const prefix = '{{ form_id_prefix }}';
+    const preFractionId = {{ pre_fraction_id is not null ? pre_fraction_id : 'null' }};
+    const preUseBalance = {{ pre_use_balance ? 'true' : 'false' }};
     const fractionSelect = document.getElementById(prefix + 'fraction_id');
     const balanceInfo = document.getElementById(prefix + 'fraction_balance_info');
     const balanceAmount = document.getElementById(prefix + 'fraction_balance_amount');
@@ -188,55 +194,58 @@
         amountInput.addEventListener('input', updateQuotaSummary);
     }
     
-    // Load fraction balance and pending fees when fraction is selected
-    fractionSelect.addEventListener('change', function() {
-        const fractionId = this.value;
-        
-        // Load pending fees
-        loadPendingFees(fractionId);
-        
-        // Load fraction balance
-        if (fractionId) {
-            fetch(`{{ BASE_URL }}condominiums/${condominiumId}/financial-transactions/fraction-balance/${fractionId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.has_balance) {
-                        if (balanceAmount) {
-                            balanceAmount.textContent = parseFloat(data.balance).toFixed(2);
+        // Load fraction balance and pending fees when fraction is selected
+        fractionSelect.addEventListener('change', function() {
+            const fractionId = this.value;
+            
+            // Load pending fees
+            loadPendingFees(fractionId);
+            
+            // Load fraction balance
+            if (fractionId) {
+                fetch(`{{ BASE_URL }}condominiums/${condominiumId}/financial-transactions/fraction-balance/${fractionId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.has_balance) {
+                            if (balanceAmount) {
+                                balanceAmount.textContent = parseFloat(data.balance).toFixed(2);
+                            }
+                            if (balanceInfo) {
+                                balanceInfo.style.display = 'block';
+                            }
+                            // Pre-fill: marcar "Usar apenas saldo" se veio de URL (ex: Aplicar crédito às quotas)
+                            if (preUseBalance && useBalanceCheckbox) {
+                                useBalanceCheckbox.checked = true;
+                                useBalanceCheckbox.dispatchEvent(new Event('change'));
+                            } else if (useBalanceCheckbox) {
+                                togglePaymentFields(useBalanceCheckbox.checked);
+                            }
+                            updateQuotaSummary();
+                        } else {
+                            if (balanceInfo) balanceInfo.style.display = 'none';
+                            if (useBalanceCheckbox) {
+                                useBalanceCheckbox.checked = false;
+                                togglePaymentFields(false);
+                            }
+                            updateQuotaSummary();
                         }
-                        if (balanceInfo) {
-                            balanceInfo.style.display = 'block';
-                        }
-                        // Reset checkbox state when fraction changes
-                        if (useBalanceCheckbox) {
-                            togglePaymentFields(useBalanceCheckbox.checked);
-                        }
-                        updateQuotaSummary();
-                    } else {
+                    })
+                    .catch(error => {
+                        console.error('Error loading fraction balance:', error);
                         if (balanceInfo) balanceInfo.style.display = 'none';
                         if (useBalanceCheckbox) {
                             useBalanceCheckbox.checked = false;
                             togglePaymentFields(false);
                         }
-                        updateQuotaSummary();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading fraction balance:', error);
-                    if (balanceInfo) balanceInfo.style.display = 'none';
-                    if (useBalanceCheckbox) {
-                        useBalanceCheckbox.checked = false;
-                        togglePaymentFields(false);
-                    }
-                });
-        } else {
-            if (balanceInfo) balanceInfo.style.display = 'none';
-            if (useBalanceCheckbox) {
-                useBalanceCheckbox.checked = false;
-                togglePaymentFields(false);
+                    });
+            } else {
+                if (balanceInfo) balanceInfo.style.display = 'none';
+                if (useBalanceCheckbox) {
+                    useBalanceCheckbox.checked = false;
+                    togglePaymentFields(false);
+                }
             }
-        }
-    });
+        });
     
     // Handle form submission
     const formId = prefix ? (prefix + 'form') : 'form';
@@ -400,6 +409,12 @@
             
             return false;
         });
+    }
+    
+    // Pre-fill from URL params (ex: "Aplicar crédito às quotas" na página da conta da fração)
+    if (preFractionId && fractionSelect.querySelector('option[value="' + preFractionId + '"]')) {
+        fractionSelect.value = String(preFractionId);
+        fractionSelect.dispatchEvent(new Event('change'));
     }
     
     // Clear balance info when modal is hidden (if modal)
