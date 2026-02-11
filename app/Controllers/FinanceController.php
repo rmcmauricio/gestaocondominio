@@ -1737,6 +1737,7 @@ class FinanceController extends Controller
         $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
 
         // Get available transactions for association: banco e caixa separadamente para garantir que aparecem movimentos de ambos
+        // Apenas movimentos que ainda permitam liquidar quotas (valor disponível > 0)
         $transactionModel = new FinancialTransaction();
         $bankTransactions = $transactionModel->getByCondominium($condominiumId, [
             'transaction_type' => 'income',
@@ -1748,7 +1749,15 @@ class FinanceController extends Controller
             'account_type' => 'cash',
             'limit' => 50
         ]);
-        $availableTransactions = array_merge($bankTransactions, $cashTransactions);
+        $allCandidates = array_merge($bankTransactions, $cashTransactions);
+        $availableTransactions = [];
+        foreach ($allCandidates as $tx) {
+            $amount = (float)($tx['amount'] ?? 0);
+            $used = $transactionModel->getAmountUsedForQuotas((int)$tx['id']);
+            if ($amount > 0 && $used < $amount) {
+                $availableTransactions[] = $tx;
+            }
+        }
         usort($availableTransactions, function ($a, $b) {
             $da = strtotime($a['transaction_date'] ?? '0');
             $db = strtotime($b['transaction_date'] ?? '0');
@@ -2586,6 +2595,125 @@ class FinanceController extends Controller
         }
 
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+        exit;
+    }
+
+    /**
+     * Show historical credits page (créditos de frações de anos anteriores para liquidação de quotas)
+     */
+    public function historicalCredits(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $fractionModel = new \App\Models\Fraction();
+        $fractions = $fractionModel->getByCondominiumId($condominiumId);
+
+        // Get historical credits (credit movements with source_type = historical_credit)
+        global $db;
+        $historicalCredits = [];
+        if ($db) {
+            $stmt = $db->prepare("
+                SELECT fam.*, fa.fraction_id, fr.identifier as fraction_identifier
+                FROM fraction_account_movements fam
+                INNER JOIN fraction_accounts fa ON fa.id = fam.fraction_account_id
+                INNER JOIN fractions fr ON fr.id = fa.fraction_id
+                WHERE fa.condominium_id = :condominium_id
+                AND fam.type = 'credit'
+                AND fam.source_type = 'historical_credit'
+                ORDER BY fam.created_at DESC, fr.identifier ASC
+            ");
+            $stmt->execute([':condominium_id' => $condominiumId]);
+            $historicalCredits = $stmt->fetchAll() ?: [];
+        }
+
+        $currentYear = date('Y');
+
+        $this->loadPageTranslations('finances');
+
+        $this->data += [
+            'viewName' => 'pages/finances/historical-credits.html.twig',
+            'page' => ['titulo' => 'Créditos Históricos'],
+            'condominium' => $condominium,
+            'fractions' => $fractions,
+            'historical_credits' => $historicalCredits,
+            'current_year' => $currentYear,
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $_SESSION['error'] ?? null,
+            'success' => $_SESSION['success'] ?? null,
+            'user' => AuthMiddleware::user()
+        ];
+
+        unset($_SESSION['error']);
+        unset($_SESSION['success']);
+
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Store historical credit (add credit to fraction account for previous years, applicable to quota liquidation)
+     */
+    public function storeHistoricalCredits(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $fractionId = (int)($_POST['fraction_id'] ?? 0);
+        $year = (int)($_POST['year'] ?? date('Y'));
+        $month = !empty($_POST['month']) ? (int)$_POST['month'] : null;
+        $amount = (float)($_POST['amount'] ?? 0);
+        $notes = Security::sanitize($_POST['notes'] ?? '');
+
+        if ($fractionId <= 0 || $amount <= 0) {
+            $_SESSION['error'] = 'Por favor, preencha todos os campos obrigatórios.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $fractionModel = new \App\Models\Fraction();
+        $fraction = $fractionModel->findById($fractionId);
+        if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Fração inválida.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        try {
+            $faModel = new FractionAccount();
+            $account = $faModel->getOrCreate($fractionId, $condominiumId);
+            $accountId = (int)$account['id'];
+
+            $periodLabel = $month ? sprintf('%d/%02d', $year, $month) : (string)$year;
+            $description = 'Crédito histórico: ' . $periodLabel . ($notes ? ' - ' . $notes : '');
+
+            $faModel->addCredit($accountId, $amount, 'historical_credit', null, $description);
+
+            $_SESSION['success'] = 'Crédito histórico registado com sucesso! O valor ficará disponível na conta da fração para liquidação de quotas.';
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao registar crédito histórico: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
         exit;
     }
 

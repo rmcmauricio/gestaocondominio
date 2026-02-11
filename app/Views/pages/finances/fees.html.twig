@@ -1579,14 +1579,13 @@
                                 <option value="">Selecione um movimento...</option>
                                 {% if available_transactions %}
                                 {% for transaction in available_transactions %}
-                                {% if transaction.transaction_type == 'income' and not transaction.related_id %}
+                                {# Apenas movimentos de entrada com valor ainda disponível para liquidar quotas #}
                                 <option value="{{ transaction.id }}" data-transaction-date="{{ transaction.transaction_date|date('Y-m-d') }}" data-account-type="{{ transaction.account_type|default('bank') }}" data-amount="{{ transaction.amount }}">
                                     {{ transaction.transaction_date|date('d/m/Y') }} - 
                                     {{ transaction.description|slice(0, 50) }}{% if transaction.description|length > 50 %}...{% endif %} - 
                                     €{{ transaction.amount|number_format(2, ',', '.') }} 
                                     ({{ transaction.account_name }})
                                 </option>
-                                {% endif %}
                                 {% endfor %}
                                 {% endif %}
                             </select>

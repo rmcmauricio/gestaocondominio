@@ -15,6 +15,7 @@ class HelpController extends Controller
         'finances-expenses',
         'finances-revenues',
         'finances-historical-debts',
+        'finances-historical-credits',
         'finances-reports',
         'finances-fees-map',
         'fractions',
@@ -49,6 +50,7 @@ class HelpController extends Controller
                 'finances-expenses' => 'Despesas',
                 'finances-revenues' => 'Receitas',
                 'finances-historical-debts' => 'Dívidas Históricas',
+                'finances-historical-credits' => 'Créditos Históricos',
                 'finances-reports' => 'Relatórios',
                 'finances-fees-map' => 'Mapa de Quotas'
             ]

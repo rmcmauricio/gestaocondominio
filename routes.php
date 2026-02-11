@@ -125,6 +125,11 @@ $router->post('/condominiums/{id}/assign-admin', 'App\Controllers\CondominiumCon
 $router->post('/condominiums/{id}/assign-admin-by-email', 'App\Controllers\CondominiumController@processAssignAdminByEmail');
 $router->post('/condominiums/{id}/remove-admin', 'App\Controllers\CondominiumController@processRemoveAdmin');
 $router->post('/condominiums/{condominium_id}/switch-view-mode', 'App\Controllers\CondominiumController@switchViewMode');
+$router->get('/condominiums/backup-download', 'App\Controllers\CondominiumController@downloadBackup');
+$router->post('/condominiums/backup-delete', 'App\Controllers\CondominiumController@deleteBackup');
+$router->post('/condominiums/restore', 'App\Controllers\CondominiumController@restoreBackup');
+$router->get('/condominiums/{id}/restore', 'App\Controllers\CondominiumController@backupRestorePage');
+$router->post('/condominiums/{id}/create-backup', 'App\Controllers\CondominiumController@createBackup');
 
 // Admin transfer routes
 $router->get('/admin-transfers/pending', 'App\Controllers\AdminTransferController@pending');
@@ -220,6 +225,8 @@ $router->post('/condominiums/{condominium_id}/finances/revenues/{id}/delete', 'A
 // Report routes
 $router->get('/condominiums/{condominium_id}/finances/historical-debts', 'App\Controllers\FinanceController@historicalDebts');
 $router->post('/condominiums/{condominium_id}/finances/historical-debts', 'App\Controllers\FinanceController@storeHistoricalDebts');
+$router->get('/condominiums/{condominium_id}/finances/historical-credits', 'App\Controllers\FinanceController@historicalCredits');
+$router->post('/condominiums/{condominium_id}/finances/historical-credits', 'App\Controllers\FinanceController@storeHistoricalCredits');
 $router->get('/condominiums/{condominium_id}/finances/reports', 'App\Controllers\ReportController@index');
 $router->post('/condominiums/{condominium_id}/finances/reports/balance-sheet', 'App\Controllers\ReportController@balanceSheet');
 $router->post('/condominiums/{condominium_id}/finances/reports/fees', 'App\Controllers\ReportController@feesReport');

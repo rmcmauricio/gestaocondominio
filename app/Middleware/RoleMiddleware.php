@@ -304,6 +304,28 @@ class RoleMiddleware
     }
 
     /**
+     * Require user to be admin of the condominium (owner or admin role; super_admin counts as admin).
+     */
+    public static function requireCondominiumAdmin(int $condominiumId): void
+    {
+        AuthMiddleware::require();
+
+        $user = AuthMiddleware::user();
+        if (!$user) {
+            $_SESSION['error'] = 'Não tem permissão para aceder.';
+            header('Location: ' . BASE_URL . 'dashboard');
+            exit;
+        }
+
+        $role = self::getUserRoleInCondominium((int) $user['id'], $condominiumId);
+        if ($role !== 'admin') {
+            $_SESSION['error'] = 'Apenas administradores do condomínio podem aceder a esta página.';
+            header('Location: ' . BASE_URL . 'dashboard');
+            exit;
+        }
+    }
+
+    /**
      * Verify that a resource belongs to a condominium
      * Centralized helper to prevent authorization bypass
      * 

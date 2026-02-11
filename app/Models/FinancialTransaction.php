@@ -400,6 +400,39 @@ class FinancialTransaction extends Model
     }
 
     /**
+     * Get amount already used from this transaction for quota liquidation.
+     * Used = fee_payments (direct association) + fraction_account_movements debits (via liquidate flow).
+     */
+    public function getAmountUsedForQuotas(int $transactionId): float
+    {
+        if (!$this->db) {
+            return 0.0;
+        }
+
+        // From fee_payments (registar pagamento associando a movimento)
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(amount), 0) as total
+            FROM fee_payments
+            WHERE financial_transaction_id = :id
+        ");
+        $stmt->execute([':id' => $transactionId]);
+        $fp = $stmt->fetch();
+        $fromPayments = (float)($fp['total'] ?? 0);
+
+        // From fraction_account_movements debits (liquidar quotas from transaction)
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(amount), 0) as total
+            FROM fraction_account_movements
+            WHERE source_financial_transaction_id = :id AND type = 'debit'
+        ");
+        $stmt->execute([':id' => $transactionId]);
+        $fam = $stmt->fetch();
+        $fromDebits = (float)($fam['total'] ?? 0);
+
+        return $fromPayments + $fromDebits;
+    }
+
+    /**
      * Check if transaction is linked to fee payment
      */
     public function isLinkedToFeePayment(int $id): bool
