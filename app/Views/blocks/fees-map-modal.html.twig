@@ -26,6 +26,9 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                     <i class="bi bi-x-lg me-1"></i>Fechar
                 </button>
+                <a href="#" class="btn btn-outline-success btn-apply-credit-from-details" id="btnApplyCreditFromDetails" style="display: none;" title="Aplicar crédito da fração às quotas em falta">
+                    <i class="bi bi-wallet2 me-1"></i>Aplicar crédito às quotas
+                </a>
                 <button type="button" class="btn btn-primary btn-register-payment-from-details" id="btnRegisterPaymentFromDetails" style="display: none;" title="Registar pagamento para esta quota">
                     <i class="bi bi-cash-coin me-1"></i>Registrar Pagamento
                 </button>
@@ -43,7 +46,9 @@ function showFeeDetails(feeId) {
     // Show loading
     contentDiv.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">A carregar...</span></div><p class="text-muted mt-3 mb-0">A carregar detalhes...</p></div>';
     const btnRegister = document.getElementById('btnRegisterPaymentFromDetails');
+    const btnApplyCredit = document.getElementById('btnApplyCreditFromDetails');
     if (btnRegister) { btnRegister.style.display = 'none'; btnRegister.onclick = null; }
+    if (btnApplyCredit) { btnApplyCredit.style.display = 'none'; btnApplyCredit.href = '#'; }
     modal.show();
 
     fetch(`{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/details`)
@@ -63,7 +68,9 @@ function showFeeDetails(feeId) {
             if (data.error) {
                 contentDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
                 const btnRegister = document.getElementById('btnRegisterPaymentFromDetails');
+                const btnApplyCredit = document.getElementById('btnApplyCreditFromDetails');
                 if (btnRegister) { btnRegister.style.display = 'none'; btnRegister.onclick = null; }
+                if (btnApplyCredit) { btnApplyCredit.style.display = 'none'; btnApplyCredit.href = '#'; }
                 return;
             }
 
@@ -189,6 +196,21 @@ function showFeeDetails(feeId) {
                     btnRegister.style.display = 'none';
                     btnRegister.onclick = null;
                 }
+            }
+
+            // Show/hide "Aplicar crédito às quotas" button (quando fração tem saldo e dívida)
+            const btnApplyCredit = document.getElementById('btnApplyCreditFromDetails');
+            if (btnApplyCredit && data.can_apply_credit && isAdmin && data.fraction_id) {
+                btnApplyCredit.style.display = 'inline-block';
+                btnApplyCredit.href = '{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/liquidate?fraction_id=' + data.fraction_id + '&use_balance=1';
+                btnApplyCredit.onclick = function(e) {
+                    e.preventDefault();
+                    bootstrap.Modal.getInstance(document.getElementById('feeDetailsModal')).hide();
+                    window.location.href = this.href;
+                };
+            } else if (btnApplyCredit) {
+                btnApplyCredit.style.display = 'none';
+                btnApplyCredit.href = '#';
             }
 
             contentDiv.innerHTML = `

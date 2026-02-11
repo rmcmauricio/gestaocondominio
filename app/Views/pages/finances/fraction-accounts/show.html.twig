@@ -1,6 +1,11 @@
 <div class="container py-4">
     {% set page_actions %}
-        <div class="page-header-actions">
+        <div class="page-header-actions d-flex gap-2 flex-wrap">
+            {% if balance > 0 and em_falta > 0 %}
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/liquidate?fraction_id={{ fraction.id }}&use_balance=1" class="btn btn-primary btn-sm">
+                <i class="bi bi-cash-coin"></i> Aplicar crédito às quotas
+            </a>
+            {% endif %}
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fraction-accounts" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-arrow-left"></i> Contas por fração
             </a>

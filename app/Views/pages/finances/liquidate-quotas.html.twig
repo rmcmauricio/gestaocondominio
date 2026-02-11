@@ -30,7 +30,9 @@
                     
                     {% include 'blocks/liquidate-quotas-script.html.twig' with {
                         'condominium_id': condominium.id,
-                        'form_id_prefix': ''
+                        'form_id_prefix': '',
+                        'pre_fraction_id': pre_fraction_id|default(null),
+                        'pre_use_balance': pre_use_balance|default(false)
                     } %}
                 </div>
             </div>
