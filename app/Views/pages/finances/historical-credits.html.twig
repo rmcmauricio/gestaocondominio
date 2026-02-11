@@ -1,0 +1,140 @@
+<div class="container py-4">
+    {% set page_actions %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Voltar às Finanças
+            </a>
+        </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Créditos Históricos',
+        'help_section': 'finances-historical-credits',
+        'help_title': 'Ajuda com Créditos Históricos',
+        'actions': page_actions
+    } %}
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Créditos Registados</h5>
+                </div>
+                <div class="card-body">
+                    {% if historical_credits %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Fração</th>
+                                    <th>Data</th>
+                                    <th>Valor</th>
+                                    <th>Descrição</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for credit in historical_credits %}
+                                <tr>
+                                    <td><strong>{{ credit.fraction_identifier }}</strong></td>
+                                    <td>{{ credit.created_at|date('d/m/Y H:i') }}</td>
+                                    <td><strong class="text-success">+ €{{ credit.amount|number_format(2, ',', '.') }}</strong></td>
+                                    <td>{{ credit.description|default('-') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center py-3">Nenhum crédito histórico registado.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-wallet2"></i> Inserir Crédito Histórico</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-credits">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="fraction_id" class="form-label">Fração <span class="text-danger">*</span></label>
+                            <select class="form-select" id="fraction_id" name="fraction_id" required>
+                                <option value="">Selecione...</option>
+                                {% for fraction in fractions %}
+                                <option value="{{ fraction.id }}">{{ fraction.identifier }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="year" class="form-label">Ano do crédito <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="year" name="year"
+                                   min="2000" max="{{ current_year - 1 }}"
+                                   value="{{ current_year - 1 }}" required>
+                            <small class="text-muted">Ano a que se refere o crédito (anteriores ao registo no sistema)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="month" class="form-label">Mês (opcional)</label>
+                            <select class="form-select" id="month" name="month">
+                                <option value="">Não especificar</option>
+                                <option value="1">Janeiro</option>
+                                <option value="2">Fevereiro</option>
+                                <option value="3">Março</option>
+                                <option value="4">Abril</option>
+                                <option value="5">Maio</option>
+                                <option value="6">Junho</option>
+                                <option value="7">Julho</option>
+                                <option value="8">Agosto</option>
+                                <option value="9">Setembro</option>
+                                <option value="10">Outubro</option>
+                                <option value="11">Novembro</option>
+                                <option value="12">Dezembro</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="amount" class="form-label">Valor (€) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">€</span>
+                                <input type="number" class="form-control" id="amount" name="amount"
+                                       step="0.01" min="0.01" required placeholder="0.00">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notas</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"
+                                      placeholder="Informações adicionais sobre este crédito"></textarea>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <small><i class="bi bi-info-circle"></i> Use esta funcionalidade para registar créditos de anos anteriores ao registo do condomínio no sistema. O valor ficará na conta da fração e pode ser aplicado à liquidação de quotas.</small>
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-plus-circle"></i> Registar Crédito
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

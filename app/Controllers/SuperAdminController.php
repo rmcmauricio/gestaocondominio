@@ -1360,6 +1360,8 @@ class SuperAdminController extends Controller
 
         $backupService = new CondominiumBackupService();
         $backups = $backupService->listBackupsForCondominium($id);
+        $backupLimit = $backupService->getMaxBackupsPerCondominium();
+        $backupToRemoveIfAtLimit = $backupService->getBackupToRemoveIfAtLimit($id);
 
         global $db;
         $stmt = $db->query("SELECT id, name, email FROM users WHERE role = 'super_admin' OR role = 'admin' ORDER BY name");
@@ -1374,6 +1376,8 @@ class SuperAdminController extends Controller
             'condominium' => $condominium,
             'condominium_id' => $id,
             'backups' => $backups,
+            'backup_limit' => $backupLimit,
+            'backup_to_remove_if_at_limit' => $backupToRemoveIfAtLimit,
             'admin_users' => $adminUsers,
             'csrf_token' => Security::generateCSRFToken(),
             'user' => AuthMiddleware::user(),

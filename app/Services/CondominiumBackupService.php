@@ -13,6 +13,7 @@ class CondominiumBackupService
     protected $backupPath;
 
     private const BACKUP_VERSION = 1;
+    private const DEFAULT_MAX_BACKUPS_PER_CONDOMINIUM = 1;
 
     public function __construct()
     {
@@ -20,6 +21,34 @@ class CondominiumBackupService
         $this->db = $db;
         $this->basePath = __DIR__ . '/../../storage';
         $this->backupPath = $this->basePath . '/backups';
+    }
+
+    /**
+     * Maximum backups allowed per condominium (from .env MAX_BACKUPS_PER_CONDOMINIUM, default 1).
+     */
+    public function getMaxBackupsPerCondominium(): int
+    {
+        $val = $_ENV['MAX_BACKUPS_PER_CONDOMINIUM'] ?? getenv('MAX_BACKUPS_PER_CONDOMINIUM');
+        if ($val === false || $val === '' || $val === null) {
+            return self::DEFAULT_MAX_BACKUPS_PER_CONDOMINIUM;
+        }
+        $n = (int) $val;
+        return $n > 0 ? $n : self::DEFAULT_MAX_BACKUPS_PER_CONDOMINIUM;
+    }
+
+    /**
+     * If at limit, returns the oldest backup that would be removed when creating a new one (for UI warning).
+     * @return array|null ['name' => ..., 'path' => ..., 'size_kb' => ...] or null if under limit
+     */
+    public function getBackupToRemoveIfAtLimit(int $condominiumId): ?array
+    {
+        $backups = $this->listBackupsForCondominium($condominiumId);
+        $max = $this->getMaxBackupsPerCondominium();
+        if (count($backups) < $max) {
+            return null;
+        }
+        $oldest = end($backups);
+        return $oldest ?: null;
     }
 
     /**
@@ -39,6 +68,15 @@ class CondominiumBackupService
 
         if (!is_dir($this->backupPath)) {
             mkdir($this->backupPath, 0755, true);
+        }
+
+        $backups = $this->listBackupsForCondominium($condominiumId);
+        $max = $this->getMaxBackupsPerCondominium();
+        if (count($backups) >= $max) {
+            $oldest = end($backups);
+            if ($oldest && !empty($oldest['path'])) {
+                $this->deleteBackup($oldest['path']);
+            }
         }
 
         $tempDir = $this->backupPath . '/temp_' . uniqid();

@@ -214,6 +214,11 @@
                             <i class="bi bi-clock-history"></i> Dívidas Históricas
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link ps-4 {% if viewName is defined and 'pages/finances/historical-credits.html.twig' in viewName %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-credits">
+                            <i class="bi bi-wallet2"></i> Créditos Históricos
+                        </a>
+                    </li>
                     {% endif %}
                     <li class="nav-item">
                         <a class="nav-link ps-4 {% if viewName is defined and 'pages/finances/reports.html.twig' in viewName %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports">
@@ -296,6 +301,11 @@
                 <span class="nav-section-title">Administração</span>
             </li>
             
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/restore">
+                    <i class="bi bi-archive"></i> Backup e Restaurar
+                </a>
+            </li>
             <li class="nav-item">
                 <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/assign-admin">
                     <i class="bi bi-shield-check"></i> Designar Administradores

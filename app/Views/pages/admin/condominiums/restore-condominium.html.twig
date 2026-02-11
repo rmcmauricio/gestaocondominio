@@ -8,8 +8,8 @@
             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createBackupModal" title="Criar novo backup">
                 <i class="bi bi-download"></i> Criar backup
             </button>
-            <a href="{{ BASE_URL }}admin/condominiums" class="btn btn-secondary">
-                <i class="bi bi-arrow-left"></i> Voltar aos condomínios
+            <a href="{{ url_back_to_list|default(BASE_URL ~ 'admin/condominiums') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
             </a>
         </div>
     </div>
@@ -62,20 +62,20 @@
                             <td class="text-end">{{ backup.size_kb }} KB</td>
                             <td>{{ backup.modified|date('d/m/Y H:i') }}</td>
                             <td class="text-end">
-                                <a href="{{ BASE_URL }}admin/condominiums/backup-download?file={{ backup.name|e('url') }}" class="btn btn-sm btn-outline-primary" title="Descarregar ficheiro">
+                                <a href="{{ url_download_base|default(BASE_URL ~ 'admin/condominiums/backup-download?file=') }}{{ backup.name|e('url') }}" class="btn btn-sm btn-outline-primary" title="Descarregar ficheiro">
                                     <i class="bi bi-download"></i> Descarregar
                                 </a>
-                                <form method="post" action="{{ BASE_URL }}admin/condominiums/restore" class="d-inline ms-1">
+                                <form method="post" action="{{ url_restore_form|default(BASE_URL ~ 'admin/condominiums/restore') }}" class="d-inline ms-1">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="existing_backup" value="{{ backup.path }}">
                                     <button type="submit" class="btn btn-sm btn-success" title="Restaurar este backup">
                                         <i class="bi bi-arrow-counterclockwise"></i> Restaurar
                                     </button>
                                 </form>
-                                <form method="post" action="{{ BASE_URL }}admin/condominiums/backup-delete" class="d-inline ms-1" onsubmit="return confirm('Apagar este backup? Esta ação não pode ser desfeita.');">
+                                <form method="post" action="{{ url_backup_delete|default(BASE_URL ~ 'admin/condominiums/backup-delete') }}" class="d-inline ms-1" onsubmit="return confirm('Apagar este backup? Esta ação não pode ser desfeita.');">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="backup_path" value="{{ backup.path }}">
-                                    <input type="hidden" name="redirect_url" value="{{ BASE_URL }}admin/condominiums/{{ condominium_id }}/restore">
+                                    <input type="hidden" name="redirect_url" value="{{ url_restore_page|default(BASE_URL ~ 'admin/condominiums/' ~ condominium_id ~ '/restore') }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Apagar backup">
                                         <i class="bi bi-trash"></i> Apagar
                                     </button>
@@ -104,6 +104,11 @@
             </div>
             <div class="modal-body" id="createBackupModalBody">
                 <p class="mb-0">Criar backup do condomínio <strong>{{ condominium.name|e('html') }}</strong>? O ficheiro será guardado no servidor e poderá descarregá-lo ou restaurá-lo depois.</p>
+                {% if backup_to_remove_if_at_limit %}
+                <div class="alert alert-warning mt-2 mb-0">
+                    <i class="bi bi-exclamation-triangle"></i> O backup <strong><code>{{ backup_to_remove_if_at_limit.name }}</code></strong> será removido. Se pretender guardá-lo, descarregue-o antes de criar o novo.
+                </div>
+                {% endif %}
             </div>
             <div class="modal-footer" id="createBackupModalFooter">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -124,8 +129,13 @@
     const csrfToken = '{{ csrf_token }}';
     const condominiumName = "{{ condominium.name|e('js') }}";
 
+    const backupToRemoveWarning = {% if backup_to_remove_if_at_limit %}"O backup {{ backup_to_remove_if_at_limit.name|e('js') }} será removido. Se pretender guardá-lo, descarregue-o antes de criar o novo."{% else %}null{% endif %};
     function showConfirm() {
-        bodyEl.innerHTML = '<p class="mb-0">Criar backup do condomínio <strong>' + condominiumName + '</strong>? O ficheiro será guardado no servidor e poderá descarregá-lo ou restaurá-lo depois.</p>';
+        let html = '<p class="mb-0">Criar backup do condomínio <strong>' + condominiumName + '</strong>? O ficheiro será guardado no servidor e poderá descarregá-lo ou restaurá-lo depois.</p>';
+        if (backupToRemoveWarning) {
+            html += '<div class="alert alert-warning mt-2 mb-0"><i class="bi bi-exclamation-triangle"></i> ' + backupToRemoveWarning + '</div>';
+        }
+        bodyEl.innerHTML = html;
         footerEl.innerHTML = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" id="createBackupConfirmBtn"><i class="bi bi-download"></i> Criar backup</button>';
         document.getElementById('createBackupConfirmBtn').addEventListener('click', doCreate);
     }
@@ -133,9 +143,10 @@
         bodyEl.innerHTML = '<p class="mb-0 text-center"><span class="spinner-border spinner-border-sm me-2"></span>A criar backup...</p>';
         footerEl.innerHTML = '';
     }
+    const urlRestorePage = "{{ url_restore_page|default(BASE_URL ~ 'admin/condominiums/' ~ condominium_id ~ '/restore')|e('js') }}";
     function showSuccess(name, sizeKb, downloadUrl) {
         bodyEl.innerHTML = '<div class="text-center"><i class="bi bi-check-circle text-success display-4"></i><p class="mt-2 mb-0"><strong>Backup criado com sucesso</strong></p><p class="mb-0 mt-1"><code>' + name + '</code></p><p class="text-muted small mb-0">' + sizeKb + ' KB</p></div>';
-        footerEl.innerHTML = '<a href="' + downloadUrl + '" class="btn btn-primary" download><i class="bi bi-download"></i> Descarregar</a><a href="' + baseUrl + 'admin/condominiums/' + condominiumId + '/restore" class="btn btn-secondary">Fechar e ver lista</a>';
+        footerEl.innerHTML = '<a href="' + downloadUrl + '" class="btn btn-primary" download><i class="bi bi-download"></i> Descarregar</a><a href="' + urlRestorePage + '" class="btn btn-secondary">Fechar e ver lista</a>';
     }
     function showError(msg) {
         bodyEl.innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-exclamation-triangle"></i> ' + (msg || 'Erro ao criar backup.') + '</div>';
@@ -145,7 +156,8 @@
         showLoading();
         var formData = new FormData();
         formData.append('csrf_token', csrfToken);
-        fetch(baseUrl + 'admin/condominiums/' + condominiumId + '/create-backup', { method: 'POST', body: formData })
+        const urlCreateBackup = "{{ url_create_backup|default(BASE_URL ~ 'admin/condominiums/' ~ condominium_id ~ '/create-backup')|e('js') }}";
+        fetch(urlCreateBackup, { method: 'POST', body: formData })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) showSuccess(data.name, data.size_kb, data.download_url);
