@@ -138,6 +138,65 @@
   }
 
   /**
+   * Submit button: spinner + disable on form submit (evita duplo clique em POST)
+   * Se o submit for cancelado (ex: validação), restaura o botão.
+   */
+  function initSubmitButtonSpinner() {
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+      const method = (form.getAttribute('method') || 'get').toLowerCase();
+      if (method !== 'post') return;
+      if (form.hasAttribute('data-no-submit-spinner')) return;
+
+      // Capture: ao submeter, desativar botão e mostrar spinner
+      form.addEventListener('submit', function(e) {
+        const formId = this.id;
+        let btn = null;
+        if (document.activeElement && (document.activeElement.form === this ||
+            (document.activeElement.getAttribute('form') === formId && document.activeElement.matches('button[type=submit], input[type=submit]')))) {
+          btn = document.activeElement;
+        }
+        if (!btn) btn = this.querySelector('button[type=submit], input[type=submit]');
+        if (btn && !btn.disabled) {
+          btn.dataset.originalHtml = (btn.tagName === 'INPUT') ? btn.value : btn.innerHTML;
+          btn.disabled = true;
+          const label = (btn.textContent || btn.value || 'A processar...').trim();
+          if (btn.tagName === 'INPUT') {
+            btn.value = 'A processar...';
+          } else {
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> ' + (label.length > 20 ? 'A processar...' : label);
+          }
+        }
+      }, true);
+
+      // Bubble: se o submit foi cancelado (ex: validação), repor botão
+      form.addEventListener('submit', function(e) {
+        if (e.defaultPrevented) {
+          const formId = this.id;
+          const toRestore = [];
+          this.querySelectorAll('button[type=submit], input[type=submit]').forEach(function(b) {
+            if (b.dataset.originalHtml !== undefined) toRestore.push(b);
+          });
+          if (formId) {
+            document.querySelectorAll('button[type=submit][form="' + formId + '"], input[type=submit][form="' + formId + '"]').forEach(function(b) {
+              if (b.dataset.originalHtml !== undefined) toRestore.push(b);
+            });
+          }
+          toRestore.forEach(function(btn) {
+            btn.disabled = false;
+            if (btn.tagName === 'INPUT') {
+              btn.value = btn.dataset.originalHtml;
+            } else {
+              btn.innerHTML = btn.dataset.originalHtml;
+            }
+            delete btn.dataset.originalHtml;
+          });
+        }
+      }, false);
+    });
+  }
+
+  /**
    * Auto-hide Alerts
    * Alerts will auto-hide after 90 seconds (90000ms)
    */
@@ -270,6 +329,7 @@
         initHeaderScroll();
         initSmoothScroll();
         initFormValidation();
+        initSubmitButtonSpinner();
         initAutoHideAlerts();
         initDemoProfileDropdown();
         initQuickActionsDropdowns();
@@ -279,6 +339,7 @@
       initHeaderScroll();
       initSmoothScroll();
       initFormValidation();
+      initSubmitButtonSpinner();
       initAutoHideAlerts();
       initDemoProfileDropdown();
       initQuickActionsDropdowns();

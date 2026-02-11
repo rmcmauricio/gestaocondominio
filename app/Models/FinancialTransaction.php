@@ -78,6 +78,11 @@ class FinancialTransaction extends Model
             $params[':transaction_type'] = $filters['transaction_type'];
         }
 
+        if (isset($filters['account_type'])) {
+            $sql .= " AND ba.account_type = :account_type";
+            $params[':account_type'] = $filters['account_type'];
+        }
+
         if (isset($filters['from_date'])) {
             $sql .= " AND ft.transaction_date >= :from_date";
             $params[':from_date'] = $filters['from_date'];
