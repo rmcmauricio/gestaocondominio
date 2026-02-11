@@ -1736,12 +1736,25 @@ class FinanceController extends Controller
         $bankAccountModel = new BankAccount();
         $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
 
-        // Get available transactions for association
+        // Get available transactions for association: banco e caixa separadamente para garantir que aparecem movimentos de ambos
         $transactionModel = new FinancialTransaction();
-        $availableTransactions = $transactionModel->getByCondominium($condominiumId, [
+        $bankTransactions = $transactionModel->getByCondominium($condominiumId, [
             'transaction_type' => 'income',
+            'account_type' => 'bank',
             'limit' => 50
         ]);
+        $cashTransactions = $transactionModel->getByCondominium($condominiumId, [
+            'transaction_type' => 'income',
+            'account_type' => 'cash',
+            'limit' => 50
+        ]);
+        $availableTransactions = array_merge($bankTransactions, $cashTransactions);
+        usort($availableTransactions, function ($a, $b) {
+            $da = strtotime($a['transaction_date'] ?? '0');
+            $db = strtotime($b['transaction_date'] ?? '0');
+            if ($da !== $db) return $db <=> $da;
+            return (int)($b['id'] ?? 0) <=> (int)($a['id'] ?? 0);
+        });
 
         // Prepare data for fees map block
         $feeModel = new \App\Models\Fee();
