@@ -80,23 +80,38 @@ class FeeService
         if ($totalRevenue <= 0) {
             throw new \Exception("O orçamento não tem receitas definidas. Adicione receitas ao orçamento primeiro.");
         }
-        
-        // Get monthly budget amount (assuming equal distribution)
-        $monthlyAmount = $totalRevenue / 12;
+
+        // When generating all 12 months: use last-month adjustment so sum = annual per fraction
+        $months = array_map('intval', $months);
+        $months = array_filter($months, fn($m) => $m >= 1 && $m <= 12);
+        $months = array_values(array_unique($months));
+        $isFullYear = (count($months) === 12 && array_sum($months) === 78); // 1+2+...+12=78
+
+        $fractionMonthlyAmounts = [];
+        foreach ($fractions as $fraction) {
+            $annualFraction = ($totalRevenue * (float)$fraction['permillage']) / $totalPermillage;
+            if ($isFullYear) {
+                $baseMonthly = floor($annualFraction * 100 / 12) / 100;
+                $first11Sum = $baseMonthly * 11;
+                $lastMonthAmount = round($annualFraction - $first11Sum, 2);
+                $fractionMonthlyAmounts[$fraction['id']] = array_fill(1, 12, $baseMonthly);
+                $fractionMonthlyAmounts[$fraction['id']][12] = $lastMonthAmount;
+            } else {
+                $fractionMonthlyAmounts[$fraction['id']] = null; // Use simple division per month
+            }
+        }
 
         $generatedFees = [];
 
         foreach ($months as $month) {
             $month = (int)$month;
-            if ($month < 1 || $month > 12) {
-                continue; // Skip invalid months
-            }
 
             $dueDate = date('Y-m-d', strtotime("{$year}-{$month}-10")); // Due on 10th of month
 
             foreach ($fractions as $fraction) {
-                // Calculate fee based on permillage
-                $feeAmount = ($monthlyAmount * $fraction['permillage']) / $totalPermillage;
+                $feeAmount = $fractionMonthlyAmounts[$fraction['id']] !== null
+                    ? $fractionMonthlyAmounts[$fraction['id']][$month]
+                    : round(($totalRevenue / 12 * (float)$fraction['permillage']) / $totalPermillage, 2);
 
                 // Check if regular fee already exists (only check for regular fees, not extras)
                 $existing = $db->prepare("
@@ -325,18 +340,25 @@ class FeeService
             throw new \Exception("Permilagem total não pode ser zero. Verifique as frações.");
         }
 
-        // Calculate monthly amount per fraction
-        $monthlyTotalAmount = $totalAnnualAmount / 12;
-
         $generatedFees = [];
         $allMonths = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+        // Pre-calculate: months 1-11 round DOWN, month 12 adjusts (sum = annual). Enables trimestre/semestre liquidation.
+        $fractionMonthlyAmounts = [];
+        foreach ($fractions as $fraction) {
+            $annualFraction = ($totalAnnualAmount * (float)$fraction['permillage']) / $totalPermillage;
+            $baseMonthly = floor($annualFraction * 100 / 12) / 100;
+            $first11Sum = $baseMonthly * 11;
+            $lastMonthAmount = round($annualFraction - $first11Sum, 2);
+            $fractionMonthlyAmounts[$fraction['id']] = array_fill(1, 12, $baseMonthly);
+            $fractionMonthlyAmounts[$fraction['id']][12] = $lastMonthAmount;
+        }
 
         foreach ($allMonths as $month) {
             $dueDate = date('Y-m-d', strtotime("{$year}-{$month}-10"));
 
             foreach ($fractions as $fraction) {
-                // Calculate fee based on permillage
-                $feeAmount = ($monthlyTotalAmount * $fraction['permillage']) / $totalPermillage;
+                $feeAmount = $fractionMonthlyAmounts[$fraction['id']][$month];
 
                 // Check if regular fee already exists
                 $existing = $db->prepare("
@@ -424,15 +446,22 @@ class FeeService
         $generatedFees = [];
         $allMonths = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
-        foreach ($allMonths as $month) {
-            $dueDate = date('Y-m-d', strtotime("{$year}-{$month}-10"));
+        foreach ($fractionAmounts as $fractionId => $annualAmount) {
+            $fractionId = (int)$fractionId;
+            $annualAmount = (float)$annualAmount;
 
-            foreach ($fractionAmounts as $fractionId => $annualAmount) {
-                $fractionId = (int)$fractionId;
-                $annualAmount = (float)$annualAmount;
-                
-                // Calculate monthly amount for this fraction
-                $monthlyAmount = $annualAmount / 12;
+            // Months 1-11: round DOWN so trimestre (110€) / semestre (220€) liquidate correctly, cents stay as saldo
+            // Month 12: adjusts so sum = exact annualAmount
+            $baseMonthly = floor($annualAmount * 100 / 12) / 100;
+            $first11Sum = $baseMonthly * 11;
+            $lastMonthAmount = round($annualAmount - $first11Sum, 2);
+
+            $monthlyAmounts = array_fill(1, 12, $baseMonthly);
+            $monthlyAmounts[12] = $lastMonthAmount;
+
+            foreach ($allMonths as $month) {
+                $monthlyAmount = $monthlyAmounts[$month];
+                $dueDate = date('Y-m-d', strtotime("{$year}-{$month}-10"));
 
                 // Check if regular fee already exists
                 $existing = $db->prepare("
