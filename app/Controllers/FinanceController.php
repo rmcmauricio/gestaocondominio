@@ -15,6 +15,7 @@ use App\Models\Condominium;
 use App\Models\Revenue;
 use App\Models\BankAccount;
 use App\Models\FinancialTransaction;
+use App\Models\CondominiumFeePeriod;
 use App\Models\Fraction;
 use App\Models\FractionAccount;
 use App\Models\FractionAccountMovement;
@@ -47,6 +48,50 @@ class FinanceController extends Controller
         $this->revenueModel = new Revenue();
         $this->feeService = new FeeService();
         $this->auditService = new AuditService();
+    }
+
+    private function inferFeePeriodType(int $condominiumId, int $year): ?string
+    {
+        $count = $this->getRegularFeeSlotCount($condominiumId, $year);
+        if ($count === null || $count <= 0) return 'monthly';
+        if ($count >= 12) return 'monthly';
+        if ($count === 6) return 'bimonthly';
+        if ($count === 4) return 'quarterly';
+        if ($count === 2) return 'semiannual';
+        if ($count === 1) return 'annual';
+        return 'monthly';
+    }
+
+    private function getRegularFeeSlotCount(int $condominiumId, int $year): ?int
+    {
+        global $db;
+        if (!$db) return null;
+        $stmt = $db->prepare("
+            SELECT COUNT(DISTINCT COALESCE(period_index, period_month)) as c
+            FROM fees WHERE condominium_id = ? AND period_year = ?
+            AND (fee_type = 'regular' OR fee_type IS NULL) AND COALESCE(is_historical, 0) = 0
+        ");
+        $stmt->execute([$condominiumId, $year]);
+        $r = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $r ? (int)$r['c'] : null;
+    }
+
+    private function buildFeePeriodLabels(?string $periodType, array $monthNames): array
+    {
+        $periodType = $periodType ?? 'monthly';
+        switch ($periodType) {
+            case 'bimonthly':
+                return [1 => 'Jan-Fev', 2 => 'Mar-Abr', 3 => 'Mai-Jun', 4 => 'Jul-Ago', 5 => 'Set-Out', 6 => 'Nov-Dez'];
+            case 'quarterly':
+                return [1 => 'Q1', 2 => 'Q2', 3 => 'Q3', 4 => 'Q4'];
+            case 'semiannual':
+                return [1 => '1º Sem', 2 => '2º Sem'];
+            case 'annual':
+            case 'yearly':
+                return [1 => 'Anual'];
+            default:
+                return array_map(fn($m) => mb_substr($m, 0, 3), $monthNames);
+        }
     }
 
     /**
@@ -662,36 +707,37 @@ class FinanceController extends Controller
 
         $year = (int)($_POST['year'] ?? date('Y'));
         $feeMode = $_POST['fee_mode'] ?? 'annual'; // 'annual' or 'extra'
+        $periodType = $_POST['period_type'] ?? 'monthly';
+        $validPeriods = ['monthly', 'bimonthly', 'quarterly', 'semiannual', 'annual'];
+        if (!in_array($periodType, $validPeriods)) {
+            $periodType = 'monthly';
+        }
 
         try {
             if ($feeMode === 'annual') {
-                // Annual fees generation
-                $annualType = $_POST['annual_type'] ?? 'budget'; // 'budget' or 'manual'
+                $annualType = $_POST['annual_type'] ?? 'budget';
 
                 if ($annualType === 'budget') {
-                    // Generate from approved budget
-                    $generated = $this->feeService->generateAnnualFeesFromBudget($condominiumId, $year);
-                    $_SESSION['success'] = count($generated) . ' quota(s) anual(is) gerada(s) automaticamente com base no orçamento para todos os 12 meses!';
+                    $generated = $this->feeService->generateAnnualFeesFromBudget($condominiumId, $year, $periodType);
+                    $periodLabels = ['monthly' => '12 meses', 'bimonthly' => '6 bimestres', 'quarterly' => '4 trimestres', 'semiannual' => '2 semestres', 'annual' => '1 ano'];
+                    $_SESSION['success'] = count($generated) . ' quota(s) anual(is) gerada(s) automaticamente com base no orçamento (' . ($periodLabels[$periodType] ?? '12 meses') . ')!';
                 } else {
-                    // Manual generation
                     $usePermillage = isset($_POST['manual_use_permillage']) && $_POST['manual_use_permillage'] === '1';
                     
                     if ($usePermillage) {
-                        // Manual with permillage
                         $totalAmount = (float)($_POST['total_amount'] ?? 0);
                         if ($totalAmount <= 0) {
                             throw new \Exception('O valor total da quota anual deve ser maior que zero.');
                         }
-                        $generated = $this->feeService->generateAnnualFeesManual($condominiumId, $year, $totalAmount);
-                        $_SESSION['success'] = count($generated) . ' quota(s) anual(is) gerada(s) manualmente com permilagem para todos os 12 meses!';
+                        $generated = $this->feeService->generateAnnualFeesManual($condominiumId, $year, $totalAmount, $periodType);
+                        $periodLabels = ['monthly' => '12 meses', 'bimonthly' => '6 bimestres', 'quarterly' => '4 trimestres', 'semiannual' => '2 semestres', 'annual' => '1 ano'];
+                        $_SESSION['success'] = count($generated) . ' quota(s) anual(is) gerada(s) manualmente com permilagem (' . ($periodLabels[$periodType] ?? '12 meses') . ')!';
                     } else {
-                        // Manual without permillage - values per fraction
                         $fractionAmounts = $_POST['fraction_amounts'] ?? [];
                         if (empty($fractionAmounts)) {
                             throw new \Exception('Deve fornecer valores para pelo menos uma fração.');
                         }
                         
-                        // Convert to proper format: fraction_id => annual_amount
                         $amounts = [];
                         foreach ($fractionAmounts as $fractionId => $amount) {
                             $fractionId = (int)$fractionId;
@@ -705,8 +751,9 @@ class FinanceController extends Controller
                             throw new \Exception('Deve fornecer valores válidos para pelo menos uma fração.');
                         }
                         
-                        $generated = $this->feeService->generateAnnualFeesManualPerFraction($condominiumId, $year, $amounts);
-                        $_SESSION['success'] = count($generated) . ' quota(s) anual(is) gerada(s) manualmente para todos os 12 meses!';
+                        $generated = $this->feeService->generateAnnualFeesManualPerFraction($condominiumId, $year, $amounts, $periodType);
+                        $periodLabels = ['monthly' => '12 meses', 'bimonthly' => '6 bimestres', 'quarterly' => '4 trimestres', 'semiannual' => '2 semestres', 'annual' => '1 ano'];
+                        $_SESSION['success'] = count($generated) . ' quota(s) anual(is) gerada(s) manualmente (' . ($periodLabels[$periodType] ?? '12 meses') . ')!';
                     }
                 }
             } else {
@@ -1206,6 +1253,8 @@ class FinanceController extends Controller
             $paymentHistory = $historyModel->getByFee($feeId);
         }
 
+        $fee['period_display'] = \App\Models\Fee::formatPeriodForDisplay($fee);
+
         echo json_encode([
             'fee' => $fee,
             'fraction' => $fraction,
@@ -1232,13 +1281,7 @@ class FinanceController extends Controller
 
     private function feeLabelForLiquidation(array $f): string
     {
-        if (($f['fee_type'] ?? '') === 'extra' && !empty($f['reference'])) {
-            return 'Quota extra: ' . $f['reference'];
-        }
-        if (!empty($f['period_month']) && !empty($f['period_year'])) {
-            return 'Quota ' . sprintf('%02d/%d', $f['period_month'], $f['period_year']);
-        }
-        return 'Quota ' . ($f['period_year'] ?? '');
+        return \App\Models\Fee::formatPeriodLabel($f);
     }
 
     /**
@@ -1674,15 +1717,22 @@ class FinanceController extends Controller
         }
         unset($fr);
 
-        // Get fees map for selected year
-        $feesMap = $feeModel->getFeesMapByYear($condominiumId, $selectedFeesYear);
-        
-        // Month names in Portuguese
+        // Get fee period type for selected year (from table or infer from fees)
+        $condoFeePeriod = new CondominiumFeePeriod();
+        $feePeriodType = $condoFeePeriod->get($condominiumId, $selectedFeesYear);
+        if ($feePeriodType === null) {
+            $feePeriodType = $this->inferFeePeriodType($condominiumId, $selectedFeesYear);
+        }
+
+        $feesMap = $feeModel->getFeesMapByYear($condominiumId, $selectedFeesYear, null, $feePeriodType);
+
         $monthNames = [
             1 => 'Janeiro', 2 => 'Fevereiro', 3 => 'Março', 4 => 'Abril',
             5 => 'Maio', 6 => 'Junho', 7 => 'Julho', 8 => 'Agosto',
             9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro'
         ];
+
+        $feePeriodLabels = $this->buildFeePeriodLabels($feePeriodType, $monthNames);
 
         $this->loadPageTranslations('finances');
         
@@ -1699,6 +1749,11 @@ class FinanceController extends Controller
         if (!empty($_GET['show_historical'])) $queryParams[] = 'show_historical=1';
         $queryParams[] = 'per_page=' . $perPage;
         $baseQuery = implode('&', $queryParams);
+
+        foreach ($fees as &$f) {
+            $f['period_display'] = \App\Models\Fee::formatPeriodForDisplay($f);
+        }
+        unset($f);
 
         $this->data += [
             'viewName' => 'pages/finances/fees.html.twig',
@@ -1738,9 +1793,11 @@ class FinanceController extends Controller
             'fractions' => $fractions,
             'available_years' => $availableYears,
             'selected_fees_year' => $selectedFeesYear,
+            'fee_period_type' => $feePeriodType,
+            'fee_period_labels' => $feePeriodLabels,
             'fees_map_form_action' => BASE_URL . 'condominiums/' . $condominiumId . '/fees',
             'month_names' => $monthNames,
-            'available_filter_years' => $availableYears // Years available for filtering
+            'available_filter_years' => $availableYears
         ];
         
         unset($_SESSION['error']);
@@ -2219,6 +2276,7 @@ class FinanceController extends Controller
         $refsByFee = $this->feeModel->getPaymentRefsByFeeIds(array_map(fn($x) => (int)($x['id'] ?? 0), $feesEmFalta));
         foreach ($feesEmFalta as &$q) {
             $q['payment_refs'] = array_map(fn($x) => $x['ref'], $refsByFee[(int)($q['id'] ?? 0)] ?? []);
+            $q['period_display'] = \App\Models\Fee::formatPeriodForDisplay($q);
         }
         unset($q);
 
@@ -2295,13 +2353,7 @@ class FinanceController extends Controller
         }
 
         $quotaLabel = 'Quota ';
-        if (($fee['fee_type'] ?? '') === 'extra' && !empty($fee['reference'])) {
-            $quotaLabel .= 'extra: ' . $fee['reference'];
-        } elseif (!empty($fee['period_month']) && !empty($fee['period_year'])) {
-            $quotaLabel .= sprintf('%02d/%d', $fee['period_month'], $fee['period_year']);
-        } else {
-            $quotaLabel .= $fee['period_year'] ?? '';
-        }
+        $quotaLabel .= ltrim(\App\Models\Fee::formatPeriodLabel($fee), 'Quota ');
 
         echo json_encode([
             'payment' => $payment,
@@ -2372,6 +2424,10 @@ class FinanceController extends Controller
             ");
             $stmt->execute([':condominium_id' => $condominiumId]);
             $historicalDebts = $stmt->fetchAll() ?: [];
+            foreach ($historicalDebts as &$d) {
+                $d['period_display'] = \App\Models\Fee::formatPeriodForDisplay($d);
+            }
+            unset($d);
         }
 
         $currentYear = date('Y');
@@ -2869,6 +2925,8 @@ class FinanceController extends Controller
             header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
+
+        $fee['period_display'] = \App\Models\Fee::formatPeriodForDisplay($fee);
 
         $this->loadPageTranslations('finances');
         

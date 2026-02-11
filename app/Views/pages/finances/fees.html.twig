@@ -170,13 +170,7 @@
                         {% set calculated_status = fee.calculated_status|default(fee.status) %}
                         <tr id="fee-row-{{ fee.id }}" style="cursor: pointer;" onclick="showFeeDetails({{ fee.id }})" title="Clique para ver detalhes" data-fee-id="{{ fee.id }}">
                             <td><strong>{% include 'blocks/fraction-popover.html.twig' with { identifier: fee.fraction_identifier, owner_name: fee.owner_name, floor: fee.fraction_floor, stop_propagation: true } only %}</strong></td>
-                            <td>
-                                {% if fee.period_month %}
-                                    {{ fee.period_month }}/{{ fee.period_year }}
-                                {% else %}
-                                    {{ fee.period_year }}
-                                {% endif %}
-                            </td>
+                            <td>{{ fee.period_display|default(fee.period_year) }}</td>
                             <td><strong>€{{ fee.amount|number_format(2, ',', '.') }}</strong></td>
                             <td>
                                 {% if paid_amount > 0 %}
@@ -222,7 +216,7 @@
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                         <button type="button" class="btn btn-sm btn-outline-danger" 
-                                                onclick="event.stopPropagation(); showDeleteFeeModal({{ fee.id }}, '{{ fee.fraction_identifier|e('js') }}', {{ fee.period_month|default(0) }}, {{ fee.period_year }}, {{ fee.amount|number_format(2, '.', '') }});"
+                                                onclick="event.stopPropagation(); showDeleteFeeModal({{ fee.id }}, '{{ fee.fraction_identifier|e('js') }}', '{{ (fee.period_display|default(fee.period_year))|e('js') }}', {{ fee.amount|number_format(2, '.', '') }});"
                                                 title="Eliminar Quota Extra">
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -258,13 +252,7 @@
                         {% else %}
                             <i class="bi bi-clock-history text-warning" style="font-size: 1.2rem;" title="Pendente"></i>
                         {% endif %}
-                        <span class="ms-auto">
-                            {% if fee.period_month %}
-                                {{ fee.period_month }}/{{ fee.period_year }}
-                            {% else %}
-                                {{ fee.period_year }}
-                            {% endif %}
-                        </span>
+                        <span class="ms-auto">{{ fee.period_display|default(fee.period_year) }}</span>
                     </h6>
                     <small class="text-muted">Vencimento: {{ fee.due_date|date('d/m/Y') }}</small>
                 </div>
@@ -305,7 +293,7 @@
                         <i class="bi bi-pencil"></i> Editar
                     </a>
                     <button type="button" class="btn btn-sm btn-outline-danger w-100 flex-fill" 
-                            onclick="event.stopPropagation(); showDeleteFeeModal({{ fee.id }}, '{{ fee.fraction_identifier|e('js') }}', {{ fee.period_month|default(0) }}, {{ fee.period_year }}, {{ fee.amount|number_format(2, '.', '') }});"
+                            onclick="event.stopPropagation(); showDeleteFeeModal({{ fee.id }}, '{{ fee.fraction_identifier|e('js') }}', '{{ (fee.period_display|default(fee.period_year))|e('js') }}', {{ fee.amount|number_format(2, '.', '') }});"
                             title="Eliminar Quota Extra">
                         <i class="bi bi-trash"></i> Eliminar
                     </button>
@@ -447,6 +435,17 @@
                         <!-- Step 3A: Annual Fees Configuration -->
                         <div class="step-content" id="step3_annual" style="display: none;">
                             <div class="mb-3">
+                                <label class="form-label">Período das quotas <span class="text-danger">*</span></label>
+                                <select class="form-select" id="period_type" name="period_type">
+                                    <option value="monthly">Mensal (12 quotas)</option>
+                                    <option value="bimonthly">Bimensal (6 quotas)</option>
+                                    <option value="quarterly">Trimestral (4 quotas)</option>
+                                    <option value="semiannual">Semestral (2 quotas)</option>
+                                    <option value="annual">Anual (1 quota)</option>
+                                </select>
+                                <small class="text-muted">O valor anual será dividido conforme o período escolhido</small>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label">Método de Geração <span class="text-danger">*</span></label>
                                 <div class="form-check mb-2">
                                     <input class="form-check-input" type="radio" name="annual_type_radio" id="annual_type_budget" value="budget">
@@ -525,7 +524,7 @@
                                                 </tbody>
                                             </table>
                                         </div>
-                                        <small class="text-muted">Defina o valor anual para cada fração. Este valor será dividido pelos 12 meses.</small>
+                                        <small class="text-muted">Defina o valor anual para cada fração. O valor será dividido conforme o período selecionado.</small>
                                     </div>
                                 </div>
                             </div>
@@ -1901,7 +1900,7 @@ document.getElementById('payment_amount')?.addEventListener('input', function() 
 let currentDeleteFeeId = null;
 let currentDeleteFeeRow = null;
 
-function showDeleteFeeModal(feeId, fractionIdentifier, month, year, amount) {
+function showDeleteFeeModal(feeId, fractionIdentifier, periodDisplay, amount) {
     currentDeleteFeeId = feeId;
     
     // Find the row element using ID (more reliable)
@@ -1928,13 +1927,9 @@ function showDeleteFeeModal(feeId, fractionIdentifier, month, year, amount) {
     }
     
     // Set modal content
-    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
-                        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-    const monthName = monthNames[month - 1] || month;
-    
     document.getElementById('deleteFeeDetails').innerHTML = `
         <div><strong>Fração:</strong> ${fractionIdentifier}</div>
-        <div><strong>Período:</strong> ${monthName}/${year}</div>
+        <div><strong>Período:</strong> ${periodDisplay}</div>
         <div><strong>Valor:</strong> €${parseFloat(amount).toFixed(2).replace('.', ',')}</div>
     `;
     

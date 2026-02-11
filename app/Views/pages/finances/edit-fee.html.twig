@@ -31,7 +31,7 @@
                         <div class="mb-3">
                             <label class="form-label">Período</label>
                             <input type="text" class="form-control" 
-                                   value="{% if fee.period_month %}{{ fee.period_month }}/{{ fee.period_year }}{% else %}{{ fee.period_year }}{% endif %}" 
+                                   value="{{ fee.period_display|default(fee.period_year) }}" 
                                    disabled>
                         </div>
 

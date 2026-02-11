@@ -170,9 +170,11 @@ function showFeeDetails(feeId) {
             }
 
             const dueDate = data.fee && data.fee.due_date ? new Date(data.fee.due_date).toLocaleDateString('pt-PT') : '-';
-            const period = data.fee && data.fee.period_month ?
-                `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][data.fee.period_month - 1]}/${data.fee.period_year}` :
-                (data.fee ? data.fee.period_year : '-');
+            const period = data.fee && data.fee.period_display ?
+                data.fee.period_display :
+                (data.fee && data.fee.period_month ?
+                    `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][data.fee.period_month - 1]}/${data.fee.period_year}` :
+                    (data.fee ? data.fee.period_year : '-'));
 
             // Show/hide "Registrar Pagamento" button (only when admin, pending > 0, and payment modal exists)
             const btnRegister = document.getElementById('btnRegisterPaymentFromDetails');

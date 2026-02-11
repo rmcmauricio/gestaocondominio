@@ -50,13 +50,7 @@
                                 {% for debt in historical_debts %}
                                 <tr>
                                     <td><strong>{{ debt.fraction_identifier }}</strong></td>
-                                    <td>
-                                        {% if debt.period_month %}
-                                            {{ debt.period_month }}/{{ debt.period_year }}
-                                        {% else %}
-                                            {{ debt.period_year }}
-                                        {% endif %}
-                                    </td>
+                                    <td>{{ debt.period_display|default(debt.period_year) }}</td>
                                     <td><strong>€{{ debt.amount|number_format(2, ',', '.') }}</strong></td>
                                     <td>{{ debt.due_date|date('d/m/Y') }}</td>
                                     <td>

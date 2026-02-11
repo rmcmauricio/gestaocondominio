@@ -63,9 +63,12 @@ try {
             f.fraction_id,
             f.period_year,
             f.period_month,
+            f.period_index,
+            f.period_type,
+            f.fee_type,
+            f.reference,
             f.amount,
             f.due_date,
-            f.reference,
             fr.identifier as fraction_identifier,
             c.name as condominium_name,
             cu.user_id,
@@ -98,7 +101,7 @@ try {
     ";
     
     $stmt = $db->prepare($sql);
-    $stmt->execute([':cutoff_date' => $cutoffDate]);
+    $stmt->execute([]);
     $overdueFees = $stmt->fetchAll() ?: [];
     
     if (empty($overdueFees)) {

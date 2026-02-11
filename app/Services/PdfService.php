@@ -1123,17 +1123,7 @@ class PdfService
         $templatePath = $this->getTemplatePath($templateId, 'receipt');
         $template = file_get_contents($templatePath);
 
-        $period = '';
-        if ($fee['period_month']) {
-            $months = [
-                1 => 'Janeiro', 2 => 'Fevereiro', 3 => 'Março', 4 => 'Abril',
-                5 => 'Maio', 6 => 'Junho', 7 => 'Julho', 8 => 'Agosto',
-                9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro'
-            ];
-            $period = $months[$fee['period_month']] . '/' . $fee['period_year'];
-        } else {
-            $period = $fee['period_year'];
-        }
+        $period = \App\Models\Fee::formatPeriodForDisplay($fee);
 
         $amount = '€' . number_format((float)$fee['amount'], 2, ',', '.');
         $receiptTypeLabel = 'Recibo de Quota';

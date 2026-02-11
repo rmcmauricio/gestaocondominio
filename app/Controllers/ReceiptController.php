@@ -58,6 +58,13 @@ class ReceiptController extends Controller
         $filters['receipt_type'] = 'final';
 
         $receipts = $this->receiptModel->getByCondominium($condominiumId, $filters);
+        foreach ($receipts as &$r) {
+            $feeData = ['period_year' => $r['period_year'] ?? null, 'period_month' => $r['period_month'] ?? null,
+                'period_index' => $r['period_index'] ?? null, 'period_type' => $r['period_type'] ?? 'monthly',
+                'fee_type' => $r['fee_type'] ?? 'regular', 'reference' => $r['fee_reference'] ?? $r['reference'] ?? ''];
+            $r['period_display'] = \App\Models\Fee::formatPeriodForDisplay($feeData);
+        }
+        unset($r);
 
         // Get fractions for filter
         $fractionModel = new Fraction();
@@ -119,6 +126,13 @@ class ReceiptController extends Controller
         $filters['receipt_type'] = 'final';
 
         $receipts = $this->receiptModel->getByUser($userId, $filters);
+        foreach ($receipts as &$r) {
+            $feeData = ['period_year' => $r['period_year'] ?? null, 'period_month' => $r['period_month'] ?? null,
+                'period_index' => $r['period_index'] ?? null, 'period_type' => $r['period_type'] ?? 'monthly',
+                'fee_type' => $r['fee_type'] ?? 'regular', 'reference' => $r['fee_reference'] ?? $r['reference'] ?? ''];
+            $r['period_display'] = \App\Models\Fee::formatPeriodForDisplay($feeData);
+        }
+        unset($r);
 
         // Get condominiums for filter - get all user condominiums, not just from receipts
         $condominiumUserModel = new CondominiumUser();

@@ -459,15 +459,19 @@ class CondominiumController extends Controller
         // Get fractions for the condominium
         $fractions = $fractionModel->getByCondominiumId($id);
         
-        // Get fees map for selected year
-        $feesMap = $feeModel->getFeesMapByYear($id, $selectedYear);
-        
-        // Month names in Portuguese
         $monthNames = [
             1 => 'Janeiro', 2 => 'Fevereiro', 3 => 'Março', 4 => 'Abril',
             5 => 'Maio', 6 => 'Junho', 7 => 'Julho', 8 => 'Agosto',
             9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro'
         ];
+
+        $condoFeePeriod = new \App\Models\CondominiumFeePeriod();
+        $feePeriodType = $condoFeePeriod->get($id, $selectedYear);
+        if ($feePeriodType === null) {
+            $feePeriodType = $this->inferFeePeriodTypeForCondominium($id, $selectedYear);
+        }
+        $feePeriodLabels = $this->buildFeePeriodLabelsForCondominium($feePeriodType, $monthNames);
+        $feesMap = $feeModel->getFeesMapByYear($id, $selectedYear, null, $feePeriodType);
 
         $this->loadPageTranslations('condominiums');
         
@@ -488,6 +492,8 @@ class CondominiumController extends Controller
             'fractions' => $fractions,
             'available_years' => $availableYears,
             'selected_fees_year' => $selectedYear,
+            'fee_period_type' => $feePeriodType,
+            'fee_period_labels' => $feePeriodLabels,
             'fees_map_form_action' => BASE_URL . 'condominiums/' . $id,
             'month_names' => $monthNames,
             'error' => $error,
@@ -501,6 +507,44 @@ class CondominiumController extends Controller
         $this->data = $this->mergeGlobalData($this->data);
 
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    private function inferFeePeriodTypeForCondominium(int $condominiumId, int $year): string
+    {
+        global $db;
+        if (!$db) return 'monthly';
+        $stmt = $db->prepare("
+            SELECT COUNT(DISTINCT COALESCE(period_index, period_month)) as c
+            FROM fees WHERE condominium_id = ? AND period_year = ?
+            AND (fee_type = 'regular' OR fee_type IS NULL) AND COALESCE(is_historical, 0) = 0
+        ");
+        $stmt->execute([$condominiumId, $year]);
+        $r = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $count = $r ? (int)$r['c'] : 0;
+        if ($count <= 0 || $count >= 12) return 'monthly';
+        if ($count === 6) return 'bimonthly';
+        if ($count === 4) return 'quarterly';
+        if ($count === 2) return 'semiannual';
+        if ($count === 1) return 'annual';
+        return 'monthly';
+    }
+
+    private function buildFeePeriodLabelsForCondominium(?string $periodType, array $monthNames): array
+    {
+        $periodType = $periodType ?? 'monthly';
+        switch ($periodType) {
+            case 'bimonthly':
+                return [1 => 'Jan-Fev', 2 => 'Mar-Abr', 3 => 'Mai-Jun', 4 => 'Jul-Ago', 5 => 'Set-Out', 6 => 'Nov-Dez'];
+            case 'quarterly':
+                return [1 => 'Q1', 2 => 'Q2', 3 => 'Q3', 4 => 'Q4'];
+            case 'semiannual':
+                return [1 => '1º Sem', 2 => '2º Sem'];
+            case 'annual':
+            case 'yearly':
+                return [1 => 'Anual'];
+            default:
+                return array_map(fn($m) => mb_substr($m, 0, 3), $monthNames);
+        }
     }
 
     public function edit(int $id)

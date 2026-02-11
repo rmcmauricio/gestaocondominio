@@ -33,7 +33,7 @@ class Receipt extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT r.*, f.period_year, f.period_month, fr.identifier as fraction_identifier
+            SELECT r.*, f.period_year, f.period_month, f.period_index, f.period_type, f.fee_type, f.reference as fee_reference, fr.identifier as fraction_identifier
             FROM {$this->table} r
             LEFT JOIN fees f ON f.id = r.fee_id
             LEFT JOIN fractions fr ON fr.id = r.fraction_id
@@ -54,7 +54,7 @@ class Receipt extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT r.*, f.period_year, f.period_month, fr.identifier as fraction_identifier
+            SELECT r.*, f.period_year, f.period_month, f.period_index, f.period_type, f.fee_type, f.reference as fee_reference, fr.identifier as fraction_identifier
             FROM {$this->table} r
             LEFT JOIN fees f ON f.id = r.fee_id
             LEFT JOIN fractions fr ON fr.id = r.fraction_id
@@ -75,7 +75,7 @@ class Receipt extends Model
         }
 
         $sql = "
-            SELECT r.*, f.period_year, f.period_month, fr.identifier as fraction_identifier
+            SELECT r.*, f.period_year, f.period_month, f.period_index, f.period_type, f.fee_type, f.reference as fee_reference, fr.identifier as fraction_identifier
             FROM {$this->table} r
             LEFT JOIN fees f ON f.id = r.fee_id
             LEFT JOIN fractions fr ON fr.id = r.fraction_id
@@ -115,7 +115,7 @@ class Receipt extends Model
         }
 
         $sql = "
-            SELECT r.*, f.period_year, f.period_month, fr.identifier as fraction_identifier, c.name as condominium_name
+            SELECT r.*, f.period_year, f.period_month, f.period_index, f.period_type, f.fee_type, f.reference as fee_reference, fr.identifier as fraction_identifier, c.name as condominium_name
             FROM {$this->table} r
             LEFT JOIN fees f ON f.id = r.fee_id
             LEFT JOIN fractions fr ON fr.id = r.fraction_id

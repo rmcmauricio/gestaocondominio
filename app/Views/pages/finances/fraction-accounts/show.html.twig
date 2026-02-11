@@ -63,11 +63,7 @@
                         {% for q in fees_em_falta %}
                         <tr>
                             <td>
-                                {% if q.fee_type == 'extra' %}
-                                Quota extra: {{ q.reference|default('-') }}
-                                {% else %}
-                                Quota {{ q.period_month ? ("%02d"|format(q.period_month)) ~ '/' ~ q.period_year : q.period_year }}
-                                {% endif %}
+                                {{ q.period_display|default(q.period_year) }}
                             </td>
                             <td>{{ q.due_date ? (q.due_date|date('d/m/Y')) : '—' }}</td>
                             <td class="text-end">€{{ (q.amount|default(0))|number_format(2, ',', '.') }}</td>

@@ -2,13 +2,15 @@
 /**
  * Automatic Fee Generation CLI
  * 
- * Generates monthly fees for all condominiums with approved budgets.
- * Can be run via cron job monthly.
+ * Generates fees for all condominiums with approved budgets.
+ * Can be run via cron job (monthly for monthly period, or annually for other periods).
  * 
- * Usage: php cli/generate-fees.php [year] [month]
+ * Usage: php cli/generate-fees.php [year] [month] [--period-type=TYPE]
  * Example: php cli/generate-fees.php 2024 12
+ * Example: php cli/generate-fees.php 2025 --period-type=quarterly
  * 
- * If no parameters provided, uses current year/month
+ * Period types: monthly (default), bimonthly, quarterly, semiannual, annual
+ * For monthly: generates fees for the given month. For other types: generates full year.
  */
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -21,11 +23,26 @@ use App\Models\Budget;
 // Set timezone
 date_default_timezone_set('Europe/Lisbon');
 
-// Get year and month from arguments or use current
-$year = isset($argv[1]) ? (int)$argv[1] : (int)date('Y');
-$month = isset($argv[2]) ? (int)$argv[2] : (int)date('m');
+// Parse --period-type from argv
+$periodType = 'monthly';
+foreach ($argv as $arg) {
+    if (strpos($arg, '--period-type=') === 0) {
+        $periodType = trim(strtolower(substr($arg, strlen('--period-type='))));
+        break;
+    }
+}
+$validPeriods = ['monthly', 'bimonthly', 'quarterly', 'semiannual', 'annual'];
+if (!in_array($periodType, $validPeriods)) {
+    echo "Error: Invalid period-type. Use: " . implode(', ', $validPeriods) . "\n";
+    exit(1);
+}
 
-// Validate month
+// Get year and month from positional arguments (skip --period-type)
+$posArgs = array_values(array_filter($argv, fn($a) => strpos($a, '--') !== 0));
+$year = isset($posArgs[1]) ? (int)$posArgs[1] : (int)date('Y');
+$month = isset($posArgs[2]) ? (int)$posArgs[2] : (int)date('m');
+
+// Validate month (only used for monthly)
 if ($month < 1 || $month > 12) {
     echo "Error: Invalid month. Must be between 1 and 12.\n";
     exit(1);
@@ -40,7 +57,11 @@ if ($year < 2020 || $year > 2100) {
 echo "========================================\n";
 echo "Automatic Fee Generation\n";
 echo "========================================\n";
-echo "Period: {$year}/" . str_pad($month, 2, '0', STR_PAD_LEFT) . "\n";
+echo "Period type: {$periodType}\n";
+echo "Year: {$year}\n";
+if ($periodType === 'monthly') {
+    echo "Month: " . str_pad($month, 2, '0', STR_PAD_LEFT) . "\n";
+}
 echo "Started at: " . date('Y-m-d H:i:s') . "\n";
 echo "========================================\n\n";
 
@@ -95,7 +116,19 @@ try {
             }
             
             // Generate fees
-            $generated = $feeService->generateMonthlyFees($condominiumId, $year, $month);
+            if ($periodType === 'monthly') {
+                $generated = $feeService->generateMonthlyFees($condominiumId, $year, $month);
+            } else {
+                try {
+                    $generated = $feeService->generateAnnualFeesFromBudget($condominiumId, $year, $periodType);
+                } catch (\Exception $e) {
+                    if (strpos($e->getMessage(), 'já foram geradas') !== false) {
+                        $generated = [];
+                    } else {
+                        throw $e;
+                    }
+                }
+            }
             
             if (empty($generated)) {
                 echo "  ℹ No fees generated (may already exist)\n";
