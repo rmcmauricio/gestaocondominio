@@ -509,8 +509,12 @@ $router->get('/admin/condominiums/confirm-delete', 'App\Controllers\SuperAdminCo
 $router->get('/admin/condominiums/restore', 'App\Controllers\SuperAdminController@restoreCondominiumForm');
 $router->post('/admin/condominiums/restore', 'App\Controllers\SuperAdminController@restoreCondominium');
 $router->get('/admin/condominiums/{id}/backup', 'App\Controllers\SuperAdminController@backupCondominium');
+$router->post('/admin/condominiums/{id}/create-backup', 'App\Controllers\SuperAdminController@createBackupCondominium');
+$router->get('/admin/condominiums/backup-download', 'App\Controllers\SuperAdminController@downloadBackupFile');
+$router->get('/admin/condominiums/{id}/restore', 'App\Controllers\SuperAdminController@restoreCondominiumBackupsList');
 $router->get('/admin/condominiums/{id}/stats', 'App\Controllers\SuperAdminController@condominiumStats');
 $router->post('/admin/condominiums/{id}/request-delete', 'App\Controllers\SuperAdminController@requestCondominiumDelete');
+$router->post('/admin/condominiums/backup-delete', 'App\Controllers\SuperAdminController@deleteBackupFile');
 $router->get('/admin/payments', 'App\Controllers\SuperAdminController@payments');
 
 // Planos
