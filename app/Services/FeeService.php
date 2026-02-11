@@ -275,8 +275,8 @@ class FeeService
             throw new \Exception("O orçamento deve estar aprovado para gerar quotas automaticamente. Status atual: {$budget['status']}");
         }
         
-        // Check if annual fees have already been generated
-        if ($this->budgetModel->hasAnnualFeesGenerated($budget['id'])) {
+        // Check if annual fees have already been generated (use actual fee data as source of truth)
+        if ($this->feeModel->hasAnnualFeesForYear($condominiumId, $year)) {
             throw new \Exception("As quotas anuais já foram geradas automaticamente para este ano. Não é possível gerar novamente.");
         }
         

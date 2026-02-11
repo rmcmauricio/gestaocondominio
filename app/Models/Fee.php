@@ -120,6 +120,35 @@ class Fee extends Model
     }
 
     /**
+     * Check if annual (regular) fees have been generated for all 12 months for this condominium and year.
+     * Uses actual fee data as source of truth - more reliable than the budget flag which can get out of sync.
+     */
+    public function hasAnnualFeesForYear(int $condominiumId, int $year): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT COUNT(DISTINCT period_month) as month_count
+            FROM fees
+            WHERE condominium_id = :condominium_id
+            AND period_year = :year
+            AND period_month BETWEEN 1 AND 12
+            AND (fee_type = 'regular' OR fee_type IS NULL)
+            AND COALESCE(is_historical, 0) = 0
+        ");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':year' => $year
+        ]);
+        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $monthCount = (int)($result['month_count'] ?? 0);
+
+        return $monthCount >= 12;
+    }
+
+    /**
      * Mark fee as paid
      */
     public function markAsPaid(int $id): bool

@@ -172,6 +172,7 @@
                                     <input type="hidden" name="quota_liquidation_{{ loop.index0 }}" id="quota_liquidation_{{ loop.index0 }}" value="0">
                                     <input type="hidden" name="quota_fraction_{{ loop.index0 }}" id="quota_fraction_{{ loop.index0 }}" value="">
                                     <input type="hidden" name="quota_selected_{{ loop.index0 }}" id="quota_selected_{{ loop.index0 }}" value="">
+                                    <input type="hidden" name="quota_remaining_destination_{{ loop.index0 }}" id="quota_remaining_destination_{{ loop.index0 }}" value="oldest">
                                 </td>
                                 <td style="text-align: center; width: 30px; padding: 0.3rem 0.25rem !important;">
                                     {% if row._has_duplicates %}
@@ -300,8 +301,23 @@
                     <div class="quota-summary-modal mt-2" style="display: none;">
                         <small class="text-muted">
                             <span class="quota-selected-total-modal">0.00</span> € selecionado | 
-                            Restante: <span class="quota-remaining-modal">0.00</span> € será aplicado às mais antigas
+                            Restante: <span class="quota-remaining-modal">0.00</span> € <span class="quota-remaining-dest-text">será aplicado às mais antigas</span>
                         </small>
+                    </div>
+                    <div id="modal_remaining_destination_section" class="mt-2" style="display: none;">
+                        <label class="form-label"><strong>Destino do valor restante:</strong></label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="modal_remaining_destination" id="modal_remaining_oldest" value="oldest" checked>
+                            <label class="form-check-label" for="modal_remaining_oldest">Aplicar às quotas mais antigas (registadas no sistema)</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="modal_remaining_destination" id="modal_remaining_unregistered" value="unregistered">
+                            <label class="form-check-label" for="modal_remaining_unregistered">Referente a quotas antigas não registadas no sistema</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="modal_remaining_destination" id="modal_remaining_balance" value="balance">
+                            <label class="form-check-label" for="modal_remaining_balance">Fica em saldo na fração</label>
+                        </div>
                     </div>
                 </div>
                 </div>
@@ -952,6 +968,12 @@ if (document.readyState === 'loading') {
 function initQuotaModal() {
     const modalElement = document.getElementById('quotaLiquidationModal');
     if (modalElement) {
+        if (!modalElement.dataset.remainingDestListeners) {
+            modalElement.dataset.remainingDestListeners = '1';
+            document.querySelectorAll('input[name="modal_remaining_destination"]').forEach(r => {
+                r.addEventListener('change', updateRemainingDestText);
+            });
+        }
         if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
             quotaModal = new bootstrap.Modal(modalElement);
             
@@ -963,6 +985,8 @@ function initQuotaModal() {
                 const list = document.getElementById('modal_quota_list');
                 const checkboxesDiv = document.querySelector('.quota-checkboxes-modal');
                 const summaryDiv = document.querySelector('.quota-summary-modal');
+                const remainingDestSection = document.getElementById('modal_remaining_destination_section');
+                const oldestRadio = document.getElementById('modal_remaining_oldest');
                 
                 if (checkbox) checkbox.checked = false;
                 if (config) config.style.display = 'none';
@@ -970,7 +994,14 @@ function initQuotaModal() {
                 if (list) list.style.display = 'none';
                 if (checkboxesDiv) checkboxesDiv.innerHTML = '';
                 if (summaryDiv) summaryDiv.style.display = 'none';
+                if (remainingDestSection) remainingDestSection.style.display = 'none';
+                if (oldestRadio) oldestRadio.checked = true;
                 currentQuotaIndex = null;
+                const saveBtn = document.getElementById('saveQuotaLiquidation');
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = 'Guardar';
+                }
             });
         }
     }
@@ -1035,6 +1066,7 @@ document.addEventListener('click', function(e) {
         const savedLiquidation = document.getElementById('quota_liquidation_' + currentQuotaIndex).value === '1';
         const savedFraction = document.getElementById('quota_fraction_' + currentQuotaIndex).value;
         const savedSelected = document.getElementById('quota_selected_' + currentQuotaIndex).value;
+        const savedRemainingDest = document.getElementById('quota_remaining_destination_' + currentQuotaIndex)?.value || 'oldest';
         
         // Reset modal
         const modalCheckbox = document.getElementById('modal_quota_liquidation_checkbox');
@@ -1057,6 +1089,11 @@ document.addEventListener('click', function(e) {
             modalFraction.value = savedFraction;
             loadQuotasForModal(savedFraction, currentQuotaIndex, transactionAmount, savedSelected);
         }
+        
+        // Restore remaining_destination
+        document.querySelectorAll('input[name="modal_remaining_destination"]').forEach(r => {
+            r.checked = (r.value === savedRemainingDest);
+        });
         
         // Show modal
         const modalElement = document.getElementById('quotaLiquidationModal');
@@ -1169,28 +1206,45 @@ function loadQuotasForModal(fractionId, index, transactionAmount, savedSelected 
 }
 
 function updateQuotaSummaryModal(transactionAmount) {
+    const selectedFees = [];
     let selectedTotal = 0;
     document.querySelectorAll('.quota-fee-checkbox-modal:checked').forEach(checkbox => {
         selectedTotal += parseFloat(checkbox.dataset.pending || 0);
+        selectedFees.push(checkbox);
     });
     
     const remaining = Math.max(0, transactionAmount - selectedTotal);
     const selectedTotalSpan = document.querySelector('.quota-selected-total-modal');
     const remainingSpan = document.querySelector('.quota-remaining-modal');
     const summaryDiv = document.querySelector('.quota-summary-modal');
+    const remainingDestSection = document.getElementById('modal_remaining_destination_section');
     
     if (selectedTotalSpan) selectedTotalSpan.textContent = selectedTotal.toFixed(2);
     if (remainingSpan) remainingSpan.textContent = remaining.toFixed(2);
     
     if (summaryDiv && transactionAmount > 0) {
         summaryDiv.style.display = 'block';
+        if (remainingDestSection) {
+            remainingDestSection.style.display = (selectedFees.length > 0 && remaining > 0) ? 'block' : 'none';
+        }
+        updateRemainingDestText();
     }
+}
+
+function updateRemainingDestText() {
+    const destRadio = document.querySelector('input[name="modal_remaining_destination"]:checked');
+    const destTextSpan = document.querySelector('.quota-remaining-dest-text');
+    if (!destTextSpan) return;
+    const dest = destRadio ? destRadio.value : 'oldest';
+    const texts = { oldest: 'será aplicado às mais antigas', unregistered: 'para quotas antigas não registadas', balance: 'fica em saldo' };
+    destTextSpan.textContent = texts[dest] || texts.oldest;
 }
 
 // Save quota liquidation configuration
 document.getElementById('saveQuotaLiquidation').addEventListener('click', function() {
     if (!currentQuotaIndex) return;
     
+    const saveBtn = document.getElementById('saveQuotaLiquidation');
     const isLiquidation = document.getElementById('modal_quota_liquidation_checkbox').checked;
     
     if (isLiquidation) {
@@ -1200,6 +1254,10 @@ document.getElementById('saveQuotaLiquidation').addEventListener('click', functi
             return;
         }
         
+        // Disable button and show spinner to prevent double-click
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>A guardar...';
+        
         // Get selected fee IDs
         const selectedFees = [];
         document.querySelectorAll('.quota-fee-checkbox-modal:checked').forEach(cb => {
@@ -1207,9 +1265,13 @@ document.getElementById('saveQuotaLiquidation').addEventListener('click', functi
         });
         
         // Save to hidden inputs
+        const remainingDestRadio = document.querySelector('input[name="modal_remaining_destination"]:checked');
+        const remainingDest = remainingDestRadio ? remainingDestRadio.value : 'oldest';
+        
         document.getElementById('quota_liquidation_' + currentQuotaIndex).value = '1';
         document.getElementById('quota_fraction_' + currentQuotaIndex).value = fractionId;
         document.getElementById('quota_selected_' + currentQuotaIndex).value = selectedFees.join(',');
+        document.getElementById('quota_remaining_destination_' + currentQuotaIndex).value = remainingDest;
         
         // Update button style
         const btn = document.querySelector(`.quota-liquidation-btn[data-index="${currentQuotaIndex}"]`);
@@ -1222,6 +1284,7 @@ document.getElementById('saveQuotaLiquidation').addEventListener('click', functi
         document.getElementById('quota_liquidation_' + currentQuotaIndex).value = '0';
         document.getElementById('quota_fraction_' + currentQuotaIndex).value = '';
         document.getElementById('quota_selected_' + currentQuotaIndex).value = '';
+        document.getElementById('quota_remaining_destination_' + currentQuotaIndex).value = 'oldest';
         
         // Update button style
         const btn = document.querySelector(`.quota-liquidation-btn[data-index="${currentQuotaIndex}"]`);

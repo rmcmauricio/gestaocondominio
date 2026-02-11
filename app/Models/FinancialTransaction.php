@@ -310,7 +310,7 @@ class FinancialTransaction extends Model
         $fields = [];
         $params = [':id' => $id];
 
-        $allowedFields = ['bank_account_id', 'transaction_type', 'amount', 'transaction_date', 'description', 'category', 'reference'];
+        $allowedFields = ['bank_account_id', 'transaction_type', 'amount', 'transaction_date', 'description', 'category', 'reference', 'fraction_id', 'income_entry_type', 'related_type', 'related_id'];
         
         foreach ($allowedFields as $field) {
             if (isset($data[$field])) {

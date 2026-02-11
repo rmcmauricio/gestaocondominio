@@ -171,8 +171,10 @@
                             {% endif %}
                             <td style="text-align: center;">
                                 {% if is_admin %}
+                                    <button type="button" class="btn btn-sm btn-outline-secondary me-1 view-transaction-details" title="Ver detalhes" data-transaction-id="{{ transaction.id }}">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
                                     {% if transaction.related_type == 'fee_payment' %}
-                                    <span class="text-muted small">Associado</span>
                                     {% elseif transaction.related_type == 'transfer' %}
                                     <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar esta transferência? Ambas as transações serão eliminadas.');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -181,7 +183,7 @@
                                         </button>
                                     </form>
                                     {% else %}
-                                    <div class="d-flex gap-1 justify-content-center">
+                                    <div class="d-inline-flex gap-1">
                                         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/edit" class="btn btn-outline-primary btn-sm" title="Editar">
                                             <i class="bi bi-pencil"></i>
                                         </a>
@@ -194,11 +196,9 @@
                                     </div>
                                     {% endif %}
                                 {% else %}
-                                    {% if transaction.related_type == 'fee_payment' %}
-                                    <span class="text-muted small">Associado</span>
-                                    {% else %}
-                                    <span class="text-muted">-</span>
-                                    {% endif %}
+                                    <button type="button" class="btn btn-sm btn-outline-secondary view-transaction-details" title="Ver detalhes" data-transaction-id="{{ transaction.id }}">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
                                 {% endif %}
                             </td>
                         </tr>
@@ -278,9 +278,12 @@
                                 </div>
 
                                 {% if is_admin %}
-                                <div class="d-flex gap-2 pt-3 border-top">
+                                <div class="d-flex gap-2 pt-3 border-top flex-wrap align-items-center">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary view-transaction-details" data-transaction-id="{{ transaction.id }}">
+                                        <i class="bi bi-eye"></i> Ver detalhes
+                                    </button>
                                     {% if transaction.related_type == 'fee_payment' %}
-                                    <span class="text-muted small align-self-center">Movimento associado a pagamento de quota</span>
+                                    <span class="text-muted small align-self-center">Associado a pagamento de quota</span>
                                     {% elseif transaction.related_type == 'transfer' %}
                                     <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/delete" class="flex-fill" onsubmit="return confirm('Tem certeza que deseja eliminar esta transferência? Ambas as transações serão eliminadas.');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -299,6 +302,12 @@
                                         </button>
                                     </form>
                                     {% endif %}
+                                </div>
+                                {% else %}
+                                <div class="pt-3 border-top">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary view-transaction-details" data-transaction-id="{{ transaction.id }}">
+                                        <i class="bi bi-eye"></i> Ver detalhes
+                                    </button>
                                 </div>
                                 {% endif %}
                             </div>
@@ -640,8 +649,23 @@ body #financial-transactions-table-container #financial-transactions-table tbody
                         <div class="quota-summary-modal mt-2" style="display: none;">
                             <small class="text-muted">
                                 <span class="quota-selected-total-modal">0.00</span> € selecionado | 
-                                Restante: <span class="quota-remaining-modal">0.00</span> € será aplicado às mais antigas
+                                Restante: <span class="quota-remaining-modal">0.00</span> € <span class="quota-remaining-dest-text">será aplicado às mais antigas</span>
                             </small>
+                        </div>
+                        <div id="modal_remaining_destination_section" class="mt-2" style="display: none;">
+                            <label class="form-label"><strong>Destino do valor restante:</strong></label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="modal_remaining_destination" id="modal_remaining_oldest" value="oldest" checked>
+                                <label class="form-check-label" for="modal_remaining_oldest">Aplicar às quotas mais antigas (registadas no sistema)</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="modal_remaining_destination" id="modal_remaining_unregistered" value="unregistered">
+                                <label class="form-check-label" for="modal_remaining_unregistered">Referente a quotas antigas não registadas no sistema</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="modal_remaining_destination" id="modal_remaining_balance" value="balance">
+                                <label class="form-check-label" for="modal_remaining_balance">Fica em saldo na fração</label>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -649,6 +673,27 @@ body #financial-transactions-table-container #financial-transactions-table tbody
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="saveQuotaLiquidation">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Ver Detalhes do Movimento -->
+<div class="modal fade" id="transactionDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-receipt"></i> Detalhes do Movimento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="transactionDetailsContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">A carregar...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
             </div>
         </div>
     </div>
@@ -664,6 +709,13 @@ let currentTransactionAmount = 0;
 function initQuotaModal() {
     const modalElement = document.getElementById('quotaLiquidationModal');
     if (modalElement) {
+        // Listeners for remaining destination radios (only once)
+        if (!modalElement.dataset.remainingDestListeners) {
+            modalElement.dataset.remainingDestListeners = '1';
+            document.querySelectorAll('input[name="modal_remaining_destination"]').forEach(r => {
+                r.addEventListener('change', updateRemainingDestText);
+            });
+        }
         if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
             quotaModal = new bootstrap.Modal(modalElement);
             
@@ -677,6 +729,8 @@ function initQuotaModal() {
                 const summaryDiv = document.querySelector('.quota-summary-modal');
                 const balanceInfo = document.getElementById('modal_fraction_balance_info');
                 const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
+                const remainingDestSection = document.getElementById('modal_remaining_destination_section');
+                const oldestRadio = document.getElementById('modal_remaining_oldest');
                 
                 if (checkbox) checkbox.checked = false;
                 if (config) config.style.display = 'none';
@@ -686,6 +740,8 @@ function initQuotaModal() {
                 if (summaryDiv) summaryDiv.style.display = 'none';
                 if (balanceInfo) balanceInfo.style.display = 'none';
                 if (useBalanceCheckbox) useBalanceCheckbox.checked = false;
+                if (remainingDestSection) remainingDestSection.style.display = 'none';
+                if (oldestRadio) oldestRadio.checked = true;
                 currentTransactionId = null;
                 currentTransactionAmount = 0;
             });
@@ -699,6 +755,54 @@ if (document.readyState === 'loading') {
 } else {
     initQuotaModal();
 }
+
+// View transaction details
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.view-transaction-details');
+    if (btn) {
+        e.preventDefault();
+        const tid = btn.dataset.transactionId;
+        if (!tid) return;
+        const modalEl = document.getElementById('transactionDetailsModal');
+        const contentEl = document.getElementById('transactionDetailsContent');
+        if (!modalEl || !contentEl) return;
+        contentEl.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">A carregar...</p></div>';
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+        fetch(`{{ BASE_URL }}condominiums/${condominiumId}/financial-transactions/${tid}/info`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    contentEl.innerHTML = '<div class="alert alert-danger">' + data.error + '</div>';
+                    return;
+                }
+                const t = data.transaction;
+                const fees = data.liquidated_fees || [];
+                let html = '<div class="row g-3">';
+                html += '<div class="col-md-6"><strong>Data:</strong><br>' + (t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('pt-PT') : '-') + '</div>';
+                html += '<div class="col-md-6"><strong>Tipo:</strong><br>' + (t.transaction_type === 'income' ? '<span class="text-success">Entrada</span>' : '<span class="text-danger">Saída</span>') + '</div>';
+                html += '<div class="col-md-6"><strong>Conta:</strong><br>' + (t.account_name || '-') + '</div>';
+                html += '<div class="col-md-6"><strong>Valor:</strong><br><strong class="' + (t.transaction_type === 'income' ? 'text-success' : 'text-danger') + '">' + (t.transaction_type === 'income' ? '+' : '-') + '€' + parseFloat(t.amount).toFixed(2).replace('.', ',') + '</strong></div>';
+                if (t.fraction_identifier) html += '<div class="col-md-6"><strong>Fração:</strong><br>' + t.fraction_identifier + '</div>';
+                if (t.reference) html += '<div class="col-md-6"><strong>Referência:</strong><br><code>' + t.reference + '</code></div>';
+                if (t.category) html += '<div class="col-md-6"><strong>Categoria:</strong><br>' + t.category + '</div>';
+                if (t.transfer_to_account_name) html += '<div class="col-12"><strong>Transferência para:</strong><br>' + t.transfer_to_account_name + '</div>';
+                html += '<div class="col-12"><strong>Descrição:</strong><br>' + (t.description || '-') + '</div>';
+                if (fees.length > 0) {
+                    html += '<div class="col-12"><strong>Quotas associadas/liquidadas:</strong><ul class="list-group list-group-flush mt-1">';
+                    fees.forEach(f => {
+                        html += '<li class="list-group-item d-flex justify-content-between align-items-center">' + f.label + '<span class="badge bg-success">€' + f.amount.toFixed(2).replace('.', ',') + '</span></li>';
+                    });
+                    html += '</ul></div>';
+                }
+                html += '</div>';
+                contentEl.innerHTML = html;
+            })
+            .catch(err => {
+                contentEl.innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes: ' + err.message + '</div>';
+            });
+    }
+});
 
 // Handle quota liquidation button click - open modal
 document.addEventListener('click', function(e) {
@@ -727,8 +831,12 @@ document.addEventListener('click', function(e) {
         
         const checkboxesDiv = document.querySelector('.quota-checkboxes-modal');
         const summaryDiv = document.querySelector('.quota-summary-modal');
+        const remainingDestSection = document.getElementById('modal_remaining_destination_section');
+        const oldestRadio = document.getElementById('modal_remaining_oldest');
         if (checkboxesDiv) checkboxesDiv.innerHTML = '';
         if (summaryDiv) summaryDiv.style.display = 'none';
+        if (remainingDestSection) remainingDestSection.style.display = 'none';
+        if (oldestRadio) oldestRadio.checked = true;
         
         // Show modal
         const modalElement = document.getElementById('quotaLiquidationModal');
@@ -900,14 +1008,31 @@ function updateQuotaSummaryModal(transactionAmount) {
     const totalAvailable = transactionAmount + balanceAmount;
     const remaining = Math.max(0, totalAvailable - selectedTotal);
     const summaryDiv = document.querySelector('.quota-summary-modal');
+    const remainingDestSection = document.getElementById('modal_remaining_destination_section');
+    const destTextSpan = document.querySelector('.quota-remaining-dest-text');
     
     if (selectedFees.length > 0 || remaining > 0) {
         document.querySelector('.quota-selected-total-modal').textContent = selectedTotal.toFixed(2);
         document.querySelector('.quota-remaining-modal').textContent = remaining.toFixed(2);
         summaryDiv.style.display = 'block';
+        // Show remaining destination when there are selected quotas and remaining > 0
+        if (remainingDestSection) {
+            remainingDestSection.style.display = (selectedFees.length > 0 && remaining > 0) ? 'block' : 'none';
+        }
+        updateRemainingDestText();
     } else {
         summaryDiv.style.display = 'none';
+        if (remainingDestSection) remainingDestSection.style.display = 'none';
     }
+}
+
+function updateRemainingDestText() {
+    const destRadio = document.querySelector('input[name="modal_remaining_destination"]:checked');
+    const destTextSpan = document.querySelector('.quota-remaining-dest-text');
+    if (!destTextSpan) return;
+    const dest = destRadio ? destRadio.value : 'oldest';
+    const texts = { oldest: 'será aplicado às mais antigas', unregistered: 'para quotas antigas não registadas', balance: 'fica em saldo' };
+    destTextSpan.textContent = texts[dest] || texts.oldest;
 }
 
 function escapeHtml(text) {
@@ -920,6 +1045,7 @@ function escapeHtml(text) {
 document.getElementById('saveQuotaLiquidation').addEventListener('click', function() {
     if (!currentTransactionId) return;
     
+    const saveBtn = document.getElementById('saveQuotaLiquidation');
     const isLiquidation = document.getElementById('modal_quota_liquidation_checkbox').checked;
     
     if (!isLiquidation) {
@@ -932,6 +1058,10 @@ document.getElementById('saveQuotaLiquidation').addEventListener('click', functi
         alert('Por favor, selecione uma fração.');
         return;
     }
+    
+    // Disable button and show spinner to prevent double-click
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>A guardar...';
     
     // Get selected fee IDs
     const selectedFees = [];
@@ -973,6 +1103,14 @@ document.getElementById('saveQuotaLiquidation').addEventListener('click', functi
         useBalanceInput.value = '1';
         form.appendChild(useBalanceInput);
     }
+    
+    // Add remaining_destination (oldest, unregistered, balance)
+    const remainingDestRadio = document.querySelector('input[name="modal_remaining_destination"]:checked');
+    const remainingDestInput = document.createElement('input');
+    remainingDestInput.type = 'hidden';
+    remainingDestInput.name = 'remaining_destination';
+    remainingDestInput.value = remainingDestRadio ? remainingDestRadio.value : 'oldest';
+    form.appendChild(remainingDestInput);
     
     document.body.appendChild(form);
     form.submit();

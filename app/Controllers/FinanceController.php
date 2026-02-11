@@ -49,6 +49,50 @@ class FinanceController extends Controller
         $this->auditService = new AuditService();
     }
 
+    /**
+     * Build the fees page redirect URL preserving current filters (year, month, status, etc.).
+     * Uses POST params (redirect_*) from form if present, else HTTP_REFERER if it's the fees page.
+     */
+    private function buildFeesRedirectUrl(int $condominiumId): string
+    {
+        $baseUrl = BASE_URL . 'condominiums/' . $condominiumId . '/fees';
+        $params = [];
+
+        // Prefer explicit redirect params from form
+        if (!empty($_POST['redirect_year'])) {
+            $params['year'] = $_POST['redirect_year'];
+        }
+        if (!empty($_POST['redirect_month'])) {
+            $params['month'] = $_POST['redirect_month'];
+        }
+        if (!empty($_POST['redirect_status'])) {
+            $params['status'] = $_POST['redirect_status'];
+        }
+        if (!empty($_POST['redirect_fraction_id'])) {
+            $params['fraction_id'] = $_POST['redirect_fraction_id'];
+        }
+        if (!empty($_POST['redirect_show_historical']) && $_POST['redirect_show_historical'] === '1') {
+            $params['show_historical'] = '1';
+        }
+        if (!empty($_POST['redirect_fees_year'])) {
+            $params['fees_year'] = $_POST['redirect_fees_year'];
+        }
+
+        if (!empty($params)) {
+            return $baseUrl . '?' . http_build_query($params);
+        }
+
+        // Fallback: use Referer if it's our fees page for this condominium
+        $referer = $_SERVER['HTTP_REFERER'] ?? '';
+        if ($referer && strpos($referer, 'condominiums/' . $condominiumId . '/fees') !== false) {
+            $parsed = parse_url($referer);
+            $query = $parsed['query'] ?? '';
+            return $baseUrl . ($query ? '?' . $query : '');
+        }
+
+        return $baseUrl;
+    }
+
     public function index(int $condominiumId)
     {
         AuthMiddleware::require();
@@ -734,7 +778,7 @@ class FinanceController extends Controller
                 }
             }
             
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         } catch (\Exception $e) {
             $errorMessage = 'Erro ao gerar quotas: ' . $e->getMessage();
@@ -747,7 +791,7 @@ class FinanceController extends Controller
                 $_SESSION['error'] = $errorMessage;
             }
             
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
     }
@@ -775,20 +819,22 @@ class FinanceController extends Controller
 
         try {
             $budget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $year);
-            
+            $annualFeesGenerated = $this->feeModel->hasAnnualFeesForYear($condominiumId, $year);
+
             if (!$budget) {
                 echo json_encode([
                     'exists' => false,
                     'approved' => false,
-                    'annual_fees_generated' => false,
+                    'annual_fees_generated' => $annualFeesGenerated,
                     'status' => null,
-                    'message' => 'Orçamento não encontrado para este ano.'
+                    'message' => $annualFeesGenerated
+                        ? 'As quotas anuais já foram geradas para este ano.'
+                        : 'Orçamento não encontrado para este ano.'
                 ]);
                 exit;
             }
 
             $isApproved = in_array($budget['status'], ['approved', 'active']);
-            $annualFeesGenerated = $this->budgetModel->hasAnnualFeesGenerated($budget['id']);
 
             echo json_encode([
                 'exists' => true,
@@ -820,21 +866,21 @@ class FinanceController extends Controller
         RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
             $_SESSION['error'] = 'Token de segurança inválido.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         $fee = $this->feeModel->findById($feeId);
         if (!$fee || $fee['condominium_id'] != $condominiumId) {
             $_SESSION['error'] = 'Quota não encontrada.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -846,7 +892,7 @@ class FinanceController extends Controller
 
         if ($amount <= 0 || empty($paymentMethod)) {
             $_SESSION['error'] = 'Por favor, preencha todos os campos obrigatórios.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -856,7 +902,7 @@ class FinanceController extends Controller
 
         if ($amount > $remainingAmount) {
             $_SESSION['error'] = 'O valor do pagamento não pode ser superior ao valor pendente (€' . number_format($remainingAmount, 2, ',', '.') . ').';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -999,7 +1045,7 @@ class FinanceController extends Controller
             $_SESSION['error'] = 'Erro ao registar pagamento: ' . $e->getMessage();
         }
 
-        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+        header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
         exit;
     }
 
@@ -1382,6 +1428,10 @@ class FinanceController extends Controller
         $selectedFraction = !empty($_GET['fraction_id']) ? (int)$_GET['fraction_id'] : null;
         // Check if show_historical is set and equals '1' (can be from checkbox or URL parameter)
         $showHistorical = !empty($_GET['show_historical']) && $_GET['show_historical'] == '1';
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $perPage = (int)($_GET['per_page'] ?? 25);
+        if ($perPage < 10) $perPage = 10;
+        if ($perPage > 100) $perPage = 100;
 
         // Get user fractions for this condominium (for non-admin users)
         $userId = AuthMiddleware::userId();
@@ -1512,18 +1562,23 @@ class FinanceController extends Controller
 
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
-        $fees = $stmt->fetchAll() ?: [];
+        $allFees = $stmt->fetchAll() ?: [];
         
         // Remove duplicates by ID (in case DISTINCT doesn't work due to subquery)
         $uniqueFees = [];
         $seenIds = [];
-        foreach ($fees as $fee) {
+        foreach ($allFees as $fee) {
             if (!in_array($fee['id'], $seenIds)) {
                 $uniqueFees[] = $fee;
                 $seenIds[] = $fee['id'];
             }
         }
-        $fees = $uniqueFees;
+        $allFees = $uniqueFees;
+        $totalCount = count($allFees);
+        $totalPages = $totalCount > 0 ? (int)ceil($totalCount / $perPage) : 1;
+        $page = min($page, max(1, $totalPages));
+        $offset = ($page - 1) * $perPage;
+        $fees = array_slice($allFees, $offset, $perPage);
 
         // Calculate actual status based on payments
         foreach ($fees as &$fee) {
@@ -1554,7 +1609,7 @@ class FinanceController extends Controller
         }
         unset($fee);
 
-        // Calculate summary
+        // Calculate summary (from all matching fees, not just current page)
         $summary = [
             'total' => 0,
             'paid' => 0,
@@ -1563,18 +1618,19 @@ class FinanceController extends Controller
             'partial' => 0
         ];
 
-        foreach ($fees as $fee) {
+        foreach ($allFees as $fee) {
             $totalAmount = (float)$fee['amount'];
             $paidAmount = (float)$fee['paid_amount'];
             $pendingAmount = (float)$fee['pending_amount'];
+            $status = ($paidAmount >= $totalAmount) ? 'paid' : (($pendingAmount > 0 && strtotime($fee['due_date']) < time()) ? 'overdue' : (($paidAmount > 0) ? 'partial' : 'pending'));
 
             $summary['total'] += $totalAmount;
             $summary['paid'] += $paidAmount;
             $summary['pending'] += $pendingAmount;
 
-            if ($fee['calculated_status'] === 'overdue') {
+            if ($status === 'overdue') {
                 $summary['overdue'] += $pendingAmount;
-            } elseif ($fee['calculated_status'] === 'partial') {
+            } elseif ($status === 'partial') {
                 $summary['partial'] += $pendingAmount;
             }
         }
@@ -1634,12 +1690,31 @@ class FinanceController extends Controller
         $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
         $isAdmin = ($userRole === 'admin');
         
+        // Build base query for pagination links (preserve filters)
+        $queryParams = [];
+        if (array_key_exists('year', $_GET)) $queryParams[] = 'year=' . urlencode((string)($_GET['year'] ?? ''));
+        if (!empty($_GET['month'])) $queryParams[] = 'month=' . (int)$_GET['month'];
+        if (!empty($_GET['status'])) $queryParams[] = 'status=' . urlencode($_GET['status']);
+        if (!empty($_GET['fraction_id'])) $queryParams[] = 'fraction_id=' . (int)$_GET['fraction_id'];
+        if (!empty($_GET['show_historical'])) $queryParams[] = 'show_historical=1';
+        $queryParams[] = 'per_page=' . $perPage;
+        $baseQuery = implode('&', $queryParams);
+
         $this->data += [
             'viewName' => 'pages/finances/fees.html.twig',
             'page' => ['titulo' => 'Quotas'],
             'condominium' => $condominium,
             'fees' => $fees,
             'summary' => $summary,
+            'pagination' => [
+                'current_page' => $page,
+                'total_pages' => $totalPages,
+                'total_count' => $totalCount,
+                'per_page' => $perPage,
+                'from' => $totalCount > 0 ? $offset + 1 : 0,
+                'to' => $totalCount > 0 ? min($offset + $perPage, $totalCount) : 0,
+                'base_query' => $baseQuery
+            ],
             'current_year' => $currentYear,
             'current_month' => $currentMonth,
             'selected_year' => $selectedYear,
@@ -1735,7 +1810,7 @@ class FinanceController extends Controller
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
             $_SESSION['error'] = 'Token de segurança inválido.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -1783,7 +1858,7 @@ class FinanceController extends Controller
             $account = $bankAccountModel->findById($bankAccountId);
             if (!$account || $account['condominium_id'] != $condominiumId) {
                 $_SESSION['error'] = 'Conta bancária inválida.';
-                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+                header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
                 exit;
             }
         } else {
@@ -1802,7 +1877,7 @@ class FinanceController extends Controller
         $fraction = $fractionModel->findById($fractionId);
         if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
             $_SESSION['error'] = 'Fração inválida.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -1952,7 +2027,7 @@ class FinanceController extends Controller
             } else {
                 $_SESSION['success'] = 'Pagamento registado. O valor foi aplicado às quotas em atraso da fração ' . $fraction['identifier'] . '.';
             }
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         } catch (\Exception $e) {
             if (isset($db)) {
@@ -2243,14 +2318,14 @@ class FinanceController extends Controller
         RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
             $_SESSION['error'] = 'Token de segurança inválido.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -2260,7 +2335,7 @@ class FinanceController extends Controller
             $_SESSION['error'] = 'Erro ao marcar quota como paga.';
         }
 
-        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+        header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
         exit;
     }
 
@@ -2687,14 +2762,14 @@ class FinanceController extends Controller
         RoleMiddleware::requireCondominiumAccess($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
             $_SESSION['error'] = 'Token de segurança inválido.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -2702,7 +2777,7 @@ class FinanceController extends Controller
         
         if (empty($feeIds)) {
             $_SESSION['error'] = 'Nenhuma quota selecionada.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -2743,7 +2818,7 @@ class FinanceController extends Controller
             $_SESSION['error'] = "Erro ao processar {$errorCount} quota(s).";
         }
 
-        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+        header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
         exit;
     }
 
@@ -2766,14 +2841,14 @@ class FinanceController extends Controller
         $fee = $this->feeModel->findById($feeId);
         if (!$fee || $fee['condominium_id'] != $condominiumId) {
             $_SESSION['error'] = 'Quota não encontrada.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         // Only allow editing extra fees
         if (($fee['fee_type'] ?? 'regular') !== 'extra') {
             $_SESSION['error'] = 'Apenas quotas extras podem ser editadas.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -2781,7 +2856,7 @@ class FinanceController extends Controller
         $totalPaid = $this->feePaymentModel->getTotalPaid($feeId);
         if ($totalPaid > 0) {
             $_SESSION['error'] = 'Não é possível editar uma quota que já possui pagamentos registados.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -2791,7 +2866,7 @@ class FinanceController extends Controller
         
         if (!$fraction) {
             $_SESSION['error'] = 'Fração não encontrada.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -2827,28 +2902,28 @@ class FinanceController extends Controller
         RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
             $_SESSION['error'] = 'Token de segurança inválido.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         $fee = $this->feeModel->findById($feeId);
         if (!$fee || $fee['condominium_id'] != $condominiumId) {
             $_SESSION['error'] = 'Quota não encontrada.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         // Only allow editing extra fees
         if (($fee['fee_type'] ?? 'regular') !== 'extra') {
             $_SESSION['error'] = 'Apenas quotas extras podem ser editadas.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -2856,7 +2931,7 @@ class FinanceController extends Controller
         $totalPaid = $this->feePaymentModel->getTotalPaid($feeId);
         if ($totalPaid > 0) {
             $_SESSION['error'] = 'Não é possível editar uma quota que já possui pagamentos registados.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -2897,7 +2972,7 @@ class FinanceController extends Controller
             $_SESSION['error'] = 'Erro ao atualizar a quota extra.';
         }
 
-        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+        header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
         exit;
     }
 
@@ -2920,7 +2995,7 @@ class FinanceController extends Controller
                 echo json_encode(['error' => 'Método não permitido']);
                 exit;
             }
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -2933,7 +3008,7 @@ class FinanceController extends Controller
                 exit;
             }
             $_SESSION['error'] = 'Token de segurança inválido.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -2946,7 +3021,7 @@ class FinanceController extends Controller
                 exit;
             }
             $_SESSION['error'] = 'Quota não encontrada.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -2959,7 +3034,7 @@ class FinanceController extends Controller
                 exit;
             }
             $_SESSION['error'] = 'Apenas quotas extras podem ser eliminadas.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -2973,7 +3048,7 @@ class FinanceController extends Controller
                 exit;
             }
             $_SESSION['error'] = 'Não é possível eliminar uma quota que já possui pagamentos registados.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -2999,7 +3074,7 @@ class FinanceController extends Controller
             $_SESSION['error'] = 'Erro ao eliminar a quota extra.';
         }
 
-        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+        header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
         exit;
     }
 
@@ -3042,28 +3117,28 @@ class FinanceController extends Controller
         RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
             $_SESSION['error'] = 'Token de segurança inválido.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         $fee = $this->feeModel->findById($feeId);
         if (!$fee || $fee['condominium_id'] != $condominiumId) {
             $_SESSION['error'] = 'Quota não encontrada.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         $payment = $this->feePaymentModel->findById($paymentId);
         if (!$payment || $payment['fee_id'] != $feeId) {
             $_SESSION['error'] = 'Pagamento não encontrado.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -3074,7 +3149,7 @@ class FinanceController extends Controller
 
         if ($amount <= 0 || empty($paymentMethod)) {
             $_SESSION['error'] = 'Por favor, preencha todos os campos obrigatórios.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -3084,7 +3159,7 @@ class FinanceController extends Controller
 
         if ($amount > $remainingAmount) {
             $_SESSION['error'] = 'O valor do pagamento não pode ser superior ao valor pendente (€' . number_format($remainingAmount, 2, ',', '.') . ').';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -3195,7 +3270,7 @@ class FinanceController extends Controller
             $_SESSION['error'] = 'Erro ao atualizar o pagamento.';
         }
 
-        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+        header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
         exit;
     }
 
@@ -3209,28 +3284,28 @@ class FinanceController extends Controller
         RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
             $_SESSION['error'] = 'Token de segurança inválido.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         $fee = $this->feeModel->findById($feeId);
         if (!$fee || $fee['condominium_id'] != $condominiumId) {
             $_SESSION['error'] = 'Quota não encontrada.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
         $payment = $this->feePaymentModel->findById($paymentId);
         if (!$payment || $payment['fee_id'] != $feeId) {
             $_SESSION['error'] = 'Pagamento não encontrado.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
 
@@ -3307,7 +3382,7 @@ class FinanceController extends Controller
             $_SESSION['error'] = 'Erro ao eliminar o pagamento.';
         }
 
-        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees');
+        header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
         exit;
     }
 }
