@@ -52,7 +52,7 @@ class VoteOptionController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function store(int $condominiumId)

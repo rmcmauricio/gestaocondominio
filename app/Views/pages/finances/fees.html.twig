@@ -43,7 +43,7 @@
 
     <!-- Mapa de Quotas - Primeiro Item -->
     <div class="row g-3 mb-4">
-        {% include 'blocks/fees-map.html.twig' %}
+        {% include 'blocks/fees-map.html.twig' with { 'fractions': fees_map_fractions|default(fractions) } %}
     </div>
 
     <div class="card shadow-sm mb-4">

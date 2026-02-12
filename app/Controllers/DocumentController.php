@@ -272,7 +272,7 @@ class DocumentController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function create(int $condominiumId)
@@ -307,7 +307,7 @@ class DocumentController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function store(int $condominiumId)
@@ -433,7 +433,7 @@ class DocumentController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function versions(int $condominiumId, int $id)
@@ -468,7 +468,7 @@ class DocumentController extends Controller
             'csrf_token' => Security::generateCSRFToken()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function download(int $condominiumId, int $id)
@@ -599,7 +599,7 @@ class DocumentController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function update(int $condominiumId, int $id)
@@ -739,7 +739,7 @@ class DocumentController extends Controller
             'csrf_token' => Security::generateCSRFToken()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function manageFolders(int $condominiumId)
@@ -789,7 +789,7 @@ class DocumentController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function createFolder(int $condominiumId)

@@ -111,7 +111,7 @@ class HomeController extends Controller
         unset($_SESSION['pilot_signup_error']);
         unset($_SESSION['pilot_signup_success']);
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 }
 

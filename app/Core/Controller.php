@@ -23,6 +23,9 @@ class Controller
         $this->page->setPage('default');
         $this->data = $this->mergeGlobalData([]);
 
+        // Do not keep 'page' from default merge so that each controller can set its own title via $this->data['page']
+        unset($this->data['page']);
+
         // Load global translations for all pages
         $this->data['global_t'] = $this->loadGlobalTranslations();
     }
@@ -38,8 +41,10 @@ class Controller
         
         $data = $this->mergeGlobalData($data);
         
-        // Ensure page translations are included
-        if (isset($this->data['page']['t'])) {
+        // Ensure page translations are included (from loadPageTranslations or controller)
+        if (isset($this->data['_page_t'])) {
+            $data['page']['t'] = $this->data['_page_t'];
+        } elseif (isset($this->data['page']['t'])) {
             $data['page']['t'] = $this->data['page']['t'];
         }
         
@@ -457,12 +462,35 @@ class Controller
             $mergedData['global_t'] = $this->data['global_t'];
         }
 
-        // Add page translations if they exist
-        if (isset($this->data['page']['t'])) {
+        // Add page translations if they exist (from loadPageTranslations via _page_t or from controller's page['t'])
+        if (isset($this->data['_page_t'])) {
+            $mergedData['page']['t'] = $this->data['_page_t'];
+        } elseif (isset($this->data['page']['t'])) {
             $mergedData['page']['t'] = $this->data['page']['t'];
         }
 
+        // Ensure page meta (titulo, description, keywords) is always set for mainTemplate <title> and meta tags
+        $mergedData['page'] = $mergedData['page'] ?? [];
+        if (empty($mergedData['page']['titulo']) && isset($this->page->titulo)) {
+            $mergedData['page']['titulo'] = $this->page->titulo;
+        }
+        if (!isset($mergedData['page']['description']) || $mergedData['page']['description'] === '') {
+            $mergedData['page']['description'] = $this->page->description ?? '';
+        }
+        if (!isset($mergedData['page']['keywords']) || $mergedData['page']['keywords'] === '') {
+            $mergedData['page']['keywords'] = $this->page->keywords ?? '';
+        }
+
         return $mergedData;
+    }
+
+    /**
+     * Render mainTemplate with merged global data. Ensures page meta (titulo, description, keywords) is always available.
+     */
+    protected function renderMainTemplate(): void
+    {
+        $merged = $this->mergeGlobalData($this->data);
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $merged);
     }
     
     /**
@@ -489,12 +517,9 @@ class Controller
             }
         }
         
-        // Ensure page array is initialized
-        if (!isset($this->data['page'])) {
-            $this->data['page'] = [];
-        }
-        
-        $this->data['page']['t'] = $pageTranslations;
+        // Store in _page_t so we don't create $this->data['page'] here - otherwise controller's
+        // $this->data += [ 'page' => ['titulo' => '...'] ] would be ignored (key 'page' already exists)
+        $this->data['_page_t'] = $pageTranslations;
     }
 
     protected function loadGlobalTranslations(): array

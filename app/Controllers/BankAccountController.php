@@ -67,7 +67,7 @@ class BankAccountController extends Controller
         ];
 
         unset($_SESSION['error'], $_SESSION['success']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function create(int $condominiumId)
@@ -95,7 +95,7 @@ class BankAccountController extends Controller
         ];
 
         unset($_SESSION['error'], $_SESSION['success']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function store(int $condominiumId)
@@ -213,7 +213,7 @@ class BankAccountController extends Controller
         ];
 
         unset($_SESSION['error'], $_SESSION['success']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function update(int $condominiumId, int $id)

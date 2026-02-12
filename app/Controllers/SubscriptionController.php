@@ -390,7 +390,7 @@ class SubscriptionController extends Controller
             $this->data['user']['condominiums'] = $userCondominiums;
         }
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function choosePlan()
@@ -466,7 +466,7 @@ class SubscriptionController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -1830,7 +1830,7 @@ class SubscriptionController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**

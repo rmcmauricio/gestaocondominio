@@ -79,7 +79,7 @@ class CondominiumController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function store()
@@ -474,6 +474,19 @@ class CondominiumController extends Controller
         $feePeriodLabels = $this->buildFeePeriodLabelsForCondominium($feePeriodType, $monthNames);
         $feesMap = $feeModel->getFeesMapByYear($id, $selectedYear, null, $feePeriodType);
 
+        // In years with only historical debts/credits, show only fractions that have values in the map
+        if (!$feeModel->hasRegularFeesInYear($id, $selectedYear) && !empty($feesMap)) {
+            $fractionIdsInMap = [];
+            foreach ($feesMap as $slotData) {
+                foreach (array_keys($slotData) as $fid) {
+                    $fractionIdsInMap[$fid] = true;
+                }
+            }
+            $fractions = array_values(array_filter($fractions, function ($f) use ($fractionIdsInMap) {
+                return isset($fractionIdsInMap[(int)$f['id']]);
+            }));
+        }
+
         $this->loadPageTranslations('condominiums');
         
         // Get and clear session messages
@@ -507,7 +520,7 @@ class CondominiumController extends Controller
         // Re-merge global data to ensure sidebar uses correct condominium
         $this->data = $this->mergeGlobalData($this->data);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     private function inferFeePeriodTypeForCondominium(int $condominiumId, int $year): string
@@ -652,8 +665,7 @@ class CondominiumController extends Controller
         }
 
         // Merge global data to ensure template_id is properly processed
-        $mergedData = $this->mergeGlobalData($this->data);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $mergedData);
+        $this->renderMainTemplate();
     }
 
     public function update(int $id)
@@ -866,8 +878,7 @@ class CondominiumController extends Controller
         $this->data['template_id'] = $currentTemplate;
 
         // Merge global data
-        $mergedData = $this->mergeGlobalData($this->data);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $mergedData);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -1292,7 +1303,7 @@ class CondominiumController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function processAssignAdmin(int $id)
@@ -1751,7 +1762,7 @@ class CondominiumController extends Controller
             'url_restore_page' => BASE_URL . $baseRoute . '/' . $id . '/restore',
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**

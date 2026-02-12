@@ -280,7 +280,7 @@ class FinancialTransactionController extends Controller
         ];
 
         unset($_SESSION['error'], $_SESSION['success']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function create(int $condominiumId)
@@ -321,7 +321,7 @@ class FinancialTransactionController extends Controller
         ];
 
         unset($_SESSION['error'], $_SESSION['success']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function store(int $condominiumId)
@@ -723,7 +723,7 @@ class FinancialTransactionController extends Controller
         ];
 
         unset($_SESSION['error'], $_SESSION['success']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function update(int $condominiumId, int $id)
@@ -1076,7 +1076,7 @@ class FinancialTransactionController extends Controller
         ];
 
         unset($_SESSION['error'], $_SESSION['success']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function uploadImport(int $condominiumId)
@@ -1405,7 +1405,7 @@ class FinancialTransactionController extends Controller
             ];
 
             unset($_SESSION['error'], $_SESSION['success']);
-            echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+            $this->renderMainTemplate();
         } catch (\Exception $e) {
             $_SESSION['error'] = 'Erro ao processar ficheiro: ' . $e->getMessage();
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/import');

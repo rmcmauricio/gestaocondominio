@@ -99,7 +99,7 @@ class FractionController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function create(int $condominiumId)
@@ -138,7 +138,7 @@ class FractionController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function store(int $condominiumId)
@@ -225,7 +225,7 @@ class FractionController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function update(int $condominiumId, int $id)
@@ -661,7 +661,7 @@ class FractionController extends Controller
         ];
 
         unset($_SESSION['error'], $_SESSION['success']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -828,7 +828,7 @@ class FractionController extends Controller
                 'csrf_token' => Security::generateCSRFToken(),
             ];
 
-            echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+            $this->renderMainTemplate();
         } catch (\Exception $e) {
             $_SESSION['error'] = 'Erro ao processar ficheiro: ' . $e->getMessage();
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions/import');

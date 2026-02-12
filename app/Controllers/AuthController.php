@@ -53,7 +53,7 @@ class AuthController extends Controller
         unset($_SESSION['pilot_signup_error']);
         unset($_SESSION['pilot_signup_success']);
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -88,7 +88,7 @@ class AuthController extends Controller
         unset($_SESSION['login_error']);
         unset($_SESSION['login_success']);
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -238,7 +238,7 @@ class AuthController extends Controller
         
         unset($_SESSION['demo_error'], $_SESSION['demo_success']);
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -665,7 +665,7 @@ class AuthController extends Controller
         unset($_SESSION['register_error']);
         unset($_SESSION['register_success']);
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function processRegister()
@@ -896,7 +896,7 @@ class AuthController extends Controller
         unset($_SESSION['forgot_error']);
         unset($_SESSION['forgot_success']);
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function processForgotPassword()
@@ -1034,7 +1034,7 @@ class AuthController extends Controller
         
         unset($_SESSION['reset_error']);
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function processResetPassword()
@@ -1536,7 +1536,7 @@ class AuthController extends Controller
         
         unset($_SESSION['register_error']);
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -1773,7 +1773,7 @@ class AuthController extends Controller
         
         unset($_SESSION['register_error']);
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
