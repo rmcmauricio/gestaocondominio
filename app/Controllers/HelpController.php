@@ -201,7 +201,7 @@ class HelpController extends Controller
             'helpSections' => $this->helpSections
         ];
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function show(string $section)
@@ -264,7 +264,7 @@ class HelpController extends Controller
             'navigation' => $navigation
         ];
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function modal(string $section)

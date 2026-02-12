@@ -214,7 +214,7 @@ class FinanceController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function createBudget(int $condominiumId)
@@ -256,7 +256,7 @@ class FinanceController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function storeBudget(int $condominiumId)
@@ -405,7 +405,7 @@ class FinanceController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function storeExpense(int $condominiumId)
@@ -507,7 +507,7 @@ class FinanceController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function editBudget(int $condominiumId, int $id)
@@ -549,7 +549,7 @@ class FinanceController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function updateBudget(int $condominiumId, int $id)
@@ -1668,6 +1668,20 @@ class FinanceController extends Controller
 
         $feesMap = $feeModel->getFeesMapByYear($condominiumId, $selectedFeesYear, null, $feePeriodType);
 
+        // In years with only historical debts/credits, pass only fractions that have values in the map
+        $feesMapFractions = $fractions;
+        if (!$feeModel->hasRegularFeesInYear($condominiumId, $selectedFeesYear) && !empty($feesMap)) {
+            $fractionIdsInMap = [];
+            foreach ($feesMap as $slotData) {
+                foreach (array_keys($slotData) as $fid) {
+                    $fractionIdsInMap[$fid] = true;
+                }
+            }
+            $feesMapFractions = array_values(array_filter($fractions, function ($f) use ($fractionIdsInMap) {
+                return isset($fractionIdsInMap[(int)$f['id']]);
+            }));
+        }
+
         $monthNames = [
             1 => 'Janeiro', 2 => 'Fevereiro', 3 => 'Março', 4 => 'Abril',
             5 => 'Maio', 6 => 'Junho', 7 => 'Julho', 8 => 'Agosto',
@@ -1730,9 +1744,10 @@ class FinanceController extends Controller
             'error_budget_year' => $_SESSION['error_budget_year'] ?? null,
             'success' => $_SESSION['success'] ?? null,
             'user' => AuthMiddleware::user(),
-            // Variables for fees map block
+            // Variables for fees map block (fees_map_fractions = only fractions with data when year has only historical)
             'fees_map' => $feesMap,
             'fractions' => $fractions,
+            'fees_map_fractions' => $feesMapFractions,
             'available_years' => $availableYears,
             'selected_fees_year' => $selectedFeesYear,
             'fee_period_type' => $feePeriodType,
@@ -1746,7 +1761,7 @@ class FinanceController extends Controller
         unset($_SESSION['error_budget_year']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -1798,7 +1813,7 @@ class FinanceController extends Controller
             'pre_use_balance' => $preUseBalance
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function liquidateQuotas(int $condominiumId)
@@ -2117,7 +2132,7 @@ class FinanceController extends Controller
             'success' => $_SESSION['success'] ?? null
         ];
         unset($_SESSION['error'], $_SESSION['success']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -2244,7 +2259,7 @@ class FinanceController extends Controller
             'success' => $_SESSION['success'] ?? null
         ];
         unset($_SESSION['error'], $_SESSION['success']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -2400,7 +2415,7 @@ class FinanceController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -2534,7 +2549,7 @@ class FinanceController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -2641,7 +2656,7 @@ class FinanceController extends Controller
             'user' => AuthMiddleware::user()
         ];
         unset($_SESSION['error']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -2885,7 +2900,7 @@ class FinanceController extends Controller
             'user' => AuthMiddleware::user()
         ];
         unset($_SESSION['error']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -3081,7 +3096,7 @@ class FinanceController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -3121,7 +3136,7 @@ class FinanceController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -3215,7 +3230,7 @@ class FinanceController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -3443,7 +3458,7 @@ class FinanceController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**

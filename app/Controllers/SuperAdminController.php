@@ -184,7 +184,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -286,7 +286,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -672,7 +672,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -945,7 +945,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -1008,7 +1008,7 @@ class SuperAdminController extends Controller
                 'info' => $messages['info']
             ];
 
-            echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+            $this->renderMainTemplate();
         }
     }
 
@@ -1344,7 +1344,7 @@ class SuperAdminController extends Controller
             'success' => $messages['success']
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -1387,7 +1387,7 @@ class SuperAdminController extends Controller
             'success' => $messages['success']
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -2574,7 +2574,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -2668,7 +2668,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -2696,7 +2696,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -2857,7 +2857,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -3108,7 +3108,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -3138,7 +3138,7 @@ class SuperAdminController extends Controller
             'info' => $messages['info']
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -3238,7 +3238,8 @@ class SuperAdminController extends Controller
         }
 
         // Render template (Twig uses its own output buffering internally)
-        $output = $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $merged = $this->mergeGlobalData($this->data);
+        $output = $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $merged);
 
         // Clean any Xdebug output that might have been added to buffer during render
         if (ob_get_level() > 0) {
@@ -3453,7 +3454,7 @@ class SuperAdminController extends Controller
             'info' => $messages['info']
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -3709,7 +3710,7 @@ class SuperAdminController extends Controller
             'info' => $messages['info']
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -3738,7 +3739,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -3853,7 +3854,7 @@ class SuperAdminController extends Controller
             'info' => $messages['info']
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -4070,7 +4071,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -4106,7 +4107,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -4222,7 +4223,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -4391,7 +4392,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -4424,7 +4425,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -4507,7 +4508,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -4619,7 +4620,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -4887,7 +4888,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -5002,7 +5003,7 @@ class SuperAdminController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -5709,7 +5710,7 @@ class SuperAdminController extends Controller
             'csrf_token' => Security::generateCSRFToken()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -5868,7 +5869,7 @@ class SuperAdminController extends Controller
             'messages' => $messages
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -5962,7 +5963,7 @@ class SuperAdminController extends Controller
             ]
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**

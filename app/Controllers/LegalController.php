@@ -21,7 +21,7 @@ class LegalController extends Controller
             ]
         ];
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function terms()
@@ -38,7 +38,7 @@ class LegalController extends Controller
             ]
         ];
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function privacy()
@@ -55,7 +55,7 @@ class LegalController extends Controller
             ]
         ];
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function cookies()
@@ -72,6 +72,6 @@ class LegalController extends Controller
             ]
         ];
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 }

@@ -499,11 +499,11 @@ class Fee extends Model
             FROM fees f
             INNER JOIN fractions fr ON fr.id = f.fraction_id
             WHERE f.condominium_id = :condominium_id AND f.period_year = :year
-            AND (f.period_month IS NOT NULL OR f.period_index IS NOT NULL)";
+            AND (f.period_month IS NOT NULL OR f.period_index IS NOT NULL OR COALESCE(f.is_historical, 0) = 1)";
         if (!$includeHistorical) {
             $sql .= " AND COALESCE(f.is_historical, 0) = 0";
         }
-        $sql .= " ORDER BY COALESCE(f.period_index, f.period_month) ASC, fr.identifier ASC, f.fee_type ASC, f.created_at ASC";
+        $sql .= " ORDER BY COALESCE(f.period_index, f.period_month, 1) ASC, fr.identifier ASC, f.fee_type ASC, f.created_at ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':condominium_id' => $condominiumId, ':year' => $year]);
@@ -524,6 +524,10 @@ class Fee extends Model
                 $slot = $periodIndex ?? $periodMonth;
             } else {
                 $slot = $this->slotForExtraFee($periodMonth, $periodType ?? 'monthly', $periodCount);
+            }
+            // Historical fees with no period (yearly) go into slot 1
+            if (($slot === null || $slot < 1 || $slot > $periodCount) && !empty($fee['is_historical'])) {
+                $slot = 1;
             }
             if ($slot === null || $slot < 1 || $slot > $periodCount) {
                 continue;
@@ -605,6 +609,24 @@ class Fee extends Model
             }
         }
         return 1;
+    }
+
+    /**
+     * Check if the given year has any regular (non-historical) fees for the condominium.
+     */
+    public function hasRegularFeesInYear(int $condominiumId, int $year): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+        $stmt = $this->db->prepare("
+            SELECT 1 FROM fees
+            WHERE condominium_id = :condominium_id AND period_year = :year
+            AND COALESCE(is_historical, 0) = 0
+            LIMIT 1
+        ");
+        $stmt->execute([':condominium_id' => $condominiumId, ':year' => $year]);
+        return $stmt->fetch() !== false;
     }
 
     /**

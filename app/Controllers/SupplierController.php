@@ -64,7 +64,7 @@ class SupplierController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function create(int $condominiumId)
@@ -94,7 +94,7 @@ class SupplierController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function store(int $condominiumId)
@@ -173,7 +173,7 @@ class SupplierController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function update(int $condominiumId, int $id)
@@ -295,7 +295,7 @@ class SupplierController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function createContract(int $condominiumId)
@@ -328,7 +328,7 @@ class SupplierController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function storeContract(int $condominiumId)
@@ -493,7 +493,7 @@ class SupplierController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function updateContract(int $condominiumId, int $id)

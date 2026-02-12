@@ -53,7 +53,7 @@ class ApiKeyController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function generate()
@@ -150,7 +150,7 @@ class ApiKeyController extends Controller
             'page' => ['titulo' => 'Documentação da API']
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 }
 

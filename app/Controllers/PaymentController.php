@@ -513,7 +513,7 @@ class PaymentController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -705,7 +705,7 @@ class PaymentController extends Controller
         ];
 
         unset($_SESSION['payment_data']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -737,7 +737,7 @@ class PaymentController extends Controller
         ];
 
         unset($_SESSION['payment_data']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -769,7 +769,7 @@ class PaymentController extends Controller
         ];
 
         unset($_SESSION['payment_data']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -801,7 +801,7 @@ class PaymentController extends Controller
         ];
 
         unset($_SESSION['payment_data']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -870,7 +870,7 @@ class PaymentController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**
@@ -942,7 +942,7 @@ class PaymentController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 }
 

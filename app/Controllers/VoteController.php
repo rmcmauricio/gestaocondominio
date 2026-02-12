@@ -101,7 +101,7 @@ class VoteController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function storeTopic(int $condominiumId, int $assemblyId)
@@ -455,7 +455,7 @@ class VoteController extends Controller
             'success' => $success
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function editTopic(int $condominiumId, int $assemblyId, int $topicId)
@@ -503,7 +503,7 @@ class VoteController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function updateTopic(int $condominiumId, int $assemblyId, int $topicId)

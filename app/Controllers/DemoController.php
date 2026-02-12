@@ -31,7 +31,7 @@ class DemoController extends Controller
             ]
         ];
         
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     /**

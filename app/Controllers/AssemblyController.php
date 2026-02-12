@@ -80,7 +80,7 @@ class AssemblyController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function create(int $condominiumId)
@@ -110,7 +110,7 @@ class AssemblyController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function store(int $condominiumId)
@@ -482,7 +482,7 @@ class AssemblyController extends Controller
         unset($_SESSION['success']);
         unset($_SESSION['info']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function storeAgendaPoint(int $condominiumId, int $id)
@@ -1069,7 +1069,7 @@ class AssemblyController extends Controller
         ];
 
         unset($_SESSION['error'], $_SESSION['success']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function updateMinutesTemplate(int $condominiumId, int $id)
@@ -1508,7 +1508,7 @@ class AssemblyController extends Controller
             'success' => $_SESSION['success'] ?? null
         ];
         unset($_SESSION['error'], $_SESSION['success']);
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function viewMinutes(int $condominiumId, int $id)
@@ -1613,7 +1613,7 @@ class AssemblyController extends Controller
         unset($_SESSION['error']);
         unset($_SESSION['success']);
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     public function update(int $condominiumId, int $id)

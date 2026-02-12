@@ -160,8 +160,8 @@
                                     </div>
                                 {% elseif transaction.transaction_type == 'income' and transaction.related_type != 'fee_payment' and transaction.related_type != 'fraction_account' %}
                                 <div style="text-align: center;">
-                                    <button type="button" 
-                                            class="btn btn-sm btn-outline-primary quota-liquidation-btn" 
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-primary quota-liquidation-btn"
                                             data-transaction-id="{{ transaction.id }}"
                                             data-amount="{{ transaction.amount }}">
                                         <i class="bi bi-cash-coin"></i> Liquidar
@@ -258,7 +258,7 @@
                 <i class="bi bi-info-circle"></i> Nenhum movimento financeiro encontrado.
             </div>
             {% endif %}
-            
+
             {% if pagination and pagination.total_pages > 1 %}
             <nav aria-label="Paginação" class="mt-4">
                 <ul class="pagination justify-content-center">
@@ -276,10 +276,10 @@
                             </span>
                         </li>
                     {% endif %}
-                    
+
                     {% set startPage = max(1, pagination.current_page - 2) %}
                     {% set endPage = min(pagination.total_pages, pagination.current_page + 2) %}
-                    
+
                     {% if startPage > 1 %}
                         <li class="page-item">
                             <a class="page-link" href="?page=1{% if pagination.base_query %}&{{ pagination.base_query }}{% endif %}">1</a>
@@ -290,13 +290,13 @@
                             </li>
                         {% endif %}
                     {% endif %}
-                    
+
                     {% for i in startPage..endPage %}
                         <li class="page-item {% if i == pagination.current_page %}active{% endif %}">
                             <a class="page-link" href="?page={{ i }}{% if pagination.base_query %}&{{ pagination.base_query }}{% endif %}">{{ i }}</a>
                         </li>
                     {% endfor %}
-                    
+
                     {% if endPage < pagination.total_pages %}
                         {% if endPage < pagination.total_pages - 1 %}
                             <li class="page-item disabled">
@@ -307,7 +307,7 @@
                             <a class="page-link" href="?page={{ pagination.total_pages }}{% if pagination.base_query %}&{{ pagination.base_query }}{% endif %}">{{ pagination.total_pages }}</a>
                         </li>
                     {% endif %}
-                    
+
                     {% if pagination.current_page < pagination.total_pages %}
                         {% set nextPage = pagination.current_page + 1 %}
                         <li class="page-item">
@@ -412,9 +412,9 @@ body #financial-transactions-table-container #financial-transactions-table tbody
 (function() {
     const table = document.getElementById('financial-transactions-table');
     if (!table) return;
-    
+
     const storageKey = 'financial-transactions-table-column-widths';
-    
+
     // Load saved widths
     function loadColumnWidths() {
         try {
@@ -433,7 +433,7 @@ body #financial-transactions-table-container #financial-transactions-table tbody
             console.error('Error loading column widths:', e);
         }
     }
-    
+
     // Save column widths
     function saveColumnWidths() {
         try {
@@ -447,53 +447,53 @@ body #financial-transactions-table-container #financial-transactions-table tbody
             console.error('Error saving column widths:', e);
         }
     }
-    
+
     // Initialize resize handles
     function initResizeHandles() {
         const headers = table.querySelectorAll('thead th');
-        
+
         headers.forEach((th, index) => {
             // Skip last column (actions) - don't make it resizable
             if (index === headers.length - 1) return;
-            
+
             // Store original width
             const originalWidth = th.style.width || window.getComputedStyle(th).width;
             th.setAttribute('data-original-width', originalWidth);
-            
+
             // Create resize handle
             const handle = document.createElement('div');
             handle.className = 'resize-handle';
             handle.setAttribute('data-column-index', index);
             th.appendChild(handle);
-            
+
             // Make header position relative if not already
             if (window.getComputedStyle(th).position === 'static') {
                 th.style.position = 'relative';
             }
-            
+
             // Resize functionality
             let startX, startWidth, columnIndex;
-            
+
             handle.addEventListener('mousedown', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 startX = e.pageX;
                 startWidth = parseInt(window.getComputedStyle(th).width);
                 columnIndex = index;
-                
+
                 handle.classList.add('resizing');
                 document.body.style.cursor = 'col-resize';
                 document.body.style.userSelect = 'none';
-                
+
                 function onMouseMove(e) {
                     const diff = e.pageX - startX;
                     const newWidth = Math.max(50, startWidth + diff); // Minimum 50px
-                    
+
                     th.style.width = newWidth + 'px';
                     th.style.minWidth = newWidth + 'px';
                     th.style.maxWidth = newWidth + 'px';
-                    
+
                     // Update corresponding cells
                     const cells = table.querySelectorAll(`tbody td:nth-child(${index + 1})`);
                     cells.forEach(cell => {
@@ -502,7 +502,7 @@ body #financial-transactions-table-container #financial-transactions-table tbody
                         cell.style.maxWidth = newWidth + 'px';
                     });
                 }
-                
+
                 function onMouseUp() {
                     handle.classList.remove('resizing');
                     document.body.style.cursor = '';
@@ -511,13 +511,13 @@ body #financial-transactions-table-container #financial-transactions-table tbody
                     document.removeEventListener('mousemove', onMouseMove);
                     document.removeEventListener('mouseup', onMouseUp);
                 }
-                
+
                 document.addEventListener('mousemove', onMouseMove);
                 document.addEventListener('mouseup', onMouseUp);
             });
         });
     }
-    
+
     // Initialize on page load
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
@@ -548,14 +548,14 @@ body #financial-transactions-table-container #financial-transactions-table tbody
                         </label>
                     </div>
                 </div>
-                
+
                 <div id="modal_quota_config" style="display: none;">
                     <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> 
-                        <strong>Liquidação automática:</strong> O valor será aplicado às quotas mais antigas primeiro, sequencialmente. 
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Liquidação automática:</strong> O valor será aplicado às quotas mais antigas primeiro, sequencialmente.
                         Se selecionar quotas específicas abaixo, essas serão liquidadas primeiro e o valor restante será aplicado às mais antigas.
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="modal_quota_fraction" class="form-label">Fração <span class="text-danger">*</span></label>
                         <select class="form-select" id="modal_quota_fraction">
@@ -565,7 +565,7 @@ body #financial-transactions-table-container #financial-transactions-table tbody
                             {% endfor %}
                         </select>
                     </div>
-                    
+
                     <div id="modal_fraction_balance_info" style="display: none;" class="mb-3">
                         <div class="alert alert-success">
                             <div class="form-check">
@@ -579,13 +579,13 @@ body #financial-transactions-table-container #financial-transactions-table tbody
                             </small>
                         </div>
                     </div>
-                
+
                     <div id="modal_quota_list" style="display: none;">
                         <label class="form-label"><strong>Selecione quotas específicas (opcional):</strong></label>
                         <div class="quota-checkboxes-modal" style="max-height: 300px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.25rem; padding: 0.75rem; margin-top: 0.5rem;"></div>
                         <div class="quota-summary-modal mt-2" style="display: none;">
                             <small class="text-muted">
-                                <span class="quota-selected-total-modal">0.00</span> € selecionado | 
+                                <span class="quota-selected-total-modal">0.00</span> € selecionado |
                                 Restante: <span class="quota-remaining-modal">0.00</span> € <span class="quota-remaining-dest-text">será aplicado às mais antigas</span>
                             </small>
                         </div>
@@ -680,7 +680,7 @@ function initQuotaModal() {
         }
         if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
             quotaModal = new bootstrap.Modal(modalElement);
-            
+
             // Clear modal when hidden
             modalElement.addEventListener('hidden.bs.modal', function() {
                 const checkbox = document.getElementById('modal_quota_liquidation_checkbox');
@@ -693,7 +693,7 @@ function initQuotaModal() {
                 const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
                 const remainingDestSection = document.getElementById('modal_remaining_destination_section');
                 const oldestRadio = document.getElementById('modal_remaining_oldest');
-                
+
                 if (checkbox) checkbox.checked = false;
                 if (config) config.style.display = 'none';
                 if (fraction) fraction.value = '';
@@ -877,10 +877,10 @@ document.addEventListener('click', function(e) {
     if (btn) {
         e.preventDefault();
         e.stopPropagation();
-        
+
         currentTransactionId = btn.dataset.transactionId;
         currentTransactionAmount = parseFloat(btn.dataset.amount) || 0;
-        
+
         // Reset modal
         const modalCheckbox = document.getElementById('modal_quota_liquidation_checkbox');
         const modalConfig = document.getElementById('modal_quota_config');
@@ -888,14 +888,14 @@ document.addEventListener('click', function(e) {
         const modalList = document.getElementById('modal_quota_list');
         const balanceInfo = document.getElementById('modal_fraction_balance_info');
         const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
-        
+
         if (modalCheckbox) modalCheckbox.checked = false;
         if (modalFraction) modalFraction.value = '';
         if (modalConfig) modalConfig.style.display = 'none';
         if (modalList) modalList.style.display = 'none';
         if (balanceInfo) balanceInfo.style.display = 'none';
         if (useBalanceCheckbox) useBalanceCheckbox.checked = false;
-        
+
         const checkboxesDiv = document.querySelector('.quota-checkboxes-modal');
         const summaryDiv = document.querySelector('.quota-summary-modal');
         const remainingDestSection = document.getElementById('modal_remaining_destination_section');
@@ -904,7 +904,7 @@ document.addEventListener('click', function(e) {
         if (summaryDiv) summaryDiv.style.display = 'none';
         if (remainingDestSection) remainingDestSection.style.display = 'none';
         if (oldestRadio) oldestRadio.checked = true;
-        
+
         // Show modal
         const modalElement = document.getElementById('quotaLiquidationModal');
         if (modalElement) {
@@ -942,7 +942,7 @@ document.getElementById('modal_quota_liquidation_checkbox').addEventListener('ch
 // Handle fraction selection in modal - load pending fees and balance
 document.getElementById('modal_quota_fraction').addEventListener('change', function() {
     const fractionId = this.value;
-    
+
     if (fractionId) {
         loadFractionBalance(fractionId);
         loadQuotasForModal(fractionId, currentTransactionAmount);
@@ -964,7 +964,7 @@ function loadFractionBalance(fractionId) {
     const balanceInfo = document.getElementById('modal_fraction_balance_info');
     const balanceAmount = document.getElementById('modal_fraction_balance_amount');
     const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
-    
+
     fetch(`{{ BASE_URL }}condominiums/${condominiumId}/financial-transactions/fraction-balance/${fractionId}`)
         .then(response => response.json())
         .then(data => {
@@ -999,18 +999,18 @@ function loadQuotasForModal(fractionId, transactionAmount) {
     const quotaListDiv = document.getElementById('modal_quota_list');
     const checkboxesDiv = document.querySelector('.quota-checkboxes-modal');
     const summaryDiv = document.querySelector('.quota-summary-modal');
-    
+
     fetch(`{{ BASE_URL }}condominiums/${condominiumId}/financial-transactions/import/pending-fees/${fractionId}`)
         .then(response => response.json())
         .then(data => {
             if (data.success && data.fees) {
                 let html = '';
-                
+
                 data.fees.forEach(fee => {
                     html += `
                         <div class="form-check mb-2">
-                            <input class="form-check-input quota-fee-checkbox-modal" 
-                                   type="checkbox" 
+                            <input class="form-check-input quota-fee-checkbox-modal"
+                                   type="checkbox"
                                    value="${fee.id}"
                                    data-pending="${fee.pending_amount}">
                             <label class="form-check-label">
@@ -1021,14 +1021,14 @@ function loadQuotasForModal(fractionId, transactionAmount) {
                 });
                 checkboxesDiv.innerHTML = html;
                 quotaListDiv.style.display = 'block';
-                
+
                 // Add event listeners to checkboxes
                 document.querySelectorAll('.quota-fee-checkbox-modal').forEach(cb => {
                     cb.addEventListener('change', function() {
                         updateQuotaSummaryModal(transactionAmount);
                     });
                 });
-                
+
                 // Add event listener to use balance checkbox
                 const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
                 if (useBalanceCheckbox) {
@@ -1036,7 +1036,7 @@ function loadQuotasForModal(fractionId, transactionAmount) {
                         updateQuotaSummaryModal(transactionAmount);
                     });
                 }
-                
+
                 updateQuotaSummaryModal(transactionAmount);
             } else {
                 checkboxesDiv.innerHTML = '<p class="text-muted">Nenhuma quota pendente encontrada.</p>';
@@ -1053,14 +1053,14 @@ function loadQuotasForModal(fractionId, transactionAmount) {
 function updateQuotaSummaryModal(transactionAmount) {
     const selectedFees = [];
     let selectedTotal = 0;
-    
+
     document.querySelectorAll('.quota-fee-checkbox-modal:checked').forEach(cb => {
         const feeId = parseInt(cb.value);
         const pendingAmount = parseFloat(cb.dataset.pending);
         selectedFees.push({ id: feeId, pending: pendingAmount });
         selectedTotal += pendingAmount;
     });
-    
+
     // Check if using fraction balance
     const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
     const useBalance = useBalanceCheckbox && useBalanceCheckbox.checked;
@@ -1071,13 +1071,13 @@ function updateQuotaSummaryModal(transactionAmount) {
             balanceAmount = parseFloat(balanceText.textContent) || 0;
         }
     }
-    
+
     const totalAvailable = transactionAmount + balanceAmount;
     const remaining = Math.max(0, totalAvailable - selectedTotal);
     const summaryDiv = document.querySelector('.quota-summary-modal');
     const remainingDestSection = document.getElementById('modal_remaining_destination_section');
     const destTextSpan = document.querySelector('.quota-remaining-dest-text');
-    
+
     if (selectedFees.length > 0 || remaining > 0) {
         document.querySelector('.quota-selected-total-modal').textContent = selectedTotal.toFixed(2);
         document.querySelector('.quota-remaining-modal').textContent = remaining.toFixed(2);
@@ -1111,48 +1111,48 @@ function escapeHtml(text) {
 // Save quota liquidation configuration
 document.getElementById('saveQuotaLiquidation').addEventListener('click', function() {
     if (!currentTransactionId) return;
-    
+
     const saveBtn = document.getElementById('saveQuotaLiquidation');
     const isLiquidation = document.getElementById('modal_quota_liquidation_checkbox').checked;
-    
+
     if (!isLiquidation) {
         alert('Por favor, marque a opção para liquidar quotas.');
         return;
     }
-    
+
     const fractionId = document.getElementById('modal_quota_fraction').value;
     if (!fractionId) {
         alert('Por favor, selecione uma fração.');
         return;
     }
-    
+
     // Disable button and show spinner to prevent double-click
     saveBtn.disabled = true;
     saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>A guardar...';
-    
+
     // Get selected fee IDs
     const selectedFees = [];
     document.querySelectorAll('.quota-fee-checkbox-modal:checked').forEach(cb => {
         selectedFees.push(cb.value);
     });
-    
+
     // Submit form
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = `{{ BASE_URL }}condominiums/${condominiumId}/financial-transactions/${currentTransactionId}/liquidate-quotas`;
-    
+
     const csrfInput = document.createElement('input');
     csrfInput.type = 'hidden';
     csrfInput.name = 'csrf_token';
     csrfInput.value = '{{ csrf_token }}';
     form.appendChild(csrfInput);
-    
+
     const fractionInput = document.createElement('input');
     fractionInput.type = 'hidden';
     fractionInput.name = 'fraction_id';
     fractionInput.value = fractionId;
     form.appendChild(fractionInput);
-    
+
     selectedFees.forEach(feeId => {
         const feeInput = document.createElement('input');
         feeInput.type = 'hidden';
@@ -1160,7 +1160,7 @@ document.getElementById('saveQuotaLiquidation').addEventListener('click', functi
         feeInput.value = feeId;
         form.appendChild(feeInput);
     });
-    
+
     // Add use_balance flag if checked
     const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
     if (useBalanceCheckbox && useBalanceCheckbox.checked) {
@@ -1170,7 +1170,7 @@ document.getElementById('saveQuotaLiquidation').addEventListener('click', functi
         useBalanceInput.value = '1';
         form.appendChild(useBalanceInput);
     }
-    
+
     // Add remaining_destination (oldest, unregistered, balance)
     const remainingDestRadio = document.querySelector('input[name="modal_remaining_destination"]:checked');
     const remainingDestInput = document.createElement('input');
@@ -1178,7 +1178,7 @@ document.getElementById('saveQuotaLiquidation').addEventListener('click', functi
     remainingDestInput.name = 'remaining_destination';
     remainingDestInput.value = remainingDestRadio ? remainingDestRadio.value : 'oldest';
     form.appendChild(remainingDestInput);
-    
+
     document.body.appendChild(form);
     form.submit();
 });
@@ -1187,35 +1187,35 @@ document.getElementById('saveQuotaLiquidation').addEventListener('click', functi
 function initFinancialTransactionsTableStyles() {
     const styleId = 'financial-transactions-table-styles';
     let styleSheet = document.getElementById(styleId);
-    
+
     if (styleSheet) {
         styleSheet.remove();
     }
-    
+
     styleSheet = document.createElement('style');
     styleSheet.id = styleId;
-    
+
     const css = `
         /* Zebra striping simples - linhas pares cinzento claro, ímpares branco */
         body #financial-transactions-table-container #financial-transactions-table tbody tr:nth-child(even) td {
             background-color: #e9ecef !important;
         }
-        
+
         body #financial-transactions-table-container #financial-transactions-table tbody tr:nth-child(odd) td {
             background-color: #ffffff !important;
         }
-        
+
         /* Hover effect - amarelo pastel claro para todas as linhas */
         body #financial-transactions-table-container #financial-transactions-table tbody tr:hover td {
             background-color: #fff9e6 !important;
         }
-        
+
         /* Cursor pointer */
         body #financial-transactions-table-container #financial-transactions-table tbody tr {
             cursor: pointer !important;
         }
     `;
-    
+
     styleSheet.textContent = css;
     document.head.appendChild(styleSheet);
 }

@@ -125,7 +125,7 @@ class DashboardController extends Controller
             'info' => $info
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
     protected function adminDashboard()
@@ -366,7 +366,7 @@ class DashboardController extends Controller
             'info' => $info
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 
 
@@ -607,7 +607,7 @@ class DashboardController extends Controller
             'user' => AuthMiddleware::user()
         ];
 
-        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+        $this->renderMainTemplate();
     }
 }
 
