@@ -1379,6 +1379,7 @@ class FinanceController extends Controller
 
             // Delete all existing receipts for this fee
             global $db;
+            $documentModel = new \App\Models\Document();
             foreach ($existingReceipts as $receipt) {
                 // Delete receipt file if exists
                 if (!empty($receipt['file_path'])) {
@@ -1390,6 +1391,21 @@ class FinanceController extends Controller
                     }
                     if (file_exists($fullPath)) {
                         @unlink($fullPath);
+                    }
+                    // Delete document record (recibos são criados com document_type='receipt' e mesmo file_path)
+                    $docStmt = $db->prepare("
+                        SELECT id FROM documents 
+                        WHERE document_type = 'receipt' AND condominium_id = :condominium_id 
+                        AND (file_path = :file_path OR title = CONCAT('Recibo ', :receipt_number))
+                    ");
+                    $docStmt->execute([
+                        ':file_path' => $filePath,
+                        ':condominium_id' => $condominiumId,
+                        ':receipt_number' => $receipt['receipt_number'] ?? ''
+                    ]);
+                    $doc = $docStmt->fetch();
+                    if ($doc) {
+                        $documentModel->delete((int)$doc['id']);
                     }
                 }
                 
@@ -3600,6 +3616,27 @@ class FinanceController extends Controller
             'description' => "Pagamento de quota eliminado. Quota ID: {$feeId}, Pagamento ID: {$paymentId}, Valor: €" . number_format((float)$payment['amount'], 2, ',', '.') . ", Método: {$payment['payment_method']}"
         ]);
 
+        // Se o pagamento veio de aplicação de crédito (sem movimento financeiro), reverter o débito na conta da fração
+        if (empty($payment['financial_transaction_id'])) {
+            global $db;
+            $stmt = $db->prepare("
+                SELECT id, fraction_account_id, amount 
+                FROM fraction_account_movements 
+                WHERE source_reference_id = :payment_id AND source_type = 'quota_application' AND type = 'debit'
+            ");
+            $stmt->execute([':payment_id' => $paymentId]);
+            $debitMovements = $stmt->fetchAll() ?: [];
+            foreach ($debitMovements as $mov) {
+                $amt = (float)$mov['amount'];
+                $faId = (int)$mov['fraction_account_id'];
+                $movId = (int)$mov['id'];
+                $db->prepare("UPDATE fraction_accounts SET balance = balance + :amt WHERE id = :id")
+                    ->execute([':amt' => $amt, ':id' => $faId]);
+                $db->prepare("DELETE FROM fraction_account_movements WHERE id = :id")
+                    ->execute([':id' => $movId]);
+            }
+        }
+
         // Delete payment
         $success = $this->feePaymentModel->delete($paymentId);
 
@@ -3652,7 +3689,11 @@ class FinanceController extends Controller
             $_SESSION['error'] = 'Erro ao eliminar o pagamento.';
         }
 
-        header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
+        if (!empty($_POST['redirect_to']) && $_POST['redirect_to'] === 'financial-transactions') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
+        } else {
+            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
+        }
         exit;
     }
 }

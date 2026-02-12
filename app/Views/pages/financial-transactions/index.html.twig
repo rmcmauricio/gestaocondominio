@@ -92,6 +92,7 @@
                 <table class="table table-excel" id="financial-transactions-table" style="min-width: 100%; width: max-content;">
                     <thead>
                         <tr>
+                            <th style="width: 60px; text-align: center;" title="ID">ID</th>
                             <th style="width: 50px; text-align: center;" title="Tipo">Tipo</th>
                             <th style="width: 100px;">Data</th>
                             <th>Descrição</th>
@@ -104,12 +105,12 @@
                                 <i class="bi bi-cash-coin"></i>
                             </th>
                             {% endif %}
-                            <th style="width: 100px; text-align: center;">Ações</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for transaction in transactions %}
-                        <tr>
+                        <tr class="transaction-row" style="cursor: pointer;" data-transaction-id="{{ transaction.id }}" title="Clique para ver detalhes">
+                            <td style="text-align: center;"><span class="text-muted">#{{ transaction.id }}</span></td>
                             <td style="text-align: center;">
                                 {% if transaction.transaction_type == 'income' %}
                                 <i class="bi bi-arrow-up-circle-fill text-success" style="font-size: 0.9rem;" title="Entrada"></i>
@@ -143,7 +144,7 @@
                                 </strong>
                             </td>
                             {% if is_admin %}
-                            <td style="text-align: left; font-size: 0.75rem; max-width: 200px;">
+                            <td class="no-row-click" style="text-align: left; font-size: 0.75rem; max-width: 200px;">
                                 {% set hasLiquidatedFees = liquidatedFeesByTransaction[transaction.id] is defined and liquidatedFeesByTransaction[transaction.id]|length > 0 %}
                                 {% if hasLiquidatedFees %}
                                     {# Show liquidated fees #}
@@ -169,38 +170,6 @@
                                 {% endif %}
                             </td>
                             {% endif %}
-                            <td style="text-align: center;">
-                                {% if is_admin %}
-                                    <button type="button" class="btn btn-sm btn-outline-secondary me-1 view-transaction-details" title="Ver detalhes" data-transaction-id="{{ transaction.id }}">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                    {% if transaction.related_type == 'fee_payment' %}
-                                    {% elseif transaction.related_type == 'transfer' %}
-                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar esta transferência? Ambas as transações serão eliminadas.');">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar Transferência">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
-                                    {% else %}
-                                    <div class="d-inline-flex gap-1">
-                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/edit" class="btn btn-outline-primary btn-sm" title="Editar">
-                                            <i class="bi bi-pencil"></i>
-                                        </a>
-                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar este movimento?');">
-                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                    {% endif %}
-                                {% else %}
-                                    <button type="button" class="btn btn-sm btn-outline-secondary view-transaction-details" title="Ver detalhes" data-transaction-id="{{ transaction.id }}">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                {% endif %}
-                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -212,11 +181,12 @@
                 <div class="row g-3">
                     {% for transaction in transactions %}
                     <div class="col-12">
-                        <div class="card shadow-sm {% if transaction.transaction_type == 'income' %}border-success border-2{% else %}border-danger border-2{% endif %}">
+                        <div class="card shadow-sm transaction-card {% if transaction.transaction_type == 'income' %}border-success border-2{% else %}border-danger border-2{% endif %}" style="cursor: pointer;" data-transaction-id="{{ transaction.id }}" title="Clique para ver detalhes">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                     <div class="flex-grow-1">
                                         <div class="d-flex align-items-center gap-2 mb-2">
+                                            <span class="text-muted small">#{{ transaction.id }}</span>
                                             <strong class="text-muted">{{ transaction.transaction_date|date('d/m/Y') }}</strong>
                                             {% if transaction.related_type == 'transfer' %}
                                                 {% if transaction.transaction_type == 'income' %}
@@ -277,39 +247,6 @@
                                     </div>
                                 </div>
 
-                                {% if is_admin %}
-                                <div class="d-flex gap-2 pt-3 border-top flex-wrap align-items-center">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary view-transaction-details" data-transaction-id="{{ transaction.id }}">
-                                        <i class="bi bi-eye"></i> Ver detalhes
-                                    </button>
-                                    {% if transaction.related_type == 'fee_payment' %}
-                                    <span class="text-muted small align-self-center">Associado a pagamento de quota</span>
-                                    {% elseif transaction.related_type == 'transfer' %}
-                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/delete" class="flex-fill" onsubmit="return confirm('Tem certeza que deseja eliminar esta transferência? Ambas as transações serão eliminadas.');">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger w-100">
-                                            <i class="bi bi-trash"></i> Eliminar Transferência
-                                        </button>
-                                    </form>
-                                    {% else %}
-                                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/edit" class="btn btn-sm btn-outline-primary flex-fill">
-                                        <i class="bi bi-pencil"></i> Editar
-                                    </a>
-                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/delete" class="flex-fill" onsubmit="return confirm('Tem certeza que deseja eliminar este movimento?');">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger w-100">
-                                            <i class="bi bi-trash"></i> Eliminar
-                                        </button>
-                                    </form>
-                                    {% endif %}
-                                </div>
-                                {% else %}
-                                <div class="pt-3 border-top">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary view-transaction-details" data-transaction-id="{{ transaction.id }}">
-                                        <i class="bi bi-eye"></i> Ver detalhes
-                                    </button>
-                                </div>
-                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -435,7 +372,7 @@ body #financial-transactions-table-container #financial-transactions-table tbody
 }
 
 /* Permitir quebra de linha apenas em descrição */
-#financial-transactions-table td:nth-child(3) {
+#financial-transactions-table td:nth-child(4) {
     white-space: normal;
     min-width: 150px;
     max-width: 200px;
@@ -678,6 +615,31 @@ body #financial-transactions-table-container #financial-transactions-table tbody
     </div>
 </div>
 
+<style>
+/* Modal de confirmação deve aparecer acima do modal de detalhes do movimento */
+#confirmDeleteQuotaModal { z-index: 1065 !important; }
+</style>
+<!-- Modal Confirmar Eliminar Associação Quota -->
+<div class="modal fade" id="confirmDeleteQuotaModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-warning me-2"></i>Confirmar eliminação</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">Tem certeza que deseja eliminar a associação desta quota ao movimento? O pagamento será removido e o estado da quota será atualizado.</p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteQuotaBtn">
+                    <i class="bi bi-trash me-1"></i>Eliminar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Ver Detalhes do Movimento -->
 <div class="modal fade" id="transactionDetailsModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -692,7 +654,7 @@ body #financial-transactions-table-container #financial-transactions-table tbody
                     <p class="mt-2 text-muted">A carregar...</p>
                 </div>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer flex-wrap gap-2" id="transactionDetailsFooter">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
             </div>
         </div>
@@ -756,20 +718,18 @@ if (document.readyState === 'loading') {
     initQuotaModal();
 }
 
-// View transaction details
-document.addEventListener('click', function(e) {
-    const btn = e.target.closest('.view-transaction-details');
-    if (btn) {
-        e.preventDefault();
-        const tid = btn.dataset.transactionId;
-        if (!tid) return;
-        const modalEl = document.getElementById('transactionDetailsModal');
-        const contentEl = document.getElementById('transactionDetailsContent');
-        if (!modalEl || !contentEl) return;
-        contentEl.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">A carregar...</p></div>';
-        const modal = new bootstrap.Modal(modalEl);
-        modal.show();
-        fetch(`{{ BASE_URL }}condominiums/${condominiumId}/financial-transactions/${tid}/info`)
+// Open transaction details modal (used by click handler and ?view=id URL param)
+function openTransactionDetailsModal(tid) {
+    if (!tid) return;
+    const modalEl = document.getElementById('transactionDetailsModal');
+    const contentEl = document.getElementById('transactionDetailsContent');
+    if (!modalEl || !contentEl) return;
+    contentEl.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">A carregar...</p></div>';
+    const footerEl = document.getElementById('transactionDetailsFooter');
+    if (footerEl) footerEl.innerHTML = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>';
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+    fetch(`{{ BASE_URL }}condominiums/${condominiumId}/financial-transactions/${tid}/info`)
             .then(r => r.json())
             .then(data => {
                 if (data.error) {
@@ -789,20 +749,121 @@ document.addEventListener('click', function(e) {
                 if (t.transfer_to_account_name) html += '<div class="col-12"><strong>Transferência para:</strong><br>' + t.transfer_to_account_name + '</div>';
                 html += '<div class="col-12"><strong>Descrição:</strong><br>' + (t.description || '-') + '</div>';
                 if (fees.length > 0) {
+                    const isAdmin = {{ is_admin|default(false) ? 'true' : 'false' }};
                     html += '<div class="col-12"><strong>Quotas associadas/liquidadas:</strong><ul class="list-group list-group-flush mt-1">';
                     fees.forEach(f => {
-                        html += '<li class="list-group-item d-flex justify-content-between align-items-center">' + f.label + '<span class="badge bg-success">€' + f.amount.toFixed(2).replace('.', ',') + '</span></li>';
+                        const actions = (isAdmin && f.payment_id && f.fee_id) ? ' <button type="button" class="btn btn-outline-danger btn-sm ms-2" onclick="deletePaymentFromMovementModal(' + f.payment_id + ', ' + f.fee_id + ')" title="Eliminar associação desta quota"><i class="bi bi-trash"></i></button>' : '';
+                        html += '<li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">' +
+                            '<div class="d-flex align-items-center flex-wrap">' + f.label + actions + '</div>' +
+                            '<span class="badge bg-success">€' + f.amount.toFixed(2).replace('.', ',') + '</span></li>';
                     });
                     html += '</ul></div>';
                 }
                 html += '</div>';
                 contentEl.innerHTML = html;
+
+                const footerEl = document.getElementById('transactionDetailsFooter');
+                if (footerEl) {
+                    const isAdmin = {{ is_admin|default(false) ? 'true' : 'false' }};
+                    const rt = t.related_type || '';
+                    let footerHtml = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>';
+                    if (isAdmin && rt !== 'fee_payment' && rt !== 'fraction_account') {
+                        if (rt === 'transfer') {
+                            footerHtml += '<form method="POST" action="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/delete" class="d-inline" onsubmit="return confirm(\'Tem certeza que deseja eliminar esta transferência? Ambas as transações serão eliminadas.\');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Eliminar Transferência</button></form>';
+                        } else {
+                            footerHtml += '<a href="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/edit" class="btn btn-primary"><i class="bi bi-pencil me-1"></i>Editar</a>';
+                            footerHtml += '<form method="POST" action="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/delete" class="d-inline" onsubmit="return confirm(\'Tem certeza que deseja eliminar este movimento?\');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Eliminar</button></form>';
+                        }
+                    }
+                    footerEl.innerHTML = footerHtml;
+                }
             })
             .catch(err => {
                 contentEl.innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes: ' + err.message + '</div>';
             });
+}
+
+// Delete payment from movement details modal (shows confirmation modal, then redirects to financial-transactions)
+let pendingDeletePayment = null;
+let pendingDeleteFeeId = null;
+function deletePaymentFromMovementModal(paymentId, feeId) {
+    pendingDeletePayment = paymentId;
+    pendingDeleteFeeId = feeId;
+    const modal = new bootstrap.Modal(document.getElementById('confirmDeleteQuotaModal'));
+    modal.show();
+}
+function initConfirmDeleteQuotaModal() {
+    const modalEl = document.getElementById('confirmDeleteQuotaModal');
+    if (modalEl && !modalEl.dataset.listenerAttached) {
+        modalEl.dataset.listenerAttached = '1';
+        modalEl.addEventListener('shown.bs.modal', function() {
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            if (backdrops.length > 0) {
+                backdrops[backdrops.length - 1].style.zIndex = '1060';
+            }
+        });
+    }
+    const btn = document.getElementById('confirmDeleteQuotaBtn');
+    if (btn && !btn.dataset.listenerAttached) {
+        btn.dataset.listenerAttached = '1';
+        btn.addEventListener('click', function() {
+            if (!pendingDeletePayment || !pendingDeleteFeeId) return;
+            bootstrap.Modal.getInstance(document.getElementById('confirmDeleteQuotaModal')).hide();
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `{{ BASE_URL }}condominiums/${condominiumId}/fees/${pendingDeleteFeeId}/payments/${pendingDeletePayment}/delete`;
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = '{{ csrf_token }}';
+            form.appendChild(csrfInput);
+            const redirectInput = document.createElement('input');
+            redirectInput.type = 'hidden';
+            redirectInput.name = 'redirect_to';
+            redirectInput.value = 'financial-transactions';
+            form.appendChild(redirectInput);
+            document.body.appendChild(form);
+            form.submit();
+            pendingDeletePayment = null;
+            pendingDeleteFeeId = null;
+        });
+    }
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initConfirmDeleteQuotaModal);
+} else {
+    initConfirmDeleteQuotaModal();
+}
+
+// View transaction details - click handlers (row click and legacy button)
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.no-row-click')) return;
+    const row = e.target.closest('.transaction-row');
+    const card = e.target.closest('.transaction-card');
+    const btn = e.target.closest('.view-transaction-details');
+    const tid = row?.dataset?.transactionId || card?.dataset?.transactionId || btn?.dataset?.transactionId;
+    if (tid) {
+        e.preventDefault();
+        if (btn) e.stopPropagation();
+        openTransactionDetailsModal(tid);
     }
 });
+
+// Open modal when URL has ?view=id (ex: link from quota payment history)
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    const viewId = params.get('view');
+    if (viewId) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() { openTransactionDetailsModal(viewId); });
+        } else {
+            openTransactionDetailsModal(viewId);
+        }
+        params.delete('view');
+        const qs = params.toString();
+        history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''));
+    }
+})();
 
 // Handle quota liquidation button click - open modal
 document.addEventListener('click', function(e) {

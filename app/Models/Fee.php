@@ -534,6 +534,19 @@ class Fee extends Model
                 $map[$slot][$fractionId]['amount'] - $map[$slot][$fractionId]['paid_amount'];
         }
 
+        // Derive status from actual payments (incl. credit application) - paid_amount is source of truth
+        foreach ($map as $slot => $fractions) {
+            foreach ($fractions as $fractionId => $data) {
+                $amt = (float)($data['amount'] ?? 0);
+                $paid = (float)($data['paid_amount'] ?? 0);
+                if ($amt > 0 && $paid >= $amt) {
+                    $map[$slot][$fractionId]['status'] = 'paid';
+                    $map[$slot][$fractionId]['is_overdue'] = false;
+                    $map[$slot][$fractionId]['remaining_amount'] = 0;
+                }
+            }
+        }
+
         return $map;
     }
 

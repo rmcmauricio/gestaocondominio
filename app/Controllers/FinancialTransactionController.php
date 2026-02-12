@@ -626,9 +626,10 @@ class FinancialTransactionController extends Controller
         $liquidatedFees = [];
         if ($transaction['transaction_type'] === 'income') {
             $stmt = $db->prepare("
-                SELECT DISTINCT fp.id, fp.amount, f.period_year, f.period_month, f.period_type, f.period_index, f.fee_type, f.reference as fee_reference
+                SELECT DISTINCT fp.id as payment_id, fp.fee_id, fp.amount, f.period_year, f.period_month, f.period_type, f.period_index, f.fee_type, f.reference as fee_reference, fr.identifier as fraction_identifier
                 FROM fee_payments fp
                 INNER JOIN fees f ON f.id = fp.fee_id
+                LEFT JOIN fractions fr ON fr.id = f.fraction_id
                 LEFT JOIN fraction_account_movements fam ON fam.source_reference_id = fp.id
                     AND fam.type = 'debit' AND fam.source_type = 'quota_application'
                 WHERE (fp.financial_transaction_id = :tid OR fam.source_financial_transaction_id = :tid2)
@@ -637,15 +638,19 @@ class FinancialTransactionController extends Controller
             $stmt->execute([':tid' => $id, ':tid2' => $id]);
             $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
             foreach ($rows as $r) {
+                $label = self::feeLabel([
+                    'fee_type' => $r['fee_type'],
+                    'reference' => $r['fee_reference'],
+                    'period_year' => $r['period_year'],
+                    'period_month' => $r['period_month'],
+                    'period_type' => $r['period_type'] ?? null,
+                    'period_index' => isset($r['period_index']) ? (int)$r['period_index'] : null
+                ]);
+                $fractionPart = !empty($r['fraction_identifier']) ? ' (Fração ' . $r['fraction_identifier'] . ')' : '';
                 $liquidatedFees[] = [
-                    'label' => self::feeLabel([
-                        'fee_type' => $r['fee_type'],
-                        'reference' => $r['fee_reference'],
-                        'period_year' => $r['period_year'],
-                        'period_month' => $r['period_month'],
-                        'period_type' => $r['period_type'] ?? null,
-                        'period_index' => isset($r['period_index']) ? (int)$r['period_index'] : null
-                    ]),
+                    'payment_id' => (int)$r['payment_id'],
+                    'fee_id' => (int)$r['fee_id'],
+                    'label' => $label . $fractionPart,
                     'amount' => (float)$r['amount']
                 ];
             }
