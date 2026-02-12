@@ -18,10 +18,14 @@ class FeePayment extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT fp.*, u.name as created_by_name, ft.id as transaction_id, ba.name as account_name
+            SELECT fp.*, u.name as created_by_name,
+                ft.id as transaction_id, ft.reference as ft_reference,
+                ba.name as account_name, ba.account_type
             FROM fee_payments fp
             LEFT JOIN users u ON u.id = fp.created_by
-            LEFT JOIN financial_transactions ft ON ft.id = fp.financial_transaction_id
+            LEFT JOIN fraction_account_movements fam ON fam.source_reference_id = fp.id 
+                AND fam.source_type = 'quota_application' AND fam.type = 'debit'
+            LEFT JOIN financial_transactions ft ON ft.id = COALESCE(fp.financial_transaction_id, fam.source_financial_transaction_id)
             LEFT JOIN bank_accounts ba ON ba.id = ft.bank_account_id
             WHERE fp.fee_id = :fee_id
             ORDER BY fp.payment_date DESC, fp.created_at DESC

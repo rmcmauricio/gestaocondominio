@@ -122,19 +122,20 @@ function showFeeDetails(feeId) {
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <code class="small">${payment.reference || '-'}</code>
+                                                    <code class="small">${payment.reference || payment.ft_reference || (payment.transaction_id ? null : 'Crédito aplicado') || '-'}</code>
                                                 </td>
                                                 <td>
                                                     ${payment.transaction_id ? `
-                                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" 
+                                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions?view=${payment.transaction_id}" 
+                                                           target="_blank" rel="noopener noreferrer"
                                                            class="text-decoration-none d-inline-flex align-items-center" 
-                                                           title="Ver movimento financeiro #${payment.transaction_id}">
+                                                           title="Ver movimento financeiro #${payment.transaction_id} (abre em nova aba)">
                                                             <i class="bi bi-link-45deg me-1"></i>
                                                             <span class="text-truncate" style="max-width: 150px;">
-                                                                ${payment.account_name ? payment.account_name + ' (#' + payment.transaction_id + ')' : 'Movimento #' + payment.transaction_id}
+                                                                #${payment.transaction_id}${payment.account_name ? ' - ' + payment.account_name : ''}${payment.ft_reference ? ' - ' + payment.ft_reference : ''}
                                                             </span>
                                                         </a>
-                                                    ` : '<span class="text-muted">-</span>'}
+                                                    ` : '<span class="text-muted">Crédito aplicado</span>'}
                                                 </td>
                                                 <td>
                                                     <small class="text-muted">
@@ -145,12 +146,12 @@ function showFeeDetails(feeId) {
                                                 <td>
                                                     <div class="btn-group btn-group-sm">
                                                         <button type="button" class="btn btn-outline-warning btn-sm" 
-                                                                onclick="editPayment(${payment.id}, ${feeId})" 
+                                                                onclick="editPayment(${payment.id}, ${payment.fee_id})" 
                                                                 title="Editar Pagamento">
                                                             <i class="bi bi-pencil"></i>
                                                         </button>
                                                         <button type="button" class="btn btn-outline-danger btn-sm" 
-                                                                onclick="deletePayment(${payment.id}, ${feeId})" 
+                                                                onclick="deletePayment(${payment.id}, ${payment.fee_id})" 
                                                                 title="Eliminar Pagamento">
                                                             <i class="bi bi-trash"></i>
                                                         </button>
