@@ -758,6 +758,8 @@ function openTransactionDetailsModal(tid) {
                             '<span class="badge bg-success">€' + f.amount.toFixed(2).replace('.', ',') + '</span></li>';
                     });
                     html += '</ul></div>';
+                } else if (t.related_type === 'fee_payment' || t.category === 'Quotas') {
+                    html += '<div class="col-12"><div class="alert alert-info mb-0"><i class="bi bi-info-circle me-2"></i>Movimento de pagamento de quotas. As quotas associadas não foram encontradas (pode ter ocorrido uma inconsistência). Pode eliminar o movimento usando o botão abaixo.</div></div>';
                 }
                 html += '</div>';
                 contentEl.innerHTML = html;
@@ -766,10 +768,14 @@ function openTransactionDetailsModal(tid) {
                 if (footerEl) {
                     const isAdmin = {{ is_admin|default(false) ? 'true' : 'false' }};
                     const rt = t.related_type || '';
+                    const hasLinkedPayments = fees.length > 0 || rt === 'fee_payment' || rt === 'fraction_account' || t.category === 'Quotas';
                     let footerHtml = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>';
-                    if (isAdmin && rt !== 'fee_payment' && rt !== 'fraction_account') {
+                    if (isAdmin) {
                         if (rt === 'transfer') {
                             footerHtml += '<form method="POST" action="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/delete" class="d-inline" onsubmit="return confirm(\'Tem certeza que deseja eliminar esta transferência? Ambas as transações serão eliminadas.\');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Eliminar Transferência</button></form>';
+                        } else if (hasLinkedPayments) {
+                            footerHtml += '<a href="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/edit" class="btn btn-outline-primary" title="Editar movimento (alguns campos podem estar limitados)"><i class="bi bi-pencil me-1"></i>Editar</a>';
+                            footerHtml += '<form method="POST" action="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/delete" class="d-inline" onsubmit="return confirm(\'Tem certeza? Os pagamentos de quotas associados serão eliminados primeiro e o estado das quotas será atualizado.\');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="delete_with_payments" value="1"><button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Eliminar</button></form>';
                         } else {
                             footerHtml += '<a href="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/edit" class="btn btn-primary"><i class="bi bi-pencil me-1"></i>Editar</a>';
                             footerHtml += '<form method="POST" action="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/delete" class="d-inline" onsubmit="return confirm(\'Tem certeza que deseja eliminar este movimento?\');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Eliminar</button></form>';

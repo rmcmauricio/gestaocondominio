@@ -110,6 +110,9 @@ $router->get('/notifications/counts', 'App\Controllers\NotificationController@ge
 // $router->get('/condominiums', 'App\Controllers\CondominiumController@index'); // Removed - dashboard replaces this
 $router->get('/condominiums/create', 'App\Controllers\CondominiumController@create');
 $router->post('/condominiums', 'App\Controllers\CondominiumController@store');
+$router->get('/condominiums/backup-download', 'App\Controllers\CondominiumController@downloadBackup');
+$router->post('/condominiums/backup-delete', 'App\Controllers\CondominiumController@deleteBackup');
+$router->post('/condominiums/restore', 'App\Controllers\CondominiumController@restoreBackup');
 $router->get('/condominiums/{id}', 'App\Controllers\CondominiumController@show');
 $router->get('/condominiums/{id}/edit', 'App\Controllers\CondominiumController@edit');
 $router->get('/condominiums/{id}/customize', 'App\Controllers\CondominiumController@customize');
@@ -125,9 +128,6 @@ $router->post('/condominiums/{id}/assign-admin', 'App\Controllers\CondominiumCon
 $router->post('/condominiums/{id}/assign-admin-by-email', 'App\Controllers\CondominiumController@processAssignAdminByEmail');
 $router->post('/condominiums/{id}/remove-admin', 'App\Controllers\CondominiumController@processRemoveAdmin');
 $router->post('/condominiums/{condominium_id}/switch-view-mode', 'App\Controllers\CondominiumController@switchViewMode');
-$router->get('/condominiums/backup-download', 'App\Controllers\CondominiumController@downloadBackup');
-$router->post('/condominiums/backup-delete', 'App\Controllers\CondominiumController@deleteBackup');
-$router->post('/condominiums/restore', 'App\Controllers\CondominiumController@restoreBackup');
 $router->get('/condominiums/{id}/restore', 'App\Controllers\CondominiumController@backupRestorePage');
 $router->post('/condominiums/{id}/create-backup', 'App\Controllers\CondominiumController@createBackup');
 

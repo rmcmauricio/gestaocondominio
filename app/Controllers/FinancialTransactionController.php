@@ -15,6 +15,7 @@ use App\Models\Fraction;
 use App\Models\Assembly;
 use App\Models\FractionAccount;
 use App\Models\FractionAccountMovement;
+use App\Models\FeePaymentHistory;
 use App\Services\LiquidationService;
 use App\Services\ReceiptService;
 use App\Services\AuditService;
@@ -26,6 +27,7 @@ class FinancialTransactionController extends Controller
     protected $bankAccountModel;
     protected $condominiumModel;
     protected $feeModel;
+    protected $feePaymentModel;
     protected $auditService;
 
     public function __construct()
@@ -35,6 +37,7 @@ class FinancialTransactionController extends Controller
         $this->bankAccountModel = new BankAccount();
         $this->condominiumModel = new Condominium();
         $this->feeModel = new Fee();
+        $this->feePaymentModel = new FeePayment();
         $this->auditService = new AuditService();
     }
 
@@ -872,9 +875,11 @@ class FinancialTransactionController extends Controller
             exit;
         }
 
-        // Don't allow deleting transactions linked to fee payments or fraction account flow
-        if ($this->transactionModel->isLinkedToFeePayment($id)) {
-            $_SESSION['error'] = 'Não é possível eliminar movimentos associados a pagamentos de quotas.';
+        $deleteWithPayments = !empty($_POST['delete_with_payments']) && $_POST['delete_with_payments'] === '1';
+
+        // Don't allow deleting transactions linked to fee payments unless delete_with_payments is set
+        if ($this->transactionModel->isLinkedToFeePayment($id) && !$deleteWithPayments) {
+            $_SESSION['error'] = 'Não é possível eliminar movimentos associados a pagamentos de quotas. Use o botão Eliminar no modal de detalhes para eliminar o movimento e os pagamentos associados.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
             exit;
         }
@@ -887,7 +892,96 @@ class FinancialTransactionController extends Controller
         try {
             global $db;
             $db->beginTransaction();
-            
+            $userId = AuthMiddleware::userId();
+
+            // When delete_with_payments: cascade delete fee payments first
+            if ($deleteWithPayments) {
+                $payments = $this->feePaymentModel->getByFinancialTransactionId($id);
+                $historyModel = new FeePaymentHistory();
+                $receiptService = new ReceiptService();
+
+                foreach ($payments as $payment) {
+                    $paymentId = (int)$payment['id'];
+                    $feeId = (int)$payment['fee_id'];
+                    $fee = $this->feeModel->findById($feeId);
+                    if (!$fee || $fee['condominium_id'] != $condominiumId) {
+                        continue;
+                    }
+
+                    $historyModel->logDeletion($paymentId, $feeId, $userId, $payment,
+                        'Pagamento eliminado com movimento: €' . number_format((float)$payment['amount'], 2, ',', '.') .
+                        ' (' . $payment['payment_method'] . ') - Referência: ' . ($payment['reference'] ?? 'N/A'));
+
+                    $oldFeeStatus = $fee['status'] ?? 'pending';
+                    $this->auditService->logFinancial([
+                        'condominium_id' => $condominiumId,
+                        'entity_type' => 'fee_payment',
+                        'entity_id' => $paymentId,
+                        'action' => 'fee_payment_deleted',
+                        'user_id' => $userId,
+                        'amount' => $payment['amount'],
+                        'old_status' => 'completed',
+                        'new_status' => 'deleted',
+                        'description' => "Pagamento de quota eliminado com movimento. Quota ID: {$feeId}, Pagamento ID: {$paymentId}, Valor: €" . number_format((float)$payment['amount'], 2, ',', '.') . ", Movimento: #{$id}"
+                    ]);
+
+                    if (empty($payment['financial_transaction_id'])) {
+                        $stmt = $db->prepare("
+                            SELECT id, fraction_account_id, amount
+                            FROM fraction_account_movements
+                            WHERE source_reference_id = :payment_id AND source_type = 'quota_application' AND type = 'debit'
+                        ");
+                        $stmt->execute([':payment_id' => $paymentId]);
+                        $debitMovements = $stmt->fetchAll() ?: [];
+                        foreach ($debitMovements as $mov) {
+                            $amt = (float)$mov['amount'];
+                            $faId = (int)$mov['fraction_account_id'];
+                            $movId = (int)$mov['id'];
+                            $db->prepare("UPDATE fraction_accounts SET balance = balance + :amt WHERE id = :id")
+                                ->execute([':amt' => $amt, ':id' => $faId]);
+                            $db->prepare("DELETE FROM fraction_account_movements WHERE id = :id")
+                                ->execute([':id' => $movId]);
+                        }
+                    }
+
+                    $this->feePaymentModel->delete($paymentId);
+                    $receiptService->regenerateReceiptsForFee($feeId, $condominiumId, $userId);
+
+                    $newTotalPaid = $this->feePaymentModel->getTotalPaid($feeId);
+                    $isFullyPaid = $newTotalPaid >= (float)$fee['amount'];
+                    if ($isFullyPaid) {
+                        $this->feeModel->markAsPaid($feeId);
+                        $this->auditService->logFinancial([
+                            'condominium_id' => $condominiumId,
+                            'entity_type' => 'fee',
+                            'entity_id' => $feeId,
+                            'action' => 'fee_marked_as_paid',
+                            'user_id' => $userId,
+                            'amount' => $fee['amount'],
+                            'old_status' => $oldFeeStatus,
+                            'new_status' => 'paid',
+                            'description' => "Quota marcada como paga após eliminação. Quota ID: {$feeId}"
+                        ]);
+                    } else {
+                        $db->prepare("UPDATE fees SET status = 'pending', updated_at = NOW() WHERE id = :id")
+                            ->execute([':id' => $feeId]);
+                        if ($oldFeeStatus === 'paid') {
+                            $this->auditService->logFinancial([
+                                'condominium_id' => $condominiumId,
+                                'entity_type' => 'fee',
+                                'entity_id' => $feeId,
+                                'action' => 'fee_status_changed',
+                                'user_id' => $userId,
+                                'amount' => $fee['amount'],
+                                'old_status' => $oldFeeStatus,
+                                'new_status' => 'pending',
+                                'description' => "Status da quota alterado para pendente. Quota ID: {$feeId}"
+                            ]);
+                        }
+                    }
+                }
+            }
+
             // If it's a transfer, delete both transactions
             if ($transaction['related_type'] === 'transfer') {
                 $relatedId = $transaction['related_id'];
@@ -916,7 +1010,9 @@ class FinancialTransactionController extends Controller
                 // Regular transaction
                 $this->transactionModel->delete($id);
                 $db->commit();
-                $_SESSION['success'] = 'Movimento financeiro eliminado com sucesso!';
+                $_SESSION['success'] = $deleteWithPayments
+                    ? 'Movimento e pagamentos de quotas associados eliminados com sucesso!'
+                    : 'Movimento financeiro eliminado com sucesso!';
             }
         } catch (\Exception $e) {
             if (isset($db)) {

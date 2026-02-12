@@ -28,6 +28,29 @@
     </div>
     {% endif %}
 
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-upload"></i> Restaurar a partir de ficheiro</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">Faça upload de um ficheiro .backup para restaurar. O backup deve ser deste condomínio (ID {{ condominium_id }}).</p>
+            <form method="post" action="{{ url_restore_form }}" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="condominium_id" value="{{ condominium_id }}">
+                <div class="row g-2 align-items-end">
+                    <div class="col-auto flex-grow-1">
+                        <input type="file" name="backup_file" class="form-control" accept=".backup" required>
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-arrow-counterclockwise"></i> Restaurar a partir do ficheiro
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     {% if backups|length == 0 %}
     <div class="card shadow-sm">
         <div class="card-body text-center py-5">
@@ -65,8 +88,9 @@
                                 <a href="{{ url_download_base|default(BASE_URL ~ 'admin/condominiums/backup-download?file=') }}{{ backup.name|e('url') }}" class="btn btn-sm btn-outline-primary" title="Descarregar ficheiro">
                                     <i class="bi bi-download"></i> Descarregar
                                 </a>
-                                <form method="post" action="{{ url_restore_form|default(BASE_URL ~ 'admin/condominiums/restore') }}" class="d-inline ms-1">
+                                <form method="post" action="{{ url_restore_form }}" class="d-inline ms-1">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="condominium_id" value="{{ condominium_id }}">
                                     <input type="hidden" name="existing_backup" value="{{ backup.path }}">
                                     <button type="submit" class="btn btn-sm btn-success" title="Restaurar este backup">
                                         <i class="bi bi-arrow-counterclockwise"></i> Restaurar
