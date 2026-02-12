@@ -1,0 +1,83 @@
+<div class="container py-4">
+    {% set page_actions %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-debts" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Editar Dívida Histórica',
+        'help_section': 'finances-historical-debts',
+        'help_title': 'Ajuda com Dívidas Históricas',
+        'actions': page_actions
+    } %}
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-pencil"></i> Editar Dívida - {{ fraction.identifier }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-debts/{{ debt.id }}/update">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <div class="mb-3">
+                            <label for="year" class="form-label">Ano <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="year" name="year"
+                                   min="2000" max="{{ current_year - 1 }}" value="{{ debt.period_year }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="month" class="form-label">Mês (opcional)</label>
+                            <select class="form-select" id="month" name="month">
+                                <option value="">Não especificar</option>
+                                {% for m in 1..12 %}
+                                <option value="{{ m }}" {% if debt.period_month == m %}selected{% endif %}>
+                                    {% if m == 1 %}Janeiro{% elseif m == 2 %}Fevereiro{% elseif m == 3 %}Março{% elseif m == 4 %}Abril{% elseif m == 5 %}Maio{% elseif m == 6 %}Junho{% elseif m == 7 %}Julho{% elseif m == 8 %}Agosto{% elseif m == 9 %}Setembro{% elseif m == 10 %}Outubro{% elseif m == 11 %}Novembro{% else %}Dezembro{% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="amount" class="form-label">Valor (€) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">€</span>
+                                <input type="number" class="form-control" id="amount" name="amount"
+                                       step="0.01" min="0.01" required value="{{ debt.amount|number_format(2, '.', '') }}">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="due_date" class="form-label">Data de Vencimento <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="due_date" name="due_date"
+                                   value="{{ debt.due_date }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notas</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"
+                                      placeholder="Informações adicionais">{{ debt_notes }}</textarea>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-check-lg"></i> Guardar
+                            </button>
+                            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-debts" class="btn btn-secondary">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

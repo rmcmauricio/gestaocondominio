@@ -43,6 +43,7 @@
                                     <th>Data</th>
                                     <th>Valor</th>
                                     <th>Descrição</th>
+                                    <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -51,7 +52,22 @@
                                     <td><strong>{{ credit.fraction_identifier }}</strong></td>
                                     <td>{{ credit.created_at|date('d/m/Y H:i') }}</td>
                                     <td><strong class="text-success">+ €{{ credit.amount|number_format(2, ',', '.') }}</strong></td>
-                                    <td>{{ credit.description|default('-') }}</td>
+                                    <td>{{ credit.description|default('-') }}{% if not credit.can_edit_delete %} <span class="badge bg-secondary">Utilizado</span>{% endif %}</td>
+                                    <td>
+                                        {% if credit.can_edit_delete %}
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-credits/{{ credit.id }}/edit" class="btn btn-outline-primary btn-sm" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-credits/{{ credit.id }}/delete" class="d-inline" onsubmit="return confirm('Tem a certeza que pretende eliminar este crédito histórico?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Apagar">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% else %}
+                                        <span class="text-muted small">Não editável (já utilizado)</span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>

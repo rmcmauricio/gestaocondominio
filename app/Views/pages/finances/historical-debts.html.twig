@@ -44,6 +44,7 @@
                                     <th>Valor</th>
                                     <th>Vencimento</th>
                                     <th>Status</th>
+                                    <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -60,6 +61,29 @@
                                             {% else %}Pendente
                                             {% endif %}
                                         </span>
+                                        {% if debt.has_payments %}
+                                        <small class="d-block text-muted mt-1">Associada a quotas</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if debt.has_payments %}
+                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-debts/{{ debt.id }}/disassociate" class="d-inline" onsubmit="return confirm('Tem a certeza que pretende desassociar esta dívida das quotas? Os pagamentos serão eliminados.');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button type="submit" class="btn btn-outline-secondary btn-sm" title="Desassociar da quota para poder editar/apagar">
+                                                <i class="bi bi-link-45deg"></i> Desassociar
+                                            </button>
+                                        </form>
+                                        {% else %}
+                                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-debts/{{ debt.id }}/edit" class="btn btn-outline-primary btn-sm" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-debts/{{ debt.id }}/delete" class="d-inline" onsubmit="return confirm('Tem a certeza que pretende eliminar esta dívida histórica?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Apagar">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}

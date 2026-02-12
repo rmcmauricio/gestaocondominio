@@ -401,6 +401,43 @@ class Fee extends Model
     }
 
     /**
+     * Update fee (for historical fees: amount, due_date, notes, period_month)
+     */
+    public function update(int $id, array $data): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $allowed = ['amount', 'base_amount', 'due_date', 'notes', 'period_month', 'period_year'];
+        $set = [];
+        $params = [':id' => $id];
+        foreach ($allowed as $f) {
+            if (array_key_exists($f, $data)) {
+                $set[] = "{$f} = :{$f}";
+                $params[":{$f}"] = $data[$f];
+            }
+        }
+        if (empty($set)) {
+            return false;
+        }
+        $stmt = $this->db->prepare("UPDATE fees SET " . implode(', ', $set) . ", updated_at = NOW() WHERE id = :id");
+        return $stmt->execute($params);
+    }
+
+    /**
+     * Delete fee
+     */
+    public function delete(int $id): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+        $stmt = $this->db->prepare("DELETE FROM fees WHERE id = :id");
+        return $stmt->execute([':id' => $id]);
+    }
+
+    /**
      * Get all fees by month and fraction
      * Returns array of all fees for a specific month and fraction
      */
