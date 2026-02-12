@@ -1202,7 +1202,7 @@ class SuperAdminController extends Controller
 
         try {
             $backupService = new CondominiumBackupService();
-            $backupPath = $backupService->backup($id);
+            $backupPath = $backupService->backup($id, true); // bypass limit for SuperAdmin
             $filename = basename($backupPath);
             $sizeKb = (int) ceil(filesize($backupPath) / 1024);
 
@@ -1274,12 +1274,16 @@ class SuperAdminController extends Controller
 
         $backupPath = null;
         $targetAdminUserId = !empty($_POST['target_admin_user_id']) ? (int)$_POST['target_admin_user_id'] : null;
+        $restoreMode = $_POST['restore_mode'] ?? 'in_place';
+        $forceRestoreInPlace = ($restoreMode === 'new') ? false : true;
 
         if (!empty($_FILES['backup_file']['tmp_name']) && is_uploaded_file($_FILES['backup_file']['tmp_name'])) {
             $backupPath = $_FILES['backup_file']['tmp_name'];
         } elseif (!empty($_POST['existing_backup'])) {
             $backupPath = $_POST['existing_backup'];
-            if (!file_exists($backupPath) || strpos(realpath($backupPath), realpath(__DIR__ . '/../../storage/backups')) !== 0) {
+            $realPath = realpath($backupPath);
+            $realBackupDir = realpath(__DIR__ . '/../../storage/backups');
+            if (!$backupPath || !file_exists($backupPath) || $realPath === false || $realBackupDir === false || strpos($realPath, $realBackupDir) !== 0) {
                 $_SESSION['error'] = 'Backup selecionado inválido.';
                 header('Location: ' . BASE_URL . 'admin/condominiums/restore');
                 exit;
@@ -1294,9 +1298,9 @@ class SuperAdminController extends Controller
 
         try {
             $backupService = new CondominiumBackupService();
-            $newCondominiumId = $backupService->restore($backupPath, $targetAdminUserId ?: null);
+            $newCondominiumId = $backupService->restore($backupPath, $targetAdminUserId ?: null, $forceRestoreInPlace);
 
-            if (isset($_FILES['backup_file']['tmp_name'])) {
+            if (!empty($_FILES['backup_file']['tmp_name']) && $backupPath === $_FILES['backup_file']['tmp_name']) {
                 @unlink($backupPath);
             }
 
@@ -1360,8 +1364,6 @@ class SuperAdminController extends Controller
 
         $backupService = new CondominiumBackupService();
         $backups = $backupService->listBackupsForCondominium($id);
-        $backupLimit = $backupService->getMaxBackupsPerCondominium();
-        $backupToRemoveIfAtLimit = $backupService->getBackupToRemoveIfAtLimit($id);
 
         global $db;
         $stmt = $db->query("SELECT id, name, email FROM users WHERE role = 'super_admin' OR role = 'admin' ORDER BY name");
@@ -1376,8 +1378,8 @@ class SuperAdminController extends Controller
             'condominium' => $condominium,
             'condominium_id' => $id,
             'backups' => $backups,
-            'backup_limit' => $backupLimit,
-            'backup_to_remove_if_at_limit' => $backupToRemoveIfAtLimit,
+            'backup_limit' => null, // SuperAdmin: sem limite
+            'backup_to_remove_if_at_limit' => null, // SuperAdmin: não remove backups antigos
             'admin_users' => $adminUsers,
             'csrf_token' => Security::generateCSRFToken(),
             'user' => AuthMiddleware::user(),

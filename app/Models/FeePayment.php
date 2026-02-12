@@ -9,6 +9,24 @@ class FeePayment extends Model
     protected $table = 'fee_payments';
 
     /**
+     * Get payments by financial transaction ID
+     */
+    public function getByFinancialTransactionId(int $financialTransactionId): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT * FROM fee_payments
+            WHERE financial_transaction_id = :financial_transaction_id
+            ORDER BY id
+        ");
+        $stmt->execute([':financial_transaction_id' => $financialTransactionId]);
+        return $stmt->fetchAll() ?: [];
+    }
+
+    /**
      * Get payments for a fee
      */
     public function getByFee(int $feeId): array

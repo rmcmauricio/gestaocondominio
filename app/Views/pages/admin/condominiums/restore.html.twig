@@ -38,6 +38,18 @@
                 </div>
 
                 <div class="mb-4">
+                    <label class="form-label fw-bold">Como restaurar?</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="restore_mode" id="restore_in_place" value="in_place" checked>
+                        <label class="form-check-label" for="restore_in_place">Restaurar no ID original — Substituir o condomínio existente (se existir) pelos dados do backup, mantendo o mesmo ID.</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="restore_mode" id="restore_new" value="new">
+                        <label class="form-check-label" for="restore_new">Criar novo condomínio — Criar um condomínio novo com dados do backup (ID diferente).</label>
+                    </div>
+                </div>
+
+                <div class="mb-4">
                     <label class="form-label fw-bold">Administrador do condomínio restaurado (opcional)</label>
                     <select name="target_admin_user_id" class="form-select">
                         <option value="">Usar administrador original (por email)</option>
@@ -72,6 +84,17 @@
                         <option value="{{ backup.path }}">{{ backup.name }} — {{ backup.size_kb|default(0) }} KB — {{ backup.modified|date('d/m/Y H:i') }}</option>
                         {% endfor %}
                     </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Como restaurar?</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="restore_mode" id="restore_in_place2" value="in_place" checked>
+                        <label class="form-check-label" for="restore_in_place2">Restaurar no ID original</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="restore_mode" id="restore_new2" value="new">
+                        <label class="form-check-label" for="restore_new2">Criar novo condomínio</label>
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Administrador (opcional)</label>

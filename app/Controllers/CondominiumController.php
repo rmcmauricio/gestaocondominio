@@ -1889,7 +1889,9 @@ class CondominiumController extends Controller
     }
 
     /**
-     * Restore from backup (POST); user must be admin of the condominium that owns the backup.
+     * Restore from backup (POST); user must be admin of the condominium.
+     * Admins can only restore backups whose condominium ID matches the current condominium.
+     * Supports: existing backup from list, or uploaded backup file.
      */
     public function restoreBackup()
     {
@@ -1907,40 +1909,95 @@ class CondominiumController extends Controller
             exit;
         }
 
-        $backupPath = $_POST['existing_backup'] ?? '';
-        if (empty($backupPath) || !file_exists($backupPath)) {
-            $_SESSION['error'] = 'Backup não indicado ou inválido.';
-            header('Location: ' . BASE_URL . 'dashboard');
+        $backupPath = null;
+        $expectedCondominiumId = !empty($_POST['condominium_id']) ? (int)$_POST['condominium_id'] : null;
+
+        // Option 1: Uploaded file
+        if (!empty($_FILES['backup_file']['tmp_name']) && is_uploaded_file($_FILES['backup_file']['tmp_name'])) {
+            if ($expectedCondominiumId <= 0) {
+                $_SESSION['error'] = 'Erro: condomínio não identificado.';
+                header('Location: ' . BASE_URL . 'dashboard');
+                exit;
+            }
+            $uploadDir = __DIR__ . '/../../storage/backups';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            $ext = pathinfo($_FILES['backup_file']['name'] ?? '', PATHINFO_EXTENSION);
+            if ($ext !== 'backup') {
+                $_SESSION['error'] = 'O ficheiro deve ser um backup (.backup).';
+                header('Location: ' . BASE_URL . 'condominiums/' . $expectedCondominiumId . '/restore');
+                exit;
+            }
+            $tempPath = $uploadDir . '/upload_' . uniqid() . '.backup';
+            if (!move_uploaded_file($_FILES['backup_file']['tmp_name'], $tempPath)) {
+                $_SESSION['error'] = 'Erro ao guardar o ficheiro enviado.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $expectedCondominiumId . '/restore');
+                exit;
+            }
+            $backupPath = $tempPath;
+        }
+        // Option 2: Existing backup from list
+        elseif (!empty($_POST['existing_backup'])) {
+            $backupPath = $_POST['existing_backup'];
+            $realPath = realpath($backupPath);
+            $realBackupDir = realpath(__DIR__ . '/../../storage/backups');
+            if ($realPath === false || $realBackupDir === false || strpos($realPath, $realBackupDir) !== 0 || !is_file($realPath)) {
+                $_SESSION['error'] = 'Backup inválido.';
+                header('Location: ' . BASE_URL . 'dashboard');
+                exit;
+            }
+            $expectedCondominiumId = self::condominiumIdFromBackupPath($backupPath);
+            if ($expectedCondominiumId === null) {
+                $_SESSION['error'] = 'Backup inválido.';
+                header('Location: ' . BASE_URL . 'dashboard');
+                exit;
+            }
+        }
+
+        if (!$backupPath || !file_exists($backupPath)) {
+            $_SESSION['error'] = 'Selecione um backup existente ou faça upload de um ficheiro .backup.';
+            header('Location: ' . BASE_URL . ($expectedCondominiumId ? 'condominiums/' . $expectedCondominiumId . '/restore' : 'dashboard'));
             exit;
         }
 
-        $realPath = realpath($backupPath);
-        $realBackupDir = realpath(__DIR__ . '/../../storage/backups');
-        if ($realPath === false || $realBackupDir === false || strpos($realPath, $realBackupDir) !== 0) {
-            $_SESSION['error'] = 'Backup inválido.';
-            header('Location: ' . BASE_URL . 'dashboard');
+        $backupService = new CondominiumBackupService();
+        $backupCondominiumId = $backupService->getBackupCondominiumId($backupPath);
+        if ($backupCondominiumId === null) {
+            if (isset($tempPath)) {
+                @unlink($tempPath);
+            }
+            $_SESSION['error'] = 'O ficheiro de backup está corrompido ou inválido.';
+            header('Location: ' . BASE_URL . ($expectedCondominiumId ? 'condominiums/' . $expectedCondominiumId . '/restore' : 'dashboard'));
             exit;
         }
 
-        $condominiumId = self::condominiumIdFromBackupPath($backupPath);
-        if ($condominiumId === null) {
-            $_SESSION['error'] = 'Backup inválido.';
-            header('Location: ' . BASE_URL . 'dashboard');
+        if ($backupCondominiumId !== $expectedCondominiumId) {
+            if (isset($tempPath)) {
+                @unlink($tempPath);
+            }
+            $_SESSION['error'] = 'O backup pertence ao condomínio ID ' . $backupCondominiumId . '. Só pode restaurar backups do condomínio atual (ID ' . $expectedCondominiumId . ').';
+            header('Location: ' . BASE_URL . 'condominiums/' . $expectedCondominiumId . '/restore');
             exit;
         }
 
-        RoleMiddleware::requireCondominiumAdmin($condominiumId);
+        RoleMiddleware::requireCondominiumAdmin($expectedCondominiumId);
 
         try {
-            $backupService = new CondominiumBackupService();
             $backupService->restore($backupPath, null);
+            if (isset($tempPath)) {
+                @unlink($tempPath);
+            }
             $_SESSION['success'] = 'Condomínio restaurado com sucesso.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/restore');
+            header('Location: ' . BASE_URL . 'condominiums/' . $expectedCondominiumId . '/restore');
             exit;
         } catch (\Exception $e) {
+            if (isset($tempPath)) {
+                @unlink($tempPath);
+            }
             error_log("CondominiumBackupService restore: " . $e->getMessage());
             $_SESSION['error'] = 'Erro ao restaurar: ' . $e->getMessage();
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/restore');
+            header('Location: ' . BASE_URL . 'condominiums/' . $expectedCondominiumId . '/restore');
             exit;
         }
     }

@@ -1363,167 +1363,6 @@ class FinanceController extends Controller
         }
     }
 
-    /**
-     * Regenerate receipts for a fee (delete existing and create new if fully paid)
-     */
-    private function regenerateReceiptsForFee(int $feeId, int $condominiumId, int $userId): void
-    {
-        try {
-            $fee = $this->feeModel->findById($feeId);
-            if (!$fee) {
-                return;
-            }
-
-            $receiptModel = new \App\Models\Receipt();
-            $existingReceipts = $receiptModel->getByFee($feeId);
-
-            // Delete all existing receipts for this fee
-            global $db;
-            $documentModel = new \App\Models\Document();
-            foreach ($existingReceipts as $receipt) {
-                // Delete receipt file if exists
-                if (!empty($receipt['file_path'])) {
-                    $filePath = $receipt['file_path'];
-                    if (strpos($filePath, 'condominiums/') === 0) {
-                        $fullPath = __DIR__ . '/../../storage/' . $filePath;
-                    } else {
-                        $fullPath = __DIR__ . '/../../storage/documents/' . $filePath;
-                    }
-                    if (file_exists($fullPath)) {
-                        @unlink($fullPath);
-                    }
-                    // Delete document record (recibos são criados com document_type='receipt' e mesmo file_path)
-                    $docStmt = $db->prepare("
-                        SELECT id FROM documents 
-                        WHERE document_type = 'receipt' AND condominium_id = :condominium_id 
-                        AND (file_path = :file_path OR title = CONCAT('Recibo ', :receipt_number))
-                    ");
-                    $docStmt->execute([
-                        ':file_path' => $filePath,
-                        ':condominium_id' => $condominiumId,
-                        ':receipt_number' => $receipt['receipt_number'] ?? ''
-                    ]);
-                    $doc = $docStmt->fetch();
-                    if ($doc) {
-                        $documentModel->delete((int)$doc['id']);
-                    }
-                }
-                
-                // Delete receipt record
-                $stmt = $db->prepare("DELETE FROM receipts WHERE id = :id");
-                $stmt->execute([':id' => $receipt['id']]);
-            }
-
-            // Check if fee is still fully paid after changes
-            $totalPaid = $this->feePaymentModel->getTotalPaid($feeId);
-            $isFullyPaid = $totalPaid >= (float)$fee['amount'];
-
-            // Only regenerate receipt if fully paid
-            // If partially paid, receipts are deleted but not regenerated until fully paid
-            if ($isFullyPaid) {
-                $fractionModel = new \App\Models\Fraction();
-                $fraction = $fractionModel->findById($fee['fraction_id']);
-                if (!$fraction) {
-                    return;
-                }
-
-                $condominium = $this->condominiumModel->findById($condominiumId);
-                if (!$condominium) {
-                    return;
-                }
-
-                $pdfService = new \App\Services\PdfService();
-                $periodYear = (int)$fee['period_year'];
-                $receiptNumber = $receiptModel->generateReceiptNumber($condominiumId, $periodYear);
-                $fractionIdentifier = $fraction['identifier'] ?? '';
-                $htmlContent = $pdfService->generateReceiptReceipt($fee, $fraction, $condominium, null, 'final');
-                
-                // Create receipt record
-                $receiptId = $receiptModel->create([
-                    'fee_id' => $feeId,
-                    'fee_payment_id' => null,
-                    'condominium_id' => $condominiumId,
-                    'fraction_id' => $fee['fraction_id'],
-                    'receipt_number' => $receiptNumber,
-                    'receipt_type' => 'final',
-                    'amount' => $fee['amount'],
-                    'file_path' => '',
-                    'file_name' => '',
-                    'file_size' => 0,
-                    'generated_at' => date('Y-m-d H:i:s'),
-                    'generated_by' => $userId
-                ]);
-
-                // Generate PDF with folder structure
-                $filePath = $pdfService->generateReceiptPdf($htmlContent, $receiptId, $receiptNumber, $condominiumId, $fractionIdentifier, (string)$periodYear, $userId);
-                $fullPath = __DIR__ . '/../../storage/' . $filePath;
-                $fileSize = file_exists($fullPath) ? filesize($fullPath) : 0;
-                $fileName = basename($filePath);
-
-                // Update receipt with file info
-                $stmt = $db->prepare("
-                    UPDATE receipts 
-                    SET file_path = :file_path, file_name = :file_name, file_size = :file_size 
-                    WHERE id = :id
-                ");
-                $stmt->execute([
-                    ':file_path' => $filePath,
-                    ':file_name' => $fileName,
-                    ':file_size' => $fileSize,
-                    ':id' => $receiptId
-                ]);
-
-                // Create entry in documents table
-                try {
-                    $receiptFolderService = new \App\Services\ReceiptFolderService();
-                    $folderPath = $receiptFolderService->ensureReceiptFolders($condominiumId, (string)$periodYear, $fractionIdentifier, $userId);
-
-                    $documentModel = new \App\Models\Document();
-                    $documentModel->create([
-                        'condominium_id' => $condominiumId,
-                        'fraction_id' => $fee['fraction_id'],
-                        'folder' => $folderPath,
-                        'title' => 'Recibo ' . $receiptNumber,
-                        'description' => 'Recibo regenerado para quota #' . $feeId . ' - Fração: ' . $fractionIdentifier . ' - Ano: ' . $periodYear,
-                        'file_path' => $filePath,
-                        'file_name' => $fileName,
-                        'file_size' => $fileSize,
-                        'mime_type' => 'application/pdf',
-                        'visibility' => 'fraction',
-                        'document_type' => 'receipt',
-                        'uploaded_by' => $userId
-                    ]);
-                } catch (\Exception $e) {
-                    // Log error but don't fail receipt generation
-                    error_log("Error creating document entry for receipt: " . $e->getMessage());
-                }
-
-                // Log audit
-                $auditService = new \App\Services\AuditService();
-                $auditService->logDocument([
-                    'condominium_id' => $condominiumId,
-                    'document_type' => 'receipt',
-                    'action' => 'regenerate',
-                    'user_id' => $userId,
-                    'receipt_id' => $receiptId,
-                    'fee_id' => $feeId,
-                    'file_path' => $filePath,
-                    'file_name' => $fileName,
-                    'file_size' => $fileSize,
-                    'description' => 'Recibo regenerado para quota #' . $feeId . ' - Número: ' . $receiptNumber,
-                    'metadata' => [
-                        'receipt_number' => $receiptNumber,
-                        'receipt_type' => 'final',
-                        'amount' => $fee['amount']
-                    ]
-                ]);
-            }
-        } catch (\Exception $e) {
-            // Log error but don't fail the operation
-            error_log("Error regenerating receipts: " . $e->getMessage());
-        }
-    }
-
     public function fees(int $condominiumId)
     {
         AuthMiddleware::require();
@@ -3494,7 +3333,7 @@ class FinanceController extends Controller
             
             // Regenerate receipts for this fee
             $userId = AuthMiddleware::userId();
-            $this->regenerateReceiptsForFee($feeId, $condominiumId, $userId);
+            (new ReceiptService())->regenerateReceiptsForFee($feeId, $condominiumId, $userId);
             
             // Log payment update
             if (!empty($changes)) {
@@ -3642,7 +3481,7 @@ class FinanceController extends Controller
 
         if ($success) {
             // Regenerate receipts for this fee (will delete existing and create new if fully paid)
-            $this->regenerateReceiptsForFee($feeId, $condominiumId, $userId);
+            (new ReceiptService())->regenerateReceiptsForFee($feeId, $condominiumId, $userId);
             
             // Update fee status based on new total paid
             $newTotalPaid = $this->feePaymentModel->getTotalPaid($feeId);
