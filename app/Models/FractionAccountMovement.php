@@ -140,6 +140,30 @@ class FractionAccountMovement extends Model
     }
 
     /**
+     * Update amount and/or description (for historical credit edits)
+     */
+    public function updateAmountAndDescription(int $id, array $data): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+        $allowed = ['amount', 'description'];
+        $set = [];
+        $params = [':id' => $id];
+        foreach ($allowed as $f) {
+            if (array_key_exists($f, $data)) {
+                $set[] = "{$f} = :{$f}";
+                $params[":{$f}"] = $data[$f];
+            }
+        }
+        if (empty($set)) {
+            return false;
+        }
+        $stmt = $this->db->prepare("UPDATE fraction_account_movements SET " . implode(', ', $set) . " WHERE id = :id");
+        return $stmt->execute($params);
+    }
+
+    /**
      * Find movement by ID
      */
     public function findById(int $id): ?array

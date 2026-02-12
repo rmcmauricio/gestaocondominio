@@ -90,6 +90,57 @@ class FractionAccount extends Model
     }
 
     /**
+     * Remove credit (reverse): subtract amount from balance and delete movement.
+     * Used when deleting historical credits. Returns true on success.
+     */
+    public function removeCredit(int $movementId): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+        $movementModel = new FractionAccountMovement();
+        $mov = $movementModel->findById($movementId);
+        if (!$mov || $mov['type'] !== 'credit') {
+            return false;
+        }
+        $amount = (float)$mov['amount'];
+        $faId = (int)$mov['fraction_account_id'];
+        $this->db->prepare("UPDATE fraction_accounts SET balance = balance - :amount WHERE id = :id")
+            ->execute([':amount' => $amount, ':id' => $faId]);
+        $this->db->prepare("DELETE FROM fraction_account_movements WHERE id = :id")
+            ->execute([':id' => $movementId]);
+        return true;
+    }
+
+    /**
+     * Update credit amount and optionally description. Adjusts balance by delta.
+     */
+    public function updateCredit(int $movementId, float $newAmount, ?string $newDescription = null): bool
+    {
+        if (!$this->db || $newAmount <= 0) {
+            return false;
+        }
+        $movementModel = new FractionAccountMovement();
+        $mov = $movementModel->findById($movementId);
+        if (!$mov || $mov['type'] !== 'credit') {
+            return false;
+        }
+        $oldAmount = (float)$mov['amount'];
+        $delta = $newAmount - $oldAmount;
+        $faId = (int)$mov['fraction_account_id'];
+
+        $this->db->prepare("UPDATE fraction_accounts SET balance = balance + :delta WHERE id = :id")
+            ->execute([':delta' => $delta, ':id' => $faId]);
+
+        $movementModel = new FractionAccountMovement();
+        $data = ['amount' => $newAmount];
+        if ($newDescription !== null) {
+            $data['description'] = $newDescription;
+        }
+        return $movementModel->updateAmountAndDescription($movementId, $data);
+    }
+
+    /**
      * Add debit to fraction account (quota application / amount applied to fees)
      * Creates movement and updates balance. Returns fraction_account_movements.id
      * @param int|null $financialTransactionId Quando a liquidação vem de um movimento financeiro (pagamento), para referência única nos débitos

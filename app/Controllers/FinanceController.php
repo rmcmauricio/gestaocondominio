@@ -2363,7 +2363,8 @@ class FinanceController extends Controller
         $historicalDebts = [];
         if ($db) {
             $stmt = $db->prepare("
-                SELECT f.*, fr.identifier as fraction_identifier, fr.permillage
+                SELECT f.*, fr.identifier as fraction_identifier, fr.permillage,
+                    (SELECT COUNT(*) FROM fee_payments fp WHERE fp.fee_id = f.id) as payment_count
                 FROM fees f
                 INNER JOIN fractions fr ON fr.id = f.fraction_id
                 WHERE f.condominium_id = :condominium_id
@@ -2374,6 +2375,7 @@ class FinanceController extends Controller
             $historicalDebts = $stmt->fetchAll() ?: [];
             foreach ($historicalDebts as &$d) {
                 $d['period_display'] = \App\Models\Fee::formatPeriodForDisplay($d);
+                $d['has_payments'] = ((int)($d['payment_count'] ?? 0)) > 0;
             }
             unset($d);
         }
@@ -2493,7 +2495,7 @@ class FinanceController extends Controller
         $historicalCredits = [];
         if ($db) {
             $stmt = $db->prepare("
-                SELECT fam.*, fa.fraction_id, fr.identifier as fraction_identifier
+                SELECT fam.*, fa.fraction_id, fa.balance, fr.identifier as fraction_identifier
                 FROM fraction_account_movements fam
                 INNER JOIN fraction_accounts fa ON fa.id = fam.fraction_account_id
                 INNER JOIN fractions fr ON fr.id = fa.fraction_id
@@ -2504,6 +2506,12 @@ class FinanceController extends Controller
             ");
             $stmt->execute([':condominium_id' => $condominiumId]);
             $historicalCredits = $stmt->fetchAll() ?: [];
+            foreach ($historicalCredits as &$c) {
+                $balance = (float)($c['balance'] ?? 0);
+                $amount = (float)($c['amount'] ?? 0);
+                $c['can_edit_delete'] = ($balance - $amount) >= -0.001; // crédito não utilizado (ou saldo suficiente)
+            }
+            unset($c);
         }
 
         $currentYear = date('Y');
@@ -2585,6 +2593,427 @@ class FinanceController extends Controller
             $_SESSION['error'] = 'Erro ao registar crédito histórico: ' . $e->getMessage();
         }
 
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+        exit;
+    }
+
+    /**
+     * Edit historical debt form
+     */
+    public function editHistoricalDebt(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $fee = $this->feeModel->findById($id);
+        if (!$fee || $fee['condominium_id'] != $condominiumId || empty($fee['is_historical'])) {
+            $_SESSION['error'] = 'Dívida histórica não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        $payments = $this->feePaymentModel->getByFee($id);
+        if (!empty($payments)) {
+            $_SESSION['error'] = 'Esta dívida está associada a quotas (tem pagamentos). Para editar, deve primeiro desassociar.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        $fractionModel = new \App\Models\Fraction();
+        $fraction = $fractionModel->findById($fee['fraction_id']);
+        $debtNotes = $fee['notes'] ?? '';
+        if (strpos($debtNotes, 'Dívida histórica: ') === 0) {
+            $debtNotes = trim(substr($debtNotes, 18));
+        }
+        $this->loadPageTranslations('finances');
+        $this->data += [
+            'viewName' => 'pages/finances/historical-debt-edit.html.twig',
+            'page' => ['titulo' => 'Editar Dívida Histórica'],
+            'condominium' => $condominium,
+            'debt' => $fee,
+            'debt_notes' => $debtNotes,
+            'fraction' => $fraction,
+            'current_year' => date('Y'),
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $_SESSION['error'] ?? null,
+            'user' => AuthMiddleware::user()
+        ];
+        unset($_SESSION['error']);
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Update historical debt
+     */
+    public function updateHistoricalDebt(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        $fee = $this->feeModel->findById($id);
+        if (!$fee || $fee['condominium_id'] != $condominiumId || empty($fee['is_historical'])) {
+            $_SESSION['error'] = 'Dívida histórica não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        $payments = $this->feePaymentModel->getByFee($id);
+        if (!empty($payments)) {
+            $_SESSION['error'] = 'Esta dívida está associada a quotas. Para editar, deve primeiro desassociar.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        $amount = (float)($_POST['amount'] ?? 0);
+        $dueDate = $_POST['due_date'] ?? $fee['due_date'];
+        $notes = Security::sanitize($_POST['notes'] ?? '');
+        $year = (int)($_POST['year'] ?? $fee['period_year']);
+        $month = !empty($_POST['month']) ? (int)$_POST['month'] : null;
+
+        if ($amount <= 0) {
+            $_SESSION['error'] = 'O valor deve ser superior a zero.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts/' . $id . '/edit');
+            exit;
+        }
+
+        $updateData = ['amount' => $amount, 'base_amount' => $amount, 'due_date' => $dueDate, 'notes' => 'Dívida histórica: ' . $notes, 'period_year' => $year];
+        $updateData['period_month'] = $month;
+
+        if ($this->feeModel->update($id, $updateData)) {
+            $_SESSION['success'] = 'Dívida histórica atualizada com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao atualizar dívida histórica.';
+        }
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+        exit;
+    }
+
+    /**
+     * Delete historical debt
+     */
+    public function deleteHistoricalDebt(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        $fee = $this->feeModel->findById($id);
+        if (!$fee || $fee['condominium_id'] != $condominiumId || empty($fee['is_historical'])) {
+            $_SESSION['error'] = 'Dívida histórica não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        $payments = $this->feePaymentModel->getByFee($id);
+        if (!empty($payments)) {
+            $_SESSION['error'] = 'Esta dívida está associada a quotas. Para apagar, deve primeiro desassociar.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        if ($this->feeModel->delete($id)) {
+            $_SESSION['success'] = 'Dívida histórica eliminada com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao eliminar dívida histórica.';
+        }
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+        exit;
+    }
+
+    /**
+     * Disassociate historical debt (remove all payments - "desassociar da quota")
+     */
+    public function disassociateHistoricalDebt(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        $fee = $this->feeModel->findById($id);
+        if (!$fee || $fee['condominium_id'] != $condominiumId || empty($fee['is_historical'])) {
+            $_SESSION['error'] = 'Dívida histórica não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        $payments = $this->feePaymentModel->getByFee($id);
+        if (empty($payments)) {
+            $_SESSION['success'] = 'Esta dívida já não está associada a nenhuma quota.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+            exit;
+        }
+
+        global $db;
+        $userId = AuthMiddleware::userId();
+        $historyModel = new \App\Models\FeePaymentHistory();
+
+        foreach ($payments as $p) {
+            $paymentId = (int)$p['id'];
+            $historyModel->logDeletion($paymentId, $id, $userId, $p,
+                'Desassociação: Pagamento eliminado €' . number_format((float)$p['amount'], 2, ',', '.') . ' (' . ($p['payment_method'] ?? 'N/A') . ')');
+
+            if (empty($p['financial_transaction_id'])) {
+                $stmt = $db->prepare("
+                    SELECT id, fraction_account_id, amount
+                    FROM fraction_account_movements
+                    WHERE source_reference_id = :payment_id AND source_type = 'quota_application' AND type = 'debit'
+                ");
+                $stmt->execute([':payment_id' => $paymentId]);
+                $debitMovements = $stmt->fetchAll() ?: [];
+                foreach ($debitMovements as $mov) {
+                    $amt = (float)$mov['amount'];
+                    $faId = (int)$mov['fraction_account_id'];
+                    $movId = (int)$mov['id'];
+                    $db->prepare("UPDATE fraction_accounts SET balance = balance + :amt WHERE id = :id")
+                        ->execute([':amt' => $amt, ':id' => $faId]);
+                    $db->prepare("DELETE FROM fraction_account_movements WHERE id = :id")
+                        ->execute([':id' => $movId]);
+                }
+            }
+
+            $this->feePaymentModel->delete($paymentId);
+        }
+
+        (new ReceiptService())->regenerateReceiptsForFee($id, $condominiumId, $userId);
+        $db->prepare("UPDATE fees SET status = 'pending', updated_at = NOW() WHERE id = :id")->execute([':id' => $id]);
+
+        $_SESSION['success'] = 'Dívida desassociada das quotas. Agora pode editar ou apagar.';
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
+        exit;
+    }
+
+    /**
+     * Edit historical credit form
+     */
+    public function editHistoricalCredit(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $movModel = new FractionAccountMovement();
+        $credit = $movModel->findById($id);
+        if (!$credit || $credit['type'] !== 'credit' || $credit['source_type'] !== 'historical_credit') {
+            $_SESSION['error'] = 'Crédito histórico não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $faModel = new FractionAccount();
+        $account = $faModel->findById($credit['fraction_account_id']);
+        if (!$account || $account['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Crédito histórico não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $balance = (float)($account['balance'] ?? 0);
+        $amount = (float)($credit['amount'] ?? 0);
+        if (($balance - $amount) < -0.001) {
+            $_SESSION['error'] = 'Este crédito já foi utilizado na liquidação de quotas. Não pode ser editado ou apagado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $fractionModel = new \App\Models\Fraction();
+        $fraction = $fractionModel->findById($account['fraction_id']);
+        $condominium = $this->condominiumModel->findById($condominiumId);
+
+        // Parse description: "Crédito histórico: 2024/01 - notas" or "Crédito histórico: 2024"
+        $creditYear = date('Y') - 1;
+        $creditMonth = null;
+        $creditNotes = '';
+        $desc = $credit['description'] ?? '';
+        if (preg_match('/Crédito histórico:\s*(\d{4})(?:\/(\d{1,2}))?(?:\s*-\s*(.*))?/s', $desc, $m)) {
+            $creditYear = (int)$m[1];
+            $creditMonth = !empty($m[2]) ? (int)$m[2] : null;
+            $creditNotes = trim($m[3] ?? '');
+        }
+
+        $this->loadPageTranslations('finances');
+        $this->data += [
+            'viewName' => 'pages/finances/historical-credit-edit.html.twig',
+            'page' => ['titulo' => 'Editar Crédito Histórico'],
+            'condominium' => $condominium,
+            'credit' => $credit,
+            'fraction' => $fraction,
+            'credit_year' => $creditYear,
+            'credit_month' => $creditMonth,
+            'credit_notes' => $creditNotes,
+            'current_year' => date('Y'),
+            'csrf_token' => Security::generateCSRFToken(),
+            'error' => $_SESSION['error'] ?? null,
+            'user' => AuthMiddleware::user()
+        ];
+        unset($_SESSION['error']);
+        echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $this->data);
+    }
+
+    /**
+     * Update historical credit
+     */
+    public function updateHistoricalCredit(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $movModel = new FractionAccountMovement();
+        $credit = $movModel->findById($id);
+        if (!$credit || $credit['type'] !== 'credit' || $credit['source_type'] !== 'historical_credit') {
+            $_SESSION['error'] = 'Crédito histórico não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $faModel = new FractionAccount();
+        $account = $faModel->findById($credit['fraction_account_id']);
+        if (!$account || $account['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Crédito histórico não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $balance = (float)($account['balance'] ?? 0);
+        $oldAmount = (float)($credit['amount'] ?? 0);
+        if (($balance - $oldAmount) < -0.001) {
+            $_SESSION['error'] = 'Este crédito já foi utilizado na liquidação de quotas. Não pode ser editado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $newAmount = (float)($_POST['amount'] ?? 0);
+        $notes = Security::sanitize($_POST['notes'] ?? '');
+        $year = (int)($_POST['year'] ?? date('Y'));
+        $month = !empty($_POST['month']) ? (int)$_POST['month'] : null;
+
+        if ($newAmount <= 0) {
+            $_SESSION['error'] = 'O valor deve ser superior a zero.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits/' . $id . '/edit');
+            exit;
+        }
+
+        // Verificar se o novo saldo não ficaria negativo
+        $newBalance = $balance - $oldAmount + $newAmount;
+        if ($newBalance < -0.001) {
+            $_SESSION['error'] = 'Não pode aumentar o valor: o crédito já foi parcialmente utilizado na liquidação.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits/' . $id . '/edit');
+            exit;
+        }
+
+        $periodLabel = $month ? sprintf('%d/%02d', $year, $month) : (string)$year;
+        $description = 'Crédito histórico: ' . $periodLabel . ($notes ? ' - ' . $notes : '');
+
+        if ($faModel->updateCredit($id, $newAmount, $description)) {
+            $_SESSION['success'] = 'Crédito histórico atualizado com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao atualizar crédito histórico.';
+        }
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+        exit;
+    }
+
+    /**
+     * Delete historical credit
+     */
+    public function deleteHistoricalCredit(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $movModel = new FractionAccountMovement();
+        $credit = $movModel->findById($id);
+        if (!$credit || $credit['type'] !== 'credit' || $credit['source_type'] !== 'historical_credit') {
+            $_SESSION['error'] = 'Crédito histórico não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $faModel = new FractionAccount();
+        $account = $faModel->findById($credit['fraction_account_id']);
+        if (!$account || $account['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Crédito histórico não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $balance = (float)($account['balance'] ?? 0);
+        $amount = (float)($credit['amount'] ?? 0);
+        if (($balance - $amount) < -0.001) {
+            $_SESSION['error'] = 'Este crédito já foi utilizado na liquidação de quotas. Não pode ser apagado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
+            exit;
+        }
+
+        if ($faModel->removeCredit($id)) {
+            $_SESSION['success'] = 'Crédito histórico eliminado com sucesso!';
+        } else {
+            $_SESSION['error'] = 'Erro ao eliminar crédito histórico.';
+        }
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
         exit;
     }

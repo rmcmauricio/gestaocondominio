@@ -225,8 +225,15 @@ $router->post('/condominiums/{condominium_id}/finances/revenues/{id}/delete', 'A
 // Report routes
 $router->get('/condominiums/{condominium_id}/finances/historical-debts', 'App\Controllers\FinanceController@historicalDebts');
 $router->post('/condominiums/{condominium_id}/finances/historical-debts', 'App\Controllers\FinanceController@storeHistoricalDebts');
+$router->get('/condominiums/{condominium_id}/finances/historical-debts/{id}/edit', 'App\Controllers\FinanceController@editHistoricalDebt');
+$router->post('/condominiums/{condominium_id}/finances/historical-debts/{id}/update', 'App\Controllers\FinanceController@updateHistoricalDebt');
+$router->post('/condominiums/{condominium_id}/finances/historical-debts/{id}/delete', 'App\Controllers\FinanceController@deleteHistoricalDebt');
+$router->post('/condominiums/{condominium_id}/finances/historical-debts/{id}/disassociate', 'App\Controllers\FinanceController@disassociateHistoricalDebt');
 $router->get('/condominiums/{condominium_id}/finances/historical-credits', 'App\Controllers\FinanceController@historicalCredits');
 $router->post('/condominiums/{condominium_id}/finances/historical-credits', 'App\Controllers\FinanceController@storeHistoricalCredits');
+$router->get('/condominiums/{condominium_id}/finances/historical-credits/{id}/edit', 'App\Controllers\FinanceController@editHistoricalCredit');
+$router->post('/condominiums/{condominium_id}/finances/historical-credits/{id}/update', 'App\Controllers\FinanceController@updateHistoricalCredit');
+$router->post('/condominiums/{condominium_id}/finances/historical-credits/{id}/delete', 'App\Controllers\FinanceController@deleteHistoricalCredit');
 $router->get('/condominiums/{condominium_id}/finances/reports', 'App\Controllers\ReportController@index');
 $router->post('/condominiums/{condominium_id}/finances/reports/balance-sheet', 'App\Controllers\ReportController@balanceSheet');
 $router->post('/condominiums/{condominium_id}/finances/reports/fees', 'App\Controllers\ReportController@feesReport');
