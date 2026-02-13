@@ -88,9 +88,6 @@ class CondominiumDeletionService
             $this->db->exec("DELETE FROM occurrence_attachments WHERE condominium_id = {$condominiumId}");
             $this->db->exec("DELETE FROM occurrences WHERE condominium_id = {$condominiumId}");
             
-            // Expenses
-            $this->db->exec("DELETE FROM expenses WHERE condominium_id = {$condominiumId}");
-            
             // Budgets
             $this->db->exec("DELETE FROM budget_items WHERE budget_id IN (SELECT id FROM budgets WHERE condominium_id = {$condominiumId})");
             $this->db->exec("DELETE FROM budgets WHERE condominium_id = {$condominiumId}");

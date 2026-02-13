@@ -93,6 +93,11 @@ class FinancialTransaction extends Model
             $params[':to_date'] = $filters['to_date'];
         }
 
+        if (!empty($filters['category'])) {
+            $sql .= " AND ft.category = :category";
+            $params[':category'] = $filters['category'];
+        }
+
         $sql .= " ORDER BY ft.transaction_date DESC, ft.created_at DESC";
 
         if (isset($filters['limit'])) {
@@ -383,6 +388,58 @@ class FinancialTransaction extends Model
         }
 
         return $result;
+    }
+
+    /**
+     * Get total amount by condominium, period and transaction type
+     */
+    public function getTotalByPeriodAndType(int $condominiumId, string $startDate, string $endDate, string $transactionType): float
+    {
+        if (!$this->db) {
+            return 0.0;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(amount), 0) as total
+            FROM financial_transactions
+            WHERE condominium_id = :condominium_id
+            AND transaction_type = :transaction_type
+            AND transaction_date BETWEEN :start_date AND :end_date
+        ");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':transaction_type' => $transactionType,
+            ':start_date' => $startDate,
+            ':end_date' => $endDate
+        ]);
+        $result = $stmt->fetch();
+        return (float)($result['total'] ?? 0);
+    }
+
+    /**
+     * Get expenses grouped by category (for reports)
+     */
+    public function getExpensesByCategory(int $condominiumId, string $startDate, string $endDate): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(NULLIF(TRIM(category), ''), 'Sem categoria') as category, SUM(amount) as total, COUNT(*) as count
+            FROM financial_transactions
+            WHERE condominium_id = :condominium_id
+            AND transaction_type = 'expense'
+            AND transaction_date BETWEEN :start_date AND :end_date
+            GROUP BY COALESCE(NULLIF(TRIM(category), ''), 'Sem categoria')
+            ORDER BY total DESC
+        ");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':start_date' => $startDate,
+            ':end_date' => $endDate
+        ]);
+        return $stmt->fetchAll() ?: [];
     }
 
     /**

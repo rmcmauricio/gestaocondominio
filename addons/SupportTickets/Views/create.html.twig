@@ -1,0 +1,73 @@
+<div class="container py-3">
+    <h2 class="mb-4"><i class="bi bi-plus-circle"></i> Novo ticket</h2>
+
+    {% if session.error is defined and session.error %}
+    <div class="alert alert-danger">{{ session.error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ BASE_URL }}admin/tickets">
+        <div class="mb-3">
+            <label for="subject" class="form-label">Assunto *</label>
+            <input type="text" class="form-control" id="subject" name="subject" required maxlength="255" value="{{ session.old.subject|default('') }}">
+        </div>
+        <div class="mb-3">
+            <label for="type" class="form-label">Tipo</label>
+            <select class="form-select" id="type" name="type">
+                <option value="problem">Problema</option>
+                <option value="error">Erro</option>
+                <option value="suggestion">Sugestão</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="body_html" class="form-label">Descrição *</label>
+            <p class="text-muted small">Pode colar imagens (screenshots) no editor.</p>
+            <textarea id="body_html" name="body_html" class="form-control" rows="12"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Criar ticket</button>
+        <a href="{{ BASE_URL }}admin/tickets" class="btn btn-outline-secondary">Cancelar</a>
+    </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var uploadUrl = '{{ BASE_URL }}admin/tickets/upload-image';
+    tinymce.init({
+        selector: '#body_html',
+        height: 400,
+        menubar: true,
+        plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount',
+        toolbar: 'undo redo | blocks | bold italic forecolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image | removeformat | code | fullscreen',
+        content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+        language: 'pt_PT',
+        branding: false,
+        promotion: false,
+        images_upload_url: uploadUrl,
+        images_upload_handler: function (blobInfo, progress) {
+            return new Promise(function (resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.withCredentials = false;
+                xhr.open('POST', uploadUrl);
+                xhr.upload.onprogress = function (e) { progress(e.loaded / e.total * 100); };
+                xhr.onload = function () {
+                    if (xhr.status === 403) { reject({ message: 'HTTP Error: ' + xhr.status, remove: true }); return; }
+                    if (xhr.status < 200 || xhr.status >= 300) { reject('HTTP Error: ' + xhr.status); return; }
+                    try {
+                        var json = JSON.parse(xhr.responseText);
+                        if (json && json.success && json.data && typeof json.data.location === 'string') {
+                            resolve(json.data.location);
+                            return;
+                        }
+                        if (json && typeof json.location === 'string') { resolve(json.location); return; }
+                        reject('Invalid JSON response');
+                    } catch (e) { reject('Failed to parse JSON'); }
+                };
+                xhr.onerror = function () { reject('Upload failed'); };
+                var formData = new FormData();
+                formData.append('file', blobInfo.blob(), blobInfo.filename());
+                xhr.send(formData);
+            });
+        }
+    });
+});
+</script>

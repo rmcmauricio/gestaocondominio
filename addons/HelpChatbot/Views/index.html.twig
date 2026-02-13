@@ -1,0 +1,99 @@
+<div class="container py-3">
+    <h2 class="mb-4"><i class="bi bi-question-circle"></i> Assistente de Ajuda</h2>
+    <p class="text-muted">Escreva a sua pergunta abaixo para pesquisar no manual e nas perguntas frequentes.</p>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="input-group">
+                <input type="text" id="help-query" class="form-control form-control-lg" placeholder="Ex: como gerar quotas? subscrição..." autocomplete="off">
+                <button type="button" id="help-search-btn" class="btn btn-primary btn-lg">
+                    <i class="bi bi-search"></i> Pesquisar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="help-results" class="mt-4" style="display: none;">
+        <h5 class="mb-3">Resultados</h5>
+        <div id="help-results-list"></div>
+    </div>
+
+    <div id="help-empty" class="text-muted text-center py-5">
+        <i class="bi bi-chat-left-text" style="font-size: 3rem;"></i>
+        <p class="mt-2">Faça uma pergunta para ver resultados.</p>
+    </div>
+
+    <div id="help-loading" class="text-center py-4" style="display: none;">
+        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">A carregar...</span></div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var baseUrl = typeof window.BASE_URL !== 'undefined' ? window.BASE_URL : '{{ BASE_URL }}';
+    var resultsEl = document.getElementById('help-results');
+    var listEl = document.getElementById('help-results-list');
+    var emptyEl = document.getElementById('help-empty');
+    var loadingEl = document.getElementById('help-loading');
+    var queryEl = document.getElementById('help-query');
+    var btnEl = document.getElementById('help-search-btn');
+
+    function doSearch() {
+        var q = (queryEl && queryEl.value) ? queryEl.value.trim() : '';
+        if (!q) return;
+        emptyEl.style.display = 'none';
+        resultsEl.style.display = 'none';
+        loadingEl.style.display = 'block';
+        listEl.innerHTML = '';
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', baseUrl + 'admin/help/search?q=' + encodeURIComponent(q));
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onload = function() {
+            loadingEl.style.display = 'none';
+            try {
+                var data = JSON.parse(xhr.responseText);
+                if (data.success && data.data && data.data.results) {
+                    var results = data.data.results;
+                    if (results.length === 0) {
+                        listEl.innerHTML = '<p class="text-muted">Nenhum resultado encontrado. Tente outras palavras.</p>';
+                    } else {
+                        results.forEach(function(r) {
+                            var div = document.createElement('div');
+                            div.className = 'card mb-2';
+                            div.innerHTML = '<div class="card-body">' +
+                                '<h6 class="card-title">' + escapeHtml(r.title) + '</h6>' +
+                                '<p class="card-text text-muted small">' + escapeHtml(r.snippet) + '</p>' +
+                                (r.url ? '<a href="' + escapeHtml(r.url) + '" class="card-link small">Ver no manual</a>' : '') +
+                                '</div>';
+                            listEl.appendChild(div);
+                        });
+                    }
+                    resultsEl.style.display = 'block';
+                } else {
+                    emptyEl.style.display = 'block';
+                }
+            } catch (e) {
+                listEl.innerHTML = '<p class="text-danger">Erro ao processar resultados.</p>';
+                resultsEl.style.display = 'block';
+            }
+        };
+        xhr.onerror = function() {
+            loadingEl.style.display = 'none';
+            listEl.innerHTML = '<p class="text-danger">Erro de ligação.</p>';
+            resultsEl.style.display = 'block';
+        };
+        xhr.send();
+    }
+
+    function escapeHtml(s) {
+        if (!s) return '';
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    if (btnEl) btnEl.addEventListener('click', doSearch);
+    if (queryEl) queryEl.addEventListener('keypress', function(e) { if (e.key === 'Enter') doSearch(); });
+})();
+</script>

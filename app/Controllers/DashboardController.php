@@ -397,17 +397,17 @@ class DashboardController extends Controller
             }
         }
 
-        // Get recent expenses (last 5)
-        $expenseModel = new \App\Models\Expense();
+        // Get recent expenses (last 5, from financial_transactions)
+        $transactionModel = new \App\Models\FinancialTransaction();
         $recentExpenses = [];
         if (!empty($userCondominiums)) {
             $condominiumIds = array_unique(array_column($userCondominiums, 'condominium_id'));
             foreach ($condominiumIds as $condominiumId) {
-                $expenses = $expenseModel->getByCondominium($condominiumId, ['limit' => 5]);
-                $recentExpenses = array_merge($recentExpenses, $expenses);
+                $txs = $transactionModel->getByCondominium($condominiumId, ['transaction_type' => 'expense', 'limit' => 5]);
+                $recentExpenses = array_merge($recentExpenses, $txs);
             }
             usort($recentExpenses, function($a, $b) {
-                return strtotime($b['expense_date']) - strtotime($a['expense_date']);
+                return strtotime($b['transaction_date'] ?? '') - strtotime($a['transaction_date'] ?? '');
             });
             $recentExpenses = array_slice($recentExpenses, 0, 5);
         }

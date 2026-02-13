@@ -41,8 +41,8 @@
                             <label for="transaction_type" class="form-label">Tipo <span class="text-danger">*</span></label>
                             <select class="form-select" id="transaction_type" name="transaction_type" required>
                                 <option value="">Selecione...</option>
-                                <option value="income">Entrada (Receita)</option>
-                                <option value="expense">Saída (Despesa)</option>
+                                <option value="income" {% if preselected_transaction_type|default('') == 'income' %}selected{% endif %}>Entrada (Receita)</option>
+                                <option value="expense" {% if preselected_transaction_type|default('') == 'expense' %}selected{% endif %}>Saída (Despesa)</option>
                                 <option value="transfer">Transferência entre Contas</option>
                             </select>
                         </div>

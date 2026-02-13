@@ -3,21 +3,21 @@
 namespace App\Services;
 
 use App\Models\Budget;
-use App\Models\Expense;
 use App\Models\Fee;
+use App\Models\FinancialTransaction;
 use App\Models\Occurrence;
 
 class ReportService
 {
     protected $budgetModel;
-    protected $expenseModel;
+    protected $transactionModel;
     protected $feeModel;
     protected $occurrenceModel;
 
     public function __construct()
     {
         $this->budgetModel = new Budget();
-        $this->expenseModel = new Expense();
+        $this->transactionModel = new FinancialTransaction();
         $this->feeModel = new Fee();
         $this->occurrenceModel = new Occurrence();
     }
@@ -28,10 +28,10 @@ class ReportService
     public function generateBalanceSheet(int $condominiumId, int $year): array
     {
         $budget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $year);
-        $expenses = $this->expenseModel->getByCondominium($condominiumId, ['year' => $year]);
+        $startDate = "{$year}-01-01";
+        $endDate = "{$year}-12-31";
+        $totalExpenses = $this->transactionModel->getTotalByPeriodAndType($condominiumId, $startDate, $endDate, 'expense');
         $fees = $this->feeModel->getByCondominium($condominiumId, ['year' => $year]);
-
-        $totalExpenses = array_sum(array_column($expenses, 'amount'));
         $totalFees = array_sum(array_column($fees, 'amount'));
         $paidFees = array_sum(array_filter(array_column($fees, 'amount'), function($fee, $key) use ($fees) {
             return $fees[$key]['status'] === 'paid';
@@ -50,32 +50,11 @@ class ReportService
     }
 
     /**
-     * Generate expenses by category
+     * Generate expenses by category (from financial_transactions)
      */
     public function generateExpensesByCategory(int $condominiumId, string $startDate, string $endDate): array
     {
-        global $db;
-        
-        if (!$db) {
-            return [];
-        }
-
-        $stmt = $db->prepare("
-            SELECT category, SUM(amount) as total, COUNT(*) as count
-            FROM expenses
-            WHERE condominium_id = :condominium_id
-            AND expense_date BETWEEN :start_date AND :end_date
-            GROUP BY category
-            ORDER BY total DESC
-        ");
-
-        $stmt->execute([
-            ':condominium_id' => $condominiumId,
-            ':start_date' => $startDate,
-            ':end_date' => $endDate
-        ]);
-
-        return $stmt->fetchAll() ?: [];
+        return $this->transactionModel->getExpensesByCategory($condominiumId, $startDate, $endDate);
     }
 
     /**
@@ -180,8 +159,8 @@ class ReportService
             ]);
             $revenue = (float)($stmt->fetch()['revenue'] ?? 0);
             
-            // Expenses
-            $expenses = $this->expenseModel->getTotalByPeriod($condominiumId, $monthStart, $monthEnd);
+            // Expenses (from financial_transactions)
+            $expenses = $this->transactionModel->getTotalByPeriodAndType($condominiumId, $monthStart, $monthEnd, 'expense');
             
             // Translate month name to Portuguese
             $monthNames = [
@@ -262,11 +241,12 @@ class ReportService
                 $result = $stmt->fetch();
                 $actual = (float)($result['total'] ?? 0);
             } else {
-                // Actual expenses
-                $actual = $this->expenseModel->getTotalByPeriod(
+                // Actual expenses (from financial_transactions)
+                $actual = $this->transactionModel->getTotalByPeriodAndType(
                     $condominiumId,
                     "{$year}-01-01",
-                    "{$year}-12-31"
+                    "{$year}-12-31",
+                    'expense'
                 );
             }
 
@@ -517,8 +497,8 @@ class ReportService
         $revenueResult = $stmt->fetch();
         $totalRevenue = (float)($revenueResult['total_revenue'] ?? 0);
 
-        // Get total expenses
-        $totalExpenses = $this->expenseModel->getTotalByPeriod($condominiumId, $startDate, $endDate);
+        // Get total expenses (from financial_transactions)
+        $totalExpenses = $this->transactionModel->getTotalByPeriodAndType($condominiumId, $startDate, $endDate, 'expense');
 
         // Get fees summary
         $stmt = $db->prepare("

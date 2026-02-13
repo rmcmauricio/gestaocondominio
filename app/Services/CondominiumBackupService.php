@@ -124,7 +124,6 @@ class CondominiumBackupService
             $data['tables']['fee_payment_history'] = $this->exportFeePaymentHistory($condominiumId);
             $data['tables']['fraction_account_movements'] = $this->exportFractionAccountMovements($condominiumId);
             $data['tables']['revenues'] = $this->exportTable("revenues", "condominium_id", $condominiumId);
-            $data['tables']['expenses'] = $this->exportTable("expenses", "condominium_id", $condominiumId);
             $data['tables']['receipts'] = $this->exportTable("receipts", "condominium_id", $condominiumId);
             $data['tables']['reservations'] = $this->exportTable("reservations", "condominium_id", $condominiumId);
             $data['tables']['messages'] = $this->exportTable("messages", "condominium_id", $condominiumId);
@@ -513,11 +512,6 @@ class CondominiumBackupService
                     $fracId = !empty($row['fraction_id']) ? ($map['fractions'][$row['fraction_id']] ?? null) : null;
                     $this->insertRow("revenues", $row, ['condominium_id' => $newCondominiumId, 'fraction_id' => $fracId], $restoreInPlace);
                 }
-                foreach ($data['tables']['expenses'] ?? [] as $row) {
-                    $fracId = !empty($row['fraction_id']) ? ($map['fractions'][$row['fraction_id']] ?? null) : null;
-                    $supplierId = !empty($row['supplier_id']) ? ($map['suppliers'][$row['supplier_id']] ?? null) : null;
-                    $this->insertRow("expenses", $row, ['condominium_id' => $newCondominiumId, 'fraction_id' => $fracId, 'supplier_id' => $supplierId], $restoreInPlace);
-                }
                 // Receipts: when restore in place keep original receipt_number; when new condominium generate new numbers (UNIQUE is global)
                 $receiptsRows = $data['tables']['receipts'] ?? [];
                 usort($receiptsRows, function ($a, $b) {
@@ -697,7 +691,7 @@ class CondominiumBackupService
             'assembly_vote_topics', 'assembly_agenda_points', 'assembly_agenda_point_vote_topics',
             'assembly_attendees', 'assembly_votes', 'standalone_votes', 'vote_options', 'standalone_vote_responses',
             'financial_transactions', 'fee_payments', 'fee_payment_history', 'fraction_account_movements',
-            'revenues', 'expenses', 'receipts', 'reservations', 'documents', 'minutes_revisions',
+            'revenues', 'receipts', 'reservations', 'documents', 'minutes_revisions',
             'messages', 'message_attachments', 'occurrences', 'occurrence_comments',
             'occurrence_history', 'occurrence_attachments', 'notifications', 'invitations',
             'assembly_account_approvals', 'admin_transfer_pending'

@@ -38,7 +38,6 @@ class BreadcrumbService
 
         'pages/finances/index.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Finanças', null] ],
         'pages/finances/create-budget.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Finanças', 'condominiums/{condominium_id}/finances'], ['Criar orçamento', null] ],
-        'pages/finances/create-expense.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Finanças', 'condominiums/{condominium_id}/finances'], ['Registar despesa', null] ],
         'pages/finances/show-budget.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Finanças', 'condominiums/{condominium_id}/finances'], ['page.titulo', null] ],
         'pages/finances/edit-budget.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Finanças', 'condominiums/{condominium_id}/finances'], ['Editar orçamento', null] ],
         'pages/finances/fees.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Finanças', 'condominiums/{condominium_id}/finances'], ['Quotas', null] ],

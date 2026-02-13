@@ -302,8 +302,9 @@ class FinancialTransactionController extends Controller
         $fractionModel = new Fraction();
         $fractions = $fractionModel->getByCondominiumId($condominiumId);
         
-        // Get preselected account from query parameter
+        // Get preselected account and type from query parameters
         $preselectedAccountId = !empty($_GET['bank_account_id']) ? (int)$_GET['bank_account_id'] : null;
+        $preselectedTransactionType = !empty($_GET['transaction_type']) && in_array($_GET['transaction_type'], ['income', 'expense']) ? $_GET['transaction_type'] : null;
 
         $this->loadPageTranslations('finances');
         
@@ -315,6 +316,7 @@ class FinancialTransactionController extends Controller
             'fractions' => $fractions,
             'pendingFees' => $pendingFees,
             'preselected_account_id' => $preselectedAccountId,
+            'preselected_transaction_type' => $preselectedTransactionType,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null

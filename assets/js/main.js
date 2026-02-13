@@ -297,22 +297,19 @@
             dropdownInstance = new bootstrap.Dropdown(button);
           }
           
-          // Ensure dropdown menu has proper z-index and positioning
           const dropdownElement = button.closest('.dropdown');
           const dropdownMenu = dropdownElement?.querySelector('.dropdown-menu');
           
-          if (dropdownMenu) {
-            // Ensure parent container allows overflow
-            if (dropdownElement) {
-              dropdownElement.style.position = 'relative';
-              dropdownElement.style.overflow = 'visible';
-            }
+          if (dropdownElement && dropdownMenu) {
+            dropdownElement.style.position = 'relative';
+            dropdownElement.style.overflow = 'visible';
+            dropdownMenu.style.zIndex = '1050';
             
-            // Ensure menu is visible when dropdown is shown
-            button.addEventListener('shown.bs.dropdown', function() {
-              dropdownMenu.style.display = 'block';
-              dropdownMenu.style.zIndex = '1050';
-              dropdownMenu.style.position = 'absolute';
+            // Garantir fecho ao clicar fora (Bootstrap pode falhar em alguns contextos)
+            document.addEventListener('click', function handleCloseQuickActions(event) {
+              if (!dropdownElement.contains(event.target) && dropdownElement.classList.contains('show')) {
+                dropdownInstance.hide();
+              }
             });
           }
         } catch (e) {

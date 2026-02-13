@@ -19,100 +19,21 @@
     </div>
     {% endif %}
 
-    <!-- Menu de Ações -->
+    <!-- Seletor de ano -->
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-        <!-- Orçamentos -->
-        <div class="d-flex flex-wrap align-items-center gap-1 pe-3 border-end">
-            <span class="text-muted small fw-bold me-2">Orçamentos:</span>
-            {% if not budget %}
-                {% if is_admin %}
-                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create" class="btn btn-primary btn-sm py-1 px-2" style="font-size: 0.75rem;">
-                    <i class="bi bi-calendar-check"></i> Criar {{ current_year }}
-                </a>
-                {% endif %}
-            {% else %}
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}" class="btn btn-primary btn-sm py-1 px-2" style="font-size: 0.75rem;">
-                <i class="bi bi-eye"></i> {{ current_year }}
-            </a>
-            {% if budget.status == 'draft' and is_admin %}
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}/edit" class="btn btn-outline-warning btn-sm py-1 px-2" style="font-size: 0.75rem;">
-                <i class="bi bi-pencil"></i>
-            </a>
-            {% endif %}
-            {% endif %}
-            
-            {% if not next_year_budget %}
-                {% if is_admin %}
-                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create?year={{ current_year + 1 }}" class="btn btn-outline-info btn-sm py-1 px-2" style="font-size: 0.75rem;">
-                    <i class="bi bi-calendar-plus"></i> {{ current_year + 1 }}
-                </a>
-                {% endif %}
-            {% else %}
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ next_year_budget.id }}" class="btn btn-outline-info btn-sm py-1 px-2" style="font-size: 0.75rem;">
-                <i class="bi bi-eye"></i> {{ current_year + 1 }}
-            </a>
-            {% endif %}
-            
-            {% if all_budgets|length > 0 %}
-            <div class="dropdown">
-                <button class="btn btn-outline-secondary btn-sm py-1 px-2 dropdown-toggle" type="button" data-bs-toggle="dropdown" style="font-size: 0.75rem;">
-                    <i class="bi bi-calendar3"></i>
-                </button>
-                <ul class="dropdown-menu">
-                    {% for budget_item in all_budgets %}
-                    <li><a class="dropdown-item" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget_item.id }}">Orçamento {{ budget_item.year }}</a></li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-        </div>
-        
-        <!-- Quotas -->
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees" class="btn btn-success btn-sm py-1 px-2" style="font-size: 0.75rem;">
-            <i class="bi bi-receipt"></i> Quotas
+        <span class="text-muted small fw-bold me-2">Ano:</span>
+        {% for y in available_years|default([current_year]) %}
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances?year={{ y }}" class="btn btn-sm py-1 px-2 {{ y == selected_year ? 'btn-warning' : 'btn-outline-secondary' }}" style="font-size: 0.75rem;">
+            <i class="bi bi-calendar3"></i> {{ y }}
         </a>
-
-        <!-- Contas por fração -->
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fraction-accounts" class="btn btn-outline-success btn-sm py-1 px-2" style="font-size: 0.75rem;">
-            <i class="bi bi-wallet2"></i> Contas por fração
-        </a>
-        
-        <!-- Receitas -->
-        {% if is_admin %}
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues" class="btn btn-success btn-sm py-1 px-2" style="font-size: 0.75rem;">
-            <i class="bi bi-cash-stack"></i> Receitas
-        </a>
-        {% endif %}
-        
-        <!-- Dívidas Históricas -->
-        {% if is_admin %}
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-debts" class="btn btn-warning btn-sm py-1 px-2" style="font-size: 0.75rem;">
-            <i class="bi bi-clock-history"></i> Dívidas
-        </a>
-        <!-- Créditos Históricos -->
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-credits" class="btn btn-success btn-sm py-1 px-2" style="font-size: 0.75rem;">
-            <i class="bi bi-wallet2"></i> Créditos
-        </a>
-        {% endif %}
-        
-        <!-- Relatórios -->
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports" class="btn btn-secondary btn-sm py-1 px-2" style="font-size: 0.75rem;">
-            <i class="bi bi-graph-up"></i> Relatórios
-        </a>
-        
-        <!-- Nova Despesa -->
-        {% if is_admin %}
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create" class="btn btn-primary btn-sm py-1 px-2" style="font-size: 0.75rem;">
-            <i class="bi bi-plus-circle"></i> Nova Despesa
-        </a>
-        {% endif %}
+        {% endfor %}
     </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-12 col-sm-6 col-md-3">
+    <div class="row g-3 mb-4 row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-6">
+        <div class="col">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <h6 class="text-muted mb-2">Orçamento {{ current_year }}</h6>
+                    <h6 class="text-muted mb-2">Orçamento {{ selected_year }}</h6>
                     <h3 class="mb-0">€{{ budget.total_amount|default(0)|number_format(2, ',', '.') }}</h3>
                     {% if not budget %}
                         <small class="text-muted">Nenhum orçamento definido</small>
@@ -120,28 +41,44 @@
                 </div>
             </div>
         </div>
-        <div class="col-12 col-sm-6 col-md-3">
+        <div class="col">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <h6 class="text-muted mb-2">Despesas {{ current_year }}</h6>
-                    <h3 class="mb-0">€{{ total_expenses|default(0)|number_format(2, ',', '.') }}</h3>
+                    <h6 class="text-muted mb-2">Receitas {{ selected_year }}</h6>
+                    <h3 class="mb-0 text-success">€{{ total_revenues|default(0)|number_format(2, ',', '.') }}</h3>
                 </div>
             </div>
         </div>
-        <div class="col-12 col-sm-6 col-md-3">
+        <div class="col">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Despesas {{ selected_year }}</h6>
+                    <h3 class="mb-0 text-danger">€{{ total_expenses|default(0)|number_format(2, ',', '.') }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
                     <h6 class="text-muted mb-2">Saldo Orçamental</h6>
-                    <h3 class="mb-0 {% if (budget.total_amount|default(0) - total_expenses|default(0)) < 0 %}text-danger{% else %}text-success{% endif %}">
-                        €{{ (budget.total_amount|default(0) - total_expenses|default(0))|number_format(2, ',', '.') }}
+                    <h3 class="mb-0 {% if (total_revenues|default(0) - total_expenses|default(0)) < 0 %}text-danger{% else %}text-success{% endif %}">
+                        €{{ (total_revenues|default(0) - total_expenses|default(0))|number_format(2, ',', '.') }}
                     </h3>
+                    {% if budget and budget.total_amount|default(0) != 0 %}
+                    {% set saldo = total_revenues|default(0) - total_expenses|default(0) %}
+                    {% set desvio = saldo - budget.total_amount %}
+                    {% set pct = (desvio / budget.total_amount) * 100 %}
+                    <small class="text-muted" style="font-size: 0.75rem;">
+                        Desvio: €{{ desvio|number_format(2, ',', '.') }} ({{ pct|number_format(1, ',', '.') }}%)
+                    </small>
+                    {% endif %}
                 </div>
             </div>
         </div>
-        <div class="col-12 col-sm-6 col-md-3">
+        <div class="col">
             <div class="card shadow-sm border-primary h-100">
                 <div class="card-body">
-                    <h6 class="text-muted mb-2">Saldo Total Contas</h6>
+                    <h6 class="text-muted mb-2">Saldo Total Contas{% if is_viewing_past_year %} (31/12/{{ selected_year }}){% endif %}</h6>
                     <h3 class="mb-0 {% if total_balance < 0 %}text-danger{% else %}text-success{% endif %}">
                         €{{ total_balance|number_format(2, ',', '.') }}
                     </h3>
@@ -153,24 +90,29 @@
                 </div>
             </div>
         </div>
+        <div class="col">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Dívidas</h6>
+                    <h3 class="mb-0 {% if total_debts|default(0) > 0 %}text-warning{% else %}text-success{% endif %}">
+                        €{{ total_debts|default(0)|number_format(2, ',', '.') }}
+                    </h3>
+                    <small class="text-muted">
+                        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fraction-accounts" class="text-decoration-none">
+                            Ver contas por fração <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </small>
+                </div>
+            </div>
+        </div>
     </div>
 
     {% if bank_accounts %}
     <div class="card shadow-sm mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-            <h5 class="mb-2 mb-md-0">
-                <i class="bi bi-bank"></i> Saldos das Contas
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="bi bi-bank"></i> Saldos das Contas{% if is_viewing_past_year %} (31/12/{{ selected_year }}){% endif %}
             </h5>
-            <div class="d-flex flex-column flex-sm-row gap-2 w-100 w-md-auto">
-                {% if is_admin %}
-                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/bank-accounts" class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-gear"></i> Gerir Contas
-                </a>
-                {% endif %}
-                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions" class="btn btn-sm btn-primary">
-                    <i class="bi bi-list-ul"></i> Ver Movimentos
-                </a>
-            </div>
         </div>
         <div class="card-body">
             <div class="row g-3">
@@ -208,12 +150,15 @@
                             {% endif %}
                             
                             <div class="mt-auto pt-3 border-top">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <small class="text-muted flex-shrink-0">Saldo:</small>
-                                    <h4 class="mb-0 fw-bold {% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %} text-end flex-shrink-0" style="white-space: nowrap;">
-                                        €{{ account.current_balance|number_format(2, ',', '.') }}
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <small class="text-muted flex-shrink-0">Saldo{% if is_viewing_past_year %} (31/12/{{ selected_year }}){% endif %}:</small>
+                                    <h4 class="mb-0 fw-bold {% if (account.balance_for_year|default(account.current_balance)) >= 0 %}text-success{% else %}text-danger{% endif %} text-end flex-shrink-0" style="white-space: nowrap;">
+                                        €{{ (account.balance_for_year|default(account.current_balance))|number_format(2, ',', '.') }}
                                     </h4>
                                 </div>
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions?bank_account_id={{ account.id }}" class="btn btn-sm btn-outline-primary w-100">
+                                    <i class="bi bi-list-ul"></i> Ver Movimentos
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -230,7 +175,7 @@
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
                     <h5 class="mb-2 mb-md-0">Últimas Despesas</h5>
                     {% if is_admin %}
-                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create" class="btn btn-sm btn-primary">
+                    <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/create?transaction_type=expense" class="btn btn-sm btn-primary">
                         <i class="bi bi-plus"></i> Adicionar
                     </a>
                     {% endif %}
@@ -250,9 +195,9 @@
                             <tbody>
                                 {% for expense in expenses %}
                                 <tr>
-                                    <td>{{ expense.expense_date|date('d/m/Y') }}</td>
-                                    <td>{{ expense.description }}</td>
-                                    <td><span class="badge bg-secondary">{{ expense.category }}</span></td>
+                                    <td>{{ expense.transaction_date|date('d/m/Y') }}</td>
+                                    <td>{{ expense.description|default('-') }}</td>
+                                    <td>{% if expense.category %}<span class="badge bg-secondary">{{ expense.category }}</span>{% else %}-{% endif %}</td>
                                     <td><strong>€{{ expense.amount|number_format(2, ',', '.') }}</strong></td>
                                 </tr>
                                 {% endfor %}
@@ -260,7 +205,7 @@
                         </table>
                     </div>
                     {% else %}
-                    <p class="text-muted text-center py-3">Nenhuma despesa registada este ano.</p>
+                    <p class="text-muted text-center py-3">Nenhuma saída registada em {{ selected_year }}.</p>
                     {% endif %}
                 </div>
             </div>

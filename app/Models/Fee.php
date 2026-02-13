@@ -349,6 +349,28 @@ class Fee extends Model
     }
 
     /**
+     * Get total amount due (dívidas) by condominium: sum of (amount - paid) for fees
+     * with status pending/overdue and remaining > 0, all fractions.
+     */
+    public function getTotalDueByCondominium(int $condominiumId): float
+    {
+        if (!$this->db) {
+            return 0;
+        }
+        $stmt = $this->db->prepare("
+            SELECT SUM(f.amount - COALESCE(paid.t, 0)) AS due
+            FROM fees f
+            LEFT JOIN (SELECT fee_id, SUM(amount) AS t FROM fee_payments GROUP BY fee_id) paid ON paid.fee_id = f.id
+            WHERE f.condominium_id = :condominium_id
+            AND f.status IN ('pending', 'overdue')
+            AND (f.amount - COALESCE(paid.t, 0)) > 0
+        ");
+        $stmt->execute([':condominium_id' => $condominiumId]);
+        $r = $stmt->fetch();
+        return (float)($r['due'] ?? 0);
+    }
+
+    /**
      * Get fees by condominium
      */
     public function getByCondominium(int $condominiumId, array $filters = []): array

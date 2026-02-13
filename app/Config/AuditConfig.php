@@ -13,7 +13,6 @@ class AuditConfig
         'fractions',
         'fees',
         'fee_payments',
-        'expenses',
         'revenues',
         'budgets',
         'budget_items',

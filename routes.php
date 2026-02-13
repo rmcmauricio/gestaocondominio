@@ -187,8 +187,7 @@ $router->get('/condominiums/{condominium_id}/budgets/{id}', 'App\Controllers\Fin
 $router->get('/condominiums/{condominium_id}/budgets/{id}/edit', 'App\Controllers\FinanceController@editBudget');
 $router->post('/condominiums/{condominium_id}/budgets/{id}', 'App\Controllers\FinanceController@updateBudget');
 $router->post('/condominiums/{condominium_id}/budgets/{id}/approve', 'App\Controllers\FinanceController@approveBudget');
-$router->get('/condominiums/{condominium_id}/expenses/create', 'App\Controllers\FinanceController@createExpense');
-$router->post('/condominiums/{condominium_id}/expenses', 'App\Controllers\FinanceController@storeExpense');
+$router->get('/condominiums/{condominium_id}/expenses/create', 'App\Controllers\FinanceController@redirectExpensesToTransactions');
 $router->get('/condominiums/{condominium_id}/fees', 'App\Controllers\FinanceController@fees');
 $router->get('/condominiums/{condominium_id}/fraction-accounts', 'App\Controllers\FinanceController@fractionAccounts');
 $router->get('/condominiums/{condominium_id}/fraction-accounts/{fraction_id}', 'App\Controllers\FinanceController@fractionAccountShow');
@@ -597,6 +596,20 @@ $router->get('/admin/newsletter-subscribers', 'App\Controllers\SuperAdminControl
 // Demo Access Requests (super admin only)
 $router->get('/admin/demo-access-requests', 'App\Controllers\SuperAdminController@demoAccessRequests');
 $router->post('/admin/demo-access-requests/delete', 'App\Controllers\SuperAdminController@deleteExpiredDemoTokens');
+
+// Addon routes (only when addon is enabled)
+if (!empty($GLOBALS['enabled_addons']) && !empty($GLOBALS['addon_manifests'])) {
+    foreach ($GLOBALS['enabled_addons'] as $addonKey) {
+        $manifest = $GLOBALS['addon_manifests'][$addonKey] ?? null;
+        if (!$manifest || empty($manifest['folder'])) {
+            continue;
+        }
+        $routesFile = __DIR__ . '/addons/' . $manifest['folder'] . '/routes.php';
+        if (is_file($routesFile)) {
+            require $routesFile;
+        }
+    }
+}
 
 // Add your routes here
 

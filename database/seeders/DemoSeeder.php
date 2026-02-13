@@ -12,7 +12,7 @@ use App\Models\BankAccount;
 use App\Models\FinancialTransaction;
 use App\Models\Budget;
 use App\Models\BudgetItem;
-use App\Models\Expense;
+use App\Models\FinancialTransaction;
 use App\Models\Supplier;
 use App\Models\Assembly;
 use App\Models\AssemblyAttendee;
@@ -145,8 +145,8 @@ class DemoSeeder
                 // 7. Create budget 2025
                 $this->createBudget2025($index);
 
-                // 8. Create expenses 2025
-                $this->createExpenses2025($index);
+                // 8. Create expense transactions 2025 (financial_transactions)
+                $this->createExpenseTransactions2025($index);
 
                 // 9. Generate fees 2025
                 $this->generateFees2025($index);
@@ -788,7 +788,6 @@ class DemoSeeder
         $this->db->exec("DELETE FROM occurrence_comments WHERE occurrence_id IN (SELECT id FROM occurrences WHERE condominium_id = {$condominiumId})");
         $this->db->exec("DELETE FROM occurrence_history WHERE occurrence_id IN (SELECT id FROM occurrences WHERE condominium_id = {$condominiumId})");
         $this->db->exec("DELETE FROM occurrences WHERE condominium_id = {$condominiumId}");
-        $this->db->exec("DELETE FROM expenses WHERE condominium_id = {$condominiumId}");
         $this->db->exec("DELETE FROM budget_items WHERE budget_id IN (SELECT id FROM budgets WHERE condominium_id = {$condominiumId})");
         $this->db->exec("DELETE FROM budgets WHERE condominium_id = {$condominiumId}");
         // Delete contracts
@@ -1555,34 +1554,49 @@ class DemoSeeder
         echo "   Itens do orçamento criados\n";
     }
 
-    protected function createExpenses2025(int $condominiumIndex = 0): void
+    protected function createExpenseTransactions2025(int $condominiumIndex = 0): void
     {
-        echo "8. Criando despesas 2025...\n";
+        echo "8. Criando despesas 2025 (movimentos financeiros)...\n";
 
-        $expenseModel = new Expense();
+        $transactionModel = new FinancialTransaction();
+        $bankAccountId = $this->accountIds[0] ?? null;
+        if (!$bankAccountId) {
+            echo "   Aviso: Sem conta bancária, despesas não criadas\n";
+            return;
+        }
         $count = 0;
         $skipped = 0;
 
-        // Check if expenses already exist for this condominium in 2025
-        // Use direct database query to ensure we get all expenses
-        $stmt = $this->db->prepare("
-            SELECT description, expense_date, category, supplier_id
-            FROM expenses
-            WHERE condominium_id = :condominium_id
-            AND YEAR(expense_date) = 2025
-        ");
-        $stmt->execute([':condominium_id' => $this->demoCondominiumId]);
-        $existingExpenses = $stmt->fetchAll();
-        $existingDescriptions = [];
-        foreach ($existingExpenses as $exp) {
-            // Use description, date, category, and supplier_id for more accurate duplicate detection
-            $key = $exp['description'] . '|' . $exp['expense_date'] . '|' . $exp['category'] . '|' . ($exp['supplier_id'] ?? '');
-            $existingDescriptions[$key] = true;
-        }
-
-        if (!empty($existingExpenses)) {
-            echo "   Despesas 2025 já existem (" . count($existingExpenses) . " encontradas), verificando duplicados...\n";
-        }
+        $createExpense = function (string $description, string $category, float $amount, string $date) use (&$count, &$skipped, $transactionModel, $bankAccountId) {
+            $checkStmt = $this->db->prepare("
+                SELECT id FROM financial_transactions
+                WHERE condominium_id = :condominium_id AND transaction_type = 'expense'
+                AND description = :description AND transaction_date = :transaction_date AND category = :category
+                LIMIT 1
+            ");
+            $checkStmt->execute([
+                ':condominium_id' => $this->demoCondominiumId,
+                ':description' => $description,
+                ':transaction_date' => $date,
+                ':category' => $category
+            ]);
+            if ($checkStmt->fetch()) {
+                $skipped++;
+                return;
+            }
+            $transactionModel->create([
+                'condominium_id' => $this->demoCondominiumId,
+                'bank_account_id' => $bankAccountId,
+                'transaction_type' => 'expense',
+                'amount' => $amount,
+                'transaction_date' => $date,
+                'description' => $description,
+                'category' => $category,
+                'related_type' => 'manual',
+                'created_by' => $this->demoUserId
+            ]);
+            $count++;
+        };
 
         // Monthly expenses
         // Use dates later in the month (20-28) to ensure they are paid after quota payments (5-25)
@@ -1592,213 +1606,21 @@ class DemoSeeder
             $expenseDay = 20 + ($month % 9); // Varies between 20-28
             $date = "2025-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-" . str_pad($expenseDay, 2, '0', STR_PAD_LEFT);
 
-            // Water (supplier 0) - reduced max to ensure positive balance
-            $waterDesc = "Fatura de água - {$month}/2025";
-            $waterKey = $waterDesc . '|' . $date . '|Água|' . ($this->supplierIds[0] ?? '');
+            $createExpense("Fatura de água - {$month}/2025", 'Água', 150 + rand(0, 30), $date);
 
-            // Double check in database to ensure no duplicates
-            $checkStmt = $this->db->prepare("
-                SELECT id FROM expenses
-                WHERE condominium_id = :condominium_id
-                AND description = :description
-                AND expense_date = :expense_date
-                AND category = 'Água'
-                AND supplier_id = :supplier_id
-                LIMIT 1
-            ");
-            $checkStmt->execute([
-                ':condominium_id' => $this->demoCondominiumId,
-                ':description' => $waterDesc,
-                ':expense_date' => $date,
-                ':supplier_id' => $this->supplierIds[0]
-            ]);
-            $existingExpense = $checkStmt->fetch();
+            $createExpense("Fatura de energia - {$month}/2025", 'Energia', 200 + rand(0, 50), $date);
 
-            if (!isset($existingDescriptions[$waterKey]) && !$existingExpense) {
-                $expenseModel->create([
-                    'condominium_id' => $this->demoCondominiumId,
-                    'supplier_id' => $this->supplierIds[0],
-                    'category' => 'Água',
-                    'type' => 'ordinaria',
-                    'amount' => 150 + rand(0, 30), // Reduced max from 50 to 30
-                    'expense_date' => $date,
-                    'description' => $waterDesc,
-                    'payment_method' => 'transfer',
-                    'is_paid' => true,
-                    'created_by' => $this->demoUserId
-                ]);
-                $count++;
-                $existingDescriptions[$waterKey] = true;
-            } else {
-                $skipped++;
-            }
+            $createExpense("Serviço de limpeza - {$month}/2025", 'Limpeza', 300, $date);
 
-            // Energy (supplier 1) - reduced max to ensure positive balance
-            $energyDesc = "Fatura de energia - {$month}/2025";
-            $energyKey = $energyDesc . '|' . $date . '|Energia|' . ($this->supplierIds[1] ?? '');
-
-            // Double check in database to ensure no duplicates
-            $checkStmt = $this->db->prepare("
-                SELECT id FROM expenses
-                WHERE condominium_id = :condominium_id
-                AND description = :description
-                AND expense_date = :expense_date
-                AND category = 'Energia'
-                AND supplier_id = :supplier_id
-                LIMIT 1
-            ");
-            $checkStmt->execute([
-                ':condominium_id' => $this->demoCondominiumId,
-                ':description' => $energyDesc,
-                ':expense_date' => $date,
-                ':supplier_id' => $this->supplierIds[1]
-            ]);
-            $existingExpense = $checkStmt->fetch();
-
-            if (!isset($existingDescriptions[$energyKey]) && !$existingExpense) {
-                $expenseModel->create([
-                    'condominium_id' => $this->demoCondominiumId,
-                    'supplier_id' => $this->supplierIds[1],
-                    'category' => 'Energia',
-                    'type' => 'ordinaria',
-                    'amount' => 200 + rand(0, 50), // Reduced max from 100 to 50
-                    'expense_date' => $date,
-                    'description' => $energyDesc,
-                    'payment_method' => 'transfer',
-                    'is_paid' => true,
-                    'created_by' => $this->demoUserId
-                ]);
-                $count++;
-                $existingDescriptions[$energyKey] = true;
-            } else {
-                $skipped++;
-            }
-
-            // Cleaning (supplier 3)
-            $cleaningDesc = "Serviço de limpeza - {$month}/2025";
-            $cleaningKey = $cleaningDesc . '|' . $date . '|Limpeza|' . ($this->supplierIds[3] ?? '');
-
-            // Double check in database to ensure no duplicates
-            $checkStmt = $this->db->prepare("
-                SELECT id FROM expenses
-                WHERE condominium_id = :condominium_id
-                AND description = :description
-                AND expense_date = :expense_date
-                AND category = 'Limpeza'
-                AND supplier_id = :supplier_id
-                LIMIT 1
-            ");
-            $checkStmt->execute([
-                ':condominium_id' => $this->demoCondominiumId,
-                ':description' => $cleaningDesc,
-                ':expense_date' => $date,
-                ':supplier_id' => $this->supplierIds[3]
-            ]);
-            $existingExpense = $checkStmt->fetch();
-
-            if (!isset($existingDescriptions[$cleaningKey]) && !$existingExpense) {
-                $expenseModel->create([
-                    'condominium_id' => $this->demoCondominiumId,
-                    'supplier_id' => $this->supplierIds[3],
-                    'category' => 'Limpeza',
-                    'type' => 'ordinaria',
-                    'amount' => 300,
-                    'expense_date' => $date,
-                    'description' => $cleaningDesc,
-                    'payment_method' => 'transfer',
-                    'is_paid' => true,
-                    'created_by' => $this->demoUserId
-                ]);
-                $count++;
-                $existingDescriptions[$cleaningKey] = true;
-            } else {
-                $skipped++;
-            }
-
-            // Maintenance (occasional) - reduced max to ensure positive balance
             if ($month % 3 == 0) {
-                $maintenanceDesc = "Manutenção trimestral - {$month}/2025";
-                $maintenanceKey = $maintenanceDesc . '|' . $date . '|Manutenção|' . ($this->supplierIds[4] ?? '');
-
-                // Double check in database to ensure no duplicates
-                $checkStmt = $this->db->prepare("
-                    SELECT id FROM expenses
-                    WHERE condominium_id = :condominium_id
-                    AND description = :description
-                    AND expense_date = :expense_date
-                    AND category = 'Manutenção'
-                    AND supplier_id = :supplier_id
-                    LIMIT 1
-                ");
-                $checkStmt->execute([
-                    ':condominium_id' => $this->demoCondominiumId,
-                    ':description' => $maintenanceDesc,
-                    ':expense_date' => $date,
-                    ':supplier_id' => $this->supplierIds[4]
-                ]);
-                $existingExpense = $checkStmt->fetch();
-
-                if (!isset($existingDescriptions[$maintenanceKey]) && !$existingExpense) {
-                    $expenseModel->create([
-                        'condominium_id' => $this->demoCondominiumId,
-                        'supplier_id' => $this->supplierIds[4],
-                        'category' => 'Manutenção',
-                        'type' => 'ordinaria',
-                        'amount' => 200 + rand(0, 200), // Reduced max from 300 to 200
-                        'expense_date' => $date,
-                        'description' => $maintenanceDesc,
-                        'payment_method' => 'transfer',
-                        'is_paid' => true,
-                        'created_by' => $this->demoUserId
-                    ]);
-                    $count++;
-                    $existingDescriptions[$maintenanceKey] = true;
-                } else {
-                    $skipped++;
-                }
+                $createExpense("Manutenção trimestral - {$month}/2025", 'Manutenção', 200 + rand(0, 200), $date);
             }
         }
 
-        // Annual insurance (supplier 2) - paid later in month to ensure positive balance
-        $insuranceDesc = 'Seguro anual 2025';
-        $insuranceDate = '2025-01-25';
-        $insuranceKey = $insuranceDesc . '|' . $insuranceDate . '|Seguro|' . ($this->supplierIds[2] ?? '');
+        $createExpense('Seguro anual 2025', 'Seguro', 600, '2025-01-25');
 
-        // Double check in database to ensure no duplicates
-        $checkStmt = $this->db->prepare("
-            SELECT id FROM expenses
-            WHERE condominium_id = :condominium_id
-            AND description = :description
-            AND expense_date = :expense_date
-            AND category = 'Seguro'
-            AND supplier_id = :supplier_id
-            LIMIT 1
-        ");
-        $checkStmt->execute([
-            ':condominium_id' => $this->demoCondominiumId,
-            ':description' => $insuranceDesc,
-            ':expense_date' => $insuranceDate,
-            ':supplier_id' => $this->supplierIds[2]
-        ]);
-        $existingExpense = $checkStmt->fetch();
-
-        if (!isset($existingDescriptions[$insuranceKey]) && !$existingExpense) {
-            $expenseModel->create([
-                'condominium_id' => $this->demoCondominiumId,
-                'supplier_id' => $this->supplierIds[2],
-                'category' => 'Seguro',
-                'type' => 'ordinaria',
-                'amount' => 600,
-                'expense_date' => $insuranceDate,
-                'description' => $insuranceDesc,
-                'payment_method' => 'transfer',
-                'is_paid' => true,
-                'created_by' => $this->demoUserId
-            ]);
-            $count++;
-        } else {
-            $skipped++;
-        }
+        $bankAccountModel = new BankAccount();
+        $bankAccountModel->updateBalance($bankAccountId);
 
         if ($skipped > 0) {
             echo "   {$count} despesas criadas, {$skipped} duplicadas ignoradas\n";
@@ -2089,82 +1911,14 @@ class DemoSeeder
 
     protected function createFinancialTransactions(int $condominiumIndex = 0): void
     {
-        echo "10. Criando movimentos financeiros adicionais...\n";
+        echo "10. Atualizando saldos das contas...\n";
 
-        $transactionModel = new FinancialTransaction();
-        $count = 0;
-        $skipped = 0;
-
-        // Add some expense transactions
-        // Only create transactions for expenses that don't already have a financial transaction
-        $expenses = $this->db->query("
-            SELECT e.id, e.amount, e.expense_date, e.description
-            FROM expenses e
-            LEFT JOIN financial_transactions ft ON ft.related_type = 'expense' AND ft.related_id = e.id
-            WHERE e.condominium_id = {$this->demoCondominiumId}
-            AND ft.id IS NULL
-            ORDER BY e.expense_date ASC
-        ")->fetchAll();
-
-        foreach ($expenses as $expense) {
-            // Double check if transaction already exists (safety check)
-            $existingTransaction = $transactionModel->getByRelated('expense', $expense['id']);
-            if ($existingTransaction) {
-                $skipped++;
-                continue;
-            }
-
-            // Also check if transaction with same description, date, and type already exists (extra safety)
-            // This prevents duplicates even if related_id is different or NULL
-            $checkStmt = $this->db->prepare("
-                SELECT id FROM financial_transactions
-                WHERE condominium_id = :condominium_id
-                AND transaction_type = 'expense'
-                AND description = :description
-                AND transaction_date = :transaction_date
-                AND bank_account_id = :bank_account_id
-                AND category = 'Despesas'
-                LIMIT 1
-            ");
-            $checkStmt->execute([
-                ':condominium_id' => $this->demoCondominiumId,
-                ':description' => $expense['description'],
-                ':transaction_date' => $expense['expense_date'],
-                ':bank_account_id' => $this->accountIds[0]
-            ]);
-            $duplicateTransaction = $checkStmt->fetch();
-
-            if ($duplicateTransaction) {
-                $skipped++;
-                continue;
-            }
-
-            $transactionModel->create([
-                'condominium_id' => $this->demoCondominiumId,
-                'bank_account_id' => $this->accountIds[0],
-                'transaction_type' => 'expense',
-                'amount' => $expense['amount'],
-                'transaction_date' => $expense['expense_date'],
-                'description' => $expense['description'],
-                'category' => 'Despesas',
-                'related_type' => 'expense',
-                'related_id' => $expense['id'],
-                'created_by' => $this->demoUserId
-            ]);
-            $count++;
-        }
-
-        // Update account balances
         $bankAccountModel = new BankAccount();
         foreach ($this->accountIds as $accountId) {
             $bankAccountModel->updateBalance($accountId);
         }
 
-        if ($skipped > 0) {
-            echo "   {$count} movimentos financeiros criados, {$skipped} duplicados ignorados\n";
-        } else {
-            echo "   {$count} movimentos financeiros criados\n";
-        }
+        echo "   Saldos atualizados\n";
     }
 
     protected function createAssemblies(int $condominiumIndex = 0): void
@@ -4217,11 +3971,6 @@ class DemoSeeder
         $stmt = $this->db->prepare("SELECT id FROM budget_items WHERE budget_id IN (SELECT id FROM budgets WHERE condominium_id IN ({$condominiumIdsList}))");
         $stmt->execute();
         $ids['budget_items'] = array_column($stmt->fetchAll(), 'id');
-
-        // Expenses
-        $stmt = $this->db->prepare("SELECT id FROM expenses WHERE condominium_id IN ({$condominiumIdsList})");
-        $stmt->execute();
-        $ids['expenses'] = array_column($stmt->fetchAll(), 'id');
 
         // Fees
         $stmt = $this->db->prepare("SELECT id FROM fees WHERE condominium_id IN ({$condominiumIdsList})");

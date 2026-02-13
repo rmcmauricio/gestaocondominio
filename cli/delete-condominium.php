@@ -267,10 +267,6 @@ function deleteCondominiumData($db, int $condominiumId, bool $isDemo = false): v
     $db->exec("DELETE FROM occurrence_attachments WHERE condominium_id = {$condominiumId}");
     $db->exec("DELETE FROM occurrences WHERE condominium_id = {$condominiumId}");
     
-    // Expenses
-    echo "  Removendo despesas...\n";
-    $db->exec("DELETE FROM expenses WHERE condominium_id = {$condominiumId}");
-    
     // Budgets
     echo "  Removendo orçamentos...\n";
     $db->exec("DELETE FROM budget_items WHERE budget_id IN (SELECT id FROM budgets WHERE condominium_id = {$condominiumId})");

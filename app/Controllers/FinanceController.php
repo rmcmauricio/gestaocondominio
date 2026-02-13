@@ -8,7 +8,6 @@ use App\Middleware\AuthMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Models\Budget;
 use App\Models\BudgetItem;
-use App\Models\Expense;
 use App\Models\Fee;
 use App\Models\FeePayment;
 use App\Models\Condominium;
@@ -28,7 +27,6 @@ class FinanceController extends Controller
 {
     protected $budgetModel;
     protected $budgetItemModel;
-    protected $expenseModel;
     protected $feeModel;
     protected $feePaymentModel;
     protected $condominiumModel;
@@ -41,7 +39,6 @@ class FinanceController extends Controller
         parent::__construct();
         $this->budgetModel = new Budget();
         $this->budgetItemModel = new BudgetItem();
-        $this->expenseModel = new Expense();
         $this->feeModel = new Fee();
         $this->feePaymentModel = new FeePayment();
         $this->condominiumModel = new Condominium();
@@ -150,36 +147,52 @@ class FinanceController extends Controller
             exit;
         }
 
-        $currentYear = date('Y');
-        $budget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $currentYear);
+        $currentYear = (int)date('Y');
+        $selectedYear = !empty($_GET['year']) ? (int)$_GET['year'] : $currentYear;
+        if ($selectedYear < 2000 || $selectedYear > 2100) {
+            $selectedYear = $currentYear;
+        }
+
+        $budget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $selectedYear);
         $nextYearBudget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $currentYear + 1);
         $allBudgets = $this->budgetModel->getByCondominium($condominiumId);
         
-        $expenses = $this->expenseModel->getByCondominium($condominiumId, ['year' => $currentYear, 'limit' => 10]);
-        
-        // Get total expenses for current year
-        $totalExpenses = $this->expenseModel->getTotalByPeriod(
-            $condominiumId,
-            "{$currentYear}-01-01",
-            "{$currentYear}-12-31"
-        );
+        $transactionModel = new FinancialTransaction();
+        $periodStart = "{$selectedYear}-01-01";
+        $periodEnd = "{$selectedYear}-12-31";
+        $totalExpenses = $transactionModel->getTotalByPeriodAndType($condominiumId, $periodStart, $periodEnd, 'expense');
+        $totalRevenues = $transactionModel->getTotalByPeriodAndType($condominiumId, $periodStart, $periodEnd, 'income');
+        $totalDebts = $this->feeModel->getTotalDueByCondominium($condominiumId);
 
-        // Get bank accounts and balances
+        $expenses = $transactionModel->getByCondominium($condominiumId, [
+            'transaction_type' => 'expense',
+            'from_date' => $periodStart,
+            'to_date' => $periodEnd,
+            'limit' => 10
+        ]);
+
         $bankAccountModel = new BankAccount();
         $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
         
-        // Update balances
-        foreach ($bankAccounts as $account) {
-            $bankAccountModel->updateBalance($account['id']);
-        }
+        $endOfYear = "{$selectedYear}-12-31";
+        $isViewingPastYear = ($selectedYear < $currentYear);
         
-        // Refresh accounts with updated balances
-        $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
-        
-        // Calculate total balance
-        $totalBalance = 0;
-        foreach ($bankAccounts as $account) {
-            $totalBalance += (float)$account['current_balance'];
+        if ($isViewingPastYear) {
+            foreach ($bankAccounts as &$acc) {
+                $acc['balance_for_year'] = $bankAccountModel->calculateBalanceAsOfDate($acc['id'], $endOfYear);
+            }
+            unset($acc);
+            $totalBalance = array_sum(array_column($bankAccounts, 'balance_for_year'));
+        } else {
+            foreach ($bankAccounts as $account) {
+                $bankAccountModel->updateBalance($account['id']);
+            }
+            $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
+            foreach ($bankAccounts as &$acc) {
+                $acc['balance_for_year'] = (float)($acc['current_balance'] ?? 0);
+            }
+            unset($acc);
+            $totalBalance = array_sum(array_column($bankAccounts, 'balance_for_year'));
         }
 
         $this->loadPageTranslations('finances');
@@ -193,19 +206,34 @@ class FinanceController extends Controller
         $success = $_SESSION['success'] ?? null;
         unset($_SESSION['error'], $_SESSION['success']);
         
+        $nextYearBudgetForSelected = $this->budgetModel->getByCondominiumAndYear($condominiumId, $selectedYear + 1);
+
+        $budgetYears = array_unique(array_map(fn($b) => (int)$b['year'], $allBudgets));
+        $availableYears = array_values(array_unique(array_merge(
+            $budgetYears,
+            [$currentYear, $currentYear + 1]
+        )));
+        sort($availableYears);
+
         $this->data += [
             'viewName' => 'pages/finances/index.html.twig',
             'page' => ['titulo' => 'Finanças'],
             'condominium' => $condominium,
             'budget' => $budget,
             'next_year_budget' => $nextYearBudget,
+            'next_year_budget_for_selected' => $nextYearBudgetForSelected,
             'all_budgets' => $allBudgets,
             'expenses' => $expenses,
             'total_expenses' => $totalExpenses,
+            'total_revenues' => $totalRevenues,
+            'total_debts' => $totalDebts,
             'current_year' => $currentYear,
+            'selected_year' => $selectedYear,
             'bank_accounts' => $bankAccounts,
             'total_balance' => $totalBalance,
             'is_admin' => $isAdmin,
+            'is_viewing_past_year' => $isViewingPastYear,
+            'available_years' => $availableYears,
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null,
             'user' => AuthMiddleware::user()
@@ -361,99 +389,10 @@ class FinanceController extends Controller
         }
     }
 
-    public function createExpense(int $condominiumId)
+    public function redirectExpensesToTransactions(int $condominiumId)
     {
-        AuthMiddleware::require();
-        RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdminInCondominium($condominiumId);
-
-        $condominium = $this->condominiumModel->findById($condominiumId);
-        if (!$condominium) {
-            $_SESSION['error'] = 'Condomínio não encontrado.';
-            header('Location: ' . BASE_URL . 'condominiums');
-            exit;
-        }
-
-        // Get fractions for dropdown
-        $fractionModel = new \App\Models\Fraction();
-        $fractions = $fractionModel->getByCondominiumId($condominiumId);
-
-        // Get suppliers for dropdown
-        global $db;
-        $suppliers = [];
-        if ($db) {
-            $stmt = $db->prepare("SELECT id, name FROM suppliers WHERE condominium_id = :condominium_id AND is_active = TRUE");
-            $stmt->execute([':condominium_id' => $condominiumId]);
-            $suppliers = $stmt->fetchAll() ?: [];
-        }
-
-        $this->loadPageTranslations('finances');
-        
-        // Get and clear session messages
-        $error = $_SESSION['error'] ?? null;
-        $success = $_SESSION['success'] ?? null;
-        unset($_SESSION['error'], $_SESSION['success']);
-        
-        $this->data += [
-            'viewName' => 'pages/finances/create-expense.html.twig',
-            'page' => ['titulo' => 'Registar Despesa'],
-            'condominium' => $condominium,
-            'fractions' => $fractions,
-            'suppliers' => $suppliers,
-            'csrf_token' => Security::generateCSRFToken(),
-            'error' => $error,
-            'success' => $success
-        ];
-
-        $this->renderMainTemplate();
-    }
-
-    public function storeExpense(int $condominiumId)
-    {
-        AuthMiddleware::require();
-        RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdminInCondominium($condominiumId);
-
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances');
-            exit;
-        }
-
-        $csrfToken = $_POST['csrf_token'] ?? '';
-        if (!Security::verifyCSRFToken($csrfToken)) {
-            $_SESSION['error'] = 'Token de segurança inválido.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/create');
-            exit;
-        }
-
-        $userId = AuthMiddleware::userId();
-
-        try {
-            $expenseId = $this->expenseModel->create([
-                'condominium_id' => $condominiumId,
-                'fraction_id' => !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null,
-                'supplier_id' => !empty($_POST['supplier_id']) ? (int)$_POST['supplier_id'] : null,
-                'category' => Security::sanitize($_POST['category'] ?? ''),
-                'description' => Security::sanitize($_POST['description'] ?? ''),
-                'amount' => (float)($_POST['amount'] ?? 0),
-                'type' => Security::sanitize($_POST['type'] ?? 'ordinaria'),
-                'expense_date' => $_POST['expense_date'] ?? date('Y-m-d'),
-                'invoice_number' => Security::sanitize($_POST['invoice_number'] ?? ''),
-                'invoice_date' => $_POST['invoice_date'] ?? null,
-                'payment_method' => Security::sanitize($_POST['payment_method'] ?? ''),
-                'is_paid' => isset($_POST['is_paid']),
-                'notes' => Security::sanitize($_POST['notes'] ?? ''),
-                'created_by' => $userId
-            ]);
-
-            $_SESSION['success'] = 'Despesa registada com sucesso!';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances');
-            exit;
-        } catch (\Exception $e) {
-            $_SESSION['error'] = 'Erro ao registar despesa: ' . $e->getMessage();
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/create');
-            exit;
-        }
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create?transaction_type=expense');
+        exit;
     }
 
     public function showBudget(int $condominiumId, int $id)
