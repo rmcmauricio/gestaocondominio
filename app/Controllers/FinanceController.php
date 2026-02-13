@@ -358,8 +358,12 @@ class FinanceController extends Controller
             exit;
         }
 
-        $currentYear = date('Y');
+        $currentYear = (int)date('Y');
+        $availableYears = range($currentYear - 10, $currentYear + 1);
         $selectedYear = !empty($_GET['year']) ? (int)$_GET['year'] : $currentYear;
+        if (!in_array($selectedYear, $availableYears, true)) {
+            $selectedYear = $currentYear;
+        }
         
         // Check if budget already exists for selected year
         $existingBudget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $selectedYear);
@@ -376,6 +380,7 @@ class FinanceController extends Controller
             'page' => ['titulo' => 'Criar Orçamento'],
             'condominium' => $condominium,
             'current_year' => $currentYear,
+            'available_years' => $availableYears,
             'selected_year' => $selectedYear,
             'existing_budget' => $existingBudget,
             'csrf_token' => Security::generateCSRFToken(),
@@ -406,6 +411,17 @@ class FinanceController extends Controller
         }
 
         $year = (int)($_POST['year'] ?? date('Y'));
+        if ($year < 2000 || $year > 2100) {
+            $_SESSION['error'] = 'Ano do orçamento inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/budgets/create');
+            exit;
+        }
+        $existingBudget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $year);
+        if ($existingBudget) {
+            $_SESSION['error'] = 'Já existe um orçamento para ' . $year . '. Edite o orçamento existente ou escolha outro ano.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/budgets/create?year=' . $year);
+            exit;
+        }
         $notes = Security::sanitize($_POST['notes'] ?? '');
         
         // Process revenue items
