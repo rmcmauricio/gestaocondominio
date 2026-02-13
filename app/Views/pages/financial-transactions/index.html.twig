@@ -109,7 +109,7 @@
                     </thead>
                     <tbody>
                         {% for transaction in transactions %}
-                        <tr class="transaction-row" style="cursor: pointer;" data-transaction-id="{{ transaction.id }}" title="Clique para ver detalhes">
+                        <tr class="transaction-row" style="cursor: pointer;" data-transaction-id="{{ transaction.id }}" data-transaction-type="{{ transaction.transaction_type }}" data-bank-account-id="{{ transaction.bank_account_id }}" title="Clique para ver detalhes">
                             <td style="text-align: center;"><span class="text-muted">#{{ transaction.id }}</span></td>
                             <td style="text-align: center;">
                                 {% if transaction.transaction_type == 'income' %}
@@ -121,17 +121,40 @@
                             <td>{{ transaction.transaction_date|date('d/m/Y') }}</td>
                             <td>
                                 {{ transaction.description|slice(0, 50) }}{% if transaction.description|length > 50 %}...{% endif %}
-                                {% if transaction.related_type == 'transfer' and transaction.transfer_to_account_name %}
+                                {% if transaction.related_type == 'transfer' and transaction.transfer_account_name %}
                                     <br><small class="text-muted">
                                         {% if transaction.transaction_type == 'expense' %}
-                                        → Para: {{ transaction.transfer_to_account_name }}
+                                        → Para: {{ transaction.transfer_account_name }}
                                         {% else %}
                                         ← De: {{ transaction.account_name }}
                                         {% endif %}
                                     </small>
                                 {% endif %}
                             </td>
-                            <td>{{ transaction.category ?: '-' }}</td>
+                            <td class="{% if is_admin and not transaction.category %}no-row-click{% endif %}">
+                                {% if transaction.category %}
+                                {{ transaction.category }}
+                                {% elseif is_admin %}
+                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/set-category" class="d-inline form-set-category-mov" id="form-cat-mov-{{ transaction.id }}" data-transaction-id="{{ transaction.id }}" data-transaction-type="{{ transaction.transaction_type }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <select name="category" class="form-select form-select-sm set-category-mov-select" style="min-width: 140px;" data-form-id="form-cat-mov-{{ transaction.id }}">
+                                        <option value="__none__">— Sem categoria —</option>
+                                        {% if transaction.transaction_type == 'income' %}
+                                        {% for cat in revenue_categories|default([]) %}
+                                        <option value="{{ cat.name|e('html_attr') }}">{{ cat.name }}</option>
+                                        {% endfor %}
+                                        {% else %}
+                                        {% for cat in expense_categories|default([]) %}
+                                        <option value="{{ cat.name|e('html_attr') }}">{{ cat.name }}</option>
+                                        {% endfor %}
+                                        {% endif %}
+                                        <option value="__new__">+ Criar nova...</option>
+                                    </select>
+                                </form>
+                                {% else %}
+                                —
+                                {% endif %}
+                            </td>
                             <td>{{ transaction.reference ?: '-' }}</td>
                             <td class="text-end">
                                 <strong class="{% if transaction.transaction_type == 'income' %}text-success{% else %}text-danger{% endif %}">
@@ -158,13 +181,20 @@
                                         </div>
                                         {% endfor %}
                                     </div>
-                                {% elseif transaction.transaction_type == 'income' and transaction.related_type != 'fee_payment' and transaction.related_type != 'fraction_account' %}
+                                {% elseif transaction.transaction_type == 'income' and transaction.related_type != 'fee_payment' and transaction.related_type != 'fraction_account' and transaction.related_type != 'transfer' %}
                                 <div style="text-align: center;">
                                     <button type="button"
                                             class="btn btn-sm btn-outline-primary quota-liquidation-btn"
                                             data-transaction-id="{{ transaction.id }}"
                                             data-amount="{{ transaction.amount }}">
                                         <i class="bi bi-cash-coin"></i> Liquidar
+                                    </button>
+                                </div>
+                                {% endif %}
+                                {% if accounts|length >= 2 and transaction.related_type != 'transfer' and not hasLiquidatedFees and not transaction.category %}
+                                <div class="mt-1" style="text-align: center;">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary mark-transfer-list-btn no-row-click" title="Marcar como transferência" data-transaction-id="{{ transaction.id }}" data-transaction-type="{{ transaction.transaction_type }}" data-bank-account-id="{{ transaction.bank_account_id }}" data-description="{{ transaction.description|default('')|e('html_attr') }}">
+                                        <i class="bi bi-arrow-left-right"></i> Transferência
                                     </button>
                                 </div>
                                 {% endif %}
@@ -181,7 +211,7 @@
                 <div class="row g-3">
                     {% for transaction in transactions %}
                     <div class="col-12">
-                        <div class="card shadow-sm transaction-card {% if transaction.transaction_type == 'income' %}border-success border-2{% else %}border-danger border-2{% endif %}" style="cursor: pointer;" data-transaction-id="{{ transaction.id }}" title="Clique para ver detalhes">
+                        <div class="card shadow-sm transaction-card {% if transaction.transaction_type == 'income' %}border-success border-2{% else %}border-danger border-2{% endif %}" style="cursor: pointer;" data-transaction-id="{{ transaction.id }}" data-transaction-type="{{ transaction.transaction_type }}" data-bank-account-id="{{ transaction.bank_account_id }}" title="Clique para ver detalhes">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                     <div class="flex-grow-1">
@@ -212,13 +242,13 @@
                                     </div>
                                 </div>
 
-                                <div class="mb-2">
+                                <div class="mb-2 transaction-card-desc-wrap">
                                     <strong>Descrição:</strong>
-                                    <p class="mb-1">{{ transaction.description }}</p>
-                                    {% if transaction.related_type == 'transfer' and transaction.transfer_to_account_name %}
-                                    <small class="text-muted d-block">
+                                    <p class="mb-1 transaction-card-desc">{{ transaction.description }}</p>
+                                    {% if transaction.related_type == 'transfer' and transaction.transfer_account_name %}
+                                    <small class="text-muted d-block transaction-card-transfer-info">
                                         {% if transaction.transaction_type == 'expense' %}
-                                        <i class="bi bi-arrow-right"></i> Para: {{ transaction.transfer_to_account_name }}
+                                        <i class="bi bi-arrow-right"></i> Para: {{ transaction.transfer_account_name }}
                                         {% else %}
                                         <i class="bi bi-arrow-left"></i> De: {{ transaction.account_name }}
                                         {% endif %}
@@ -227,12 +257,31 @@
                                 </div>
 
                                 <div class="row g-2 mb-3">
-                                    {% if transaction.category %}
                                     <div class="col-6">
                                         <small class="text-muted d-block"><strong>Categoria:</strong></small>
-                                        <span>{{ transaction.category }}</span>
+                                        {% if transaction.category %}
+                                        <span class="transaction-card-category">{{ transaction.category }}</span>
+                                        {% elseif is_admin %}
+                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ transaction.id }}/set-category" class="d-inline form-set-category-mov" id="form-cat-mov-card-{{ transaction.id }}" data-transaction-id="{{ transaction.id }}" data-transaction-type="{{ transaction.transaction_type }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <select name="category" class="form-select form-select-sm set-category-mov-select" style="min-width: 120px;" data-form-id="form-cat-mov-card-{{ transaction.id }}">
+                                                <option value="__none__">— Sem categoria —</option>
+                                                {% if transaction.transaction_type == 'income' %}
+                                                {% for cat in revenue_categories|default([]) %}
+                                                <option value="{{ cat.name|e('html_attr') }}">{{ cat.name }}</option>
+                                                {% endfor %}
+                                                {% else %}
+                                                {% for cat in expense_categories|default([]) %}
+                                                <option value="{{ cat.name|e('html_attr') }}">{{ cat.name }}</option>
+                                                {% endfor %}
+                                                {% endif %}
+                                                <option value="__new__">+ Criar nova...</option>
+                                            </select>
+                                        </form>
+                                        {% else %}
+                                        <span class="transaction-card-category">—</span>
+                                        {% endif %}
                                     </div>
-                                    {% endif %}
                                     {% if transaction.reference %}
                                     <div class="col-6">
                                         <small class="text-muted d-block"><strong>Referência:</strong></small>
@@ -245,6 +294,14 @@
                                             €{{ runningBalance[transaction.id]|number_format(2, ',', '.') }}
                                         </strong>
                                     </div>
+                                    {% set hasLiquidatedFeesCard = liquidatedFeesByTransaction[transaction.id] is defined and liquidatedFeesByTransaction[transaction.id]|length > 0 %}
+                                    {% if is_admin and accounts|length >= 2 and transaction.related_type != 'transfer' and not hasLiquidatedFeesCard and not transaction.category %}
+                                    <div class="col-12 pt-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary mark-transfer-list-btn w-100" title="Marcar como transferência" data-transaction-id="{{ transaction.id }}" data-transaction-type="{{ transaction.transaction_type }}" data-bank-account-id="{{ transaction.bank_account_id }}" data-description="{{ transaction.description|default('')|e('html_attr') }}">
+                                            <i class="bi bi-arrow-left-right"></i> Marcar como transferência
+                                        </button>
+                                    </div>
+                                    {% endif %}
                                 </div>
 
                             </div>
@@ -531,6 +588,37 @@ body #financial-transactions-table-container #financial-transactions-table tbody
 })();
 </script>
 
+<!-- Modal Marcar como transferência (lista de movimentos) -->
+{% if is_admin and accounts|length >= 2 %}
+<div class="modal fade" id="modalMarkTransferList" tabindex="-1" aria-labelledby="modalMarkTransferListLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="formMarkTransferList" method="POST" action="">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalMarkTransferListLabel"><i class="bi bi-arrow-left-right"></i> Marcar como transferência</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-2" id="modalMarkTransferListDesc">—</p>
+                    <p class="mb-2" id="modalMarkTransferListPrompt">Selecione a conta:</p>
+                    <select name="transfer_account_id" class="form-select" required id="modalMarkTransferListSelect">
+                        <option value="">— Selecionar conta —</option>
+                        {% for account in accounts %}
+                        <option value="{{ account.id }}">{{ account.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Marcar como transferência</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Modal para Liquidação de Quotas -->
 <div class="modal fade" id="quotaLiquidationModal" tabindex="-1" aria-labelledby="quotaLiquidationModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -663,6 +751,8 @@ body #financial-transactions-table-container #financial-transactions-table tbody
 
 <script>
 const condominiumId = {{ condominium.id }};
+const baseUrl = '{{ BASE_URL }}';
+const accountsList = {{ accounts|json_encode|raw }};
 let quotaModal = null;
 let currentTransactionId = null;
 let currentTransactionAmount = 0;
@@ -746,7 +836,7 @@ function openTransactionDetailsModal(tid) {
                 if (t.fraction_identifier) html += '<div class="col-md-6"><strong>Fração:</strong><br>' + t.fraction_identifier + '</div>';
                 if (t.reference) html += '<div class="col-md-6"><strong>Referência:</strong><br><code>' + t.reference + '</code></div>';
                 if (t.category) html += '<div class="col-md-6"><strong>Categoria:</strong><br>' + t.category + '</div>';
-                if (t.transfer_to_account_name) html += '<div class="col-12"><strong>Transferência para:</strong><br>' + t.transfer_to_account_name + '</div>';
+                if (t.transfer_account_name) html += '<div class="col-12"><strong>Transferência para:</strong><br>' + t.transfer_account_name + '</div>';
                 html += '<div class="col-12"><strong>Descrição:</strong><br>' + (t.description || '-') + '</div>';
                 if (fees.length > 0) {
                     const isAdmin = {{ is_admin|default(false) ? 'true' : 'false' }};
@@ -772,9 +862,9 @@ function openTransactionDetailsModal(tid) {
                     let footerHtml = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>';
                     if (isAdmin) {
                         if (rt === 'transfer') {
+                            footerHtml += '<a href="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/edit" class="btn btn-primary"><i class="bi bi-pencil me-1"></i>Editar</a>';
                             footerHtml += '<form method="POST" action="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/delete" class="d-inline" onsubmit="return confirm(\'Tem certeza que deseja eliminar esta transferência? Ambas as transações serão eliminadas.\');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Eliminar Transferência</button></form>';
                         } else if (hasLinkedPayments) {
-                            footerHtml += '<a href="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/edit" class="btn btn-outline-primary" title="Editar movimento (alguns campos podem estar limitados)"><i class="bi bi-pencil me-1"></i>Editar</a>';
                             footerHtml += '<form method="POST" action="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/delete" class="d-inline" onsubmit="return confirm(\'Tem certeza? Os pagamentos de quotas associados serão eliminados primeiro e o estado das quotas será atualizado.\');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="delete_with_payments" value="1"><button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Eliminar</button></form>';
                         } else {
                             footerHtml += '<a href="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/edit" class="btn btn-primary"><i class="bi bi-pencil me-1"></i>Editar</a>';
@@ -840,6 +930,189 @@ if (document.readyState === 'loading') {
 } else {
     initConfirmDeleteQuotaModal();
 }
+
+// Marcar como transferência (lista de movimentos) - abrir modal
+document.addEventListener('click', function(e) {
+    const markTransferBtn = e.target.closest('.mark-transfer-list-btn');
+    if (markTransferBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const tid = markTransferBtn.dataset.transactionId;
+        const type = markTransferBtn.dataset.transactionType;
+        const bankAccountId = parseInt(markTransferBtn.dataset.bankAccountId, 10) || 0;
+        const description = markTransferBtn.dataset.description || '';
+        const form = document.getElementById('formMarkTransferList');
+        const modalEl = document.getElementById('modalMarkTransferList');
+        const selectEl = document.getElementById('modalMarkTransferListSelect');
+        const descEl = document.getElementById('modalMarkTransferListDesc');
+        const promptEl = document.getElementById('modalMarkTransferListPrompt');
+        if (!form || !modalEl || !selectEl) return;
+        const action = baseUrl + 'condominiums/' + condominiumId + (type === 'income' ? '/finances/revenues/' : '/expenses/') + tid + '/mark-as-transfer';
+        form.action = action;
+        form.dataset.transactionId = tid;
+        form.dataset.transactionType = type;
+        if (descEl) descEl.textContent = description ? (description.length > 60 ? description.slice(0, 60) + '...' : description) : '—';
+        if (promptEl) promptEl.textContent = type === 'income' ? 'Selecione a conta origem da transferência:' : 'Selecione a conta destino da transferência:';
+        selectEl.innerHTML = '<option value="">— Selecionar conta —</option>';
+        accountsList.forEach(function(acc) {
+            if (acc.id != bankAccountId) {
+                const opt = document.createElement('option');
+                opt.value = acc.id;
+                opt.textContent = acc.name;
+                selectEl.appendChild(opt);
+            }
+        });
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+        return;
+    }
+});
+
+// Marcar como transferência - submit por AJAX
+(function() {
+    const form = document.getElementById('formMarkTransferList');
+    if (!form) return;
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const tid = form.dataset.transactionId;
+        const type = form.dataset.transactionType;
+        const selectEl = document.getElementById('modalMarkTransferListSelect');
+        if (!selectEl || !selectEl.value) return;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+        const formData = new FormData(form);
+        fetch(form.action, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        })
+        .then(function(r) {
+            return r.text().then(function(text) {
+                try { var data = text ? JSON.parse(text) : {}; } catch(err) { return { ok: false, data: { error: 'Resposta inválida do servidor.' } }; }
+                return { ok: r.ok, data: data };
+            });
+        })
+        .then(function(result) {
+            if (submitBtn) submitBtn.disabled = false;
+            if (result.ok && result.data.success) {
+                const modalEl = document.getElementById('modalMarkTransferList');
+                if (modalEl && bootstrap.Modal.getInstance(modalEl)) bootstrap.Modal.getInstance(modalEl).hide();
+                const transferAccountId = parseInt(selectEl.value, 10);
+                const acc = accountsList.find(function(a) { return a.id == transferAccountId; });
+                const accountName = acc ? acc.name : '';
+                const row = document.querySelector('.transaction-row[data-transaction-id="' + tid + '"]');
+                if (row) {
+                    const catCell = row.querySelector('td:nth-child(5)');
+                    if (catCell) catCell.textContent = 'Transferência';
+                    const descCell = row.querySelector('td:nth-child(4)');
+                    if (descCell) {
+                        let mainText = descCell.textContent.trim().split('\n')[0] || '';
+                        if (mainText.length > 50) mainText = mainText.slice(0, 50) + '...';
+                        descCell.innerHTML = mainText + (accountName ? '<br><small class="text-muted">' + (type === 'expense' ? '→ Para: ' : '← De: ') + accountName + '</small>' : '');
+                    }
+                    const transferBtn = row.querySelector('.mark-transfer-list-btn');
+                    if (transferBtn && transferBtn.closest('div.mt-1')) transferBtn.closest('div.mt-1').style.display = 'none';
+                }
+                const card = document.querySelector('.transaction-card[data-transaction-id="' + tid + '"]');
+                if (card) {
+                    const catSpan = card.querySelector('.transaction-card-category');
+                    if (catSpan) catSpan.textContent = 'Transferência';
+                    const descWrap = card.querySelector('.transaction-card-desc-wrap');
+                    if (descWrap) {
+                        let descEl = descWrap.querySelector('.transaction-card-desc');
+                        let mainText = descEl ? descEl.textContent.trim() : '';
+                        let transferInfo = descWrap.querySelector('.transaction-card-transfer-info');
+                        if (!transferInfo) {
+                            transferInfo = document.createElement('small');
+                            transferInfo.className = 'text-muted d-block transaction-card-transfer-info';
+                            descWrap.appendChild(transferInfo);
+                        }
+                        transferInfo.innerHTML = accountName ? ((type === 'expense' ? '<i class="bi bi-arrow-right"></i> Para: ' : '<i class="bi bi-arrow-left"></i> De: ') + accountName) : '';
+                    }
+                    const cardTransferBtn = card.querySelector('.mark-transfer-list-btn');
+                    if (cardTransferBtn && cardTransferBtn.closest('.col-12')) cardTransferBtn.closest('.col-12').style.display = 'none';
+                }
+            } else {
+                alert(result.data && result.data.error ? result.data.error : 'Erro ao marcar como transferência.');
+            }
+        })
+        .catch(function() {
+            if (submitBtn) submitBtn.disabled = false;
+            alert('Erro de ligação. Tente novamente.');
+        });
+    });
+})();
+
+// Categorizar movimento por AJAX (entrada = categorias de receitas, saída = categorias de despesas)
+document.addEventListener('DOMContentLoaded', function() {
+    function hasOptionWithValue(selectEl, value) {
+        for (var i = 0; i < selectEl.options.length; i++) {
+            if (selectEl.options[i].value === value) return true;
+        }
+        return false;
+    }
+    function sendCategoryMovAjax(form, categoryValue, selectEl) {
+        var row = form.closest('tr');
+        var formData = new FormData();
+        formData.append('csrf_token', form.querySelector('input[name="csrf_token"]').value);
+        formData.append('category', categoryValue || '__none__');
+        var prevValue = selectEl.dataset.prevValue || '';
+        selectEl.disabled = true;
+        if (row) row.classList.add('opacity-75');
+        fetch(form.action, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        })
+        .then(function(r) {
+            return r.text().then(function(text) {
+                try { var data = text ? JSON.parse(text) : {}; } catch(err) { return { ok: false, data: { error: 'Resposta inválida do servidor.' } }; }
+                return { ok: r.ok, data: data };
+            });
+        })
+        .then(function(result) {
+            selectEl.disabled = false;
+            if (row) row.classList.remove('opacity-75');
+            if (result.ok && result.data.success) {
+                var newCat = result.data.category;
+                if (newCat && !hasOptionWithValue(selectEl, newCat)) {
+                    window.location.reload();
+                    return;
+                }
+                selectEl.value = newCat || '__none__';
+                selectEl.dataset.prevValue = newCat || '';
+            } else {
+                selectEl.value = prevValue || '__none__';
+                alert(result.data && result.data.error ? result.data.error : 'Erro ao guardar categoria.');
+            }
+        })
+        .catch(function() {
+            selectEl.disabled = false;
+            if (row) row.classList.remove('opacity-75');
+            selectEl.value = prevValue || '__none__';
+            alert('Erro de ligação. Tente novamente.');
+        });
+    }
+    document.querySelectorAll('.set-category-mov-select').forEach(function(sel) {
+        sel.dataset.prevValue = sel.value || '';
+        sel.addEventListener('change', function(e) {
+            var v = this.value;
+            var formId = this.getAttribute('data-form-id');
+            if (!formId) return;
+            var form = document.getElementById(formId);
+            if (!form) return;
+            if (v === '__new__') {
+                var selectEl = this;
+                window.openNewCategoryModal(function(name) {
+                    sendCategoryMovAjax(form, name, selectEl);
+                });
+                this.value = this.dataset.prevValue || '__none__';
+            } else {
+                sendCategoryMovAjax(form, v, this);
+            }
+        });
+    });
+});
 
 // View transaction details - click handlers (row click and legacy button)
 document.addEventListener('click', function(e) {

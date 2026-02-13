@@ -57,6 +57,8 @@ class DemoSeeder
         'suppliers' => [],
         'budgets' => [],
         'budget_items' => [],
+        'expense_categories' => [],
+        'revenue_categories' => [],
         'expenses' => [],
         'fees' => [],
         'fee_payments' => [],
@@ -144,6 +146,12 @@ class DemoSeeder
 
                 // 7. Create budget 2025
                 $this->createBudget2025($index);
+
+                // 7b. Create expense categories
+                $this->createExpenseCategories($index);
+
+                // 7c. Create revenue categories
+                $this->createRevenueCategories($index);
 
                 // 8. Create expense transactions 2025 (financial_transactions)
                 $this->createExpenseTransactions2025($index);
@@ -780,6 +788,9 @@ class DemoSeeder
         $this->db->exec("DELETE FROM fee_payments WHERE fee_id IN (SELECT id FROM fees WHERE condominium_id = {$condominiumId})");
         // Delete fees
         $this->db->exec("DELETE FROM fees WHERE condominium_id = {$condominiumId}");
+        // Expense categories (before financial_transactions)
+        $this->db->exec("DELETE FROM expense_categories WHERE condominium_id = {$condominiumId}");
+        $this->db->exec("DELETE FROM revenue_categories WHERE condominium_id = {$condominiumId}");
         // Delete financial transactions
         $this->db->exec("DELETE FROM financial_transactions WHERE condominium_id = {$condominiumId}");
         $this->db->exec("DELETE FROM bank_accounts WHERE condominium_id = {$condominiumId}");
@@ -1552,6 +1563,48 @@ class DemoSeeder
         }
 
         echo "   Itens do orçamento criados\n";
+    }
+
+    protected function createExpenseCategories(int $condominiumIndex = 0): void
+    {
+        echo "7b. Criando categorias de despesas...\n";
+
+        $categories = ['Água', 'Energia', 'Limpeza', 'Manutenção', 'Seguro'];
+
+        $expenseCategoryModel = new \App\Models\ExpenseCategory();
+        foreach ($categories as $name) {
+            $existing = $expenseCategoryModel->getByName($this->demoCondominiumId, $name);
+            if (!$existing) {
+                $id = $expenseCategoryModel->create([
+                    'condominium_id' => $this->demoCondominiumId,
+                    'name' => $name
+                ]);
+                $this->trackCreatedId('expense_categories', $id);
+            }
+        }
+
+        echo "   " . count($categories) . " categorias criadas\n";
+    }
+
+    protected function createRevenueCategories(int $condominiumIndex = 0): void
+    {
+        echo "7c. Criando categorias de receitas...\n";
+
+        $categories = ['Quotas', 'Áreas comuns', 'Juros', 'Outras receitas'];
+
+        $revenueCategoryModel = new \App\Models\RevenueCategory();
+        foreach ($categories as $name) {
+            $existing = $revenueCategoryModel->getByName($this->demoCondominiumId, $name);
+            if (!$existing) {
+                $id = $revenueCategoryModel->create([
+                    'condominium_id' => $this->demoCondominiumId,
+                    'name' => $name
+                ]);
+                $this->trackCreatedId('revenue_categories', $id);
+            }
+        }
+
+        echo "   " . count($categories) . " categorias criadas\n";
     }
 
     protected function createExpenseTransactions2025(int $condominiumIndex = 0): void

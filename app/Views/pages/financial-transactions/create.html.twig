@@ -47,9 +47,9 @@
                             </select>
                         </div>
 
-                        <div class="mb-3" id="transfer_to_account_group" style="display: none;">
-                            <label for="transfer_to_account_id" class="form-label">Conta de Destino <span class="text-danger">*</span></label>
-                            <select class="form-select" id="transfer_to_account_id" name="transfer_to_account_id">
+                        <div class="mb-3" id="transfer_account_group" style="display: none;">
+                            <label for="transfer_account_id" class="form-label">Conta de Destino <span class="text-danger">*</span></label>
+                            <select class="form-select" id="transfer_account_id" name="transfer_account_id">
                                 <option value="">Selecione a conta de destino...</option>
                                 {% for account in accounts %}
                                 <option value="{{ account.id }}" data-balance="{{ account.current_balance }}">
@@ -103,9 +103,27 @@
                             </select>
                         </div>
 
-                        <div class="mb-3" id="category_other_group">
-                            <label for="category" class="form-label">Categoria</label>
-                            <input type="text" class="form-control" id="category" name="category" placeholder="Ex: Manutenção, Limpeza, Seguros">
+                        <div class="mb-3" id="category_group">
+                            <label for="category_income_select" class="form-label">Categoria</label>
+                            <div id="category_income_wrapper" style="display: none;">
+                                <select class="form-select form-select-category-create" id="category_income_select" data-kind="income">
+                                    <option value="">— Sem categoria —</option>
+                                    {% for cat in revenue_categories|default([]) %}
+                                    <option value="{{ cat.name|e('html_attr') }}">{{ cat.name }}</option>
+                                    {% endfor %}
+                                    <option value="__new__">+ Criar nova...</option>
+                                </select>
+                            </div>
+                            <div id="category_expense_wrapper" style="display: none;">
+                                <select class="form-select form-select-category-create" id="category_expense_select" data-kind="expense">
+                                    <option value="">— Sem categoria —</option>
+                                    {% for cat in expense_categories|default([]) %}
+                                    <option value="{{ cat.name|e('html_attr') }}">{{ cat.name }}</option>
+                                    {% endfor %}
+                                    <option value="__new__">+ Criar nova...</option>
+                                </select>
+                            </div>
+                            <input type="hidden" id="category" name="category" value="">
                         </div>
 
                         <div class="mb-3">
@@ -130,20 +148,20 @@
 document.addEventListener('DOMContentLoaded', function() {
     const accountSelect = document.getElementById('bank_account_id');
     const transactionType = document.getElementById('transaction_type');
-    const transferToAccountSelect = document.getElementById('transfer_to_account_id');
-    const transferToAccountGroup = document.getElementById('transfer_to_account_group');
+    const transferAccountSelect = document.getElementById('transfer_account_id');
+    const transferAccountGroup = document.getElementById('transfer_account_group');
     const amountInput = document.getElementById('amount');
     const balanceWarning = document.getElementById('balance-warning');
     const form = document.querySelector('form');
 
     function toggleTransferFields() {
         if (transactionType.value === 'transfer') {
-            transferToAccountGroup.style.display = 'block';
-            transferToAccountSelect.setAttribute('required', 'required');
+            transferAccountGroup.style.display = 'block';
+            transferAccountSelect.setAttribute('required', 'required');
         } else {
-            transferToAccountGroup.style.display = 'none';
-            transferToAccountSelect.removeAttribute('required');
-            transferToAccountSelect.value = '';
+            transferAccountGroup.style.display = 'none';
+            transferAccountSelect.removeAttribute('required');
+            transferAccountSelect.value = '';
         }
     }
 
@@ -169,7 +187,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function validateTransferAccounts() {
         if (transactionType.value === 'transfer') {
             const fromAccount = accountSelect.value;
-            const toAccount = transferToAccountSelect.value;
+            const toAccount = transferAccountSelect.value;
             
             if (fromAccount === toAccount) {
                 alert('A conta de origem e destino não podem ser a mesma!');
@@ -183,6 +201,48 @@ document.addEventListener('DOMContentLoaded', function() {
     const incomeEntryType = document.getElementById('income_entry_type');
     const fractionIdGroup = document.getElementById('fraction_id_group');
     const fractionIdSelect = document.getElementById('fraction_id');
+
+    const categoryGroup = document.getElementById('category_group');
+    const categoryIncomeWrapper = document.getElementById('category_income_wrapper');
+    const categoryIncomeSelect = document.getElementById('category_income_select');
+    const categoryExpenseWrapper = document.getElementById('category_expense_wrapper');
+    const categoryExpenseSelect = document.getElementById('category_expense_select');
+    const categoryInput = document.getElementById('category');
+
+    function syncCategoryFromSelect() {
+        var sel = transactionType.value === 'income' ? categoryIncomeSelect : (transactionType.value === 'expense' ? categoryExpenseSelect : null);
+        if (sel && categoryInput) categoryInput.value = (sel.value && sel.value !== '__new__') ? sel.value : '';
+    }
+
+    function toggleCategoryFields() {
+        if (!categoryGroup) return;
+        if (transactionType.value === 'transfer') {
+            categoryGroup.style.display = 'none';
+            if (categoryInput) categoryInput.value = '';
+        } else {
+            categoryGroup.style.display = 'block';
+            if (transactionType.value === 'income') {
+                if (categoryIncomeWrapper) categoryIncomeWrapper.style.display = 'block';
+                if (categoryExpenseWrapper) categoryExpenseWrapper.style.display = 'none';
+                if (categoryIncomeSelect) { categoryIncomeSelect.value = categoryInput ? categoryInput.value : ''; syncCategoryFromSelect(); }
+            } else if (transactionType.value === 'expense') {
+                if (categoryIncomeWrapper) categoryIncomeWrapper.style.display = 'none';
+                if (categoryExpenseWrapper) categoryExpenseWrapper.style.display = 'block';
+                if (categoryExpenseSelect) { categoryExpenseSelect.value = categoryInput ? categoryInput.value : ''; syncCategoryFromSelect(); }
+            }
+        }
+    }
+
+    function addCategoryOptionAndSet(selectEl, name) {
+        var opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        var newOpt = selectEl.querySelector('option[value="__new__"]');
+        if (newOpt) selectEl.insertBefore(opt, newOpt);
+        else selectEl.appendChild(opt);
+        selectEl.value = name;
+        if (categoryInput) categoryInput.value = name;
+    }
 
     function toggleIncomeFractionFields() {
         if (transactionType.value === 'income') {
@@ -206,9 +266,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (incomeEntryType) incomeEntryType.addEventListener('change', toggleIncomeFractionFields);
 
+    document.querySelectorAll('.form-select-category-create').forEach(function(sel) {
+        sel.addEventListener('change', function() {
+            var v = this.value;
+            if (v === '__new__') {
+                var selectEl = this;
+                window.openNewCategoryModal(function(name) {
+                    addCategoryOptionAndSet(selectEl, name);
+                });
+                this.value = categoryInput ? categoryInput.value : '';
+            } else {
+                syncCategoryFromSelect();
+            }
+        });
+    });
+
     transactionType.addEventListener('change', function() {
         toggleTransferFields();
         toggleIncomeFractionFields();
+        toggleCategoryFields();
         checkBalance();
     });
 
@@ -217,7 +293,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update transfer destination options to exclude selected account
         if (transactionType.value === 'transfer') {
             const selectedAccountId = accountSelect.value;
-            Array.from(transferToAccountSelect.options).forEach(option => {
+            Array.from(transferAccountSelect.options).forEach(option => {
                 if (option.value === selectedAccountId && option.value !== '') {
                     option.style.display = 'none';
                 } else {
@@ -227,11 +303,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    transferToAccountSelect.addEventListener('change', function() {
+    transferAccountSelect.addEventListener('change', function() {
         // Ensure destination is different from source
-        if (transferToAccountSelect.value === accountSelect.value) {
+        if (transferAccountSelect.value === accountSelect.value) {
             alert('A conta de destino deve ser diferente da conta de origem!');
-            transferToAccountSelect.value = '';
+            transferAccountSelect.value = '';
         }
     });
 
@@ -262,15 +338,23 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        if (transactionTypeValue === 'transfer' && !transferToAccountSelect.value) {
+        if (transactionTypeValue === 'transfer' && !transferAccountSelect.value) {
             e.preventDefault();
             alert('Por favor, selecione a conta de destino!');
             return false;
+        }
+
+        // Sync category from visible select before submit
+        if (transactionTypeValue === 'income' && categoryIncomeSelect) {
+            categoryInput.value = (categoryIncomeSelect.value && categoryIncomeSelect.value !== '__new__') ? categoryIncomeSelect.value : '';
+        } else if (transactionTypeValue === 'expense' && categoryExpenseSelect) {
+            categoryInput.value = (categoryExpenseSelect.value && categoryExpenseSelect.value !== '__new__') ? categoryExpenseSelect.value : '';
         }
     });
 
     // Initialize
     toggleTransferFields();
     toggleIncomeFractionFields();
+    toggleCategoryFields();
 });
 </script>

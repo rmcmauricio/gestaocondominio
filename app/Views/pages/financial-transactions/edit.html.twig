@@ -45,6 +45,33 @@
                             </select>
                         </div>
 
+                        {% if accounts|length >= 2 %}
+                        <div class="mb-3" id="is_transfer_group">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="is_transfer" name="is_transfer" value="1" {% if transaction.related_type == 'transfer' %}checked{% endif %}>
+                                <label class="form-check-label" for="is_transfer">
+                                    <strong>É transferência entre contas</strong>
+                                </label>
+                            </div>
+                            {% if transaction.related_type == 'transfer' %}
+                            <small class="text-muted d-block mt-1"><i class="bi bi-info-circle"></i> Ao guardar, as alterações (valor, data, descrição) são aplicadas a ambos os movimentos da transferência.</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3" id="transfer_account_group_edit" style="display: {% if transaction.related_type == 'transfer' %}block{% else %}none{% endif %};">
+                            <label for="transfer_account_id_edit" class="form-label" id="transfer_account_label_edit">Conta de destino <span class="text-danger">*</span></label>
+                            <select class="form-select" id="transfer_account_id_edit" name="transfer_account_id">
+                                <option value="">Selecione a conta...</option>
+                                {% for account in accounts %}
+                                {% if account.id != transaction.bank_account_id %}
+                                <option value="{{ account.id }}" {% if transaction.transfer_account_id == account.id %}selected{% endif %}>{{ account.name }}{% if account.account_type == 'cash' %} (Caixa){% endif %}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted" id="transfer_account_help_edit">Para despesa: conta para onde foi transferido o valor. Para receita: conta de onde veio o valor.</small>
+                        </div>
+                        {% endif %}
+
                         <div class="mb-3">
                             <label for="amount" class="form-label">Valor (€) <span class="text-danger">*</span></label>
                             <div class="input-group">
@@ -66,9 +93,37 @@
                             <textarea class="form-control" id="description" name="description" rows="3" required>{{ transaction.description }}</textarea>
                         </div>
 
-                        <div class="mb-3">
-                            <label for="category" class="form-label">Categoria</label>
-                            <input type="text" class="form-control" id="category" name="category" value="{{ transaction.category }}">
+                        <div class="mb-3" id="category_group_edit">
+                            <label for="category_income_select_edit" class="form-label">Categoria</label>
+                            {% set cat_in_revenue = false %}
+                            {% for c in revenue_categories|default([]) %}{% if c.name == transaction.category %}{% set cat_in_revenue = true %}{% endif %}{% endfor %}
+                            {% set cat_in_expense = false %}
+                            {% for c in expense_categories|default([]) %}{% if c.name == transaction.category %}{% set cat_in_expense = true %}{% endif %}{% endfor %}
+                            <div id="category_income_wrapper_edit" style="display: {% if transaction.transaction_type == 'income' %}block{% else %}none{% endif %};">
+                                <select class="form-select form-select-category-edit" id="category_income_select_edit" data-kind="income">
+                                    <option value="">— Sem categoria —</option>
+                                    {% for cat in revenue_categories|default([]) %}
+                                    <option value="{{ cat.name|e('html_attr') }}" {% if transaction.category == cat.name %}selected{% endif %}>{{ cat.name }}</option>
+                                    {% endfor %}
+                                    {% if transaction.transaction_type == 'income' and transaction.category and not cat_in_revenue %}
+                                    <option value="{{ transaction.category|e('html_attr') }}" selected>{{ transaction.category }}</option>
+                                    {% endif %}
+                                    <option value="__new__">+ Criar nova...</option>
+                                </select>
+                            </div>
+                            <div id="category_expense_wrapper_edit" style="display: {% if transaction.transaction_type == 'expense' %}block{% else %}none{% endif %};">
+                                <select class="form-select form-select-category-edit" id="category_expense_select_edit" data-kind="expense">
+                                    <option value="">— Sem categoria —</option>
+                                    {% for cat in expense_categories|default([]) %}
+                                    <option value="{{ cat.name|e('html_attr') }}" {% if transaction.category == cat.name %}selected{% endif %}>{{ cat.name }}</option>
+                                    {% endfor %}
+                                    {% if transaction.transaction_type == 'expense' and transaction.category and not cat_in_expense %}
+                                    <option value="{{ transaction.category|e('html_attr') }}" selected>{{ transaction.category }}</option>
+                                    {% endif %}
+                                    <option value="__new__">+ Criar nova...</option>
+                                </select>
+                            </div>
+                            <input type="hidden" id="category_edit_value" name="category" value="{{ transaction.category|e('html_attr') }}">
                         </div>
 
                         <div class="mb-3">
@@ -96,6 +151,98 @@ document.addEventListener('DOMContentLoaded', function() {
     const amountInput = document.getElementById('amount');
     const balanceWarning = document.getElementById('balance-warning');
     const form = document.querySelector('form');
+    const isTransferCheck = document.getElementById('is_transfer');
+    const transferAccountGroupEdit = document.getElementById('transfer_account_group_edit');
+    const transferAccountSelectEdit = document.getElementById('transfer_account_id_edit');
+    const transferAccountLabelEdit = document.getElementById('transfer_account_label_edit');
+    const transferAccountHelpEdit = document.getElementById('transfer_account_help_edit');
+    const categoryIncomeSelectEdit = document.getElementById('category_income_select_edit');
+    const categoryExpenseSelectEdit = document.getElementById('category_expense_select_edit');
+    const categoryIncomeWrapperEdit = document.getElementById('category_income_wrapper_edit');
+    const categoryExpenseWrapperEdit = document.getElementById('category_expense_wrapper_edit');
+    const categoryEditValue = document.getElementById('category_edit_value');
+
+    function getVisibleCategorySelect() {
+        return transactionType.value === 'income' ? categoryIncomeSelectEdit : categoryExpenseSelectEdit;
+    }
+    function syncCategoryEditFromSelect() {
+        var sel = getVisibleCategorySelect();
+        if (sel && categoryEditValue) categoryEditValue.value = (sel.value && sel.value !== '__new__') ? sel.value : '';
+    }
+    function addCategoryOptionAndSetEdit(selectEl, name) {
+        var opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        var newOpt = selectEl.querySelector('option[value="__new__"]');
+        if (newOpt) selectEl.insertBefore(opt, newOpt);
+        else selectEl.appendChild(opt);
+        selectEl.value = name;
+        if (categoryEditValue) categoryEditValue.value = name;
+    }
+    function toggleCategoryEditVisibility() {
+        if (!categoryIncomeWrapperEdit || !categoryExpenseWrapperEdit) return;
+        if (transactionType.value === 'income') {
+            categoryIncomeWrapperEdit.style.display = 'block';
+            categoryExpenseWrapperEdit.style.display = 'none';
+            if (categoryIncomeSelectEdit) categoryIncomeSelectEdit.value = categoryEditValue ? categoryEditValue.value : '';
+        } else {
+            categoryIncomeWrapperEdit.style.display = 'none';
+            categoryExpenseWrapperEdit.style.display = 'block';
+            if (categoryExpenseSelectEdit) categoryExpenseSelectEdit.value = categoryEditValue ? categoryEditValue.value : '';
+        }
+    }
+
+    document.querySelectorAll('.form-select-category-edit').forEach(function(sel) {
+        sel.addEventListener('change', function() {
+            var v = this.value;
+            if (v === '__new__') {
+                var selectEl = this;
+                window.openNewCategoryModal(function(name) {
+                    addCategoryOptionAndSetEdit(selectEl, name);
+                });
+                this.value = categoryEditValue ? categoryEditValue.value : '';
+            } else {
+                syncCategoryEditFromSelect();
+            }
+        });
+    });
+    if (transactionType) transactionType.addEventListener('change', function() {
+        toggleCategoryEditVisibility();
+    });
+
+    form.addEventListener('submit', function() {
+        syncCategoryEditFromSelect();
+    });
+
+    function updateTransferLabel() {
+        if (!transferAccountLabelEdit) return;
+        if (transactionType.value === 'expense') {
+            transferAccountLabelEdit.innerHTML = 'Conta de destino <span class="text-danger">*</span>';
+            if (transferAccountHelpEdit) transferAccountHelpEdit.textContent = 'Conta para onde foi transferido o valor.';
+        } else {
+            transferAccountLabelEdit.innerHTML = 'Conta de origem <span class="text-danger">*</span>';
+            if (transferAccountHelpEdit) transferAccountHelpEdit.textContent = 'Conta de onde veio o valor.';
+        }
+    }
+
+    function toggleTransferGroup() {
+        if (!isTransferCheck || !transferAccountGroupEdit || !transferAccountSelectEdit) return;
+        if (isTransferCheck.checked) {
+            transferAccountGroupEdit.style.display = 'block';
+            transferAccountSelectEdit.setAttribute('required', 'required');
+            updateTransferLabel();
+        } else {
+            transferAccountGroupEdit.style.display = 'none';
+            transferAccountSelectEdit.removeAttribute('required');
+            transferAccountSelectEdit.value = '';
+        }
+    }
+
+    if (isTransferCheck) isTransferCheck.addEventListener('change', toggleTransferGroup);
+    transactionType.addEventListener('change', function() {
+        updateTransferLabel();
+        toggleTransferGroup();
+    });
 
     function checkBalance() {
         const selectedOption = accountSelect.options[accountSelect.selectedIndex];
@@ -118,7 +265,20 @@ document.addEventListener('DOMContentLoaded', function() {
     transactionType.addEventListener('change', checkBalance);
     amountInput.addEventListener('input', checkBalance);
 
+    updateTransferLabel();
+    toggleTransferGroup();
+
     form.addEventListener('submit', function(e) {
+        if (isTransferCheck && isTransferCheck.checked && transferAccountSelectEdit && !transferAccountSelectEdit.value) {
+            e.preventDefault();
+            alert('Selecione a conta de destino/origem da transferência.');
+            return false;
+        }
+        if (transferAccountSelectEdit && transferAccountSelectEdit.value && transferAccountSelectEdit.value === accountSelect.value) {
+            e.preventDefault();
+            alert('A conta da transferência deve ser diferente da conta do movimento.');
+            return false;
+        }
         if (transactionType.value === 'expense') {
             const selectedOption = accountSelect.options[accountSelect.selectedIndex];
             const balance = parseFloat(selectedOption.dataset.balance || 0);

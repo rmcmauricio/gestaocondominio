@@ -16,6 +16,8 @@ class AuditConfig
         'revenues',
         'budgets',
         'budget_items',
+        'expense_categories',
+        'revenue_categories',
         'financial_transactions',
         'occurrences',
         'assemblies',

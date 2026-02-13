@@ -736,12 +736,15 @@ class ReportController extends Controller
         $revenues = [];
         $expenses = [];
         $nets = [];
+        $balances = [];
+        $balanceStartYear = $report['balance_start_year'] ?? 0;
         
         foreach ($report['cash_flow'] as $month) {
             $months[] = $month['month_name'];
             $revenues[] = $month['revenue'];
             $expenses[] = $month['expenses'];
             $nets[] = $month['net'];
+            $balances[] = $month['balance_total'] ?? 0;
         }
         
         $html = "
@@ -764,6 +767,7 @@ class ReportController extends Controller
         </head>
         <body>
             <h1>Fluxo de Caixa - {$year}</h1>
+            <p class='text-muted'><strong>Como ler:</strong> Receitas e despesas excluem transferências entre contas. <strong>Resultado do mês</strong> = receitas menos despesas <em>apenas desse mês</em> (pode ser negativo num mês mesmo que o saldo das contas seja positivo). <strong>Saldo (todas as contas)</strong> = saldo real no fim do mês (soma de todas as contas bancárias).</p>
             
             <div class='chart-container'>
                 <canvas id='cashFlowChart'></canvas>
@@ -774,27 +778,39 @@ class ReportController extends Controller
                     <th>Mês</th>
                     <th>Receitas</th>
                     <th>Despesas</th>
-                    <th>Saldo Líquido</th>
+                    <th>Resultado do mês</th>
+                    <th>Saldo (todas as contas)</th>
+                </tr>
+                <tr>
+                    <td>Saldo início do ano</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>€" . number_format($balanceStartYear, 2, ',', '.') . "</td>
                 </tr>";
 
         foreach ($report['cash_flow'] as $month) {
             $netClass = $month['net'] >= 0 ? 'positive' : 'negative';
+            $balanceTotal = $month['balance_total'] ?? 0;
             $html .= "
                 <tr>
                     <td>{$month['month_name']}</td>
                     <td>€" . number_format($month['revenue'], 2, ',', '.') . "</td>
                     <td>€" . number_format($month['expenses'], 2, ',', '.') . "</td>
                     <td class='{$netClass}'>€" . number_format($month['net'], 2, ',', '.') . "</td>
+                    <td>€" . number_format($balanceTotal, 2, ',', '.') . "</td>
                 </tr>";
         }
 
         $netTotalClass = $report['net_total'] >= 0 ? 'positive' : 'negative';
+        $lastBalance = !empty($report['cash_flow']) ? ($report['cash_flow'][count($report['cash_flow']) - 1]['balance_total'] ?? 0) : 0;
         $html .= "
                 <tr style='font-weight: bold;'>
-                    <td>Total</td>
+                    <td>Total (receitas/despesas)</td>
                     <td>€" . number_format($report['total_revenue'], 2, ',', '.') . "</td>
                     <td>€" . number_format($report['total_expenses'], 2, ',', '.') . "</td>
                     <td class='{$netTotalClass}'>€" . number_format($report['net_total'], 2, ',', '.') . "</td>
+                    <td>€" . number_format($lastBalance, 2, ',', '.') . " (fim do ano)</td>
                 </tr>
             </table>
             
@@ -821,11 +837,20 @@ class ReportController extends Controller
                                     borderWidth: 1
                                 },
                                 {
-                                    label: 'Saldo Líquido',
+                                    label: 'Resultado do mês (Receitas − Despesas)',
                                     data: " . json_encode($nets) . ",
                                     backgroundColor: 'rgba(54, 162, 235, 0.7)',
                                     borderColor: 'rgba(54, 162, 235, 1)',
                                     borderWidth: 1,
+                                    type: 'line',
+                                    tension: 0.1
+                                },
+                                {
+                                    label: 'Saldo (todas as contas)',
+                                    data: " . json_encode($balances) . ",
+                                    backgroundColor: 'rgba(128, 0, 128, 0.3)',
+                                    borderColor: 'rgba(128, 0, 128, 1)',
+                                    borderWidth: 2,
                                     type: 'line',
                                     tension: 0.1
                                 }
@@ -1099,22 +1124,35 @@ class ReportController extends Controller
         
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
         
-        fputcsv($output, ['Mês', 'Receitas', 'Despesas', 'Saldo Líquido'], ';');
+        fputcsv($output, ['Mês', 'Receitas', 'Despesas', 'Resultado do mês (Receitas − Despesas)', 'Saldo (todas as contas)'], ';');
+        
+        $balanceStartYear = $report['balance_start_year'] ?? 0;
+        fputcsv($output, [
+            'Saldo início do ano',
+            '',
+            '',
+            '',
+            number_format($balanceStartYear, 2, ',', '.')
+        ], ';');
         
         foreach ($report['cash_flow'] as $month) {
+            $balanceTotal = $month['balance_total'] ?? 0;
             fputcsv($output, [
                 ucfirst($month['month_name']),
                 number_format($month['revenue'], 2, ',', '.'),
                 number_format($month['expenses'], 2, ',', '.'),
-                number_format($month['net'], 2, ',', '.')
+                number_format($month['net'], 2, ',', '.'),
+                number_format($balanceTotal, 2, ',', '.')
             ], ';');
         }
         
+        $lastBalance = !empty($report['cash_flow']) ? ($report['cash_flow'][count($report['cash_flow']) - 1]['balance_total'] ?? 0) : 0;
         fputcsv($output, [
-            'Total',
+            'Total (receitas/despesas)',
             number_format($report['total_revenue'], 2, ',', '.'),
             number_format($report['total_expenses'], 2, ',', '.'),
-            number_format($report['net_total'], 2, ',', '.')
+            number_format($report['net_total'], 2, ',', '.'),
+            number_format($lastBalance, 2, ',', '.')
         ], ';');
         
         fclose($output);
@@ -2107,8 +2145,10 @@ class ReportController extends Controller
         $chartSvg = $this->generateBarChartSvg($months, [
             ['label' => 'Receitas', 'data' => $revenues],
             ['label' => 'Despesas', 'data' => $expenses],
-            ['label' => 'Saldo Líquido', 'data' => $nets]
+            ['label' => 'Resultado do mês', 'data' => $nets]
         ]);
+        
+        $balanceStartYear = $report['balance_start_year'] ?? 0;
         
         $html = "
         <!DOCTYPE html>
@@ -2128,6 +2168,7 @@ class ReportController extends Controller
         </head>
         <body>
             <h1>Fluxo de Caixa - {$year}</h1>
+            <p><strong>Como ler:</strong> Receitas e despesas excluem transferências. <strong>Resultado do mês</strong> = receitas menos despesas apenas desse mês (pode ser negativo num mês mesmo que o saldo das contas seja positivo). <strong>Saldo (todas as contas)</strong> = saldo real no fim do mês.</p>
             
             {$chartSvg}
             
@@ -2136,27 +2177,39 @@ class ReportController extends Controller
                     <th>Mês</th>
                     <th>Receitas</th>
                     <th>Despesas</th>
-                    <th>Saldo Líquido</th>
+                    <th>Resultado do mês</th>
+                    <th>Saldo (todas as contas)</th>
+                </tr>
+                <tr>
+                    <td>Saldo início do ano</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>€" . number_format($balanceStartYear, 2, ',', '.') . "</td>
                 </tr>";
 
         foreach ($report['cash_flow'] as $month) {
             $netClass = $month['net'] >= 0 ? 'positive' : 'negative';
+            $balanceTotal = $month['balance_total'] ?? 0;
             $html .= "
                 <tr>
                     <td>{$month['month_name']}</td>
                     <td>€" . number_format($month['revenue'], 2, ',', '.') . "</td>
                     <td>€" . number_format($month['expenses'], 2, ',', '.') . "</td>
                     <td class='{$netClass}'>€" . number_format($month['net'], 2, ',', '.') . "</td>
+                    <td>€" . number_format($balanceTotal, 2, ',', '.') . "</td>
                 </tr>";
         }
 
         $netTotalClass = $report['net_total'] >= 0 ? 'positive' : 'negative';
+        $lastBalance = !empty($report['cash_flow']) ? ($report['cash_flow'][count($report['cash_flow']) - 1]['balance_total'] ?? 0) : 0;
         $html .= "
                 <tr style='font-weight: bold;'>
-                    <td>Total</td>
+                    <td>Total (receitas/despesas)</td>
                     <td>€" . number_format($report['total_revenue'], 2, ',', '.') . "</td>
                     <td>€" . number_format($report['total_expenses'], 2, ',', '.') . "</td>
                     <td class='{$netTotalClass}'>€" . number_format($report['net_total'], 2, ',', '.') . "</td>
+                    <td>€" . number_format($lastBalance, 2, ',', '.') . " (fim do ano)</td>
                 </tr>
             </table>
         </body>
@@ -2853,22 +2906,34 @@ class ReportController extends Controller
                 $row++;
                 $sheet->setCellValue('A' . $row, 'Ano: ' . $year);
                 $row += 2;
-                $this->addExcelHeader($sheet, $row, ['Mês', 'Receitas', 'Despesas', 'Saldo Líquido'], $headerStyle);
+                $this->addExcelHeader($sheet, $row, ['Mês', 'Receitas', 'Despesas', 'Resultado do mês (Receitas − Despesas)', 'Saldo (todas as contas)'], $headerStyle);
+                $balanceStartYear = $report['balance_start_year'] ?? 0;
+                $this->addExcelRow($sheet, $row, [
+                    'Saldo início do ano',
+                    '',
+                    '',
+                    '',
+                    number_format($balanceStartYear, 2, ',', '.')
+                ]);
                 foreach ($report['cash_flow'] as $month) {
+                    $balanceTotal = $month['balance_total'] ?? 0;
                     $this->addExcelRow($sheet, $row, [
                         ucfirst($month['month_name']),
                         number_format($month['revenue'], 2, ',', '.'),
                         number_format($month['expenses'], 2, ',', '.'),
-                        number_format($month['net'], 2, ',', '.')
+                        number_format($month['net'], 2, ',', '.'),
+                        number_format($balanceTotal, 2, ',', '.')
                     ]);
                 }
+                $lastBalance = !empty($report['cash_flow']) ? ($report['cash_flow'][count($report['cash_flow']) - 1]['balance_total'] ?? 0) : 0;
                 $this->addExcelRow($sheet, $row, [
-                    'Total',
+                    'Total (receitas/despesas)',
                     number_format($report['total_revenue'], 2, ',', '.'),
                     number_format($report['total_expenses'], 2, ',', '.'),
-                    number_format($report['net_total'], 2, ',', '.')
+                    number_format($report['net_total'], 2, ',', '.'),
+                    number_format($lastBalance, 2, ',', '.')
                 ]);
-                $sheet->getStyle('A' . $row . ':D' . $row)->applyFromArray($totalStyle);
+                $sheet->getStyle('A' . $row . ':E' . $row)->applyFromArray($totalStyle);
                 break;
                 
             case 'budget-vs-actual':

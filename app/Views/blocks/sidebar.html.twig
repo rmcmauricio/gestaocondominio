@@ -214,17 +214,17 @@
                     </li>
                     {% if current_condominium_role == 'admin' or not current_condominium_role %}
                     <li class="nav-item">
-                        <a class="nav-link ps-4 {% if viewName is defined and ('pages/finances/create-budget.html.twig' in viewName or 'pages/finances/show-budget.html.twig' in viewName or 'pages/finances/edit-budget.html.twig' in viewName) %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create">
+                        <a class="nav-link ps-4 {% if viewName is defined and ('pages/finances/budgets.html.twig' in viewName or 'pages/finances/create-budget.html.twig' in viewName or 'pages/finances/show-budget.html.twig' in viewName or 'pages/finances/edit-budget.html.twig' in viewName) %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets">
                             <i class="bi bi-calendar-check"></i> Orçamentos
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link ps-4 {% if viewName is defined and 'pages/financial-transactions/create.html.twig' in viewName %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/create?transaction_type=expense">
+                        <a class="nav-link ps-4 {% if viewName is defined and 'pages/finances/expenses.html.twig' in viewName or 'pages/finances/expense-categories.html.twig' in viewName or 'pages/finances/expense-category-edit.html.twig' in viewName %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses">
                             <i class="bi bi-cash-stack"></i> Despesas
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link ps-4 {% if viewName is defined and ('pages/finances/revenues.html.twig' in viewName or 'pages/finances/create-revenue.html.twig' in viewName or 'pages/finances/edit-revenue.html.twig' in viewName) %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues">
+                        <a class="nav-link ps-4 {% if viewName is defined and ('pages/finances/revenues.html.twig' in viewName or 'pages/finances/create-revenue.html.twig' in viewName or 'pages/finances/edit-revenue.html.twig' in viewName or 'pages/finances/revenue-categories.html.twig' in viewName or 'pages/finances/revenue-category-edit.html.twig' in viewName) %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues">
                             <i class="bi bi-arrow-up-circle"></i> Receitas
                         </a>
                     </li>

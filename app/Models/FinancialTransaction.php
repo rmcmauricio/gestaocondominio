@@ -59,12 +59,14 @@ class FinancialTransaction extends Model
         }
 
         $sql = "SELECT ft.*, ba.name as account_name, ba.account_type, 
-                       ba2.name as transfer_to_account_name, ba2.account_type as transfer_to_account_type,
-                       u.name as created_by_name
+                       ba2.name as transfer_account_name, ba2.account_type as transfer_account_type,
+                       u.name as created_by_name,
+                       fr.identifier as fraction_identifier
                 FROM financial_transactions ft
                 LEFT JOIN bank_accounts ba ON ba.id = ft.bank_account_id
-                LEFT JOIN bank_accounts ba2 ON ba2.id = ft.transfer_to_account_id
+                LEFT JOIN bank_accounts ba2 ON ba2.id = ft.transfer_account_id
                 LEFT JOIN users u ON u.id = ft.created_by
+                LEFT JOIN fractions fr ON fr.id = ft.fraction_id
                 WHERE ft.condominium_id = :condominium_id";
         $params = [':condominium_id' => $condominiumId];
 
@@ -96,6 +98,14 @@ class FinancialTransaction extends Model
         if (!empty($filters['category'])) {
             $sql .= " AND ft.category = :category";
             $params[':category'] = $filters['category'];
+        }
+
+        if (isset($filters['has_category']) && $filters['has_category'] === false) {
+            $sql .= " AND (ft.category IS NULL OR TRIM(ft.category) = '')";
+        }
+
+        if (!empty($filters['exclude_transfers'])) {
+            $sql .= " AND (ft.related_type IS NULL OR ft.related_type != 'transfer')";
         }
 
         $sql .= " ORDER BY ft.transaction_date DESC, ft.created_at DESC";
@@ -144,6 +154,14 @@ class FinancialTransaction extends Model
         if (isset($filters['to_date'])) {
             $sql .= " AND ft.transaction_date <= :to_date";
             $params[':to_date'] = $filters['to_date'];
+        }
+
+        if (isset($filters['has_category']) && $filters['has_category'] === false) {
+            $sql .= " AND (ft.category IS NULL OR TRIM(ft.category) = '')";
+        }
+
+        if (!empty($filters['exclude_transfers'])) {
+            $sql .= " AND (ft.related_type IS NULL OR ft.related_type != 'transfer')";
         }
 
         $stmt = $this->db->prepare($sql);
@@ -259,11 +277,11 @@ class FinancialTransaction extends Model
 
         $stmt = $this->db->prepare("
             INSERT INTO financial_transactions (
-                condominium_id, bank_account_id, fraction_id, transfer_to_account_id, transaction_type, amount, transaction_date,
+                condominium_id, bank_account_id, fraction_id, transfer_account_id, transaction_type, amount, transaction_date,
                 description, category, income_entry_type, reference, related_type, related_id, created_by
             )
             VALUES (
-                :condominium_id, :bank_account_id, :fraction_id, :transfer_to_account_id, :transaction_type, :amount, :transaction_date,
+                :condominium_id, :bank_account_id, :fraction_id, :transfer_account_id, :transaction_type, :amount, :transaction_date,
                 :description, :category, :income_entry_type, :reference, :related_type, :related_id, :created_by
             )
         ");
@@ -272,7 +290,7 @@ class FinancialTransaction extends Model
             ':condominium_id' => $data['condominium_id'],
             ':bank_account_id' => $data['bank_account_id'],
             ':fraction_id' => $data['fraction_id'] ?? null,
-            ':transfer_to_account_id' => $data['transfer_to_account_id'] ?? null,
+            ':transfer_account_id' => $data['transfer_account_id'] ?? null,
             ':transaction_type' => $data['transaction_type'],
             ':amount' => $data['amount'],
             ':transaction_date' => $data['transaction_date'],
@@ -294,9 +312,9 @@ class FinancialTransaction extends Model
         $bankAccountModel = new BankAccount();
         $bankAccountModel->updateBalance($data['bank_account_id']);
         
-        // If it's a transfer, also update the destination account balance
-        if (!empty($data['transfer_to_account_id'])) {
-            $bankAccountModel->updateBalance($data['transfer_to_account_id']);
+        // If it's a transfer, also update the counterpart account balance
+        if (!empty($data['transfer_account_id'])) {
+            $bankAccountModel->updateBalance($data['transfer_account_id']);
         }
 
         return $transactionId;
@@ -320,7 +338,7 @@ class FinancialTransaction extends Model
         $fields = [];
         $params = [':id' => $id];
 
-        $allowedFields = ['bank_account_id', 'transaction_type', 'amount', 'transaction_date', 'description', 'category', 'reference', 'fraction_id', 'income_entry_type', 'related_type', 'related_id'];
+        $allowedFields = ['bank_account_id', 'transaction_type', 'amount', 'transaction_date', 'description', 'category', 'reference', 'fraction_id', 'income_entry_type', 'related_type', 'related_id', 'transfer_account_id'];
         
         foreach ($allowedFields as $field) {
             if (isset($data[$field])) {
@@ -368,7 +386,7 @@ class FinancialTransaction extends Model
             return false;
         }
 
-        $transferToAccountId = $transaction['transfer_to_account_id'] ?? null;
+        $transferAccountId = $transaction['transfer_account_id'] ?? null;
         
         $stmt = $this->db->prepare("DELETE FROM financial_transactions WHERE id = :id");
         $result = $stmt->execute([':id' => $id]);
@@ -381,9 +399,9 @@ class FinancialTransaction extends Model
             $bankAccountModel = new BankAccount();
             $bankAccountModel->updateBalance($transaction['bank_account_id']);
             
-            // If it was a transfer, also update the destination account balance
-            if ($transferToAccountId) {
-                $bankAccountModel->updateBalance($transferToAccountId);
+            // If it was a transfer, also update the counterpart account balance
+            if ($transferAccountId) {
+                $bankAccountModel->updateBalance($transferAccountId);
             }
         }
 
@@ -404,6 +422,7 @@ class FinancialTransaction extends Model
             FROM financial_transactions
             WHERE condominium_id = :condominium_id
             AND transaction_type = :transaction_type
+            AND (related_type IS NULL OR related_type != 'transfer')
             AND transaction_date BETWEEN :start_date AND :end_date
         ");
         $stmt->execute([
@@ -414,6 +433,33 @@ class FinancialTransaction extends Model
         ]);
         $result = $stmt->fetch();
         return (float)($result['total'] ?? 0);
+    }
+
+    /**
+     * Get income transactions grouped by category
+     */
+    public function getIncomesByCategory(int $condominiumId, string $startDate, string $endDate): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(NULLIF(TRIM(category), ''), 'Sem categoria') as category, SUM(amount) as total, COUNT(*) as count
+            FROM financial_transactions
+            WHERE condominium_id = :condominium_id
+            AND transaction_type = 'income'
+            AND (related_type IS NULL OR related_type != 'transfer')
+            AND transaction_date BETWEEN :start_date AND :end_date
+            GROUP BY COALESCE(NULLIF(TRIM(category), ''), 'Sem categoria')
+            ORDER BY total DESC
+        ");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':start_date' => $startDate,
+            ':end_date' => $endDate
+        ]);
+        return $stmt->fetchAll() ?: [];
     }
 
     /**
@@ -430,6 +476,7 @@ class FinancialTransaction extends Model
             FROM financial_transactions
             WHERE condominium_id = :condominium_id
             AND transaction_type = 'expense'
+            AND (related_type IS NULL OR related_type != 'transfer')
             AND transaction_date BETWEEN :start_date AND :end_date
             GROUP BY COALESCE(NULLIF(TRIM(category), ''), 'Sem categoria')
             ORDER BY total DESC
@@ -440,6 +487,38 @@ class FinancialTransaction extends Model
             ':end_date' => $endDate
         ]);
         return $stmt->fetchAll() ?: [];
+    }
+
+    /**
+     * Get expenses totals by month for a year (for evolution chart)
+     */
+    public function getExpensesByMonth(int $condominiumId, string $startDate, string $endDate): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT MONTH(transaction_date) as month, SUM(amount) as total
+            FROM financial_transactions
+            WHERE condominium_id = :condominium_id
+            AND transaction_type = 'expense'
+            AND (related_type IS NULL OR related_type != 'transfer')
+            AND transaction_date BETWEEN :start_date AND :end_date
+            GROUP BY MONTH(transaction_date)
+            ORDER BY month
+        ");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':start_date' => $startDate,
+            ':end_date' => $endDate
+        ]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        $byMonth = [];
+        foreach ($rows as $r) {
+            $byMonth[(int)$r['month']] = (float)$r['total'];
+        }
+        return $byMonth;
     }
 
     /**

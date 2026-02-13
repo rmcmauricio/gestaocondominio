@@ -61,6 +61,16 @@
                         </div>
 
                         <div class="mb-3">
+                            <label for="category" class="form-label">Categoria</label>
+                            <select class="form-select" id="category" name="category">
+                                <option value="__none__">— Sem categoria —</option>
+                                {% for cat in revenue_categories|default([]) %}
+                                <option value="{{ cat.name }}" {% if revenue.category == cat.name %}selected{% endif %}>{{ cat.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
                             <label for="notes" class="form-label">Notas</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3">{{ revenue.notes }}</textarea>
                         </div>

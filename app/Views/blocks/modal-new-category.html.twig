@@ -1,0 +1,24 @@
+<!-- Modal: Nova categoria (reutilizado em receitas, despesas, movimentos, importação) -->
+<div class="modal fade" id="newCategoryModal" tabindex="-1" aria-labelledby="newCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newCategoryModalLabel">
+                    <i class="bi bi-tag me-2"></i>Nova categoria
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <label for="newCategoryName" class="form-label">Nome da categoria</label>
+                <input type="text" class="form-control" id="newCategoryName" placeholder="Ex: Manutenção, Rendimentos..." maxlength="255" autocomplete="off">
+                <div id="newCategoryNameInvalid" class="invalid-feedback">Indique o nome da categoria.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="newCategoryModalSubmit">
+                    <i class="bi bi-check-lg me-1"></i>Criar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

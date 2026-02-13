@@ -2,19 +2,19 @@
     {% set page_actions %}
         {% if is_admin %}
         <div class="page-header-actions">
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/create" class="btn btn-primary btn-sm">
-                <i class="bi bi-plus-circle"></i> Registar receita
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle"></i> Registar despesa
             </a>
-            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/categories" class="btn btn-outline-secondary btn-sm">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/categories" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-tags"></i> Gerir categorias
             </a>
         </div>
         {% endif %}
     {% endset %}
     {% include 'blocks/page-header.html.twig' with {
-        'title': 'Receitas',
-        'help_section': 'finances',
-        'help_title': 'Ajuda com Receitas',
+        'title': 'Despesas',
+        'help_section': 'finances-expenses',
+        'help_title': 'Ajuda com Despesas',
         'actions': page_actions
     } %}
 
@@ -36,32 +36,26 @@
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
         <span class="text-muted small fw-bold me-2">Ano:</span>
         {% for y in available_years|default([current_year]) %}
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ y }}{% if filter %}&filter={{ filter }}{% endif %}" class="btn btn-sm py-1 px-2 {{ y == selected_year ? 'btn-success' : 'btn-outline-secondary' }}" style="font-size: 0.75rem;">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses?year={{ y }}{% if filter %}&filter={{ filter }}{% endif %}" class="btn btn-sm py-1 px-2 {{ y == selected_year ? 'btn-warning' : 'btn-outline-secondary' }}" style="font-size: 0.75rem;">
             <i class="bi bi-calendar3"></i> {{ y }}
         </a>
         {% endfor %}
     </div>
 
     <!-- Card resumo -->
-    <div class="card shadow-sm mb-4 border-success">
+    <div class="card shadow-sm mb-4 border-danger">
         <div class="card-body">
             <div class="row">
                 <div class="col-md-4">
-                    <h6 class="text-muted mb-1">Total receitas {{ selected_year }}</h6>
-                    <h4 class="text-success mb-0">€{{ total_revenues|number_format(2, ',', '.') }}</h4>
+                    <h6 class="text-muted mb-1">Total despesas {{ selected_year }}</h6>
+                    <h4 class="text-danger mb-0">€{{ total_expenses|number_format(2, ',', '.') }}</h4>
                 </div>
                 <div class="col-md-4">
-                    <h6 class="text-muted mb-1">Quotas em dívida {{ selected_year }}</h6>
-                    <h5 class="mb-0 {% if total_debt_selected_year > 0 %}text-danger{% else %}text-muted{% endif %}">
-                        €{{ total_debt_selected_year|number_format(2, ',', '.') }}
-                    </h5>
-                </div>
-                <div class="col-md-4">
-                    <h6 class="text-muted mb-1">Receitas sem categoria</h6>
+                    <h6 class="text-muted mb-1">Despesas sem categoria</h6>
                     <h5 class="mb-0">
                         {% if uncategorized_count > 0 %}
                         <span id="uncategorized-count" class="badge bg-warning text-dark">{{ uncategorized_count }}</span>
-                        <small class="text-muted">receitas</small>
+                        <small class="text-muted">despesas</small>
                         {% else %}
                         <span id="uncategorized-count" class="text-success">0</span>
                         {% endif %}
@@ -71,14 +65,14 @@
         </div>
     </div>
 
-    <!-- Gráfico evolução receitas e dívidas por ano -->
+    <!-- Gráfico evolução por ano -->
     <div class="card shadow-sm mb-4">
         <div class="card-header">
-            <h5 class="mb-0"><i class="bi bi-graph-up"></i> Evolução das receitas e dívidas ao longo dos anos</h5>
+            <h5 class="mb-0"><i class="bi bi-graph-up"></i> Evolução das despesas ao longo dos anos</h5>
         </div>
         <div class="card-body">
             <div class="chart-container" style="position: relative; height: 280px;">
-                <canvas id="revenuesEvolutionChart"></canvas>
+                <canvas id="expensesEvolutionChart"></canvas>
             </div>
         </div>
     </div>
@@ -87,11 +81,11 @@
     {% if chart_categories|length > 0 %}
     <div class="card shadow-sm mb-4">
         <div class="card-header">
-            <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Receitas por categoria ({{ selected_year }})</h5>
+            <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Despesas por categoria ({{ selected_year }})</h5>
         </div>
         <div class="card-body">
             <div class="chart-container" style="position: relative; height: 300px;">
-                <canvas id="revenuesByCategoryChart"></canvas>
+                <canvas id="expensesByCategoryChart"></canvas>
             </div>
         </div>
     </div>
@@ -101,31 +95,30 @@
     {% if is_admin and uncategorized_count > 0 %}
     <div class="mb-3">
         {% if filter == 'uncategorized' %}
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ selected_year }}" class="btn btn-sm btn-warning">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses?year={{ selected_year }}" class="btn btn-sm btn-warning">
             <i class="bi bi-funnel"></i> Mostrar todas
         </a>
         {% else %}
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ selected_year }}&filter=uncategorized" class="btn btn-sm btn-outline-warning">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses?year={{ selected_year }}&filter=uncategorized" class="btn btn-sm btn-outline-warning">
             <i class="bi bi-funnel"></i> Apenas sem categoria
         </a>
         {% endif %}
     </div>
     {% endif %}
 
-    <!-- Lista de receitas -->
+    <!-- Lista de despesas -->
     <div class="card shadow-sm">
         <div class="card-header">
-            <h5 class="mb-0">Lista de receitas</h5>
+            <h5 class="mb-0">Lista de despesas</h5>
         </div>
         <div class="card-body">
-            {% if revenues %}
+            {% if expenses %}
             <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>
                         <tr>
                             <th>Data</th>
                             <th>Descrição</th>
-                            <th>Fração</th>
                             <th class="text-end">Valor</th>
                             <th>Categoria</th>
                             {% if is_admin %}
@@ -134,28 +127,27 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for rev in revenues %}
-                        <tr class="{% if not rev.category or rev.category|trim == '' %}table-warning{% endif %}" data-revenue-id="{{ rev.id }}">
-                            <td>{{ rev.transaction_date|date('d/m/Y') }}</td>
-                            <td>{{ rev.description|default('-') }}</td>
-                            <td>{{ rev.fraction_identifier|default('-') }}</td>
-                            <td class="text-end fw-bold text-success">€{{ rev.amount|number_format(2, ',', '.') }}</td>
+                        {% for exp in expenses %}
+                        <tr class="{% if not exp.category or exp.category|trim == '' %}table-warning{% endif %}" data-expense-id="{{ exp.id }}">
+                            <td>{{ exp.transaction_date|date('d/m/Y') }}</td>
+                            <td>{{ exp.description|default('-') }}</td>
+                            <td class="text-end fw-bold text-danger">€{{ exp.amount|number_format(2, ',', '.') }}</td>
                             <td>
                                 {% if is_admin %}
-                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/{{ rev.id }}/set-category" class="d-inline form-set-category" id="form-cat-{{ rev.id }}" data-revenue-id="{{ rev.id }}">
+                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/{{ exp.id }}/set-category" class="d-inline form-set-category" id="form-cat-{{ exp.id }}" data-expense-id="{{ exp.id }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <input type="hidden" name="redirect" value="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ selected_year }}{% if filter %}&filter={{ filter }}{% endif %}">
-                                    <select name="category" class="form-select form-select-sm set-category-select" style="min-width: 140px;" data-form-id="form-cat-{{ rev.id }}">
+                                    <input type="hidden" name="redirect" value="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses?year={{ selected_year }}{% if filter %}&filter={{ filter }}{% endif %}">
+                                    <select name="category" class="form-select form-select-sm set-category-select" style="min-width: 140px;" data-form-id="form-cat-{{ exp.id }}">
                                         <option value="__none__">— Sem categoria —</option>
                                         {% for cat in categories %}
-                                        <option value="{{ cat.name }}" {% if rev.category == cat.name %}selected{% endif %}>{{ cat.name }}</option>
+                                        <option value="{{ cat.name }}" {% if exp.category == cat.name %}selected{% endif %}>{{ cat.name }}</option>
                                         {% endfor %}
                                         <option value="__new__">+ Criar nova...</option>
                                     </select>
                                 </form>
                                 {% else %}
-                                {% if rev.category and rev.category|trim != '' %}
-                                {{ rev.category }}
+                                {% if exp.category and exp.category|trim != '' %}
+                                {{ exp.category }}
                                 {% else %}
                                 <span class="badge bg-warning text-dark">Sem categoria</span>
                                 {% endif %}
@@ -163,12 +155,12 @@
                             </td>
                             {% if is_admin %}
                             <td class="text-end">
-                                {% if rev.id not in revenue_ids_with_quotas|default([]) %}
-                                <button type="button" class="btn btn-sm btn-outline-secondary" title="Marcar como transferência" data-bs-toggle="modal" data-bs-target="#modalMarkTransfer-{{ rev.id }}">
+                                {% if exp.id not in expense_ids_with_quotas|default([]) %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary" title="Marcar como transferência" data-bs-toggle="modal" data-bs-target="#modalMarkTransfer-{{ exp.id }}" data-exp-id="{{ exp.id }}" data-exp-account-id="{{ exp.bank_account_id }}" data-exp-desc="{{ exp.description|default('')|e('html_attr') }}">
                                     <i class="bi bi-arrow-left-right"></i>
                                 </button>
                                 {% endif %}
-                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ rev.id }}/edit" class="btn btn-sm btn-outline-primary" title="Editar">
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ exp.id }}/edit" class="btn btn-sm btn-outline-primary" title="Editar">
                                     <i class="bi bi-pencil"></i>
                                 </a>
                             </td>
@@ -179,11 +171,11 @@
                 </table>
             </div>
             {% else %}
-            <p class="text-muted text-center py-4">Nenhuma receita encontrada para {{ selected_year }}.</p>
+            <p class="text-muted text-center py-4">Nenhuma despesa encontrada para {{ selected_year }}.</p>
             {% if is_admin %}
             <div class="text-center">
-                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/create" class="btn btn-primary">
-                    <i class="bi bi-plus-circle"></i> Registar primeira receita
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Registar primeira despesa
                 </a>
             </div>
             {% endif %}
@@ -199,24 +191,24 @@
 </div>
 
 {% if is_admin and bank_accounts|default([])|length > 1 %}
-{% for rev in revenues %}
-{% if rev.id not in revenue_ids_with_quotas|default([]) %}
-<div class="modal fade" id="modalMarkTransfer-{{ rev.id }}" tabindex="-1" aria-labelledby="modalMarkTransferLabel-{{ rev.id }}" aria-hidden="true">
+{% for exp in expenses %}
+{% if exp.id not in expense_ids_with_quotas|default([]) %}
+<div class="modal fade" id="modalMarkTransfer-{{ exp.id }}" tabindex="-1" aria-labelledby="modalMarkTransferLabel-{{ exp.id }}" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/{{ rev.id }}/mark-as-transfer" class="form-mark-transfer" data-transaction-id="{{ rev.id }}">
+            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/{{ exp.id }}/mark-as-transfer" class="form-mark-transfer" data-transaction-id="{{ exp.id }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modalMarkTransferLabel-{{ rev.id }}"><i class="bi bi-arrow-left-right"></i> Marcar como transferência</h5>
+                    <h5 class="modal-title" id="modalMarkTransferLabel-{{ exp.id }}"><i class="bi bi-arrow-left-right"></i> Marcar como transferência</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted small">Receita: <strong>{{ rev.description|default('-') }}</strong> (€{{ rev.amount|number_format(2, ',', '.') }})</p>
-                    <p>Selecione a conta origem da transferência:</p>
+                    <p class="text-muted small">Despesa: <strong>{{ exp.description|default('-') }}</strong> (€{{ exp.amount|number_format(2, ',', '.') }})</p>
+                    <p>Selecione a conta destino da transferência:</p>
                     <select name="transfer_account_id" class="form-select" required>
-                        <option value="">— Selecionar conta origem —</option>
+                        <option value="">— Selecionar conta destino —</option>
                         {% for acc in bank_accounts %}
-                        {% if acc.id != rev.bank_account_id %}
+                        {% if acc.id != exp.bank_account_id %}
                         <option value="{{ acc.id }}">{{ acc.name }}</option>
                         {% endif %}
                         {% endfor %}
@@ -236,7 +228,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Marcar como transferência por AJAX (receitas)
+    // Marcar como transferência por AJAX (despesas)
     document.querySelectorAll('.form-mark-transfer').forEach(function(form) {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
@@ -265,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (modal) modal.hide();
                     }
                     var id = form.dataset.transactionId;
-                    var row = document.querySelector('tr[data-revenue-id="' + id + '"]');
+                    var row = document.querySelector('tr[data-expense-id="' + id + '"]');
                     if (row) {
                         var wasUncategorized = row.classList.contains('table-warning');
                         row.classList.remove('table-warning');
@@ -380,32 +372,22 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const ctxEvolution = document.getElementById('revenuesEvolutionChart');
+    // Evolução por ano
+    const ctxEvolution = document.getElementById('expensesEvolutionChart');
     if (ctxEvolution) {
         new Chart(ctxEvolution, {
             type: 'line',
             data: {
                 labels: {{ chart_evolution_labels|default([])|json_encode|raw }},
-                datasets: [
-                    {
-                        label: 'Total receitas (€)',
-                        data: {{ chart_evolution_revenues|default([])|json_encode|raw }},
-                        borderColor: 'rgb(25, 135, 84)',
-                        backgroundColor: 'rgba(25, 135, 84, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.3
-                    },
-                    {
-                        label: 'Quotas em dívida (€)',
-                        data: {{ chart_evolution_debts|default([])|json_encode|raw }},
-                        borderColor: 'rgb(220, 53, 69)',
-                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.3
-                    }
-                ]
+                datasets: [{
+                    label: 'Total despesas (€)',
+                    data: {{ chart_evolution_amounts|default([])|json_encode|raw }},
+                    borderColor: 'rgb(220, 53, 69)',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                }]
             },
             options: {
                 responsive: true,
@@ -432,38 +414,48 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Category pie (only if data)
     {% if chart_categories|length > 0 %}
-    const ctxPie = document.getElementById('revenuesByCategoryChart');
-    if (ctxPie) {
-        const colors = ['#198754','#20c997','#0d6efd','#6f42c1','#fd7e14','#ffc107','#e83e8c','#17a2b8'];
-        new Chart(ctxPie, {
-            type: 'pie',
-            data: {
-                labels: {{ chart_categories|json_encode|raw }},
-                datasets: [{
-                    data: {{ chart_amounts|json_encode|raw }},
-                    backgroundColor: colors.slice(0, {{ chart_categories|length }})
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'right' },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const value = context.parsed || 0;
-                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                                return context.label + ': €' + value.toLocaleString('pt-PT', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (' + pct + '%)';
-                            }
+    const ctxPie = document.getElementById('expensesByCategoryChart');
+    if (!ctxPie) return;
+    const colors = ['#dc3545','#fd7e14','#ffc107','#28a745','#20c997','#17a2b8','#6f42c1','#e83e8c'];
+    new Chart(ctxPie, {
+        type: 'pie',
+        data: {
+            labels: {{ chart_categories|json_encode|raw }},
+            datasets: [{
+                data: {{ chart_amounts|json_encode|raw }},
+                backgroundColor: colors.slice(0, {{ chart_categories|length }})
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    onClick: function(e, legendItem, legend) {
+                        const index = legendItem.datasetIndex;
+                        const chart = legend.chart;
+                        const meta = chart.getDatasetMeta(index);
+                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                        chart.update();
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return context.label + ': €' + value.toLocaleString('pt-PT', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (' + pct + '%)';
                         }
                     }
                 }
             }
-        });
-    }
+        }
+    });
     {% endif %}
 });
 </script>

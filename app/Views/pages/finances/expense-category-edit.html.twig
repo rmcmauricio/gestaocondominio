@@ -1,0 +1,48 @@
+<div class="container py-4">
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Editar categoria',
+        'help_section': 'finances-expense-categories',
+        'help_title': 'Ajuda com Categorias'
+    } %}
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            {% if expense_count > 0 %}
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                {{ expense_count }} despesa(s) usam esta categoria. Pretende atualizá-las para o novo nome?
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" name="update_transactions" id="update_transactions" value="1" checked>
+                    <label class="form-check-label" for="update_transactions">Sim, atualizar as {{ expense_count }} despesas com o novo nome</label>
+                </div>
+            </div>
+            {% endif %}
+
+            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/categories/{{ category.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Nome</label>
+                    <input type="text" name="name" id="name" class="form-control" value="{{ category.name }}" required maxlength="100">
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check"></i> Guardar
+                </button>
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/categories" class="btn btn-secondary">Cancelar</a>
+            </form>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar às Despesas
+        </a>
+    </div>
+</div>
+

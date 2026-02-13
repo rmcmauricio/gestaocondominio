@@ -2,17 +2,25 @@
 
 namespace App\Services;
 
+use App\Models\BankAccount;
 use App\Models\Budget;
 use App\Models\Fee;
 use App\Models\FinancialTransaction;
 use App\Models\Occurrence;
+use App\Models\Revenue;
 
+/**
+ * Serviço de relatórios financeiros.
+ * Nota: transferências (related_type = 'transfer') são sempre excluídas dos totais
+ * de receitas e despesas em todos os relatórios.
+ */
 class ReportService
 {
     protected $budgetModel;
     protected $transactionModel;
     protected $feeModel;
     protected $occurrenceModel;
+    protected $revenueModel;
 
     public function __construct()
     {
@@ -20,16 +28,19 @@ class ReportService
         $this->transactionModel = new FinancialTransaction();
         $this->feeModel = new Fee();
         $this->occurrenceModel = new Occurrence();
+        $this->revenueModel = new Revenue();
     }
 
     /**
-     * Generate balance sheet
+     * Generate balance sheet.
+     * Despesas: financial_transactions tipo expense, excluindo transferências.
      */
     public function generateBalanceSheet(int $condominiumId, int $year): array
     {
         $budget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $year);
         $startDate = "{$year}-01-01";
         $endDate = "{$year}-12-31";
+        // Despesas sem transferências (getTotalByPeriodAndType já exclui related_type = 'transfer')
         $totalExpenses = $this->transactionModel->getTotalByPeriodAndType($condominiumId, $startDate, $endDate, 'expense');
         $fees = $this->feeModel->getByCondominium($condominiumId, ['year' => $year]);
         $totalFees = array_sum(array_column($fees, 'amount'));
@@ -50,7 +61,7 @@ class ReportService
     }
 
     /**
-     * Generate expenses by category (from financial_transactions)
+     * Generate expenses by category (from financial_transactions, excluindo transferências).
      */
     public function generateExpensesByCategory(int $condominiumId, string $startDate, string $endDate): array
     {
@@ -128,7 +139,10 @@ class ReportService
     }
 
     /**
-     * Generate cash flow report (monthly)
+     * Generate cash flow report (monthly).
+     * Receitas: movimentos de entrada em todas as contas (financial_transactions income, excl. transferências) + receitas (tabela revenues).
+     * Despesas: financial_transactions expense em todas as contas, excluindo transferências.
+     * Saldo (todas as contas): soma dos saldos de cada conta bancária no fim do mês (já reflete transferências entre contas).
      */
     public function generateCashFlow(int $condominiumId, int $year): array
     {
@@ -138,48 +152,52 @@ class ReportService
             return [];
         }
 
+        $bankAccountModel = new BankAccount();
+        $accounts = $bankAccountModel->getActiveAccounts($condominiumId);
+        $endPrevYear = ($year - 1) . '-12-31';
+        $balanceStartYear = 0.0;
+        foreach ($accounts as $acc) {
+            $balanceStartYear += $bankAccountModel->calculateBalanceAsOfDate((int)$acc['id'], $endPrevYear);
+        }
+
         $cashFlow = [];
-        
+        $monthNames = [
+            1 => 'Janeiro', 2 => 'Fevereiro', 3 => 'Março', 4 => 'Abril',
+            5 => 'Maio', 6 => 'Junho', 7 => 'Julho', 8 => 'Agosto',
+            9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro'
+        ];
+
         for ($month = 1; $month <= 12; $month++) {
             $monthStart = sprintf('%04d-%02d-01', $year, $month);
             $monthEnd = date('Y-m-t', strtotime($monthStart));
             
-            // Revenue (paid fees)
-            $stmt = $db->prepare("
-                SELECT COALESCE(SUM(fp.amount), 0) as revenue
-                FROM fee_payments fp
-                INNER JOIN fees f ON f.id = fp.fee_id
-                WHERE f.condominium_id = :condominium_id
-                AND DATE(fp.payment_date) BETWEEN :start_date AND :end_date
-            ");
-            $stmt->execute([
-                ':condominium_id' => $condominiumId,
-                ':start_date' => $monthStart,
-                ':end_date' => $monthEnd
-            ]);
-            $revenue = (float)($stmt->fetch()['revenue'] ?? 0);
+            // Receitas: movimentos de entrada em TODAS as contas (excl. transferências). Inclui pagamentos de quotas (registados como FT).
+            $revenueIncome = $this->transactionModel->getTotalByPeriodAndType($condominiumId, $monthStart, $monthEnd, 'income');
+            $revenueTable = $this->revenueModel->getTotalByPeriod($condominiumId, $monthStart, $monthEnd);
+            $revenue = $revenueIncome + $revenueTable;
             
-            // Expenses (from financial_transactions)
+            // Despesas: todas as contas, excluindo transferências
             $expenses = $this->transactionModel->getTotalByPeriodAndType($condominiumId, $monthStart, $monthEnd, 'expense');
             
-            // Translate month name to Portuguese
-            $monthNames = [
-                1 => 'Janeiro', 2 => 'Fevereiro', 3 => 'Março', 4 => 'Abril',
-                5 => 'Maio', 6 => 'Junho', 7 => 'Julho', 8 => 'Agosto',
-                9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro'
-            ];
+            // Saldo total (todas as contas) no fim do mês: reflete transferências entre contas corretamente
+            $balanceTotal = 0.0;
+            foreach ($accounts as $acc) {
+                $balanceTotal += $bankAccountModel->calculateBalanceAsOfDate((int)$acc['id'], $monthEnd);
+            }
             
             $cashFlow[] = [
                 'month' => $month,
                 'month_name' => $monthNames[$month] ?? date('F', strtotime($monthStart)),
                 'revenue' => $revenue,
                 'expenses' => $expenses,
-                'net' => $revenue - $expenses
+                'net' => $revenue - $expenses,
+                'balance_total' => $balanceTotal
             ];
         }
         
         return [
             'year' => $year,
+            'balance_start_year' => $balanceStartYear,
             'cash_flow' => $cashFlow,
             'total_revenue' => array_sum(array_column($cashFlow, 'revenue')),
             'total_expenses' => array_sum(array_column($cashFlow, 'expenses')),
@@ -188,7 +206,9 @@ class ReportService
     }
 
     /**
-     * Generate budget vs actual comparison
+     * Generate budget vs actual comparison.
+     * Receitas realizadas: fee_payments + movimentos de entrada (excl. transferências) + tabela revenues.
+     * Despesas realizadas: financial_transactions expense, excluindo transferências.
      */
     public function generateBudgetVsActual(int $condominiumId, int $year): array
     {
@@ -206,6 +226,9 @@ class ReportService
         if (!$db) {
             return [];
         }
+
+        $startDate = "{$year}-01-01";
+        $endDate = "{$year}-12-31";
 
         // Get budget items
         $stmt = $db->prepare("
@@ -226,7 +249,7 @@ class ReportService
             
             $actual = 0;
             if ($isRevenue) {
-                // Actual revenue from paid fees
+                // Receitas realizadas: fee_payments + income FT (excl. transferências) + tabela revenues
                 $stmt = $db->prepare("
                     SELECT COALESCE(SUM(fp.amount), 0) as total
                     FROM fee_payments fp
@@ -240,12 +263,14 @@ class ReportService
                 ]);
                 $result = $stmt->fetch();
                 $actual = (float)($result['total'] ?? 0);
+                $actual += $this->transactionModel->getTotalByPeriodAndType($condominiumId, $startDate, $endDate, 'income');
+                $actual += $this->revenueModel->getTotalByPeriod($condominiumId, $startDate, $endDate);
             } else {
-                // Actual expenses (from financial_transactions)
+                // Despesas realizadas: financial_transactions expense, excluindo transferências
                 $actual = $this->transactionModel->getTotalByPeriodAndType(
                     $condominiumId,
-                    "{$year}-01-01",
-                    "{$year}-12-31",
+                    $startDate,
+                    $endDate,
                     'expense'
                 );
             }
@@ -471,7 +496,9 @@ class ReportService
     }
 
     /**
-     * Generate summary financial report
+     * Generate summary financial report.
+     * Receitas: fee_payments + movimentos de entrada (excl. transferências) + tabela revenues.
+     * Despesas: financial_transactions expense, excluindo transferências.
      */
     public function generateSummaryReport(int $condominiumId, string $startDate, string $endDate): array
     {
@@ -481,7 +508,7 @@ class ReportService
             return [];
         }
 
-        // Get total revenue (paid fees)
+        // Receitas: pagamentos de quotas
         $stmt = $db->prepare("
             SELECT COALESCE(SUM(fp.amount), 0) as total_revenue
             FROM fee_payments fp
@@ -496,8 +523,11 @@ class ReportService
         ]);
         $revenueResult = $stmt->fetch();
         $totalRevenue = (float)($revenueResult['total_revenue'] ?? 0);
+        // Receitas: movimentos de entrada (excl. transferências) + tabela revenues
+        $totalRevenue += $this->transactionModel->getTotalByPeriodAndType($condominiumId, $startDate, $endDate, 'income');
+        $totalRevenue += $this->revenueModel->getTotalByPeriod($condominiumId, $startDate, $endDate);
 
-        // Get total expenses (from financial_transactions)
+        // Despesas: financial_transactions expense, excluindo transferências
         $totalExpenses = $this->transactionModel->getTotalByPeriodAndType($condominiumId, $startDate, $endDate, 'expense');
 
         // Get fees summary

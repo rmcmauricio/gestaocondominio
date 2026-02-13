@@ -39,6 +39,10 @@ class Revenue extends Model
             $params[':fraction_id'] = $filters['fraction_id'];
         }
 
+        if (isset($filters['has_category']) && $filters['has_category'] === false) {
+            $sql .= " AND (r.category IS NULL OR TRIM(r.category) = '')";
+        }
+
         $sql .= " ORDER BY r.revenue_date DESC, r.created_at DESC";
 
         if (isset($filters['limit'])) {
@@ -47,6 +51,30 @@ class Revenue extends Model
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
+        return $stmt->fetchAll() ?: [];
+    }
+
+    /**
+     * Get revenues grouped by category (for charts)
+     */
+    public function getRevenuesByCategory(int $condominiumId, string $startDate, string $endDate): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(NULLIF(TRIM(category), ''), 'Sem categoria') as category, SUM(amount) as total, COUNT(*) as count
+            FROM revenues
+            WHERE condominium_id = :condominium_id
+            AND revenue_date BETWEEN :start_date AND :end_date
+            GROUP BY COALESCE(NULLIF(TRIM(category), ''), 'Sem categoria')
+            ORDER BY total DESC
+        ");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':start_date' => $startDate,
+            ':end_date' => $endDate
+        ]);
         return $stmt->fetchAll() ?: [];
     }
 
@@ -88,11 +116,11 @@ class Revenue extends Model
         $stmt = $this->db->prepare("
             INSERT INTO revenues (
                 condominium_id, fraction_id, description, amount,
-                revenue_date, payment_method, reference, notes, created_by
+                revenue_date, payment_method, reference, category, notes, created_by
             )
             VALUES (
                 :condominium_id, :fraction_id, :description, :amount,
-                :revenue_date, :payment_method, :reference, :notes, :created_by
+                :revenue_date, :payment_method, :reference, :category, :notes, :created_by
             )
         ");
 
@@ -104,6 +132,7 @@ class Revenue extends Model
             ':revenue_date' => $data['revenue_date'],
             ':payment_method' => $data['payment_method'] ?? null,
             ':reference' => $data['reference'] ?? null,
+            ':category' => $data['category'] ?? null,
             ':notes' => $data['notes'] ?? null,
             ':created_by' => $data['created_by']
         ]);
@@ -142,7 +171,7 @@ class Revenue extends Model
         $fields = [];
         $params = [':id' => $id];
 
-        foreach (['description', 'amount', 'revenue_date', 'payment_method', 'reference', 'notes', 'fraction_id'] as $field) {
+        foreach (['description', 'amount', 'revenue_date', 'payment_method', 'reference', 'category', 'notes', 'fraction_id'] as $field) {
             if (isset($data[$field])) {
                 $fields[] = "{$field} = :{$field}";
                 $params[":{$field}"] = $data[$field];
