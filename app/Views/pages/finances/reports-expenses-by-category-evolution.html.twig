@@ -1,0 +1,284 @@
+<div class="container py-4">
+    {% set page_actions %}
+        <div class="page-header-actions d-flex gap-2">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Voltar aos Relatórios
+            </a>
+            {% if report.years|length > 0 %}
+            <button type="button" class="btn btn-outline-success btn-sm" id="btn-save-report-evolution">
+                <i class="bi bi-save"></i> Guardar nos Documentos
+            </button>
+            {% endif %}
+        </div>
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Despesas por categoria - evolução',
+        'help_section': 'finances',
+        'help_title': 'Ajuda com Relatórios',
+        'actions': page_actions
+    } %}
+
+    <form method="get" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/expenses-by-category-evolution" class="row g-3 mb-4">
+        <div class="col-auto">
+            <label for="start_year" class="form-label">Ano início</label>
+            <select name="start_year" id="start_year" class="form-select">
+                {% for y in range(current_year - 10, current_year) %}
+                <option value="{{ y }}" {{ start_year == y ? 'selected' : '' }}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-auto">
+            <label for="end_year" class="form-label">Ano fim</label>
+            <select name="end_year" id="end_year" class="form-select">
+                {% for y in range(current_year - 10, current_year) %}
+                <option value="{{ y }}" {{ end_year == y ? 'selected' : '' }}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-auto d-flex align-items-end">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-funnel"></i> Aplicar
+            </button>
+        </div>
+    </form>
+
+    {% if report.years|length == 0 %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Não há dados de despesas para o período selecionado.
+    </div>
+    {% else %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-graph-up"></i> Evolução das despesas por categoria ({{ start_year }}–{{ end_year }})</h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-container" style="position: relative; height: 400px;">
+                <canvas id="expensesByCategoryEvolutionChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-table"></i> Tabela por categoria e ano</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover">
+                    <thead>
+                        <tr>
+                            <th>Categoria</th>
+                            {% for y in report.years %}
+                            <th class="text-end">{{ y }}</th>
+                            {% endfor %}
+                            <th class="text-end fw-bold">Total período</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cat in report.categories %}
+                        <tr>
+                            <td>{{ cat }}</td>
+                            {% set cat_total = 0 %}
+                            {% for y in report.years %}
+                            {% set cat_total = cat_total + (report.data[cat][y] ?? 0) %}
+                            {% set val_curr = report.data[cat][y] ?? 0 %}
+                            {% set val_prev = loop.first ? null : (report.data[cat][report.years[loop.index0 - 1]] ?? 0) %}
+                            {% set var_pct = (val_prev is not null and val_prev != 0) ? ((val_curr - val_prev) / val_prev * 100) : null %}
+                            <td class="text-end">
+                                <span>€{{ val_curr|number_format(2, ',', '.') }}</span>
+                                {% if var_pct is not null %}
+                                <span class="d-block small {% if var_pct > 0 %}text-danger{% elseif var_pct < 0 %}text-success{% endif %}" title="Variação face a {{ report.years[loop.index0 - 1] }}">{{ var_pct >= 0 ? '+' : '' }}{{ var_pct|number_format(1, ',', '.') }}%</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                            <td class="text-end fw-bold">€{{ cat_total|number_format(2, ',', '.') }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="table-secondary">
+                            <td class="fw-bold">Total por ano</td>
+                            {% set period_total = 0 %}
+                            {% for y in report.years %}
+                            {% set period_total = period_total + (report.totals_by_year[y] ?? 0) %}
+                            {% set tot_curr = report.totals_by_year[y] ?? 0 %}
+                            {% set tot_prev = loop.first ? null : (report.totals_by_year[report.years[loop.index0 - 1]] ?? 0) %}
+                            {% set tot_var_pct = (tot_prev is not null and tot_prev != 0) ? ((tot_curr - tot_prev) / tot_prev * 100) : null %}
+                            <td class="text-end">
+                                <span class="fw-bold">€{{ tot_curr|number_format(2, ',', '.') }}</span>
+                                {% if tot_var_pct is not null %}
+                                <span class="d-block small fw-bold {% if tot_var_pct > 0 %}text-danger{% elseif tot_var_pct < 0 %}text-success{% endif %}" title="Variação face a {{ report.years[loop.index0 - 1] }}">{{ tot_var_pct >= 0 ? '+' : '' }}{{ tot_var_pct|number_format(1, ',', '.') }}%</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                            <td class="text-end fw-bold">€{{ period_total|number_format(2, ',', '.') }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if report.years|length > 0 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('expensesByCategoryEvolutionChart');
+    if (!ctx) return;
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ chart_labels|json_encode|raw }},
+            datasets: [
+                {% for ds in chart_datasets %}
+                {
+                    label: {{ ds.label|json_encode|raw }},
+                    data: {{ ds.data|json_encode|raw }},
+                    borderColor: {{ ds.borderColor|json_encode|raw }},
+                    backgroundColor: {{ ds.backgroundColor|json_encode|raw }},
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.2
+                }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': €' + context.raw.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        }
+                    }
+                },
+                legend: {
+                    position: 'bottom'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '€' + value.toLocaleString('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+<script>
+(function() {
+    const btnSave = document.getElementById('btn-save-report-evolution');
+    if (!btnSave) return;
+    const startYear = {{ start_year }};
+    const endYear = {{ end_year }};
+    const condominiumId = {{ condominium.id }};
+    const baseUrl = {{ BASE_URL|json_encode|raw }};
+    const csrfToken = {{ csrf_token|json_encode|raw }};
+
+    btnSave.addEventListener('click', function() {
+        // Fetch report HTML for saving
+        const exportUrl = baseUrl + 'condominiums/' + condominiumId + '/finances/reports/expenses-by-category-evolution/export-html?start_year=' + startYear + '&end_year=' + endYear;
+        fetch(exportUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success || !data.html) {
+                    alert('Erro ao obter o relatório para guardar.');
+                    return;
+                }
+                const reportHtml = data.html;
+                const reportTitle = data.title || ('Despesas por categoria - evolução ' + startYear + '-' + endYear);
+                const reportParams = { start_year: startYear, end_year: endYear };
+
+                const modal = document.createElement('div');
+                modal.className = 'modal fade';
+                modal.id = 'saveFormatModalEvolution';
+                modal.setAttribute('tabindex', '-1');
+                modal.innerHTML = `
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Guardar nos Documentos</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Escolha o formato:</p>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="save_format_ev" id="format_html_ev" value="html" checked>
+                                    <label class="form-check-label" for="format_html_ev">HTML (visualização web)</label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="save_format_ev" id="format_pdf_ev" value="pdf">
+                                    <label class="form-check-label" for="format_pdf_ev">PDF (documento para impressão)</label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="save_format_ev" id="format_excel_ev" value="excel">
+                                    <label class="form-check-label" for="format_excel_ev">Excel (planilha)</label>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-primary" id="confirm-save-evolution">Guardar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                const bsModal = new bootstrap.Modal(modal);
+                bsModal.show();
+
+                modal.querySelector('#confirm-save-evolution').addEventListener('click', function() {
+                    const saveFormat = modal.querySelector('input[name="save_format_ev"]:checked').value;
+                    bsModal.hide();
+                    modal.addEventListener('hidden.bs.modal', function() { modal.remove(); }, { once: true });
+
+                    const formData = new FormData();
+                    formData.append('csrf_token', csrfToken);
+                    formData.append('report_html', reportHtml);
+                    formData.append('report_title', reportTitle);
+                    formData.append('report_type', 'expenses-by-category-evolution');
+                    formData.append('report_params', JSON.stringify(reportParams));
+                    formData.append('save_format', saveFormat);
+
+                    btnSave.disabled = true;
+                    btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> A guardar...';
+
+                    fetch(baseUrl + 'condominiums/' + condominiumId + '/finances/reports/save', {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        body: formData
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (res.success) {
+                            alert('Relatório guardado com sucesso nos documentos.');
+                        } else {
+                            alert('Erro ao guardar: ' + (res.error || 'Erro desconhecido'));
+                        }
+                    })
+                    .catch(function() {
+                        alert('Erro ao guardar. Tente novamente.');
+                    })
+                    .finally(function() {
+                        btnSave.disabled = false;
+                        btnSave.innerHTML = '<i class="bi bi-save"></i> Guardar nos Documentos';
+                    });
+                });
+            })
+            .catch(function() {
+                alert('Erro ao obter o relatório. Tente novamente.');
+            });
+    });
+})();
+</script>
+{% endif %}

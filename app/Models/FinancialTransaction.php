@@ -160,6 +160,11 @@ class FinancialTransaction extends Model
             $sql .= " AND (ft.category IS NULL OR TRIM(ft.category) = '')";
         }
 
+        if (!empty($filters['category'])) {
+            $sql .= " AND ft.category = :category";
+            $params[':category'] = $filters['category'];
+        }
+
         if (!empty($filters['exclude_transfers'])) {
             $sql .= " AND (ft.related_type IS NULL OR ft.related_type != 'transfer')";
         }
@@ -487,6 +492,38 @@ class FinancialTransaction extends Model
             ':end_date' => $endDate
         ]);
         return $stmt->fetchAll() ?: [];
+    }
+
+    /**
+     * Get expenses grouped by category and year (for evolution report).
+     * Returns one row per (year, category) with total and count.
+     */
+    public function getExpensesByCategoryByYear(int $condominiumId, int $startYear, int $endYear): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT YEAR(transaction_date) as year,
+                   COALESCE(NULLIF(TRIM(category), ''), 'Sem categoria') as category,
+                   SUM(amount) as total,
+                   COUNT(*) as count
+            FROM financial_transactions
+            WHERE condominium_id = :condominium_id
+            AND transaction_type = 'expense'
+            AND (related_type IS NULL OR related_type != 'transfer')
+            AND transaction_date >= :start_date
+            AND transaction_date <= :end_date
+            GROUP BY YEAR(transaction_date), COALESCE(NULLIF(TRIM(category), ''), 'Sem categoria')
+            ORDER BY year ASC, total DESC
+        ");
+        $stmt->execute([
+            ':condominium_id' => $condominiumId,
+            ':start_date' => "{$startYear}-01-01",
+            ':end_date' => "{$endYear}-12-31"
+        ]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 
     /**

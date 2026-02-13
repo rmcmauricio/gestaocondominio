@@ -56,6 +56,7 @@ class BreadcrumbService
         'pages/finances/edit-revenue.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Finanças', 'condominiums/{condominium_id}/finances'], ['Receitas', 'condominiums/{condominium_id}/finances/revenues'], ['Editar receita', null] ],
         'pages/finances/edit-fee.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Finanças', 'condominiums/{condominium_id}/finances'], ['Quotas', 'condominiums/{condominium_id}/fees'], ['Editar quota', null] ],
         'pages/finances/reports.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Finanças', 'condominiums/{condominium_id}/finances'], ['Relatórios', null] ],
+        'pages/finances/reports-expenses-by-category-evolution.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Finanças', 'condominiums/{condominium_id}/finances'], ['Relatórios', 'condominiums/{condominium_id}/finances/reports'], ['Despesas por categoria - evolução', null] ],
 
         'pages/financial-transactions/index.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Movimentos', null] ],
         'pages/financial-transactions/create.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Movimentos', 'condominiums/{condominium_id}/financial-transactions'], ['Novo movimento', null] ],

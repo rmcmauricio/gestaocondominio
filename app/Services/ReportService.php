@@ -69,6 +69,43 @@ class ReportService
     }
 
     /**
+     * Generate expenses by category evolution over years (for chart and table).
+     * Returns: years (labels), categories (unique names), data (category => [year => total]), totals_by_year.
+     */
+    public function generateExpensesByCategoryEvolution(int $condominiumId, int $startYear, int $endYear): array
+    {
+        $rows = $this->transactionModel->getExpensesByCategoryByYear($condominiumId, $startYear, $endYear);
+        $years = range($startYear, $endYear);
+        $categories = [];
+        $data = [];
+        $totalsByYear = array_fill_keys($years, 0.0);
+
+        foreach ($rows as $row) {
+            $y = (int)$row['year'];
+            $cat = $row['category'];
+            $total = (float)$row['total'];
+            if (!in_array($cat, $categories, true)) {
+                $categories[] = $cat;
+            }
+            if (!isset($data[$cat])) {
+                $data[$cat] = array_fill_keys($years, 0.0);
+            }
+            $data[$cat][$y] = $total;
+            if (isset($totalsByYear[$y])) {
+                $totalsByYear[$y] += $total;
+            }
+        }
+
+        return [
+            'years' => $years,
+            'categories' => $categories,
+            'data' => $data,
+            'totals_by_year' => $totalsByYear,
+            'raw_rows' => $rows
+        ];
+    }
+
+    /**
      * Generate fees report
      */
     public function generateFeesReport(int $condominiumId, int $year, int $month = null): array

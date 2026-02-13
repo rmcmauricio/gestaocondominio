@@ -513,6 +513,7 @@ class FinanceController extends Controller
             $selectedYear = $currentYear;
         }
         $filter = $_GET['filter'] ?? '';
+        $selectedCategory = isset($_GET['category']) ? trim((string)$_GET['category']) : '';
 
         $yearStart = "{$selectedYear}-01-01";
         $yearEnd = "{$selectedYear}-12-31";
@@ -557,6 +558,8 @@ class FinanceController extends Controller
         ];
         if ($filter === 'uncategorized') {
             $expenseFilters['has_category'] = false;
+        } elseif ($selectedCategory !== '') {
+            $expenseFilters['category'] = $selectedCategory;
         }
         $expenses = $transactionModel->getByCondominium($condominiumId, $expenseFilters);
 
@@ -594,6 +597,7 @@ class FinanceController extends Controller
             'selected_year' => $selectedYear,
             'available_years' => $availableYears,
             'filter' => $filter,
+            'selected_category' => $selectedCategory,
             'is_admin' => $isAdmin,
             'chart_categories' => $chartCategories,
             'chart_amounts' => $chartAmounts,
@@ -3842,6 +3846,7 @@ class FinanceController extends Controller
             $selectedYear = $currentYear;
         }
         $filter = $_GET['filter'] ?? '';
+        $selectedCategory = isset($_GET['category']) ? trim((string)$_GET['category']) : '';
 
         $yearStart = "{$selectedYear}-01-01";
         $yearEnd = "{$selectedYear}-12-31";
@@ -3857,6 +3862,8 @@ class FinanceController extends Controller
         ];
         if ($filter === 'uncategorized') {
             $incomeFilters['has_category'] = false;
+        } elseif ($selectedCategory !== '') {
+            $incomeFilters['category'] = $selectedCategory;
         }
         $revenues = $transactionModel->getByCondominium($condominiumId, $incomeFilters);
         $totalRevenues = array_sum(array_column($revenues, 'amount'));
@@ -3932,6 +3939,7 @@ class FinanceController extends Controller
             'selected_year' => $selectedYear,
             'available_years' => $availableYears,
             'filter' => $filter,
+            'selected_category' => $selectedCategory,
             'is_admin' => $isAdmin,
             'chart_evolution_labels' => $chartEvolutionLabels,
             'chart_evolution_revenues' => $chartEvolutionRevenues,
