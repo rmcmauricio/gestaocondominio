@@ -12,7 +12,6 @@ use App\Models\BankAccount;
 use App\Models\FinancialTransaction;
 use App\Models\Budget;
 use App\Models\BudgetItem;
-use App\Models\FinancialTransaction;
 use App\Models\Supplier;
 use App\Models\Assembly;
 use App\Models\AssemblyAttendee;
@@ -1579,7 +1578,7 @@ class DemoSeeder
                     'condominium_id' => $this->demoCondominiumId,
                     'name' => $name
                 ]);
-                $this->trackCreatedId('expense_categories', $id);
+                $this->trackId('expense_categories', $id);
             }
         }
 
@@ -1600,7 +1599,7 @@ class DemoSeeder
                     'condominium_id' => $this->demoCondominiumId,
                     'name' => $name
                 ]);
-                $this->trackCreatedId('revenue_categories', $id);
+                $this->trackId('revenue_categories', $id);
             }
         }
 
