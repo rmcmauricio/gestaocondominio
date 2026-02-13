@@ -1578,7 +1578,7 @@ class DemoSeeder
                     'condominium_id' => $this->demoCondominiumId,
                     'name' => $name
                 ]);
-                $this->trackCreatedId('expense_categories', $id);
+                $this->trackId('expense_categories', $id);
             }
         }
 
@@ -1599,7 +1599,7 @@ class DemoSeeder
                     'condominium_id' => $this->demoCondominiumId,
                     'name' => $name
                 ]);
-                $this->trackCreatedId('revenue_categories', $id);
+                $this->trackId('revenue_categories', $id);
             }
         }
 
