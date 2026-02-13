@@ -36,7 +36,7 @@
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
         <span class="text-muted small fw-bold me-2">Ano:</span>
         {% for y in available_years|default([current_year]) %}
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ y }}{% if filter %}&filter={{ filter }}{% endif %}" class="btn btn-sm py-1 px-2 {{ y == selected_year ? 'btn-success' : 'btn-outline-secondary' }}" style="font-size: 0.75rem;">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ y }}{% if filter %}&filter={{ filter }}{% endif %}{% if selected_category|default('') %}&category={{ selected_category|e('url') }}{% endif %}" class="btn btn-sm py-1 px-2 {{ y == selected_year ? 'btn-success' : 'btn-outline-secondary' }}" style="font-size: 0.75rem;">
             <i class="bi bi-calendar3"></i> {{ y }}
         </a>
         {% endfor %}
@@ -97,18 +97,20 @@
     </div>
     {% endif %}
 
-    <!-- Filtro sem categoria -->
-    {% if is_admin and uncategorized_count > 0 %}
+    <!-- Filtro por categoria -->
+    {% if is_admin and (categories|default([])|length > 0 or uncategorized_count > 0 or filter == 'uncategorized' or selected_category|default('')) %}
     <div class="mb-3">
-        {% if filter == 'uncategorized' %}
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ selected_year }}" class="btn btn-sm btn-warning">
+        {% if filter == 'uncategorized' or selected_category|default('') %}
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ selected_year }}" class="btn btn-sm btn-warning me-2">
             <i class="bi bi-funnel"></i> Mostrar todas
         </a>
-        {% else %}
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ selected_year }}&filter=uncategorized" class="btn btn-sm btn-outline-warning">
-            <i class="bi bi-funnel"></i> Apenas sem categoria
-        </a>
         {% endif %}
+        <span class="text-muted small me-2 align-middle">Categoria:</span>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ selected_year }}" class="btn btn-sm {{ not filter and not selected_category|default('') ? 'btn-secondary' : 'btn-outline-secondary' }} me-1 mb-1">Todas</a>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ selected_year }}&filter=uncategorized" class="btn btn-sm {{ filter == 'uncategorized' ? 'btn-warning' : 'btn-outline-warning' }} me-1 mb-1">Sem categoria</a>
+        {% for cat in categories|default([]) %}
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ selected_year }}&category={{ cat.name|e('url') }}" class="btn btn-sm {{ selected_category|default('') == cat.name ? 'btn-success' : 'btn-outline-secondary' }} me-1 mb-1">{{ cat.name }}</a>
+        {% endfor %}
     </div>
     {% endif %}
 
@@ -144,7 +146,7 @@
                                 {% if is_admin %}
                                 <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/{{ rev.id }}/set-category" class="d-inline form-set-category" id="form-cat-{{ rev.id }}" data-revenue-id="{{ rev.id }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <input type="hidden" name="redirect" value="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ selected_year }}{% if filter %}&filter={{ filter }}{% endif %}">
+                                    <input type="hidden" name="redirect" value="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues?year={{ selected_year }}{% if filter %}&filter={{ filter }}{% endif %}{% if selected_category|default('') %}&category={{ selected_category|e('url') }}{% endif %}">
                                     <select name="category" class="form-select form-select-sm set-category-select" style="min-width: 140px;" data-form-id="form-cat-{{ rev.id }}">
                                         <option value="__none__">— Sem categoria —</option>
                                         {% for cat in categories %}
@@ -179,7 +181,9 @@
                 </table>
             </div>
             {% else %}
-            <p class="text-muted text-center py-4">Nenhuma receita encontrada para {{ selected_year }}.</p>
+            <p class="text-muted text-center py-4">
+                {% if filter == 'uncategorized' %}Nenhuma receita sem categoria para {{ selected_year }}.{% elseif selected_category|default('') %}Nenhuma receita na categoria «{{ selected_category }}» para {{ selected_year }}.{% else %}Nenhuma receita encontrada para {{ selected_year }}.{% endif %}
+            </p>
             {% if is_admin %}
             <div class="text-center">
                 <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/create" class="btn btn-primary">

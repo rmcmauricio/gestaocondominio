@@ -257,6 +257,102 @@ class ReportController extends Controller
         exit;
     }
 
+    /**
+     * Expenses by category evolution report (GET): chart and table over years.
+     */
+    public function expensesByCategoryEvolution(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $currentYear = (int)date('Y');
+        $startYear = !empty($_GET['start_year']) ? (int)$_GET['start_year'] : $currentYear - 4;
+        $endYear = !empty($_GET['end_year']) ? (int)$_GET['end_year'] : $currentYear;
+        if ($startYear > $endYear) {
+            $startYear = $endYear - 4;
+        }
+        $startYear = max(2000, min($startYear, 2100));
+        $endYear = max(2000, min($endYear, 2100));
+
+        $report = $this->reportService->generateExpensesByCategoryEvolution($condominiumId, $startYear, $endYear);
+
+        // Build chart datasets: one per category with values per year
+        $chartDatasets = [];
+        $colors = [
+            'rgba(220, 53, 69, 0.8)', 'rgba(13, 110, 253, 0.8)', 'rgba(25, 135, 84, 0.8)',
+            'rgba(255, 193, 7, 0.8)', 'rgba(13, 202, 240, 0.8)', 'rgba(111, 66, 193, 0.8)',
+            'rgba(253, 126, 20, 0.8)', 'rgba(214, 51, 132, 0.8)', 'rgba(32, 201, 151, 0.8)',
+            'rgba(108, 117, 125, 0.8)'
+        ];
+        $i = 0;
+        foreach ($report['categories'] as $cat) {
+            $values = [];
+            foreach ($report['years'] as $y) {
+                $values[] = (float)($report['data'][$cat][$y] ?? 0);
+            }
+            $color = $colors[$i % count($colors)];
+            $chartDatasets[] = [
+                'label' => $cat,
+                'data' => $values,
+                'backgroundColor' => $color,
+                'borderColor' => str_replace('0.8', '1', $color),
+                'borderWidth' => 1,
+                'fill' => false
+            ];
+            $i++;
+        }
+
+        $this->loadPageTranslations('reports');
+        $this->data += [
+            'viewName' => 'pages/finances/reports-expenses-by-category-evolution.html.twig',
+            'page' => ['titulo' => 'Despesas por categoria - evolução'],
+            'condominium' => $condominium,
+            'report' => $report,
+            'start_year' => $startYear,
+            'end_year' => $endYear,
+            'current_year' => $currentYear,
+            'chart_labels' => $report['years'],
+            'chart_datasets' => $chartDatasets,
+            'csrf_token' => Security::generateCSRFToken()
+        ];
+        $this->renderMainTemplate();
+    }
+
+    /**
+     * Export evolution report as HTML (for "Guardar nos Documentos"). GET, returns JSON { html, title }.
+     */
+    public function expensesByCategoryEvolutionExportHtml(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $currentYear = (int)date('Y');
+        $startYear = !empty($_GET['start_year']) ? (int)$_GET['start_year'] : $currentYear - 4;
+        $endYear = !empty($_GET['end_year']) ? (int)$_GET['end_year'] : $currentYear;
+        if ($startYear > $endYear) {
+            $startYear = $endYear - 4;
+        }
+        $startYear = max(2000, min($startYear, 2100));
+        $endYear = max(2000, min($endYear, 2100));
+
+        $report = $this->reportService->generateExpensesByCategoryEvolution($condominiumId, $startYear, $endYear);
+        $title = 'Despesas por categoria - evolução ' . $startYear . '-' . $endYear;
+        $html = $this->renderExpensesByCategoryEvolutionHtml($report, $startYear, $endYear);
+
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => true, 'html' => $html, 'title' => $title]);
+        exit;
+    }
+
     public function cashFlow(int $condominiumId)
     {
         AuthMiddleware::require();
@@ -726,6 +822,202 @@ class ReportController extends Controller
         </body>
         </html>";
 
+        return $html;
+    }
+
+    /**
+     * Render expenses by category evolution report as standalone HTML (table with variation).
+     */
+    protected function renderExpensesByCategoryEvolutionHtml(array $report, int $startYear, int $endYear): string
+    {
+        $years = $report['years'];
+        $categories = $report['categories'];
+        $data = $report['data'];
+        $totalsByYear = $report['totals_by_year'];
+
+        $html = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <title>Despesas por categoria - evolução {$startYear}-{$endYear}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; }
+                h1 { color: #333; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+                th { background-color: #f2f2f2; text-align: left; }
+                td.text-end { text-align: right; }
+                .small { font-size: 0.85em; }
+                .var-up { color: #dc3545; }
+                .var-down { color: #28a745; }
+                .total-row { font-weight: bold; background-color: #e7e6e6; }
+            </style>
+        </head>
+        <body>
+            <h1>Despesas por categoria - evolução ({$startYear}–{$endYear})</h1>
+            <p><em>Valores em €. Variação anual em % face ao ano anterior.</em></p>
+            <table>
+                <tr>
+                    <th>Categoria</th>";
+        foreach ($years as $y) {
+            $html .= "<th class='text-end'>{$y}</th>";
+        }
+        $html .= "
+                    <th class='text-end'>Total período</th>
+                </tr>";
+
+        foreach ($categories as $cat) {
+            $catTotal = 0;
+            $html .= "<tr><td>" . htmlspecialchars($cat) . "</td>";
+            $prevVal = null;
+            foreach ($years as $i => $y) {
+                $val = (float)($data[$cat][$y] ?? 0);
+                $catTotal += $val;
+                $varPct = null;
+                if ($i > 0 && isset($data[$cat][$years[$i - 1]]) && (float)$data[$cat][$years[$i - 1]] != 0) {
+                    $prevVal = (float)$data[$cat][$years[$i - 1]];
+                    $varPct = (($val - $prevVal) / $prevVal) * 100;
+                }
+                $varClass = $varPct !== null ? ($varPct > 0 ? 'var-up' : 'var-down') : '';
+                $varStr = $varPct !== null ? (($varPct >= 0 ? '+' : '') . number_format($varPct, 1, ',', '.') . '%') : '—';
+                $html .= "<td class='text-end'>€" . number_format($val, 2, ',', '.');
+                if ($varPct !== null) {
+                    $html .= "<br><span class='small {$varClass}'>{$varStr}</span>";
+                }
+                $html .= "</td>";
+            }
+            $html .= "<td class='text-end'>€" . number_format($catTotal, 2, ',', '.') . "</td></tr>";
+        }
+
+        $html .= "<tr class='total-row'><td>Total por ano</td>";
+        $periodTotal = 0;
+        $prevTot = null;
+        foreach ($years as $i => $y) {
+            $tot = (float)($totalsByYear[$y] ?? 0);
+            $periodTotal += $tot;
+            $varPct = null;
+            if ($i > 0 && isset($totalsByYear[$years[$i - 1]]) && (float)$totalsByYear[$years[$i - 1]] != 0) {
+                $prevTot = (float)$totalsByYear[$years[$i - 1]];
+                $varPct = (($tot - $prevTot) / $prevTot) * 100;
+            }
+            $varClass = $varPct !== null ? ($varPct > 0 ? 'var-up' : 'var-down') : '';
+            $varStr = $varPct !== null ? (($varPct >= 0 ? '+' : '') . number_format($varPct, 1, ',', '.') . '%') : '—';
+            $html .= "<td class='text-end'>€" . number_format($tot, 2, ',', '.');
+            if ($varPct !== null) {
+                $html .= "<br><span class='small {$varClass}'>{$varStr}</span>";
+            }
+            $html .= "</td>";
+        }
+        $html .= "<td class='text-end'>€" . number_format($periodTotal, 2, ',', '.') . "</td></tr>";
+        $html .= "
+            </table>
+        </body>
+        </html>";
+        return $html;
+    }
+
+    /**
+     * Render evolution report HTML for PDF: includes line chart SVG + table.
+     */
+    protected function renderExpensesByCategoryEvolutionHtmlForPdf(array $report, int $startYear, int $endYear): string
+    {
+        $years = $report['years'];
+        $categories = $report['categories'];
+        $data = $report['data'];
+        $totalsByYear = $report['totals_by_year'];
+
+        $datasets = [];
+        foreach ($categories as $cat) {
+            $values = [];
+            foreach ($years as $y) {
+                $values[] = (float)($data[$cat][$y] ?? 0);
+            }
+            $datasets[] = ['label' => $cat, 'data' => $values];
+        }
+
+        $chartSvg = $this->generateLineChartSvg($years, $datasets, 800, 400);
+
+        $html = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <title>Despesas por categoria - evolução {$startYear}-{$endYear}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; }
+                h1 { color: #333; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+                th { background-color: #f2f2f2; text-align: left; }
+                td.text-end { text-align: right; }
+                .small { font-size: 0.85em; }
+                .var-up { color: #dc3545; }
+                .var-down { color: #28a745; }
+                .total-row { font-weight: bold; background-color: #e7e6e6; }
+                .chart-container { margin: 20px 0; }
+            </style>
+        </head>
+        <body>
+            <h1>Despesas por categoria - evolução ({$startYear}–{$endYear})</h1>
+            <p><em>Valores em €. Variação anual em % face ao ano anterior.</em></p>
+            <div class='chart-container'>" . $chartSvg . "</div>
+            <table>
+                <tr>
+                    <th>Categoria</th>";
+        foreach ($years as $y) {
+            $html .= "<th class='text-end'>{$y}</th>";
+        }
+        $html .= "
+                    <th class='text-end'>Total período</th>
+                </tr>";
+
+        foreach ($categories as $cat) {
+            $catTotal = 0;
+            $html .= "<tr><td>" . htmlspecialchars($cat) . "</td>";
+            $prevVal = null;
+            foreach ($years as $i => $y) {
+                $val = (float)($data[$cat][$y] ?? 0);
+                $catTotal += $val;
+                $varPct = null;
+                if ($i > 0 && isset($data[$cat][$years[$i - 1]]) && (float)$data[$cat][$years[$i - 1]] != 0) {
+                    $prevVal = (float)$data[$cat][$years[$i - 1]];
+                    $varPct = (($val - $prevVal) / $prevVal) * 100;
+                }
+                $varClass = $varPct !== null ? ($varPct > 0 ? 'var-up' : 'var-down') : '';
+                $varStr = $varPct !== null ? (($varPct >= 0 ? '+' : '') . number_format($varPct, 1, ',', '.') . '%') : '—';
+                $html .= "<td class='text-end'>€" . number_format($val, 2, ',', '.');
+                if ($varPct !== null) {
+                    $html .= "<br><span class='small {$varClass}'>{$varStr}</span>";
+                }
+                $html .= "</td>";
+            }
+            $html .= "<td class='text-end'>€" . number_format($catTotal, 2, ',', '.') . "</td></tr>";
+        }
+
+        $html .= "<tr class='total-row'><td>Total por ano</td>";
+        $periodTotal = 0;
+        foreach ($years as $i => $y) {
+            $tot = (float)($totalsByYear[$y] ?? 0);
+            $periodTotal += $tot;
+            $varPct = null;
+            if ($i > 0 && isset($totalsByYear[$years[$i - 1]]) && (float)$totalsByYear[$years[$i - 1]] != 0) {
+                $prevTot = (float)$totalsByYear[$years[$i - 1]];
+                $varPct = (($tot - $prevTot) / $prevTot) * 100;
+            }
+            $varClass = $varPct !== null ? ($varPct > 0 ? 'var-up' : 'var-down') : '';
+            $varStr = $varPct !== null ? (($varPct >= 0 ? '+' : '') . number_format($varPct, 1, ',', '.') . '%') : '—';
+            $html .= "<td class='text-end'>€" . number_format($tot, 2, ',', '.');
+            if ($varPct !== null) {
+                $html .= "<br><span class='small {$varClass}'>{$varStr}</span>";
+            }
+            $html .= "</td>";
+        }
+        $html .= "<td class='text-end'>€" . number_format($periodTotal, 2, ',', '.') . "</td></tr>";
+        $html .= "
+            </table>
+        </body>
+        </html>";
         return $html;
     }
 
@@ -1855,8 +2147,13 @@ class ReportController extends Controller
                     
                 case 'excel':
                     // Regenerate report data for Excel export
-                    $startDate = $reportParams['start_date'] ?? date('Y-01-01');
-                    $endDate = $reportParams['end_date'] ?? date('Y-12-31');
+                    if ($reportType === 'expenses-by-category-evolution' && isset($reportParams['start_year'], $reportParams['end_year'])) {
+                        $startDate = $reportParams['start_year'] . '-01-01';
+                        $endDate = $reportParams['end_year'] . '-12-31';
+                    } else {
+                        $startDate = $reportParams['start_date'] ?? date('Y-01-01');
+                        $endDate = $reportParams['end_date'] ?? date('Y-12-31');
+                    }
                     $fileContent = $this->generateExcelContent($condominiumId, $reportType, $startDate, $endDate, $reportParams);
                     if (empty($fileContent)) {
                         $this->jsonError('Erro ao gerar conteúdo Excel', 500);
@@ -2104,6 +2401,12 @@ class ReportController extends Controller
             case 'expenses':
                 $report = $this->reportService->generateExpensesByCategory($condominiumId, $startDate, $endDate);
                 return $this->renderExpensesReportHtmlForPdf($report, $year);
+
+            case 'expenses-by-category-evolution':
+                $startYear = (int)($params['start_year'] ?? date('Y') - 4);
+                $endYear = (int)($params['end_year'] ?? date('Y'));
+                $report = $this->reportService->generateExpensesByCategoryEvolution($condominiumId, $startYear, $endYear);
+                return $this->renderExpensesByCategoryEvolutionHtmlForPdf($report, $startYear, $endYear);
                 
             case 'budget-vs-actual':
                 $report = $this->reportService->generateBudgetVsActual($condominiumId, $year);
@@ -2743,6 +3046,121 @@ class ReportController extends Controller
     }
 
     /**
+     * Generate line chart SVG (multiple series, e.g. evolution by category).
+     * $labels = X axis labels, $datasets = [ ['label' => '...', 'data' => [...]], ... ]
+     */
+    protected function generateLineChartSvg(array $labels, array $datasets, int $width = 800, int $height = 400): string
+    {
+        if (empty($labels) || empty($datasets)) {
+            return '';
+        }
+
+        $padding = 60;
+        $chartWidth = $width - ($padding * 2);
+        $chartHeight = $height - ($padding * 2);
+        $maxValue = 0;
+
+        foreach ($datasets as $dataset) {
+            if (isset($dataset['data'])) {
+                $maxValue = max($maxValue, max(array_map('floatval', $dataset['data'])));
+            }
+        }
+
+        if ($maxValue <= 0) {
+            $maxValue = 1;
+        }
+
+        $scale = $chartHeight / $maxValue;
+        $stepX = count($labels) > 1 ? $chartWidth / (count($labels) - 1) : $chartWidth;
+        $colors = ['#dc3545', '#0d6efd', '#198754', '#ffc107', '#0dcaf0', '#6f42c1', '#fd7e14', '#d63384', '#20c997', '#6c757d'];
+
+        $lines = '';
+        $points = '';
+        $xAxisLabels = '';
+        $yAxisLabels = '';
+
+        for ($i = 0; $i <= 5; $i++) {
+            $value = ($maxValue / 5) * $i;
+            $y = $height - $padding - (($value / $maxValue) * $chartHeight);
+            $yAxisLabels .= sprintf(
+                '<text x="%d" y="%d" font-size="10" font-family="Arial, sans-serif" text-anchor="end">%s</text>',
+                $padding - 10, $y + 4, number_format($value, 0, ',', '.')
+            );
+        }
+
+        foreach ($labels as $i => $label) {
+            $x = $padding + ($i * $stepX);
+            $labelShort = htmlspecialchars(substr((string)$label, 0, 12));
+            $xAxisLabels .= sprintf(
+                '<text x="%s" y="%d" font-size="10" font-family="Arial, sans-serif" text-anchor="middle">%s</text>',
+                round($x, 2), $height - $padding + 20, $labelShort
+            );
+        }
+
+        foreach ($datasets as $dsIndex => $dataset) {
+            $data = $dataset['data'] ?? [];
+            $color = $colors[$dsIndex % count($colors)];
+            $pathD = '';
+            $first = true;
+
+            foreach ($data as $i => $value) {
+                $val = (float)$value;
+                $x = $padding + ($i * $stepX);
+                $y = $height - $padding - (($val / $maxValue) * $chartHeight);
+                if ($first) {
+                    $pathD = 'M ' . round($x, 2) . ' ' . round($y, 2);
+                    $first = false;
+                } else {
+                    $pathD .= ' L ' . round($x, 2) . ' ' . round($y, 2);
+                }
+                $points .= sprintf(
+                    '<circle cx="%s" cy="%s" r="4" fill="%s" stroke="#fff" stroke-width="1"/>',
+                    round($x, 2), round($y, 2), $color
+                );
+            }
+
+            if ($pathD !== '') {
+                $lines .= sprintf(
+                    '<path d="%s" fill="none" stroke="%s" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+                    $pathD, $color
+                );
+            }
+        }
+
+        $legendY = 20;
+        $legendStartX = ($width / 2) - ((count($datasets) * 110) / 2);
+        $legend = '';
+        foreach ($datasets as $index => $dataset) {
+            $label = $dataset['label'] ?? 'Série ' . ($index + 1);
+            $color = $colors[$index % count($colors)];
+            $legend .= sprintf(
+                '<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="3"/>',
+                $legendStartX + ($index * 110), $legendY + 7, $legendStartX + ($index * 110) + 25, $legendY + 7, $color
+            );
+            $legend .= sprintf(
+                '<text x="%d" y="%d" font-size="11" font-family="Arial, sans-serif">%s</text>',
+                $legendStartX + ($index * 110) + 30, $legendY + 12, htmlspecialchars(substr($label, 0, 18))
+            );
+        }
+
+        $axes = sprintf(
+            '<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="#333" stroke-width="2"/>',
+            $padding, $padding, $padding, $height - $padding
+        );
+        $axes .= sprintf(
+            '<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="#333" stroke-width="2"/>',
+            $padding, $height - $padding, $width - $padding, $height - $padding
+        );
+
+        $svg = sprintf(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" width="%d" height="%d">%s%s%s%s%s%s</svg>',
+            $width, $height, $width, $height, $axes, $lines, $points, $xAxisLabels, $yAxisLabels, $legend
+        );
+
+        return '<img src="data:image/svg+xml;base64,' . base64_encode($svg) . '" alt="Gráfico evolução" style="max-width: 100%; height: auto; margin: 20px 0;" />';
+    }
+
+    /**
      * Generate Excel (XLSX) content for report using PhpSpreadsheet
      */
     protected function generateExcelContent(int $condominiumId, string $reportType, string $startDate, string $endDate, array $params): string
@@ -2896,6 +3314,42 @@ class ReportController extends Controller
                 }
                 $this->addExcelRow($sheet, $row, ['Total', '', number_format($total, 2, ',', '.')]);
                 $sheet->getStyle('A' . $row . ':C' . $row)->applyFromArray($totalStyle);
+                break;
+
+            case 'expenses-by-category-evolution':
+                $startYear = (int)date('Y', strtotime($startDate));
+                $endYear = (int)date('Y', strtotime($endDate));
+                $report = $this->reportService->generateExpensesByCategoryEvolution($condominiumId, $startYear, $endYear);
+                $sheet->setCellValue('A' . $row, 'Despesas por categoria - evolução');
+                $sheet->getStyle('A' . $row)->applyFromArray($titleStyle);
+                $row++;
+                $sheet->setCellValue('A' . $row, 'Período: ' . $startYear . ' a ' . $endYear);
+                $row += 2;
+                $headers = array_merge(['Categoria'], $report['years'], ['Total período']);
+                $this->addExcelHeader($sheet, $row, $headers, $headerStyle);
+                foreach ($report['categories'] as $cat) {
+                    $rowData = [$cat];
+                    $catTotal = 0;
+                    foreach ($report['years'] as $y) {
+                        $val = (float)($report['data'][$cat][$y] ?? 0);
+                        $catTotal += $val;
+                        $rowData[] = number_format($val, 2, ',', '.');
+                    }
+                    $rowData[] = number_format($catTotal, 2, ',', '.');
+                    $this->addExcelRow($sheet, $row, $rowData);
+                }
+                $totalRow = ['Total por ano'];
+                $periodTotal = 0;
+                foreach ($report['years'] as $y) {
+                    $t = (float)($report['totals_by_year'][$y] ?? 0);
+                    $periodTotal += $t;
+                    $totalRow[] = number_format($t, 2, ',', '.');
+                }
+                $totalRow[] = number_format($periodTotal, 2, ',', '.');
+                $this->addExcelRow($sheet, $row, $totalRow);
+                $colCount = count($headers);
+                $lastCol = chr(ord('A') + $colCount - 1);
+                $sheet->getStyle('A' . $row . ':' . $lastCol . $row)->applyFromArray($totalStyle);
                 break;
                 
             case 'cash-flow':
@@ -3140,6 +3594,7 @@ class ReportController extends Controller
             'balance' => 'Balancete',
             'fees' => 'Relatório de Quotas',
             'expenses' => 'Relatório de Despesas',
+            'expenses-by-category-evolution' => 'Despesas por categoria - evolução',
             'cash-flow' => 'Fluxo de Caixa',
             'budget-vs-actual' => 'Orçamento vs Realizado',
             'delinquency' => 'Relatório de Quotas em Atraso',
@@ -3159,6 +3614,8 @@ class ReportController extends Controller
             } else {
                 $description .= ' - Data: ' . $startDate;
             }
+        } elseif (isset($cleanParams['start_year']) && isset($cleanParams['end_year'])) {
+            $description .= ' - Período: ' . $cleanParams['start_year'] . ' a ' . $cleanParams['end_year'];
         } elseif (isset($cleanParams['year'])) {
             $description .= ' - Ano: ' . $cleanParams['year'];
             if (isset($cleanParams['month']) && !empty($cleanParams['month'])) {

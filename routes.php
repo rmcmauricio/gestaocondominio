@@ -250,6 +250,8 @@ $router->get('/condominiums/{condominium_id}/finances/historical-credits/{id}/ed
 $router->post('/condominiums/{condominium_id}/finances/historical-credits/{id}/update', 'App\Controllers\FinanceController@updateHistoricalCredit');
 $router->post('/condominiums/{condominium_id}/finances/historical-credits/{id}/delete', 'App\Controllers\FinanceController@deleteHistoricalCredit');
 $router->get('/condominiums/{condominium_id}/finances/reports', 'App\Controllers\ReportController@index');
+$router->get('/condominiums/{condominium_id}/finances/reports/expenses-by-category-evolution', 'App\Controllers\ReportController@expensesByCategoryEvolution');
+$router->get('/condominiums/{condominium_id}/finances/reports/expenses-by-category-evolution/export-html', 'App\Controllers\ReportController@expensesByCategoryEvolutionExportHtml');
 $router->post('/condominiums/{condominium_id}/finances/reports/balance-sheet', 'App\Controllers\ReportController@balanceSheet');
 $router->post('/condominiums/{condominium_id}/finances/reports/fees', 'App\Controllers\ReportController@feesReport');
 $router->post('/condominiums/{condominium_id}/finances/reports/expenses', 'App\Controllers\ReportController@expensesReport');

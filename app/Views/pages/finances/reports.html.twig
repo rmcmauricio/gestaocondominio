@@ -19,6 +19,17 @@
         </div>
     {% else %}
     
+    <!-- Relatório rápido: Despesas por categoria - evolução -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-body">
+            <h5 class="card-title"><i class="bi bi-graph-up-arrow"></i> Despesas por categoria - evolução</h5>
+            <p class="card-text text-muted small">Gráfico e tabela da evolução das despesas por categoria ao longo dos anos.</p>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/expenses-by-category-evolution" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-bar-chart-line"></i> Abrir relatório
+            </a>
+        </div>
+    </div>
+
     <!-- Relatórios Personalizados -->
     <div class="card shadow-sm mt-4">
         <div class="card-header">
