@@ -187,13 +187,43 @@ class AuditManager
                         ':user_agent' => $userAgent
                     ]);
                 } else {
-                    // For specialized tables without new fields, try to insert with available fields
-                    error_log("Audit table {$auditTableName} does not have new fields and is not audit_logs. Skipping audit log.");
+                    // Fallback for audit_payments (and other specialized tables) without new fields
+                    self::insertLegacyAudit($db, $auditTableName, $data, $ipAddress, $userAgent, $tableName);
                 }
             }
         } catch (\Exception $e) {
             // Log error but don't break the flow
             error_log("Audit log error: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Insert into specialized audit tables that don't have old_data/new_data/table_name/operation.
+     * Uses only columns that exist (e.g. audit_payments: user_id, action, description, ip_address, user_agent).
+     */
+    public static function insertLegacyAudit(\PDO $db, string $auditTableName, array $data, ?string $ipAddress, ?string $userAgent, string $tableName): void
+    {
+        if ($auditTableName === 'audit_payments') {
+            $paymentId = ($tableName === 'payments' && isset($data['model_id'])) ? $data['model_id'] : null;
+            $stmt = $db->prepare("
+                INSERT INTO audit_payments (
+                    user_id, action, description, ip_address, user_agent, payment_id
+                )
+                VALUES (
+                    :user_id, :action, :description, :ip_address, :user_agent, :payment_id
+                )
+            ");
+            $stmt->execute([
+                ':user_id' => $data['user_id'] ?? null,
+                ':action' => $data['action'] ?? 'update',
+                ':description' => $data['description'] ?? null,
+                ':ip_address' => $ipAddress,
+                ':user_agent' => $userAgent,
+                ':payment_id' => $paymentId
+            ]);
+            return;
+        }
+        // Other specialized tables: log to avoid silent skip (run migration to add new fields)
+        error_log("Audit table {$auditTableName} does not have new fields and is not audit_logs. Skipping audit log. Run migration to add old_data/new_data/table_name/operation.");
     }
 }

@@ -336,8 +336,8 @@ trait Auditable
                         ':user_agent' => $userAgent
                     ]);
                 } else {
-                    // For specialized tables without new fields, try to insert with available fields
-                    error_log("Audit table {$auditTableName} does not have new fields and is not audit_logs. Skipping audit log.");
+                    // Fallback for audit_payments (and other specialized tables) without new fields
+                    \App\Core\AuditManager::insertLegacyAudit($this->db, $auditTableName, $data, $ipAddress, $userAgent, $tableName);
                 }
             }
         } catch (\Exception $e) {

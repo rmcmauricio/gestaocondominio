@@ -43,6 +43,7 @@ jobs:
             --exclude=".htaccess" \
             --exclude=".git/" \
             --exclude=".github/" \
+            --exclude="storage/" \
             -e "ssh -p ${SSH_PORT} -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             ./ \
             "${SSH_USER}@${SSH_HOST}:${APP_DIR}"
