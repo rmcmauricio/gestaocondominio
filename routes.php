@@ -181,14 +181,22 @@ $router->get('/webhooks/ifthenpay', 'App\Controllers\WebhookController@ifthenpay
 
 // Finance routes
 $router->get('/condominiums/{condominium_id}/finances', 'App\Controllers\FinanceController@index');
+$router->get('/condominiums/{condominium_id}/budgets', 'App\Controllers\FinanceController@indexBudgets');
 $router->get('/condominiums/{condominium_id}/budgets/create', 'App\Controllers\FinanceController@createBudget');
 $router->post('/condominiums/{condominium_id}/budgets', 'App\Controllers\FinanceController@storeBudget');
 $router->get('/condominiums/{condominium_id}/budgets/{id}', 'App\Controllers\FinanceController@showBudget');
 $router->get('/condominiums/{condominium_id}/budgets/{id}/edit', 'App\Controllers\FinanceController@editBudget');
 $router->post('/condominiums/{condominium_id}/budgets/{id}', 'App\Controllers\FinanceController@updateBudget');
 $router->post('/condominiums/{condominium_id}/budgets/{id}/approve', 'App\Controllers\FinanceController@approveBudget');
-$router->get('/condominiums/{condominium_id}/expenses/create', 'App\Controllers\FinanceController@createExpense');
-$router->post('/condominiums/{condominium_id}/expenses', 'App\Controllers\FinanceController@storeExpense');
+$router->get('/condominiums/{condominium_id}/expenses', 'App\Controllers\FinanceController@indexExpenses');
+$router->get('/condominiums/{condominium_id}/expenses/create', 'App\Controllers\FinanceController@redirectExpensesToTransactions');
+$router->post('/condominiums/{condominium_id}/expenses/{transaction_id}/set-category', 'App\Controllers\FinanceController@setExpenseCategory');
+$router->post('/condominiums/{condominium_id}/expenses/{transaction_id}/mark-as-transfer', 'App\Controllers\FinanceController@markExpenseAsTransfer');
+$router->get('/condominiums/{condominium_id}/expenses/categories', 'App\Controllers\FinanceController@indexExpenseCategories');
+$router->post('/condominiums/{condominium_id}/expenses/categories', 'App\Controllers\FinanceController@storeExpenseCategory');
+$router->get('/condominiums/{condominium_id}/expenses/categories/{id}/edit', 'App\Controllers\FinanceController@editExpenseCategory');
+$router->post('/condominiums/{condominium_id}/expenses/categories/{id}', 'App\Controllers\FinanceController@updateExpenseCategory');
+$router->post('/condominiums/{condominium_id}/expenses/categories/{id}/delete', 'App\Controllers\FinanceController@deleteExpenseCategory');
 $router->get('/condominiums/{condominium_id}/fees', 'App\Controllers\FinanceController@fees');
 $router->get('/condominiums/{condominium_id}/fraction-accounts', 'App\Controllers\FinanceController@fractionAccounts');
 $router->get('/condominiums/{condominium_id}/fraction-accounts/{fraction_id}', 'App\Controllers\FinanceController@fractionAccountShow');
@@ -214,13 +222,20 @@ $router->get('/receipts', 'App\Controllers\ReceiptController@myReceipts');
 $router->get('/condominiums/{condominium_id}/receipts/{id}', 'App\Controllers\ReceiptController@show');
 $router->get('/condominiums/{condominium_id}/receipts/{id}/download', 'App\Controllers\ReceiptController@download');
 
-// Revenue routes
+// Revenue routes (categories before {id} to avoid conflicts)
 $router->get('/condominiums/{condominium_id}/finances/revenues', 'App\Controllers\FinanceController@revenues');
 $router->get('/condominiums/{condominium_id}/finances/revenues/create', 'App\Controllers\FinanceController@createRevenue');
 $router->post('/condominiums/{condominium_id}/finances/revenues/store', 'App\Controllers\FinanceController@storeRevenue');
+$router->get('/condominiums/{condominium_id}/finances/revenues/categories', 'App\Controllers\FinanceController@indexRevenueCategories');
+$router->post('/condominiums/{condominium_id}/finances/revenues/categories', 'App\Controllers\FinanceController@storeRevenueCategory');
+$router->get('/condominiums/{condominium_id}/finances/revenues/categories/{id}/edit', 'App\Controllers\FinanceController@editRevenueCategory');
+$router->post('/condominiums/{condominium_id}/finances/revenues/categories/{id}', 'App\Controllers\FinanceController@updateRevenueCategory');
+$router->post('/condominiums/{condominium_id}/finances/revenues/categories/{id}/delete', 'App\Controllers\FinanceController@deleteRevenueCategory');
 $router->get('/condominiums/{condominium_id}/finances/revenues/{id}/edit', 'App\Controllers\FinanceController@editRevenue');
 $router->post('/condominiums/{condominium_id}/finances/revenues/{id}/update', 'App\Controllers\FinanceController@updateRevenue');
 $router->post('/condominiums/{condominium_id}/finances/revenues/{id}/delete', 'App\Controllers\FinanceController@deleteRevenue');
+$router->post('/condominiums/{condominium_id}/finances/revenues/{revenue_id}/set-category', 'App\Controllers\FinanceController@setRevenueCategory');
+$router->post('/condominiums/{condominium_id}/finances/revenues/{transaction_id}/mark-as-transfer', 'App\Controllers\FinanceController@markRevenueAsTransfer');
 
 // Report routes
 $router->get('/condominiums/{condominium_id}/finances/historical-debts', 'App\Controllers\FinanceController@historicalDebts');
@@ -374,6 +389,7 @@ $router->post('/condominiums/{condominium_id}/financial-transactions/import/proc
 $router->get('/condominiums/{condominium_id}/financial-transactions/import/pending-fees/{fraction_id}', 'App\Controllers\FinancialTransactionController@getPendingFees');
 $router->get('/condominiums/{condominium_id}/financial-transactions/fraction-balance/{fraction_id}', 'App\Controllers\FinancialTransactionController@getFractionBalance');
 $router->post('/condominiums/{condominium_id}/financial-transactions/{id}/liquidate-quotas', 'App\Controllers\FinancialTransactionController@liquidateQuotas');
+$router->post('/condominiums/{condominium_id}/financial-transactions/{id}/set-category', 'App\Controllers\FinancialTransactionController@setCategory');
 
 // Vote routes
 $router->get('/condominiums/{condominium_id}/assemblies/{assembly_id}/votes/create-topic', 'App\Controllers\VoteController@createTopic');
@@ -597,6 +613,20 @@ $router->get('/admin/newsletter-subscribers', 'App\Controllers\SuperAdminControl
 // Demo Access Requests (super admin only)
 $router->get('/admin/demo-access-requests', 'App\Controllers\SuperAdminController@demoAccessRequests');
 $router->post('/admin/demo-access-requests/delete', 'App\Controllers\SuperAdminController@deleteExpiredDemoTokens');
+
+// Addon routes (only when addon is enabled)
+if (!empty($GLOBALS['enabled_addons']) && !empty($GLOBALS['addon_manifests'])) {
+    foreach ($GLOBALS['enabled_addons'] as $addonKey) {
+        $manifest = $GLOBALS['addon_manifests'][$addonKey] ?? null;
+        if (!$manifest || empty($manifest['folder'])) {
+            continue;
+        }
+        $routesFile = __DIR__ . '/addons/' . $manifest['folder'] . '/routes.php';
+        if (is_file($routesFile)) {
+            require $routesFile;
+        }
+    }
+}
 
 // Add your routes here
 

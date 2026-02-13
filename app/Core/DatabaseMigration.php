@@ -65,6 +65,59 @@ class DatabaseMigration
                 }
             }
         }
+
+        $this->runAddonMigrations($executedMigrations, $batch);
+    }
+
+    /**
+     * Run migrations for enabled addons (addons/AddonName/database/migrations/).
+     * Migration names are prefixed with addon_<key>_ to avoid collisions.
+     */
+    protected function runAddonMigrations(array $executedMigrations, int $batch): void
+    {
+        $addonsBase = dirname($this->migrationsPath, 2) . '/addons';
+        if (!is_dir($addonsBase)) {
+            return;
+        }
+        $enabledAddons = $GLOBALS['enabled_addons'] ?? [];
+        $manifests = $GLOBALS['addon_manifests'] ?? [];
+        if (empty($enabledAddons) || empty($manifests)) {
+            return;
+        }
+        foreach ($enabledAddons as $addonKey) {
+            $manifest = $manifests[$addonKey] ?? null;
+            if (!$manifest || empty($manifest['folder'])) {
+                continue;
+            }
+            $migrationsPath = $addonsBase . '/' . $manifest['folder'] . '/database/migrations';
+            if (!is_dir($migrationsPath)) {
+                continue;
+            }
+            $prefix = 'addon_' . $addonKey . '_';
+            $files = glob($migrationsPath . '/*.php');
+            sort($files);
+            foreach ($files as $file) {
+                $baseName = basename($file, '.php');
+                $migrationName = $prefix . $baseName;
+                if (in_array($migrationName, $executedMigrations)) {
+                    continue;
+                }
+                require_once $file;
+                $className = $this->getClassNameFromFile($file);
+                if (!class_exists($className)) {
+                    continue;
+                }
+                try {
+                    $migration = new $className($this->db);
+                    $migration->up();
+                    $this->recordMigration($migrationName, $batch);
+                    echo "Addon migration {$migrationName} executed successfully.\n";
+                } catch (\Exception $e) {
+                    echo "ERROR: Addon migration {$migrationName} failed: " . $e->getMessage() . "\n";
+                    throw new \Exception("Addon migration {$migrationName} failed: " . $e->getMessage());
+                }
+            }
+        }
     }
 
     public function rollback(int $batches = 1): void

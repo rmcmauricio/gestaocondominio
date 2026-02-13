@@ -28,31 +28,37 @@ class StorageController extends Controller
         // Decode path (may contain URL-encoded slashes)
         $path = urldecode($path);
         
-        // Security: Only allow files from condominiums directory
-        if (strpos($path, 'condominiums/') !== 0) {
-            http_response_code(403);
-            die('Access denied');
-        }
-
-        // Extract condominium ID from path
-        // Path format: condominiums/{id}/...
         $pathParts = explode('/', $path);
         if (count($pathParts) < 2) {
             http_response_code(404);
             die('File not found');
         }
 
-        $condominiumId = (int)$pathParts[1];
-        
-        // Verify user has access to this condominium
-        try {
-            RoleMiddleware::requireCondominiumAccess($condominiumId);
-        } catch (\Exception $e) {
-            http_response_code(403);
-            die('Access denied');
+        // Support paths: support/tickets/{user_id}/... - allow if current user is owner or super_admin
+        if (strpos($path, 'support/tickets/') === 0) {
+            $ownerId = (int)($pathParts[2] ?? 0);
+            $userId = (int)($_SESSION['user']['id'] ?? 0);
+            $role = $_SESSION['user']['role'] ?? '';
+            if ($ownerId !== $userId && $role !== 'super_admin') {
+                http_response_code(403);
+                die('Access denied');
+            }
+            $filePath = $this->fileStorageService->getFilePath($path);
+        } else {
+            // Security: Only allow files from condominiums directory
+            if (strpos($path, 'condominiums/') !== 0) {
+                http_response_code(403);
+                die('Access denied');
+            }
+            $condominiumId = (int)$pathParts[1];
+            try {
+                RoleMiddleware::requireCondominiumAccess($condominiumId);
+            } catch (\Exception $e) {
+                http_response_code(403);
+                die('Access denied');
+            }
+            $filePath = $this->fileStorageService->getFilePath($path);
         }
-
-        $filePath = $this->fileStorageService->getFilePath($path);
         
         if (!file_exists($filePath)) {
             http_response_code(404);

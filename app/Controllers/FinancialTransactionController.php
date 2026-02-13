@@ -20,6 +20,8 @@ use App\Services\LiquidationService;
 use App\Services\ReceiptService;
 use App\Services\AuditService;
 use App\Services\FinancialTransactionImportService;
+use App\Models\RevenueCategory;
+use App\Models\ExpenseCategory;
 
 class FinancialTransactionController extends Controller
 {
@@ -255,6 +257,11 @@ class FinancialTransactionController extends Controller
             $queryParams[] = 'to_date=' . urlencode($filters['to_date']);
         }
         $baseQuery = implode('&', $queryParams);
+
+        $revenueCategoryModel = new RevenueCategory();
+        $expenseCategoryModel = new ExpenseCategory();
+        $revenueCategories = $revenueCategoryModel->getByCondominium($condominiumId);
+        $expenseCategories = $expenseCategoryModel->getByCondominium($condominiumId);
         
         $this->data += [
             'viewName' => 'pages/financial-transactions/index.html.twig',
@@ -266,6 +273,8 @@ class FinancialTransactionController extends Controller
             'filters' => $filters,
             'fractions' => $fractions,
             'liquidatedFeesByTransaction' => $liquidatedFeesByTransaction,
+            'revenue_categories' => $revenueCategories,
+            'expense_categories' => $expenseCategories,
             'is_admin' => $isAdmin,
             'pagination' => [
                 'current_page' => $page,
@@ -301,9 +310,15 @@ class FinancialTransactionController extends Controller
 
         $fractionModel = new Fraction();
         $fractions = $fractionModel->getByCondominiumId($condominiumId);
-        
-        // Get preselected account from query parameter
+
+        $expenseCategoryModel = new \App\Models\ExpenseCategory();
+        $expenseCategories = $expenseCategoryModel->getByCondominium($condominiumId);
+        $revenueCategoryModel = new RevenueCategory();
+        $revenueCategories = $revenueCategoryModel->getByCondominium($condominiumId);
+
+        // Get preselected account and type from query parameters
         $preselectedAccountId = !empty($_GET['bank_account_id']) ? (int)$_GET['bank_account_id'] : null;
+        $preselectedTransactionType = !empty($_GET['transaction_type']) && in_array($_GET['transaction_type'], ['income', 'expense']) ? $_GET['transaction_type'] : null;
 
         $this->loadPageTranslations('finances');
         
@@ -313,8 +328,11 @@ class FinancialTransactionController extends Controller
             'condominium' => $condominium,
             'accounts' => $accounts,
             'fractions' => $fractions,
+            'revenue_categories' => $revenueCategories,
+            'expense_categories' => $expenseCategories,
             'pendingFees' => $pendingFees,
             'preselected_account_id' => $preselectedAccountId,
+            'preselected_transaction_type' => $preselectedTransactionType,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
@@ -401,23 +419,23 @@ class FinancialTransactionController extends Controller
         }
 
         // Handle transfer
-        $transferToAccountId = null;
+        $transferAccountId = null;
         if ($transactionType === 'transfer') {
-            $transferToAccountId = (int)($_POST['transfer_to_account_id'] ?? 0);
+            $transferAccountId = (int)($_POST['transfer_account_id'] ?? 0);
             
-            if ($transferToAccountId <= 0) {
+            if ($transferAccountId <= 0) {
                 $_SESSION['error'] = 'Por favor, selecione a conta de destino.';
                 header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create');
                 exit;
             }
 
-            if ($transferToAccountId === $bankAccountId) {
+            if ($transferAccountId === $bankAccountId) {
                 $_SESSION['error'] = 'A conta de origem e destino não podem ser a mesma.';
                 header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create');
                 exit;
             }
 
-            $toAccount = $this->bankAccountModel->findById($transferToAccountId);
+            $toAccount = $this->bankAccountModel->findById($transferAccountId);
             if (!$toAccount || $toAccount['condominium_id'] != $condominiumId) {
                 $_SESSION['error'] = 'Conta de destino inválida.';
                 header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create');
@@ -447,6 +465,17 @@ class FinancialTransactionController extends Controller
             }
         }
 
+        // Ensure expense category exists for expenses
+        if ($transactionType === 'expense' && $category !== '') {
+            $expenseCategoryModel = new \App\Models\ExpenseCategory();
+            $expenseCategoryModel->getOrCreate($condominiumId, $category);
+        }
+        // Ensure revenue category exists for income
+        if ($transactionType === 'income' && $category !== '') {
+            $revenueCategoryModel = new \App\Models\RevenueCategory();
+            $revenueCategoryModel->getOrCreate($condominiumId, $category);
+        }
+
         try {
             global $db;
             $db->beginTransaction();
@@ -465,19 +494,17 @@ class FinancialTransactionController extends Controller
                     'category' => $category ?: 'Transferência',
                     'reference' => $reference,
                     'related_type' => 'transfer',
-                    'related_id' => $transferToAccountId,
-                    'transfer_to_account_id' => $transferToAccountId,
+                    'transfer_account_id' => $transferAccountId,
                     'created_by' => $userId
                 ]);
 
                 // Create income transaction (to account)
-                $toAccount = $this->bankAccountModel->findById($transferToAccountId);
-                $toAccountName = $toAccount['name'] ?? 'Conta';
+                $toAccount = $this->bankAccountModel->findById($transferAccountId);
                 $fromAccountName = $account['name'] ?? 'Conta';
                 
-                $this->transactionModel->create([
+                $toTransactionId = $this->transactionModel->create([
                     'condominium_id' => $condominiumId,
-                    'bank_account_id' => $transferToAccountId,
+                    'bank_account_id' => $transferAccountId,
                     'transaction_type' => 'income',
                     'amount' => $amount,
                     'transaction_date' => $transactionDate,
@@ -486,9 +513,11 @@ class FinancialTransactionController extends Controller
                     'reference' => $reference,
                     'related_type' => 'transfer',
                     'related_id' => $fromTransactionId,
-                    'transfer_to_account_id' => null,
+                    'transfer_account_id' => $bankAccountId,
                     'created_by' => $userId
                 ]);
+                
+                $this->transactionModel->update($fromTransactionId, ['related_id' => $toTransactionId]);
 
                 $db->commit();
                 $_SESSION['success'] = 'Transferência realizada com sucesso!';
@@ -517,7 +546,7 @@ class FinancialTransactionController extends Controller
                     'reference' => $ref,
                     'related_type' => 'fraction_account',
                     'related_id' => $accountId,
-                    'transfer_to_account_id' => null,
+                    'transfer_account_id' => null,
                     'created_by' => $userId
                 ]);
 
@@ -575,7 +604,7 @@ class FinancialTransactionController extends Controller
                     'reference' => $reference,
                     'related_type' => 'manual',
                     'related_id' => null,
-                    'transfer_to_account_id' => null,
+                    'transfer_account_id' => null,
                     'created_by' => $userId
                 ]);
 
@@ -609,11 +638,11 @@ class FinancialTransactionController extends Controller
         $stmt = $db->prepare("
             SELECT ft.*, 
                    ba.name as account_name, ba.account_type,
-                   ba2.name as transfer_to_account_name,
+                   ba2.name as transfer_account_name,
                    fr.identifier as fraction_identifier
             FROM financial_transactions ft
             LEFT JOIN bank_accounts ba ON ba.id = ft.bank_account_id
-            LEFT JOIN bank_accounts ba2 ON ba2.id = ft.transfer_to_account_id
+            LEFT JOIN bank_accounts ba2 ON ba2.id = ft.transfer_account_id
             LEFT JOIN fractions fr ON fr.id = ft.fraction_id
             WHERE ft.id = :id AND ft.condominium_id = :condominium_id
         ");
@@ -695,19 +724,25 @@ class FinancialTransactionController extends Controller
             exit;
         }
 
-        // Don't allow editing transactions linked to fee payments or fraction account flow
-        if ($this->transactionModel->isLinkedToFeePayment($id)) {
-            $_SESSION['error'] = 'Não é possível editar movimentos associados a pagamentos de quotas.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
-            exit;
-        }
+        // Don't allow editing fraction_account (liquidation) movements
         if (($transaction['related_type'] ?? '') === 'fraction_account') {
             $_SESSION['error'] = 'Não é possível editar movimentos de liquidação de quotas (conta da fração).';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
             exit;
         }
 
+        // Don't allow editing movements that have quotas associated (used for quota liquidation)
+        if ($this->transactionModel->isLinkedToFeePayment($id)) {
+            $_SESSION['error'] = 'Não é possível editar movimentos associados a pagamentos de quotas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
+            exit;
+        }
+
         $accounts = $this->bankAccountModel->getActiveAccounts($condominiumId);
+        $expenseCategoryModel = new \App\Models\ExpenseCategory();
+        $expenseCategories = $expenseCategoryModel->getByCondominium($condominiumId);
+        $revenueCategoryModel = new RevenueCategory();
+        $revenueCategories = $revenueCategoryModel->getByCondominium($condominiumId);
 
         $this->loadPageTranslations('finances');
         
@@ -717,6 +752,8 @@ class FinancialTransactionController extends Controller
             'condominium' => $condominium,
             'transaction' => $transaction,
             'accounts' => $accounts,
+            'revenue_categories' => $revenueCategories,
+            'expense_categories' => $expenseCategories,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
@@ -747,6 +784,13 @@ class FinancialTransactionController extends Controller
         $transaction = $this->transactionModel->findById($id);
         if (!$transaction || $transaction['condominium_id'] != $condominiumId) {
             $_SESSION['error'] = 'Movimento não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
+            exit;
+        }
+
+        // Don't allow editing movements that have quotas associated
+        if ($this->transactionModel->isLinkedToFeePayment($id)) {
+            $_SESSION['error'] = 'Não é possível editar movimentos associados a pagamentos de quotas.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
             exit;
         }
@@ -787,6 +831,8 @@ class FinancialTransactionController extends Controller
         $description = Security::sanitize($_POST['description'] ?? '');
         $category = Security::sanitize($_POST['category'] ?? '');
         $reference = Security::sanitize($_POST['reference'] ?? '');
+        $isTransfer = !empty($_POST['is_transfer']);
+        $transferAccountId = $isTransfer ? (int)($_POST['transfer_account_id'] ?? 0) : 0;
 
         // Validation
         if ($bankAccountId <= 0) {
@@ -808,6 +854,20 @@ class FinancialTransactionController extends Controller
             exit;
         }
 
+        if ($isTransfer) {
+            if ($transferAccountId <= 0 || $transferAccountId == $bankAccountId) {
+                $_SESSION['error'] = 'Selecione uma conta diferente para a transferência.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/' . $id . '/edit');
+                exit;
+            }
+            $toAccount = $this->bankAccountModel->findById($transferAccountId);
+            if (!$toAccount || $toAccount['condominium_id'] != $condominiumId) {
+                $_SESSION['error'] = 'Conta da transferência inválida.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/' . $id . '/edit');
+                exit;
+            }
+        }
+
         if ($amount <= 0) {
             $_SESSION['error'] = 'O valor deve ser maior que zero.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/' . $id . '/edit');
@@ -820,25 +880,236 @@ class FinancialTransactionController extends Controller
             exit;
         }
 
-        try {
-            $this->transactionModel->update($id, [
-                'bank_account_id' => $bankAccountId,
-                'transaction_type' => $transactionType,
-                'amount' => $amount,
-                'transaction_date' => $transactionDate,
-                'description' => $description,
-                'category' => $category,
-                'reference' => $reference
-            ]);
+        $wasTransfer = isset($transaction['related_type']) && $transaction['related_type'] === 'transfer';
+        $pairedId = !empty($transaction['related_id']) ? (int)$transaction['related_id'] : null;
+        $userId = AuthMiddleware::userId();
 
-            $_SESSION['success'] = 'Movimento financeiro atualizado com sucesso!';
+        try {
+            global $db;
+            if (isset($db)) {
+                $db->beginTransaction();
+            }
+            if ($isTransfer) {
+                $category = $category ?: 'Transferência';
+                if (!$wasTransfer) {
+                    // Add transfer: create paired movement
+                    if ($transactionType === 'income') {
+                        $pairedType = 'expense';
+                        $pairedAccountId = $transferAccountId;
+                        $pairedDesc = 'Transferência: ' . $description;
+                        $pairedTransferAccountId = $bankAccountId;
+                    } else {
+                        $pairedType = 'income';
+                        $pairedAccountId = $transferAccountId;
+                        $pairedDesc = 'Transferência recebida de ' . ($account['name'] ?? 'Conta') . ': ' . $description;
+                        $pairedTransferAccountId = $bankAccountId;
+                    }
+                    $newPairedId = $this->transactionModel->create([
+                        'condominium_id' => $condominiumId,
+                        'bank_account_id' => $pairedAccountId,
+                        'transaction_type' => $pairedType,
+                        'amount' => $amount,
+                        'transaction_date' => $transactionDate,
+                        'description' => $pairedDesc,
+                        'category' => 'Transferência',
+                        'reference' => $reference,
+                        'related_type' => 'transfer',
+                        'related_id' => $id,
+                        'transfer_account_id' => $pairedTransferAccountId,
+                        'created_by' => $userId
+                    ]);
+                    $this->transactionModel->update($id, [
+                        'bank_account_id' => $bankAccountId,
+                        'transaction_type' => $transactionType,
+                        'amount' => $amount,
+                        'transaction_date' => $transactionDate,
+                        'description' => $description,
+                        'category' => $category,
+                        'reference' => $reference,
+                        'related_type' => 'transfer',
+                        'related_id' => $newPairedId,
+                        'transfer_account_id' => $transferAccountId
+                    ]);
+                } elseif ($wasTransfer && $transferAccountId != ($transaction['transfer_account_id'] ?? 0)) {
+                    // Change transfer account: delete old paired, create new paired
+                    if ($pairedId) {
+                        $this->transactionModel->delete($pairedId);
+                    }
+                    if ($transactionType === 'income') {
+                        $pairedType = 'expense';
+                        $pairedAccountId = $transferAccountId;
+                        $pairedDesc = 'Transferência: ' . $description;
+                        $pairedTransferAccountId = $bankAccountId;
+                    } else {
+                        $pairedType = 'income';
+                        $pairedAccountId = $transferAccountId;
+                        $pairedDesc = 'Transferência recebida de ' . ($account['name'] ?? 'Conta') . ': ' . $description;
+                        $pairedTransferAccountId = $bankAccountId;
+                    }
+                    $newPairedId = $this->transactionModel->create([
+                        'condominium_id' => $condominiumId,
+                        'bank_account_id' => $pairedAccountId,
+                        'transaction_type' => $pairedType,
+                        'amount' => $amount,
+                        'transaction_date' => $transactionDate,
+                        'description' => $pairedDesc,
+                        'category' => 'Transferência',
+                        'reference' => $reference,
+                        'related_type' => 'transfer',
+                        'related_id' => $id,
+                        'transfer_account_id' => $pairedTransferAccountId,
+                        'created_by' => $userId
+                    ]);
+                    $this->transactionModel->update($id, [
+                        'bank_account_id' => $bankAccountId,
+                        'transaction_type' => $transactionType,
+                        'amount' => $amount,
+                        'transaction_date' => $transactionDate,
+                        'description' => $description,
+                        'category' => $category,
+                        'reference' => $reference,
+                        'related_type' => 'transfer',
+                        'related_id' => $newPairedId,
+                        'transfer_account_id' => $transferAccountId
+                    ]);
+                } else {
+                    // Same transfer account: update both movements (editing applies to both sides of the transfer)
+                    $this->transactionModel->update($id, [
+                        'bank_account_id' => $bankAccountId,
+                        'transaction_type' => $transactionType,
+                        'amount' => $amount,
+                        'transaction_date' => $transactionDate,
+                        'description' => $description,
+                        'category' => $category,
+                        'reference' => $reference,
+                        'related_type' => 'transfer',
+                        'related_id' => $pairedId,
+                        'transfer_account_id' => $transferAccountId
+                    ]);
+                    if ($pairedId) {
+                        $pairedDesc = $transactionType === 'income' ? ('Transferência: ' . $description) : ('Transferência recebida de ' . ($account['name'] ?? 'Conta') . ': ' . $description);
+                        $this->transactionModel->update($pairedId, [
+                            'amount' => $amount,
+                            'transaction_date' => $transactionDate,
+                            'description' => $pairedDesc,
+                            'reference' => $reference
+                        ]);
+                    }
+                }
+                $_SESSION['success'] = 'Movimento financeiro atualizado com sucesso!';
+            } else {
+                // Not transfer
+                if ($wasTransfer && $pairedId) {
+                    $this->transactionModel->delete($pairedId);
+                }
+                $this->transactionModel->update($id, [
+                    'bank_account_id' => $bankAccountId,
+                    'transaction_type' => $transactionType,
+                    'amount' => $amount,
+                    'transaction_date' => $transactionDate,
+                    'description' => $description,
+                    'category' => $category,
+                    'reference' => $reference,
+                    'related_type' => null,
+                    'related_id' => null,
+                    'transfer_account_id' => null
+                ]);
+                $_SESSION['success'] = 'Movimento financeiro atualizado com sucesso!';
+            }
+            if (isset($db)) {
+                $db->commit();
+            }
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
             exit;
         } catch (\Exception $e) {
+            if (isset($db)) {
+                $db->rollBack();
+            }
             $_SESSION['error'] = 'Erro ao atualizar movimento: ' . $e->getMessage();
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/' . $id . '/edit');
             exit;
         }
+    }
+
+    public function setCategory(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Método não permitido.']);
+                exit;
+            }
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
+            exit;
+        }
+
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Token de segurança inválido.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
+            exit;
+        }
+
+        $transaction = $this->transactionModel->findById($id);
+        if (!$transaction || $transaction['condominium_id'] != $condominiumId) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Movimento não encontrado.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Movimento não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
+            exit;
+        }
+
+        $type = $transaction['transaction_type'] ?? '';
+        if (!in_array($type, ['income', 'expense'])) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Tipo de movimento inválido.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Tipo de movimento inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
+            exit;
+        }
+
+        $category = trim($_POST['category'] ?? '');
+        $categoryValue = ($category === '' || strtolower($category) === '__none__') ? null : $category;
+
+        if ($type === 'income') {
+            $revenueCategoryModel = new RevenueCategory();
+            if ($categoryValue !== null && $categoryValue !== '') {
+                $revenueCategoryModel->getOrCreate($condominiumId, $categoryValue);
+            }
+        } else {
+            $expenseCategoryModel = new ExpenseCategory();
+            if ($categoryValue !== null && $categoryValue !== '') {
+                $expenseCategoryModel->getOrCreate($condominiumId, $categoryValue);
+            }
+        }
+
+        $this->transactionModel->update($id, ['category' => $categoryValue]);
+
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => true, 'category' => $categoryValue]);
+            exit;
+        }
+
+        $_SESSION['success'] = 'Categoria atribuída com sucesso.';
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
+        exit;
     }
 
     public function delete(int $condominiumId, int $id)
@@ -982,30 +1253,22 @@ class FinancialTransactionController extends Controller
                 }
             }
 
-            // If it's a transfer, delete both transactions
-            if ($transaction['related_type'] === 'transfer') {
-                $relatedId = $transaction['related_id'];
-                $transferToAccountId = $transaction['transfer_to_account_id'];
-                
-                // Find the paired transaction
-                if ($transaction['transaction_type'] === 'expense' && $relatedId) {
-                    // This is the "from" transaction, find the "to" transaction
-                    $pairedTransaction = $this->transactionModel->findById($relatedId);
+            // If it's a transfer, delete both legs (current movement and the paired movement on the other account)
+            if (($transaction['related_type'] ?? '') === 'transfer') {
+                $pairedId = !empty($transaction['related_id']) ? (int)$transaction['related_id'] : null;
+                if ($pairedId && $pairedId !== (int)$id) {
+                    $paired = $this->transactionModel->findById($pairedId);
+                    if ($paired && ($paired['condominium_id'] ?? 0) == $condominiumId && ($paired['related_type'] ?? '') === 'transfer') {
+                        $this->transactionModel->delete($id);
+                        $this->transactionModel->delete($pairedId);
+                    } else {
+                        $this->transactionModel->delete($id);
+                    }
                 } else {
-                    // This is the "to" transaction, find the "from" transaction
-                    $stmt = $db->prepare("SELECT id FROM financial_transactions WHERE related_id = :id AND related_type = 'transfer' AND transaction_type = 'expense' LIMIT 1");
-                    $stmt->execute([':id' => $id]);
-                    $pairedTransaction = $stmt->fetch();
+                    $this->transactionModel->delete($id);
                 }
-                
-                // Delete both transactions
-                $this->transactionModel->delete($id);
-                if ($pairedTransaction) {
-                    $this->transactionModel->delete($pairedTransaction['id']);
-                }
-                
                 $db->commit();
-                $_SESSION['success'] = 'Transferência eliminada com sucesso!';
+                $_SESSION['success'] = 'Transferência eliminada com sucesso! (ambos os movimentos foram removidos.)';
             } else {
                 // Regular transaction
                 $this->transactionModel->delete($id);
@@ -1387,6 +1650,10 @@ class FinancialTransactionController extends Controller
             // Get fractions for quota liquidation
             $fractionModel = new Fraction();
             $fractions = $fractionModel->getByCondominiumId($condominiumId);
+
+            // Get expense categories for category column
+            $expenseCategoryModel = new \App\Models\ExpenseCategory();
+            $expenseCategories = $expenseCategoryModel->getByCondominium($condominiumId);
             
             $this->loadPageTranslations('finances');
             
@@ -1396,6 +1663,7 @@ class FinancialTransactionController extends Controller
                 'condominium' => $condominium,
                 'accounts' => $accounts,
                 'fractions' => $fractions,
+                'expense_categories' => $expenseCategories,
                 'parsedData' => $parsedData,
                 'mode' => $mode,
                 'bank_account_id' => $bankAccountId,
@@ -1585,6 +1853,15 @@ class FinancialTransactionController extends Controller
 
                 $rowData = $validation['rowData'];
 
+                // Ensure expense category exists for expenses with category
+                if (($rowData['transaction_type'] ?? '') === 'expense') {
+                    $cat = trim($rowData['category'] ?? '');
+                    if ($cat !== '') {
+                        $expenseCategoryModel = new \App\Models\ExpenseCategory();
+                        $expenseCategoryModel->getOrCreate($condominiumId, $cat);
+                    }
+                }
+
                 // Check if year has been approved
                 $transactionYear = (int)date('Y', strtotime($rowData['transaction_date']));
                 $assemblyModel = new Assembly();
@@ -1602,8 +1879,8 @@ class FinancialTransactionController extends Controller
                 $transferToAccountId = null;
                 
                 if ($isTransfer) {
-                    $transferToAccountId = !empty($_POST['transfer_to_account_' . $index]) 
-                        ? (int)$_POST['transfer_to_account_' . $index] 
+                    $transferToAccountId = !empty($_POST['transfer_account_' . $index]) 
+                        ? (int)$_POST['transfer_account_' . $index] 
                         : null;
                     
                     if (!$transferToAccountId) {
@@ -1720,8 +1997,7 @@ class FinancialTransactionController extends Controller
                         'category' => $rowData['category'] ?? 'Transferência',
                         'reference' => $rowData['reference'] ?? null,
                         'related_type' => 'transfer',
-                        'related_id' => null, // Will be updated after creating destination transaction
-                        'transfer_to_account_id' => $transferToAccountId,
+                        'transfer_account_id' => $transferToAccountId,
                         'created_by' => $userId
                     ]);
 
@@ -1746,17 +2022,11 @@ class FinancialTransactionController extends Controller
                         'reference' => $rowData['reference'] ?? null,
                         'related_type' => 'transfer',
                         'related_id' => $fromTransactionId,
-                        'transfer_to_account_id' => null,
+                        'transfer_account_id' => $rowData['bank_account_id'],
                         'created_by' => $userId
                     ]);
 
-                    // Update related_id in from transaction (direct SQL update since it's not in allowed fields)
-                    global $db;
-                    $stmt = $db->prepare("UPDATE financial_transactions SET related_id = :related_id WHERE id = :id");
-                    $stmt->execute([
-                        ':related_id' => $toTransactionId,
-                        ':id' => $fromTransactionId
-                    ]);
+                    $this->transactionModel->update($fromTransactionId, ['related_id' => $toTransactionId]);
 
                     $transferCount++;
                     $successCount++;
@@ -1783,7 +2053,6 @@ class FinancialTransactionController extends Controller
                         'reference' => $ref,
                         'related_type' => 'fraction_account',
                         'related_id' => $accountId,
-                        'transfer_to_account_id' => null,
                         'created_by' => $userId
                     ]);
 
@@ -1857,7 +2126,6 @@ class FinancialTransactionController extends Controller
                         'reference' => $rowData['reference'] ?? null,
                         'related_type' => 'manual',
                         'related_id' => null,
-                        'transfer_to_account_id' => null,
                         'created_by' => $userId
                     ]);
 
@@ -2022,6 +2290,13 @@ class FinancialTransactionController extends Controller
         // Validate transaction type
         if ($transaction['transaction_type'] !== 'income') {
             $_SESSION['error'] = 'Apenas movimentos de entrada podem liquidar quotas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
+            exit;
+        }
+
+        // Transfer movements cannot be used for quota liquidation
+        if (($transaction['related_type'] ?? '') === 'transfer') {
+            $_SESSION['error'] = 'Movimentos de transferência não podem ser usados para liquidar quotas.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
             exit;
         }

@@ -326,7 +326,7 @@
                                             <h6 class="mb-1">{{ expense.description }}</h6>
                                             <strong>€{{ expense.amount|number_format(2, ',', '.') }}</strong>
                                         </div>
-                                        <p class="mb-1 text-muted">{{ expense.category }} - {{ expense.expense_date|date('d/m/Y') }}</p>
+                                        <p class="mb-1 text-muted">{{ expense.category|default('-') }} - {{ expense.transaction_date|date('d/m/Y') }}</p>
                                     </div>
                                     {% endfor %}
                                 </div>

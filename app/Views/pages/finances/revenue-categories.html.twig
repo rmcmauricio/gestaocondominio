@@ -1,0 +1,100 @@
+<div class="container py-4">
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Gerir categorias de receitas',
+        'help_section': 'finances',
+        'help_title': 'Ajuda com Categorias'
+    } %}
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Nova categoria</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/categories">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <input type="text" name="name" class="form-control" placeholder="Nome da categoria" required maxlength="100">
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Criar
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">Categorias existentes</h5>
+        </div>
+        <div class="card-body">
+            {% if categories %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th class="text-end">Nº receitas</th>
+                            <th class="text-end">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cat in categories %}
+                        <tr>
+                            <td>{{ cat.name }}</td>
+                            <td class="text-end">{{ cat.revenue_count|default(0) }}</td>
+                            <td class="text-end">
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/categories/{{ cat.id }}/edit" class="btn btn-sm btn-outline-primary" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/categories/{{ cat.id }}/delete" class="d-inline" onsubmit="return confirmDeleteCategory({{ cat.revenue_count|default(0) }}, '{{ cat.name|e('js') }}');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="clear_revenues" value="1">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center py-4">Nenhuma categoria criada. Crie a primeira acima.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar às Receitas
+        </a>
+    </div>
+</div>
+
+<script>
+function confirmDeleteCategory(count, name) {
+    if (count > 0) {
+        return confirm(count + ' receita(s) usam esta categoria («' + name + '»). Pretende remover a categoria dessas receitas?');
+    }
+    return confirm('Eliminar a categoria «' + name + '»?');
+}
+</script>

@@ -127,11 +127,20 @@
                                            style="min-width: 180px;">
                                 </td>
                                 <td>
-                                    <input type="text" 
-                                           class="form-control form-control-sm editable-field" 
-                                           data-field="category" 
-                                           data-index="{{ loop.index0 }}"
-                                           value="{{ row.category|default('') }}">
+                                    <select class="form-select form-select-sm editable-field category-select" 
+                                            data-field="category" 
+                                            data-index="{{ loop.index0 }}"
+                                            data-row-category="{{ row.category|default('') }}">
+                                        <option value="">— Sem categoria —</option>
+                                        {% for cat in expense_categories|default([]) %}
+                                        <option value="{{ cat.name|e }}" {% if row.category|default('') == cat.name %}selected{% endif %}>{{ cat.name }}</option>
+                                        {% endfor %}
+                                        {% set catVal = row.category|default('')|trim %}
+                                        {% if catVal and not expense_categories|default([])|filter(c => c.name == catVal)|length %}
+                                        <option value="{{ catVal|e }}" selected>+ Adicionar: {{ catVal }}</option>
+                                        {% endif %}
+                                        <option value="__new__">+ Adicionar nova...</option>
+                                    </select>
                                 </td>
                                 <td>
                                     <input type="text" 
@@ -149,8 +158,8 @@
                                                data-index="{{ loop.index0 }}">
                                     </div>
                                     <select class="form-select form-select-sm mt-1 transfer-account" 
-                                            name="transfer_to_account_{{ loop.index0 }}" 
-                                            id="transfer_to_account_{{ loop.index0 }}"
+                                            name="transfer_account_{{ loop.index0 }}" 
+                                            id="transfer_account_{{ loop.index0 }}"
                                             style="display: none;">
                                         <option value="">Selecione conta...</option>
                                         {% for account in accounts %}
@@ -534,12 +543,34 @@ document.querySelectorAll('.editable-field').forEach(field => {
         const index = this.dataset.index;
         const fieldName = this.dataset.field;
         
+        // Special handling for category select "Add new"
+        if (fieldName === 'category' && this.classList.contains('category-select') && this.value === '__new__') {
+            const selectEl = this;
+            window.openNewCategoryModal(function(name) {
+                const trimmed = name.trim();
+                if (trimmed) {
+                    const opt = document.createElement('option');
+                    opt.value = trimmed;
+                    opt.textContent = '+ Adicionar: ' + trimmed;
+                    opt.selected = true;
+                    selectEl.insertBefore(opt, selectEl.options[selectEl.options.length - 1]);
+                    if (!editedData[index]) editedData[index] = {};
+                    editedData[index]['category'] = trimmed;
+                    updateCounts();
+                }
+                selectEl.value = trimmed || '';
+            });
+            this.value = '';
+            return;
+        }
+        
         if (!editedData[index]) {
             editedData[index] = {};
         }
         
         let value = this.value;
-        editedData[index][fieldName] = value;
+        if (fieldName === 'category' && value === '__new__') return;
+        editedData[index][fieldName] = value === '' ? '' : value;
         
         updateCounts();
     });
@@ -549,7 +580,7 @@ document.querySelectorAll('.editable-field').forEach(field => {
 document.querySelectorAll('.transfer-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', function() {
         const index = this.dataset.index;
-        const accountSelect = document.getElementById('transfer_to_account_' + index);
+        const accountSelect = document.getElementById('transfer_account_' + index);
         
         if (this.checked) {
             accountSelect.style.display = 'block';
@@ -634,6 +665,18 @@ function initDuplicateTooltips() {
 
 // Submit form
 document.getElementById('previewForm').addEventListener('submit', function(e) {
+    // Ensure category values from all selects are in editedData (in case change didn't fire)
+    document.querySelectorAll('.category-select').forEach(function(sel) {
+        const idx = sel.dataset.index;
+        const v = sel.value;
+        if (v && v !== '__new__') {
+            if (!editedData[idx]) editedData[idx] = {};
+            editedData[idx]['category'] = v;
+        } else if (v === '') {
+            if (!editedData[idx]) editedData[idx] = {};
+            editedData[idx]['category'] = '';
+        }
+    });
     // Store edited data
     document.getElementById('edited_data_input').value = JSON.stringify(editedData);
     

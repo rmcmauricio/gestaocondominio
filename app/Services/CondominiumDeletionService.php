@@ -63,6 +63,9 @@ class CondominiumDeletionService
             $this->db->exec("DELETE FROM fee_payments WHERE fee_id IN (SELECT id FROM fees WHERE condominium_id = {$condominiumId})");
             $this->db->exec("DELETE FROM fees WHERE condominium_id = {$condominiumId}");
             
+            // Expense categories (before financial_transactions - logical order)
+            $this->db->exec("DELETE FROM expense_categories WHERE condominium_id = {$condominiumId}");
+            $this->db->exec("DELETE FROM revenue_categories WHERE condominium_id = {$condominiumId}");
             // Financial transactions and bank accounts
             $this->db->exec("DELETE FROM financial_transactions WHERE condominium_id = {$condominiumId}");
             $this->db->exec("DELETE FROM bank_accounts WHERE condominium_id = {$condominiumId}");
@@ -87,9 +90,6 @@ class CondominiumDeletionService
             $this->db->exec("DELETE FROM occurrence_history WHERE occurrence_id IN (SELECT id FROM occurrences WHERE condominium_id = {$condominiumId})");
             $this->db->exec("DELETE FROM occurrence_attachments WHERE condominium_id = {$condominiumId}");
             $this->db->exec("DELETE FROM occurrences WHERE condominium_id = {$condominiumId}");
-            
-            // Expenses
-            $this->db->exec("DELETE FROM expenses WHERE condominium_id = {$condominiumId}");
             
             // Budgets
             $this->db->exec("DELETE FROM budget_items WHERE budget_id IN (SELECT id FROM budgets WHERE condominium_id = {$condominiumId})");

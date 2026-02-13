@@ -8,7 +8,6 @@ use App\Middleware\AuthMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Models\Budget;
 use App\Models\BudgetItem;
-use App\Models\Expense;
 use App\Models\Fee;
 use App\Models\FeePayment;
 use App\Models\Condominium;
@@ -19,6 +18,8 @@ use App\Models\CondominiumFeePeriod;
 use App\Models\Fraction;
 use App\Models\FractionAccount;
 use App\Models\FractionAccountMovement;
+use App\Models\ExpenseCategory;
+use App\Models\RevenueCategory;
 use App\Services\FeeService;
 use App\Services\LiquidationService;
 use App\Services\ReceiptService;
@@ -28,7 +29,6 @@ class FinanceController extends Controller
 {
     protected $budgetModel;
     protected $budgetItemModel;
-    protected $expenseModel;
     protected $feeModel;
     protected $feePaymentModel;
     protected $condominiumModel;
@@ -41,7 +41,6 @@ class FinanceController extends Controller
         parent::__construct();
         $this->budgetModel = new Budget();
         $this->budgetItemModel = new BudgetItem();
-        $this->expenseModel = new Expense();
         $this->feeModel = new Fee();
         $this->feePaymentModel = new FeePayment();
         $this->condominiumModel = new Condominium();
@@ -150,36 +149,53 @@ class FinanceController extends Controller
             exit;
         }
 
-        $currentYear = date('Y');
-        $budget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $currentYear);
+        $currentYear = (int)date('Y');
+        $selectedYear = !empty($_GET['year']) ? (int)$_GET['year'] : $currentYear;
+        if ($selectedYear < 2000 || $selectedYear > 2100) {
+            $selectedYear = $currentYear;
+        }
+
+        $budget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $selectedYear);
         $nextYearBudget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $currentYear + 1);
         $allBudgets = $this->budgetModel->getByCondominium($condominiumId);
         
-        $expenses = $this->expenseModel->getByCondominium($condominiumId, ['year' => $currentYear, 'limit' => 10]);
-        
-        // Get total expenses for current year
-        $totalExpenses = $this->expenseModel->getTotalByPeriod(
-            $condominiumId,
-            "{$currentYear}-01-01",
-            "{$currentYear}-12-31"
-        );
+        $transactionModel = new FinancialTransaction();
+        $periodStart = "{$selectedYear}-01-01";
+        $periodEnd = "{$selectedYear}-12-31";
+        $totalExpenses = $transactionModel->getTotalByPeriodAndType($condominiumId, $periodStart, $periodEnd, 'expense');
+        $totalRevenues = $transactionModel->getTotalByPeriodAndType($condominiumId, $periodStart, $periodEnd, 'income');
+        $totalDebts = $this->feeModel->getTotalDueByCondominium($condominiumId);
 
-        // Get bank accounts and balances
+        $expenses = $transactionModel->getByCondominium($condominiumId, [
+            'transaction_type' => 'expense',
+            'from_date' => $periodStart,
+            'to_date' => $periodEnd,
+            'limit' => 10,
+            'exclude_transfers' => true
+        ]);
+
         $bankAccountModel = new BankAccount();
         $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
         
-        // Update balances
-        foreach ($bankAccounts as $account) {
-            $bankAccountModel->updateBalance($account['id']);
-        }
+        $endOfYear = "{$selectedYear}-12-31";
+        $isViewingPastYear = ($selectedYear < $currentYear);
         
-        // Refresh accounts with updated balances
-        $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
-        
-        // Calculate total balance
-        $totalBalance = 0;
-        foreach ($bankAccounts as $account) {
-            $totalBalance += (float)$account['current_balance'];
+        if ($isViewingPastYear) {
+            foreach ($bankAccounts as &$acc) {
+                $acc['balance_for_year'] = $bankAccountModel->calculateBalanceAsOfDate($acc['id'], $endOfYear);
+            }
+            unset($acc);
+            $totalBalance = array_sum(array_column($bankAccounts, 'balance_for_year'));
+        } else {
+            foreach ($bankAccounts as $account) {
+                $bankAccountModel->updateBalance($account['id']);
+            }
+            $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
+            foreach ($bankAccounts as &$acc) {
+                $acc['balance_for_year'] = (float)($acc['current_balance'] ?? 0);
+            }
+            unset($acc);
+            $totalBalance = array_sum(array_column($bankAccounts, 'balance_for_year'));
         }
 
         $this->loadPageTranslations('finances');
@@ -193,19 +209,34 @@ class FinanceController extends Controller
         $success = $_SESSION['success'] ?? null;
         unset($_SESSION['error'], $_SESSION['success']);
         
+        $nextYearBudgetForSelected = $this->budgetModel->getByCondominiumAndYear($condominiumId, $selectedYear + 1);
+
+        $budgetYears = array_unique(array_map(fn($b) => (int)$b['year'], $allBudgets));
+        $availableYears = array_values(array_unique(array_merge(
+            $budgetYears,
+            [$currentYear, $currentYear + 1]
+        )));
+        sort($availableYears);
+
         $this->data += [
             'viewName' => 'pages/finances/index.html.twig',
             'page' => ['titulo' => 'Finanças'],
             'condominium' => $condominium,
             'budget' => $budget,
             'next_year_budget' => $nextYearBudget,
+            'next_year_budget_for_selected' => $nextYearBudgetForSelected,
             'all_budgets' => $allBudgets,
             'expenses' => $expenses,
             'total_expenses' => $totalExpenses,
+            'total_revenues' => $totalRevenues,
+            'total_debts' => $totalDebts,
             'current_year' => $currentYear,
+            'selected_year' => $selectedYear,
             'bank_accounts' => $bankAccounts,
             'total_balance' => $totalBalance,
             'is_admin' => $isAdmin,
+            'is_viewing_past_year' => $isViewingPastYear,
+            'available_years' => $availableYears,
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null,
             'user' => AuthMiddleware::user()
@@ -213,6 +244,103 @@ class FinanceController extends Controller
         
         unset($_SESSION['error']);
         unset($_SESSION['success']);
+
+        $this->renderMainTemplate();
+    }
+
+    public function indexBudgets(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $currentYear = (int)date('Y');
+        $selectedYear = !empty($_GET['year']) ? (int)$_GET['year'] : $currentYear;
+        if ($selectedYear < 2000 || $selectedYear > 2100) {
+            $selectedYear = $currentYear;
+        }
+
+        $allBudgets = $this->budgetModel->getByCondominium($condominiumId);
+        $currentBudget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $selectedYear);
+
+        $revenueItems = [];
+        $expenseItems = [];
+        $totalRevenue = 0;
+        $totalExpenses = 0;
+
+        if ($currentBudget) {
+            $items = $this->budgetItemModel->getByBudget($currentBudget['id']);
+            $revenueItems = array_values(array_filter($items, fn($item) => strpos($item['category'], 'Receita:') === 0));
+            $expenseItems = array_values(array_filter($items, fn($item) => strpos($item['category'], 'Despesa:') === 0));
+            $totalRevenue = array_sum(array_column($revenueItems, 'amount'));
+            $totalExpenses = array_sum(array_column($expenseItems, 'amount'));
+        }
+
+        $budgetYears = array_unique(array_map(fn($b) => (int)$b['year'], $allBudgets));
+        $availableYears = array_values(array_unique(array_merge(
+            $budgetYears,
+            [$currentYear, $currentYear + 1]
+        )));
+        sort($availableYears);
+
+        // Chart: evolução receitas/despesas/saldo início ano por ano
+        $chartLabels = [];
+        $chartRevenues = [];
+        $chartExpenses = [];
+        $chartSaldoInicio = [];
+        $bankAccountModel = new BankAccount();
+        $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
+        foreach ($allBudgets as $b) {
+            $year = (int)$b['year'];
+            $chartLabels[] = (string)$year;
+            $chartRevenues[] = (float)$this->budgetItemModel->getTotalByType($b['id'], 'Receita');
+            $chartExpenses[] = (float)$this->budgetItemModel->getTotalByType($b['id'], 'Despesa');
+            $endPrevYear = ($year - 1) . '-12-31';
+            $totalSaldoInicio = 0;
+            foreach ($bankAccounts as $acc) {
+                $totalSaldoInicio += $bankAccountModel->calculateBalanceAsOfDate($acc['id'], $endPrevYear);
+            }
+            $chartSaldoInicio[] = round($totalSaldoInicio, 2);
+        }
+
+        $this->loadPageTranslations('finances-budgets');
+
+        $userId = AuthMiddleware::userId();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin');
+
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+
+        $this->data += [
+            'viewName' => 'pages/finances/budgets.html.twig',
+            'page' => ['titulo' => 'Orçamentos'],
+            'condominium' => $condominium,
+            'all_budgets' => $allBudgets,
+            'current_budget' => $currentBudget,
+            'revenue_items' => $revenueItems,
+            'expense_items' => $expenseItems,
+            'total_revenue' => $totalRevenue,
+            'total_expenses' => $totalExpenses,
+            'current_year' => $currentYear,
+            'selected_year' => $selectedYear,
+            'available_years' => $availableYears,
+            'chart_labels' => $chartLabels,
+            'chart_revenues' => $chartRevenues,
+            'chart_expenses' => $chartExpenses,
+            'chart_saldo_inicio' => $chartSaldoInicio,
+            'is_admin' => $isAdmin,
+            'error' => $error,
+            'success' => $success,
+            'user' => AuthMiddleware::user()
+        ];
 
         $this->renderMainTemplate();
     }
@@ -361,7 +489,251 @@ class FinanceController extends Controller
         }
     }
 
-    public function createExpense(int $condominiumId)
+    public function redirectExpensesToTransactions(int $condominiumId)
+    {
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create?transaction_type=expense');
+        exit;
+    }
+
+    public function indexExpenses(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $currentYear = (int)date('Y');
+        $selectedYear = !empty($_GET['year']) ? (int)$_GET['year'] : $currentYear;
+        if ($selectedYear < 2000 || $selectedYear > 2100) {
+            $selectedYear = $currentYear;
+        }
+        $filter = $_GET['filter'] ?? '';
+
+        $yearStart = "{$selectedYear}-01-01";
+        $yearEnd = "{$selectedYear}-12-31";
+
+        $transactionModel = new FinancialTransaction();
+        $expenseCategoryModel = new ExpenseCategory();
+
+        $expensesByCategory = $transactionModel->getExpensesByCategory($condominiumId, $yearStart, $yearEnd);
+        $chartCategories = [];
+        $chartAmounts = [];
+        foreach ($expensesByCategory as $row) {
+            $chartCategories[] = $row['category'];
+            $chartAmounts[] = (float)$row['total'];
+        }
+
+        $totalExpenses = array_sum($chartAmounts);
+
+        // Evolution by year (total expenses per year)
+        $availableYears = range(max(2000, $currentYear - 5), $currentYear + 1);
+        $chartEvolutionLabels = array_map('strval', $availableYears);
+        $chartEvolutionAmounts = [];
+        foreach ($availableYears as $y) {
+            $ys = "{$y}-01-01";
+            $ye = "{$y}-12-31";
+            $chartEvolutionAmounts[] = (float)$transactionModel->getTotalByPeriodAndType($condominiumId, $ys, $ye, 'expense');
+        }
+
+        $uncategorizedRow = null;
+        foreach ($expensesByCategory as $row) {
+            if ($row['category'] === 'Sem categoria') {
+                $uncategorizedRow = $row;
+                break;
+            }
+        }
+        $uncategorizedCount = $uncategorizedRow ? (int)$uncategorizedRow['count'] : 0;
+
+        $expenseFilters = [
+            'transaction_type' => 'expense',
+            'from_date' => $yearStart,
+            'to_date' => $yearEnd,
+            'exclude_transfers' => true
+        ];
+        if ($filter === 'uncategorized') {
+            $expenseFilters['has_category'] = false;
+        }
+        $expenses = $transactionModel->getByCondominium($condominiumId, $expenseFilters);
+
+        $expenseIdsWithQuotas = [];
+        foreach ($expenses as $e) {
+            if ($transactionModel->isLinkedToFeePayment($e['id'])) {
+                $expenseIdsWithQuotas[] = (int)$e['id'];
+            }
+        }
+
+        $categories = $expenseCategoryModel->getByCondominium($condominiumId);
+
+        $bankAccountModel = new BankAccount();
+        $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
+
+        $this->loadPageTranslations('finances-expenses');
+
+        $userId = AuthMiddleware::userId();
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        $isAdmin = ($userRole === 'admin');
+
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+
+        $this->data += [
+            'viewName' => 'pages/finances/expenses.html.twig',
+            'page' => ['titulo' => 'Despesas'],
+            'condominium' => $condominium,
+            'expenses' => $expenses,
+            'expenses_by_category' => $expensesByCategory,
+            'total_expenses' => $totalExpenses,
+            'uncategorized_count' => $uncategorizedCount,
+            'categories' => $categories,
+            'selected_year' => $selectedYear,
+            'available_years' => $availableYears,
+            'filter' => $filter,
+            'is_admin' => $isAdmin,
+            'chart_categories' => $chartCategories,
+            'chart_amounts' => $chartAmounts,
+            'chart_evolution_labels' => $chartEvolutionLabels,
+            'chart_evolution_amounts' => $chartEvolutionAmounts,
+            'current_year' => $currentYear,
+            'error' => $error,
+            'success' => $success,
+            'csrf_token' => Security::generateCSRFToken(),
+            'bank_accounts' => $bankAccounts,
+            'expense_ids_with_quotas' => $expenseIdsWithQuotas,
+            'user' => AuthMiddleware::user()
+        ];
+
+        $this->renderMainTemplate();
+    }
+
+    public function markExpenseAsTransfer(int $condominiumId, int $transactionId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Método não permitido.']);
+                exit;
+            }
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses');
+            exit;
+        }
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Token de segurança inválido.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses');
+            exit;
+        }
+
+        $transactionModel = new FinancialTransaction();
+        $expense = $transactionModel->findById($transactionId);
+        if (!$expense || $expense['condominium_id'] != $condominiumId || $expense['transaction_type'] !== 'expense') {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Despesa não encontrada.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Despesa não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses');
+            exit;
+        }
+        if ($transactionModel->isLinkedToFeePayment($transactionId)) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Não é possível marcar como transferência um movimento com quotas associadas.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Não é possível marcar como transferência um movimento com quotas associadas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses');
+            exit;
+        }
+        if (isset($expense['related_type']) && $expense['related_type'] === 'transfer') {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Este movimento já está marcado como transferência.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Este movimento já está marcado como transferência.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses');
+            exit;
+        }
+
+        $transferAccountId = (int)($_POST['transfer_account_id'] ?? 0);
+        if ($transferAccountId <= 0 || $transferAccountId == $expense['bank_account_id']) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Selecione uma conta destino válida (diferente da conta atual).']);
+                exit;
+            }
+            $_SESSION['error'] = 'Selecione uma conta destino válida (diferente da conta atual).';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses');
+            exit;
+        }
+
+        $bankAccountModel = new BankAccount();
+        $destAccount = $bankAccountModel->findById($transferAccountId);
+        if (!$destAccount || $destAccount['condominium_id'] != $condominiumId) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Conta destino inválida.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Conta destino inválida.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses');
+            exit;
+        }
+
+        $accountA = $expense['bank_account_id'];
+        $accountB = $transferAccountId;
+
+        $transactionModel->update($transactionId, [
+            'related_type' => 'transfer',
+            'related_id' => null,
+            'transfer_account_id' => $accountB,
+            'category' => 'Transferência'
+        ]);
+
+        $userId = AuthMiddleware::userId();
+        $transactionModel->create([
+            'condominium_id' => $condominiumId,
+            'bank_account_id' => $accountB,
+            'transaction_type' => 'income',
+            'amount' => $expense['amount'],
+            'transaction_date' => $expense['transaction_date'],
+            'description' => $expense['description'] ?? 'Transferência interna',
+            'category' => 'Transferência',
+            'related_type' => 'transfer',
+            'related_id' => $transactionId,
+            'transfer_account_id' => $accountA,
+            'created_by' => $userId
+        ]);
+
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => true]);
+            exit;
+        }
+
+        $_SESSION['success'] = 'Despesa marcada como transferência com sucesso.';
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses');
+        exit;
+    }
+
+    public function indexExpenseCategories(int $condominiumId)
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
@@ -374,86 +746,497 @@ class FinanceController extends Controller
             exit;
         }
 
-        // Get fractions for dropdown
-        $fractionModel = new \App\Models\Fraction();
-        $fractions = $fractionModel->getByCondominiumId($condominiumId);
-
-        // Get suppliers for dropdown
-        global $db;
-        $suppliers = [];
-        if ($db) {
-            $stmt = $db->prepare("SELECT id, name FROM suppliers WHERE condominium_id = :condominium_id AND is_active = TRUE");
-            $stmt->execute([':condominium_id' => $condominiumId]);
-            $suppliers = $stmt->fetchAll() ?: [];
+        $expenseCategoryModel = new ExpenseCategory();
+        $categories = $expenseCategoryModel->getByCondominium($condominiumId);
+        $categoriesWithCount = [];
+        foreach ($categories as $cat) {
+            $categoriesWithCount[] = array_merge($cat, [
+                'expense_count' => $expenseCategoryModel->getExpenseCountByName($condominiumId, $cat['name'])
+            ]);
         }
 
-        $this->loadPageTranslations('finances');
-        
-        // Get and clear session messages
+        $this->loadPageTranslations('finances-expense-categories');
+
         $error = $_SESSION['error'] ?? null;
         $success = $_SESSION['success'] ?? null;
         unset($_SESSION['error'], $_SESSION['success']);
-        
+
         $this->data += [
-            'viewName' => 'pages/finances/create-expense.html.twig',
-            'page' => ['titulo' => 'Registar Despesa'],
+            'viewName' => 'pages/finances/expense-categories.html.twig',
+            'page' => ['titulo' => 'Gerir categorias de despesas'],
             'condominium' => $condominium,
-            'fractions' => $fractions,
-            'suppliers' => $suppliers,
-            'csrf_token' => Security::generateCSRFToken(),
+            'categories' => $categoriesWithCount,
             'error' => $error,
-            'success' => $success
+            'success' => $success,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
         ];
 
         $this->renderMainTemplate();
     }
 
-    public function storeExpense(int $condominiumId)
+    public function storeExpenseCategory(int $condominiumId)
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
         RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances');
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories');
             exit;
         }
 
-        $csrfToken = $_POST['csrf_token'] ?? '';
-        if (!Security::verifyCSRFToken($csrfToken)) {
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
             $_SESSION['error'] = 'Token de segurança inválido.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/create');
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories');
             exit;
         }
 
-        $userId = AuthMiddleware::userId();
+        $name = trim($_POST['name'] ?? '');
+        if (empty($name)) {
+            $_SESSION['error'] = 'O nome da categoria é obrigatório.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories');
+            exit;
+        }
 
+        $expenseCategoryModel = new ExpenseCategory();
         try {
-            $expenseId = $this->expenseModel->create([
-                'condominium_id' => $condominiumId,
-                'fraction_id' => !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null,
-                'supplier_id' => !empty($_POST['supplier_id']) ? (int)$_POST['supplier_id'] : null,
-                'category' => Security::sanitize($_POST['category'] ?? ''),
-                'description' => Security::sanitize($_POST['description'] ?? ''),
-                'amount' => (float)($_POST['amount'] ?? 0),
-                'type' => Security::sanitize($_POST['type'] ?? 'ordinaria'),
-                'expense_date' => $_POST['expense_date'] ?? date('Y-m-d'),
-                'invoice_number' => Security::sanitize($_POST['invoice_number'] ?? ''),
-                'invoice_date' => $_POST['invoice_date'] ?? null,
-                'payment_method' => Security::sanitize($_POST['payment_method'] ?? ''),
-                'is_paid' => isset($_POST['is_paid']),
-                'notes' => Security::sanitize($_POST['notes'] ?? ''),
-                'created_by' => $userId
-            ]);
-
-            $_SESSION['success'] = 'Despesa registada com sucesso!';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances');
-            exit;
+            $expenseCategoryModel->create(['condominium_id' => $condominiumId, 'name' => $name]);
+            $_SESSION['success'] = 'Categoria criada com sucesso.';
         } catch (\Exception $e) {
-            $_SESSION['error'] = 'Erro ao registar despesa: ' . $e->getMessage();
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/create');
+            $_SESSION['error'] = 'Erro ao criar categoria: ' . $e->getMessage();
+        }
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories');
+        exit;
+    }
+
+    public function editExpenseCategory(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
             exit;
         }
+
+        $expenseCategoryModel = new ExpenseCategory();
+        $category = $expenseCategoryModel->findById($id);
+        if (!$category || $category['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Categoria não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories');
+            exit;
+        }
+
+        $expenseCount = $expenseCategoryModel->getExpenseCountByName($condominiumId, $category['name']);
+
+        $this->loadPageTranslations('finances-expense-categories');
+
+        $this->data += [
+            'viewName' => 'pages/finances/expense-category-edit.html.twig',
+            'page' => ['titulo' => 'Editar categoria'],
+            'condominium' => $condominium,
+            'category' => $category,
+            'expense_count' => $expenseCount,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+
+        $this->renderMainTemplate();
+    }
+
+    public function updateExpenseCategory(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories');
+            exit;
+        }
+
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories/' . $id . '/edit');
+            exit;
+        }
+
+        $expenseCategoryModel = new ExpenseCategory();
+        $category = $expenseCategoryModel->findById($id);
+        if (!$category || $category['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Categoria não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories');
+            exit;
+        }
+
+        $newName = trim($_POST['name'] ?? '');
+        if (empty($newName)) {
+            $_SESSION['error'] = 'O nome da categoria é obrigatório.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories/' . $id . '/edit');
+            exit;
+        }
+
+        $updateTransactions = !empty($_POST['update_transactions']);
+        $expenseCount = $expenseCategoryModel->getExpenseCountByName($condominiumId, $category['name']);
+
+        if ($newName !== $category['name']) {
+            if ($updateTransactions && $expenseCount > 0) {
+                $expenseCategoryModel->updateTransactionsCategory($condominiumId, $category['name'], $newName);
+            }
+            $expenseCategoryModel->update($id, ['name' => $newName]);
+        }
+
+        $_SESSION['success'] = 'Categoria atualizada com sucesso.';
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories');
+        exit;
+    }
+
+    public function deleteExpenseCategory(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories');
+            exit;
+        }
+
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories');
+            exit;
+        }
+
+        $expenseCategoryModel = new ExpenseCategory();
+        $category = $expenseCategoryModel->findById($id);
+        if (!$category || $category['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Categoria não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories');
+            exit;
+        }
+
+        $clearTransactions = !empty($_POST['clear_transactions']);
+        $expenseCount = $expenseCategoryModel->getExpenseCountByName($condominiumId, $category['name']);
+
+        if ($clearTransactions && $expenseCount > 0) {
+            $expenseCategoryModel->clearTransactionsCategory($condominiumId, $category['name']);
+        }
+        $expenseCategoryModel->delete($id);
+
+        $_SESSION['success'] = 'Categoria eliminada com sucesso.';
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses/categories');
+        exit;
+    }
+
+    public function setExpenseCategory(int $condominiumId, int $transactionId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Método não permitido.']);
+                exit;
+            }
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses');
+            exit;
+        }
+
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Token de segurança inválido.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses');
+            exit;
+        }
+
+        $transactionModel = new FinancialTransaction();
+        $transaction = $transactionModel->findById($transactionId);
+        if (!$transaction || $transaction['condominium_id'] != $condominiumId || $transaction['transaction_type'] !== 'expense') {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Movimento não encontrado.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Movimento não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/expenses');
+            exit;
+        }
+
+        $category = trim($_POST['category'] ?? '');
+        $categoryValue = $category === '' || strtolower($category) === '__none__' ? null : $category;
+
+        $expenseCategoryModel = new ExpenseCategory();
+        if ($categoryValue !== null && $categoryValue !== '') {
+            $expenseCategoryModel->getOrCreate($condominiumId, $categoryValue);
+        }
+
+        $transactionModel->update($transactionId, ['category' => $categoryValue]);
+
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => true, 'category' => $categoryValue]);
+            exit;
+        }
+
+        $_SESSION['success'] = 'Categoria atribuída com sucesso.';
+        $redirect = $_POST['redirect'] ?? BASE_URL . 'condominiums/' . $condominiumId . '/expenses';
+        if (strpos($redirect, 'condominiums/' . $condominiumId) === false) {
+            $redirect = BASE_URL . 'condominiums/' . $condominiumId . '/expenses';
+        }
+        header('Location: ' . $redirect);
+        exit;
+    }
+
+    public function indexRevenueCategories(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $revenueCategoryModel = new RevenueCategory();
+        $categories = $revenueCategoryModel->getByCondominium($condominiumId);
+        $categoriesWithCount = [];
+        foreach ($categories as $cat) {
+            $categoriesWithCount[] = array_merge($cat, [
+                'revenue_count' => $revenueCategoryModel->getRevenueCountByName($condominiumId, $cat['name'])
+            ]);
+        }
+
+        $this->loadPageTranslations('finances');
+
+        $this->data += [
+            'viewName' => 'pages/finances/revenue-categories.html.twig',
+            'page' => ['titulo' => 'Gerir categorias de receitas'],
+            'condominium' => $condominium,
+            'categories' => $categoriesWithCount,
+            'error' => $_SESSION['error'] ?? null,
+            'success' => $_SESSION['success'] ?? null,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+        unset($_SESSION['error'], $_SESSION['success']);
+        $this->renderMainTemplate();
+    }
+
+    public function storeRevenueCategory(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories');
+            exit;
+        }
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories');
+            exit;
+        }
+        $name = trim($_POST['name'] ?? '');
+        if (empty($name)) {
+            $_SESSION['error'] = 'O nome da categoria é obrigatório.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories');
+            exit;
+        }
+        $revenueCategoryModel = new RevenueCategory();
+        try {
+            $revenueCategoryModel->create(['condominium_id' => $condominiumId, 'name' => $name]);
+            $_SESSION['success'] = 'Categoria criada com sucesso.';
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao criar categoria: ' . $e->getMessage();
+        }
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories');
+        exit;
+    }
+
+    public function editRevenueCategory(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+        $revenueCategoryModel = new RevenueCategory();
+        $category = $revenueCategoryModel->findById($id);
+        if (!$category || $category['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Categoria não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories');
+            exit;
+        }
+        $revenueCount = $revenueCategoryModel->getRevenueCountByName($condominiumId, $category['name']);
+
+        $this->data += [
+            'viewName' => 'pages/finances/revenue-category-edit.html.twig',
+            'page' => ['titulo' => 'Editar categoria'],
+            'condominium' => $condominium,
+            'category' => $category,
+            'revenue_count' => $revenueCount,
+            'csrf_token' => Security::generateCSRFToken(),
+            'user' => AuthMiddleware::user()
+        ];
+        $this->renderMainTemplate();
+    }
+
+    public function updateRevenueCategory(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories');
+            exit;
+        }
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories/' . $id . '/edit');
+            exit;
+        }
+        $revenueCategoryModel = new RevenueCategory();
+        $category = $revenueCategoryModel->findById($id);
+        if (!$category || $category['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Categoria não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories');
+            exit;
+        }
+        $newName = trim($_POST['name'] ?? '');
+        if (empty($newName)) {
+            $_SESSION['error'] = 'O nome da categoria é obrigatório.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories/' . $id . '/edit');
+            exit;
+        }
+        $updateRevenues = !empty($_POST['update_revenues']);
+        $revenueCount = $revenueCategoryModel->getRevenueCountByName($condominiumId, $category['name']);
+        if ($newName !== $category['name']) {
+            if ($updateRevenues && $revenueCount > 0) {
+                $revenueCategoryModel->updateRevenuesCategory($condominiumId, $category['name'], $newName);
+            }
+            $revenueCategoryModel->update($id, ['name' => $newName]);
+        }
+        $_SESSION['success'] = 'Categoria atualizada com sucesso.';
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories');
+        exit;
+    }
+
+    public function deleteRevenueCategory(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories');
+            exit;
+        }
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories');
+            exit;
+        }
+        $revenueCategoryModel = new RevenueCategory();
+        $category = $revenueCategoryModel->findById($id);
+        if (!$category || $category['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Categoria não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories');
+            exit;
+        }
+        $clearRevenues = !empty($_POST['clear_revenues']);
+        $revenueCount = $revenueCategoryModel->getRevenueCountByName($condominiumId, $category['name']);
+        if ($clearRevenues && $revenueCount > 0) {
+            $revenueCategoryModel->clearRevenuesCategory($condominiumId, $category['name']);
+        }
+        $revenueCategoryModel->delete($id);
+        $_SESSION['success'] = 'Categoria eliminada com sucesso.';
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues/categories');
+        exit;
+    }
+
+    public function setRevenueCategory(int $condominiumId, int $transactionId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Método não permitido.']);
+                exit;
+            }
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Token de segurança inválido.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+        $transactionModel = new FinancialTransaction();
+        $transaction = $transactionModel->findById($transactionId);
+        if (!$transaction || $transaction['condominium_id'] != $condominiumId || $transaction['transaction_type'] !== 'income') {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Movimento não encontrado.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Movimento não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+        $category = trim($_POST['category'] ?? '');
+        $categoryValue = ($category === '' || strtolower($category) === '__none__') ? null : $category;
+        $revenueCategoryModel = new RevenueCategory();
+        if ($categoryValue !== null && $categoryValue !== '') {
+            $revenueCategoryModel->getOrCreate($condominiumId, $categoryValue);
+        }
+        $transactionModel->update($transactionId, ['category' => $categoryValue]);
+
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => true, 'category' => $categoryValue]);
+            exit;
+        }
+
+        $_SESSION['success'] = 'Categoria atribuída com sucesso.';
+        $redirect = $_POST['redirect'] ?? BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues';
+        if (strpos($redirect, 'condominiums/' . $condominiumId) === false) {
+            $redirect = BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues';
+        }
+        header('Location: ' . $redirect);
+        exit;
     }
 
     public function showBudget(int $condominiumId, int $id)
@@ -1010,6 +1793,9 @@ class FinanceController extends Controller
                     if ($existingTransactionId > 0) {
                         $existingTransaction = $transactionModel->findById($existingTransactionId);
                         if ($existingTransaction && $existingTransaction['condominium_id'] == $condominiumId) {
+                            if (isset($existingTransaction['related_type']) && $existingTransaction['related_type'] === 'transfer') {
+                                throw new \Exception('Não é possível associar um movimento marcado como transferência à liquidação de quotas.');
+                            }
                             $financialTransactionId = $existingTransactionId;
                         } else {
                             throw new \Exception('Movimento financeiro não encontrado ou inválido.');
@@ -1618,6 +2404,9 @@ class FinanceController extends Controller
         $allCandidates = array_merge($bankTransactions, $cashTransactions);
         $availableTransactions = [];
         foreach ($allCandidates as $tx) {
+            if (isset($tx['related_type']) && $tx['related_type'] === 'transfer') {
+                continue;
+            }
             $amount = (float)($tx['amount'] ?? 0);
             $used = $transactionModel->getAmountUsedForQuotas((int)$tx['id']);
             if ($amount > 0 && $used < $amount) {
@@ -1968,7 +2757,6 @@ class FinanceController extends Controller
                     'reference' => $ref,
                     'related_type' => 'fraction_account',
                     'related_id' => $accountId,
-                    'transfer_to_account_id' => null,
                     'created_by' => $userId
                 ]);
 
@@ -3034,7 +3822,7 @@ class FinanceController extends Controller
     }
 
     /**
-     * Show revenues page
+     * Show revenues page (same logic as expenses: year selector, charts, categories)
      */
     public function revenues(int $condominiumId)
     {
@@ -3048,95 +3836,257 @@ class FinanceController extends Controller
             exit;
         }
 
-        $currentYear = date('Y');
+        $currentYear = (int)date('Y');
         $selectedYear = !empty($_GET['year']) ? (int)$_GET['year'] : $currentYear;
-        $selectedMonth = !empty($_GET['month']) ? (int)$_GET['month'] : null;
+        if ($selectedYear < 2000 || $selectedYear > 2100) {
+            $selectedYear = $currentYear;
+        }
+        $filter = $_GET['filter'] ?? '';
 
-        $filters = ['year' => $selectedYear];
-        if ($selectedMonth) {
-            $filters['month'] = $selectedMonth;
+        $yearStart = "{$selectedYear}-01-01";
+        $yearEnd = "{$selectedYear}-12-31";
+
+        $availableYears = range(max(2000, $currentYear - 5), $currentYear + 1);
+
+        $transactionModel = new FinancialTransaction();
+        $incomeFilters = [
+            'transaction_type' => 'income',
+            'from_date' => $yearStart,
+            'to_date' => $yearEnd,
+            'exclude_transfers' => true
+        ];
+        if ($filter === 'uncategorized') {
+            $incomeFilters['has_category'] = false;
+        }
+        $revenues = $transactionModel->getByCondominium($condominiumId, $incomeFilters);
+        $totalRevenues = array_sum(array_column($revenues, 'amount'));
+
+        $revenueIdsWithQuotas = [];
+        foreach ($revenues as $r) {
+            if ($transactionModel->isLinkedToFeePayment($r['id'])) {
+                $revenueIdsWithQuotas[] = (int)$r['id'];
+            }
         }
 
-        $revenues = $this->revenueModel->getByCondominium($condominiumId, $filters);
-        
-        // Calculate totals
-        $totalRevenues = array_sum(array_column($revenues, 'amount'));
-        $totalByMonth = [];
-        foreach ($revenues as $revenue) {
-            $month = date('Y-m', strtotime($revenue['revenue_date']));
-            if (!isset($totalByMonth[$month])) {
-                $totalByMonth[$month] = 0;
+        $revenueCategoryModel = new RevenueCategory();
+        $categories = $revenueCategoryModel->getByCondominium($condominiumId);
+        $incomesByCategory = $transactionModel->getIncomesByCategory($condominiumId, $yearStart, $yearEnd);
+        $uncategorizedRow = null;
+        foreach ($incomesByCategory as $row) {
+            if ($row['category'] === 'Sem categoria') {
+                $uncategorizedRow = $row;
+                break;
             }
-            $totalByMonth[$month] += (float)$revenue['amount'];
+        }
+        $uncategorizedCount = $uncategorizedRow ? (int)$uncategorizedRow['count'] : 0;
+
+        // Evolution by year: revenues (income transactions)
+        $chartEvolutionLabels = array_map('strval', $availableYears);
+        $chartEvolutionRevenues = [];
+        foreach ($availableYears as $y) {
+            $ys = "{$y}-01-01";
+            $ye = "{$y}-12-31";
+            $chartEvolutionRevenues[] = (float)$transactionModel->getTotalByPeriodAndType($condominiumId, $ys, $ye, 'income');
+        }
+
+        // Evolution by year: quotas em dívida
+        $feeModel = new Fee();
+        $chartEvolutionDebts = [];
+        foreach ($availableYears as $y) {
+            $chartEvolutionDebts[] = (float)$feeModel->getTotalDueByYear($condominiumId, $y);
+        }
+
+        $totalDebtSelectedYear = (float)$feeModel->getTotalDueByYear($condominiumId, $selectedYear);
+
+        $bankAccountModel = new BankAccount();
+        $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
+
+        // Revenues by category (for pie chart)
+        $revenuesByCategory = $incomesByCategory;
+        $chartCategories = [];
+        $chartAmounts = [];
+        foreach ($revenuesByCategory as $row) {
+            $chartCategories[] = $row['category'];
+            $chartAmounts[] = (float)$row['total'];
         }
 
         $this->loadPageTranslations('finances');
-        
+
         $userId = AuthMiddleware::userId();
         $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
         $isAdmin = ($userRole === 'admin');
-        
+
+        $error = $_SESSION['error'] ?? null;
+        $success = $_SESSION['success'] ?? null;
+        unset($_SESSION['error'], $_SESSION['success']);
+
         $this->data += [
             'viewName' => 'pages/finances/revenues.html.twig',
             'page' => ['titulo' => 'Receitas'],
             'condominium' => $condominium,
             'revenues' => $revenues,
             'total_revenues' => $totalRevenues,
-            'total_by_month' => $totalByMonth,
-            'current_year' => $currentYear,
+            'total_debt_selected_year' => $totalDebtSelectedYear,
+            'uncategorized_count' => $uncategorizedCount,
+            'categories' => $categories,
             'selected_year' => $selectedYear,
-            'selected_month' => $selectedMonth,
+            'available_years' => $availableYears,
+            'filter' => $filter,
             'is_admin' => $isAdmin,
+            'chart_evolution_labels' => $chartEvolutionLabels,
+            'chart_evolution_revenues' => $chartEvolutionRevenues,
+            'chart_evolution_debts' => $chartEvolutionDebts,
+            'chart_categories' => $chartCategories,
+            'chart_amounts' => $chartAmounts,
+            'current_year' => $currentYear,
+            'error' => $error,
+            'success' => $success,
             'csrf_token' => Security::generateCSRFToken(),
-            'error' => $_SESSION['error'] ?? null,
-            'success' => $_SESSION['success'] ?? null,
+            'bank_accounts' => $bankAccounts,
+            'revenue_ids_with_quotas' => $revenueIdsWithQuotas,
             'user' => AuthMiddleware::user()
         ];
-        
-        unset($_SESSION['error']);
-        unset($_SESSION['success']);
 
         $this->renderMainTemplate();
     }
 
-    /**
-     * Show create revenue form
-     */
-    public function createRevenue(int $condominiumId)
+    public function markRevenueAsTransfer(int $condominiumId, int $transactionId)
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
         RoleMiddleware::requireAdminInCondominium($condominiumId);
 
-        $condominium = $this->condominiumModel->findById($condominiumId);
-        if (!$condominium) {
-            $_SESSION['error'] = 'Condomínio não encontrado.';
-            header('Location: ' . BASE_URL . 'condominiums');
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Método não permitido.']);
+                exit;
+            }
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+        if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Token de segurança inválido.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
             exit;
         }
 
-        // Get fractions for dropdown
-        $fractionModel = new \App\Models\Fraction();
-        $fractions = $fractionModel->getByCondominiumId($condominiumId);
+        $transactionModel = new FinancialTransaction();
+        $income = $transactionModel->findById($transactionId);
+        if (!$income || $income['condominium_id'] != $condominiumId || $income['transaction_type'] !== 'income') {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Receita não encontrada.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Receita não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+        if ($transactionModel->isLinkedToFeePayment($transactionId)) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Não é possível marcar como transferência um movimento com quotas associadas.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Não é possível marcar como transferência um movimento com quotas associadas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+        if (isset($income['related_type']) && $income['related_type'] === 'transfer') {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Este movimento já está marcado como transferência.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Este movimento já está marcado como transferência.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
 
-        $this->loadPageTranslations('finances');
-        
-        // Get and clear session messages
-        $error = $_SESSION['error'] ?? null;
-        $success = $_SESSION['success'] ?? null;
-        unset($_SESSION['error'], $_SESSION['success']);
-        
-        $this->data += [
-            'viewName' => 'pages/finances/create-revenue.html.twig',
-            'page' => ['titulo' => 'Registar Receita'],
-            'condominium' => $condominium,
-            'fractions' => $fractions,
-            'csrf_token' => Security::generateCSRFToken(),
-            'error' => $error,
-            'success' => $success
-        ];
+        $transferAccountId = (int)($_POST['transfer_account_id'] ?? 0);
+        if ($transferAccountId <= 0 || $transferAccountId == $income['bank_account_id']) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Selecione uma conta origem válida (diferente da conta atual).']);
+                exit;
+            }
+            $_SESSION['error'] = 'Selecione uma conta origem válida (diferente da conta atual).';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
 
-        $this->renderMainTemplate();
+        $bankAccountModel = new BankAccount();
+        $originAccount = $bankAccountModel->findById($transferAccountId);
+        if (!$originAccount || $originAccount['condominium_id'] != $condominiumId) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Conta origem inválida.']);
+                exit;
+            }
+            $_SESSION['error'] = 'Conta origem inválida.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+            exit;
+        }
+
+        $accountA = $transferAccountId;
+        $accountB = $income['bank_account_id'];
+
+        $transactionModel->update($transactionId, [
+            'related_type' => 'transfer',
+            'related_id' => null,
+            'transfer_account_id' => $accountA,
+            'category' => 'Transferência'
+        ]);
+
+        $userId = AuthMiddleware::userId();
+        $transactionModel->create([
+            'condominium_id' => $condominiumId,
+            'bank_account_id' => $accountA,
+            'transaction_type' => 'expense',
+            'amount' => $income['amount'],
+            'transaction_date' => $income['transaction_date'],
+            'description' => $income['description'] ?? 'Transferência interna',
+            'category' => 'Transferência',
+            'related_type' => 'transfer',
+            'related_id' => $transactionId,
+            'transfer_account_id' => $accountB,
+            'created_by' => $userId
+        ]);
+
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => true]);
+            exit;
+        }
+
+        $_SESSION['success'] = 'Receita marcada como transferência com sucesso.';
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/revenues');
+        exit;
+    }
+
+    /**
+     * Redirect to financial transactions create with income type
+     */
+    public function redirectRevenuesToTransactions(int $condominiumId)
+    {
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create?transaction_type=income');
+        exit;
+    }
+
+    /**
+     * Show create revenue form - redirects to financial-transactions with income type
+     */
+    public function createRevenue(int $condominiumId)
+    {
+        $this->redirectRevenuesToTransactions($condominiumId);
     }
 
     /**
@@ -3163,6 +4113,13 @@ class FinanceController extends Controller
         $userId = AuthMiddleware::userId();
 
         try {
+            $category = trim($_POST['category'] ?? '');
+            $categoryValue = ($category === '' || strtolower($category) === '__none__') ? null : $category;
+            if ($categoryValue) {
+                $revenueCategoryModel = new RevenueCategory();
+                $revenueCategoryModel->getOrCreate($condominiumId, $categoryValue);
+            }
+
             $revenueId = $this->revenueModel->create([
                 'condominium_id' => $condominiumId,
                 'fraction_id' => !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null,
@@ -3171,6 +4128,7 @@ class FinanceController extends Controller
                 'revenue_date' => $_POST['revenue_date'] ?? date('Y-m-d'),
                 'payment_method' => Security::sanitize($_POST['payment_method'] ?? ''),
                 'reference' => Security::sanitize($_POST['reference'] ?? ''),
+                'category' => $categoryValue,
                 'notes' => Security::sanitize($_POST['notes'] ?? ''),
                 'created_by' => $userId
             ]);
@@ -3212,6 +4170,9 @@ class FinanceController extends Controller
         $fractionModel = new \App\Models\Fraction();
         $fractions = $fractionModel->getByCondominiumId($condominiumId);
 
+        $revenueCategoryModel = new RevenueCategory();
+        $revenue_categories = $revenueCategoryModel->getByCondominium($condominiumId);
+
         $this->loadPageTranslations('finances');
         
         // Get and clear session messages
@@ -3225,6 +4186,7 @@ class FinanceController extends Controller
             'condominium' => $condominium,
             'revenue' => $revenue,
             'fractions' => $fractions,
+            'revenue_categories' => $revenue_categories,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $error,
             'success' => $success
@@ -3261,6 +4223,13 @@ class FinanceController extends Controller
             exit;
         }
 
+        $category = trim($_POST['category'] ?? '');
+        $categoryValue = ($category === '' || strtolower($category) === '__none__') ? null : $category;
+        if ($categoryValue) {
+            $revenueCategoryModel = new RevenueCategory();
+            $revenueCategoryModel->getOrCreate($condominiumId, $categoryValue);
+        }
+
         try {
             $this->revenueModel->update($id, [
                 'fraction_id' => !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null,
@@ -3269,6 +4238,7 @@ class FinanceController extends Controller
                 'revenue_date' => $_POST['revenue_date'] ?? date('Y-m-d'),
                 'payment_method' => Security::sanitize($_POST['payment_method'] ?? ''),
                 'reference' => Security::sanitize($_POST['reference'] ?? ''),
+                'category' => $categoryValue,
                 'notes' => Security::sanitize($_POST['notes'] ?? '')
             ]);
 

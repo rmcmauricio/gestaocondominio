@@ -132,6 +132,37 @@ class BankAccount extends Model
     }
 
     /**
+     * Calculate balance as of a specific date (for historical view).
+     * Only includes transactions with transaction_date <= endDate.
+     */
+    public function calculateBalanceAsOfDate(int $accountId, string $endDate): float
+    {
+        if (!$this->db) {
+            return 0.0;
+        }
+        $stmt = $this->db->prepare("SELECT initial_balance FROM bank_accounts WHERE id = :id");
+        $stmt->execute([':id' => $accountId]);
+        $account = $stmt->fetch();
+        if (!$account) {
+            return 0.0;
+        }
+        $initialBalance = (float)$account['initial_balance'];
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(amount), 0) as total FROM financial_transactions
+            WHERE bank_account_id = :account_id AND transaction_type = 'income' AND transaction_date <= :end_date
+        ");
+        $stmt->execute([':account_id' => $accountId, ':end_date' => $endDate]);
+        $totalIncome = (float)($stmt->fetch()['total'] ?? 0);
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(amount), 0) as total FROM financial_transactions
+            WHERE bank_account_id = :account_id AND transaction_type = 'expense' AND transaction_date <= :end_date
+        ");
+        $stmt->execute([':account_id' => $accountId, ':end_date' => $endDate]);
+        $totalExpense = (float)($stmt->fetch()['total'] ?? 0);
+        return $initialBalance + $totalIncome - $totalExpense;
+    }
+
+    /**
      * Update current balance for an account
      */
     public function updateBalance(int $accountId): bool

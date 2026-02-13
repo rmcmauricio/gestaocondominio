@@ -5227,9 +5227,6 @@ class SuperAdminController extends Controller
             // Occurrences where user is reported_by (outside owned condominiums)
             $db->prepare("DELETE FROM occurrences WHERE reported_by = :user_id")->execute([':user_id' => $userId]);
             
-            // Expenses created by user (outside owned condominiums)
-            $db->prepare("DELETE FROM expenses WHERE created_by = :user_id")->execute([':user_id' => $userId]);
-            
             // Contracts created by user (outside owned condominiums)
             $db->prepare("DELETE FROM contracts WHERE created_by = :user_id")->execute([':user_id' => $userId]);
             
@@ -5401,9 +5398,6 @@ class SuperAdminController extends Controller
             // Occurrences where user is reported_by (outside owned condominiums)
             $db->prepare("DELETE FROM occurrences WHERE reported_by = :user_id")->execute([':user_id' => $userId]);
             
-            // Expenses created by user (outside owned condominiums)
-            $db->prepare("DELETE FROM expenses WHERE created_by = :user_id")->execute([':user_id' => $userId]);
-            
             // Contracts created by user (outside owned condominiums)
             $db->prepare("DELETE FROM contracts WHERE created_by = :user_id")->execute([':user_id' => $userId]);
             
@@ -5552,9 +5546,6 @@ class SuperAdminController extends Controller
             // Delete data where user is referenced without CASCADE/SET NULL
             // Occurrences where user is reported_by
             $db->prepare("DELETE FROM occurrences WHERE reported_by = :user_id")->execute([':user_id' => $userId]);
-            
-            // Expenses created by user
-            $db->prepare("DELETE FROM expenses WHERE created_by = :user_id")->execute([':user_id' => $userId]);
             
             // Contracts created by user
             $db->prepare("DELETE FROM contracts WHERE created_by = :user_id")->execute([':user_id' => $userId]);

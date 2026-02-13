@@ -1,0 +1,461 @@
+<div class="container py-4">
+    {% set page_actions %}
+        {% if is_admin %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle"></i> Registar despesa
+            </a>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/categories" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-tags"></i> Gerir categorias
+            </a>
+        </div>
+        {% endif %}
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Despesas',
+        'help_section': 'finances-expenses',
+        'help_title': 'Ajuda com Despesas',
+        'actions': page_actions
+    } %}
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- Seletor de ano -->
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <span class="text-muted small fw-bold me-2">Ano:</span>
+        {% for y in available_years|default([current_year]) %}
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses?year={{ y }}{% if filter %}&filter={{ filter }}{% endif %}" class="btn btn-sm py-1 px-2 {{ y == selected_year ? 'btn-warning' : 'btn-outline-secondary' }}" style="font-size: 0.75rem;">
+            <i class="bi bi-calendar3"></i> {{ y }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Card resumo -->
+    <div class="card shadow-sm mb-4 border-danger">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <h6 class="text-muted mb-1">Total despesas {{ selected_year }}</h6>
+                    <h4 class="text-danger mb-0">€{{ total_expenses|number_format(2, ',', '.') }}</h4>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="text-muted mb-1">Despesas sem categoria</h6>
+                    <h5 class="mb-0">
+                        {% if uncategorized_count > 0 %}
+                        <span id="uncategorized-count" class="badge bg-warning text-dark">{{ uncategorized_count }}</span>
+                        <small class="text-muted">despesas</small>
+                        {% else %}
+                        <span id="uncategorized-count" class="text-success">0</span>
+                        {% endif %}
+                    </h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráfico evolução por ano -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-graph-up"></i> Evolução das despesas ao longo dos anos</h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-container" style="position: relative; height: 280px;">
+                <canvas id="expensesEvolutionChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráfico por categoria -->
+    {% if chart_categories|length > 0 %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Despesas por categoria ({{ selected_year }})</h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-container" style="position: relative; height: 300px;">
+                <canvas id="expensesByCategoryChart"></canvas>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Filtro sem categoria -->
+    {% if is_admin and uncategorized_count > 0 %}
+    <div class="mb-3">
+        {% if filter == 'uncategorized' %}
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses?year={{ selected_year }}" class="btn btn-sm btn-warning">
+            <i class="bi bi-funnel"></i> Mostrar todas
+        </a>
+        {% else %}
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses?year={{ selected_year }}&filter=uncategorized" class="btn btn-sm btn-outline-warning">
+            <i class="bi bi-funnel"></i> Apenas sem categoria
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Lista de despesas -->
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">Lista de despesas</h5>
+        </div>
+        <div class="card-body">
+            {% if expenses %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Descrição</th>
+                            <th class="text-end">Valor</th>
+                            <th>Categoria</th>
+                            {% if is_admin %}
+                            <th class="text-end">Ações</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for exp in expenses %}
+                        <tr class="{% if not exp.category or exp.category|trim == '' %}table-warning{% endif %}" data-expense-id="{{ exp.id }}">
+                            <td>{{ exp.transaction_date|date('d/m/Y') }}</td>
+                            <td>{{ exp.description|default('-') }}</td>
+                            <td class="text-end fw-bold text-danger">€{{ exp.amount|number_format(2, ',', '.') }}</td>
+                            <td>
+                                {% if is_admin %}
+                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/{{ exp.id }}/set-category" class="d-inline form-set-category" id="form-cat-{{ exp.id }}" data-expense-id="{{ exp.id }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="redirect" value="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses?year={{ selected_year }}{% if filter %}&filter={{ filter }}{% endif %}">
+                                    <select name="category" class="form-select form-select-sm set-category-select" style="min-width: 140px;" data-form-id="form-cat-{{ exp.id }}">
+                                        <option value="__none__">— Sem categoria —</option>
+                                        {% for cat in categories %}
+                                        <option value="{{ cat.name }}" {% if exp.category == cat.name %}selected{% endif %}>{{ cat.name }}</option>
+                                        {% endfor %}
+                                        <option value="__new__">+ Criar nova...</option>
+                                    </select>
+                                </form>
+                                {% else %}
+                                {% if exp.category and exp.category|trim != '' %}
+                                {{ exp.category }}
+                                {% else %}
+                                <span class="badge bg-warning text-dark">Sem categoria</span>
+                                {% endif %}
+                                {% endif %}
+                            </td>
+                            {% if is_admin %}
+                            <td class="text-end">
+                                {% if exp.id not in expense_ids_with_quotas|default([]) %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary" title="Marcar como transferência" data-bs-toggle="modal" data-bs-target="#modalMarkTransfer-{{ exp.id }}" data-exp-id="{{ exp.id }}" data-exp-account-id="{{ exp.bank_account_id }}" data-exp-desc="{{ exp.description|default('')|e('html_attr') }}">
+                                    <i class="bi bi-arrow-left-right"></i>
+                                </button>
+                                {% endif %}
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/{{ exp.id }}/edit" class="btn btn-sm btn-outline-primary" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center py-4">Nenhuma despesa encontrada para {{ selected_year }}.</p>
+            {% if is_admin %}
+            <div class="text-center">
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/create" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Registar primeira despesa
+                </a>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar às Finanças
+        </a>
+    </div>
+</div>
+
+{% if is_admin and bank_accounts|default([])|length > 1 %}
+{% for exp in expenses %}
+{% if exp.id not in expense_ids_with_quotas|default([]) %}
+<div class="modal fade" id="modalMarkTransfer-{{ exp.id }}" tabindex="-1" aria-labelledby="modalMarkTransferLabel-{{ exp.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/expenses/{{ exp.id }}/mark-as-transfer" class="form-mark-transfer" data-transaction-id="{{ exp.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalMarkTransferLabel-{{ exp.id }}"><i class="bi bi-arrow-left-right"></i> Marcar como transferência</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Despesa: <strong>{{ exp.description|default('-') }}</strong> (€{{ exp.amount|number_format(2, ',', '.') }})</p>
+                    <p>Selecione a conta destino da transferência:</p>
+                    <select name="transfer_account_id" class="form-select" required>
+                        <option value="">— Selecionar conta destino —</option>
+                        {% for acc in bank_accounts %}
+                        {% if acc.id != exp.bank_account_id %}
+                        <option value="{{ acc.id }}">{{ acc.name }}</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Marcar como transferência</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Marcar como transferência por AJAX (despesas)
+    document.querySelectorAll('.form-mark-transfer').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var transferAccountId = form.querySelector('select[name="transfer_account_id"]');
+            if (!transferAccountId || !transferAccountId.value) return;
+            var submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+            var formData = new FormData(form);
+            fetch(form.action, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            })
+            .then(function(r) {
+                return r.text().then(function(text) {
+                    try { var data = text ? JSON.parse(text) : {}; } catch(err) { return { ok: false, data: { error: 'Resposta inválida do servidor.' } }; }
+                    return { ok: r.ok, data: data };
+                });
+            })
+            .then(function(result) {
+                if (submitBtn) submitBtn.disabled = false;
+                if (result.ok && result.data.success) {
+                    var modalEl = form.closest('.modal');
+                    if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                        var modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) modal.hide();
+                    }
+                    var id = form.dataset.transactionId;
+                    var row = document.querySelector('tr[data-expense-id="' + id + '"]');
+                    if (row) {
+                        var wasUncategorized = row.classList.contains('table-warning');
+                        row.classList.remove('table-warning');
+                        var catSelect = row.querySelector('.set-category-select');
+                        if (catSelect) {
+                            if (!catSelect.querySelector('option[value="Transferência"]')) {
+                                var opt = document.createElement('option');
+                                opt.value = 'Transferência';
+                                opt.textContent = 'Transferência';
+                                opt.selected = true;
+                                catSelect.appendChild(opt);
+                            }
+                            catSelect.value = 'Transferência';
+                            catSelect.dataset.prevValue = 'Transferência';
+                        }
+                        var transferBtn = row.querySelector('button[data-bs-toggle="modal"]');
+                        if (transferBtn) transferBtn.style.display = 'none';
+                        if (wasUncategorized) {
+                            var countEl = document.getElementById('uncategorized-count');
+                            if (countEl) {
+                                var n = parseInt(countEl.textContent, 10);
+                                if (!isNaN(n) && n > 1) countEl.textContent = n - 1;
+                                else if (n === 1) { countEl.textContent = '0'; countEl.className = 'text-success'; countEl.classList.remove('badge', 'bg-warning', 'text-dark'); }
+                            }
+                        }
+                    }
+                } else {
+                    alert(result.data && result.data.error ? result.data.error : 'Erro ao marcar como transferência.');
+                }
+            })
+            .catch(function() {
+                if (submitBtn) submitBtn.disabled = false;
+                alert('Erro de ligação. Tente novamente.');
+            });
+        });
+    });
+
+    function sendCategoryAjax(form, categoryValue, selectEl) {
+        var row = form.closest('tr');
+        var formData = new FormData();
+        formData.append('csrf_token', form.querySelector('input[name="csrf_token"]').value);
+        formData.append('category', categoryValue || '__none__');
+        var prevValue = selectEl.dataset.prevValue || '';
+        selectEl.disabled = true;
+        if (row) row.classList.add('opacity-75');
+        fetch(form.action, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        })
+        .then(function(r) {
+            return r.text().then(function(text) {
+                try { var data = text ? JSON.parse(text) : {}; } catch(e) { return { ok: false, data: { error: 'Resposta inválida do servidor.' } }; }
+                return { ok: r.ok, data: data };
+            });
+        })
+        .then(function(result) {
+            selectEl.disabled = false;
+            if (row) row.classList.remove('opacity-75');
+            if (result.ok && result.data.success) {
+                if (result.data.category && !selectEl.querySelector('option[value="' + result.data.category.replace(/"/g, '&quot;') + '"]')) {
+                    window.location.reload();
+                    return;
+                }
+                selectEl.dataset.prevValue = (result.data.category || '');
+                var countEl = document.getElementById('uncategorized-count');
+                if (result.data.category) {
+                    row.classList.remove('table-warning');
+                    if (countEl) {
+                        var n = parseInt(countEl.textContent, 10);
+                        if (!isNaN(n) && n > 1) countEl.textContent = n - 1;
+                        else if (n === 1) { countEl.textContent = '0'; countEl.className = 'text-success'; countEl.classList.remove('badge', 'bg-warning', 'text-dark'); }
+                    }
+                } else {
+                    row.classList.add('table-warning');
+                    if (countEl) {
+                        var n = parseInt(countEl.textContent, 10);
+                        countEl.textContent = (isNaN(n) ? 0 : n) + 1;
+                        countEl.className = 'badge bg-warning text-dark';
+                    }
+                }
+            } else {
+                selectEl.value = prevValue || '__none__';
+                alert(result.data && result.data.error ? result.data.error : 'Erro ao guardar categoria.');
+            }
+        })
+        .catch(function() {
+            selectEl.disabled = false;
+            if (row) row.classList.remove('opacity-75');
+            selectEl.value = prevValue || '__none__';
+            alert('Erro de ligação. Tente novamente.');
+        });
+    }
+    document.querySelectorAll('.set-category-select').forEach(function(sel) {
+        sel.dataset.prevValue = sel.value || '';
+        sel.addEventListener('change', function() {
+            var v = this.value;
+            var form = document.getElementById(this.dataset.formId);
+            if (v === '__new__') {
+                var selectEl = this;
+                window.openNewCategoryModal(function(name) {
+                    sendCategoryAjax(form, name, selectEl);
+                });
+                this.value = this.dataset.prevValue || '__none__';
+            } else {
+                sendCategoryAjax(form, v, this);
+            }
+        });
+    });
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Evolução por ano
+    const ctxEvolution = document.getElementById('expensesEvolutionChart');
+    if (ctxEvolution) {
+        new Chart(ctxEvolution, {
+            type: 'line',
+            data: {
+                labels: {{ chart_evolution_labels|default([])|json_encode|raw }},
+                datasets: [{
+                    label: 'Total despesas (€)',
+                    data: {{ chart_evolution_amounts|default([])|json_encode|raw }},
+                    borderColor: 'rgb(220, 53, 69)',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': €' + context.raw.toFixed(2).replace('.', ',');
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '€' + value.toLocaleString('pt-PT', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Category pie (only if data)
+    {% if chart_categories|length > 0 %}
+    const ctxPie = document.getElementById('expensesByCategoryChart');
+    if (!ctxPie) return;
+    const colors = ['#dc3545','#fd7e14','#ffc107','#28a745','#20c997','#17a2b8','#6f42c1','#e83e8c'];
+    new Chart(ctxPie, {
+        type: 'pie',
+        data: {
+            labels: {{ chart_categories|json_encode|raw }},
+            datasets: [{
+                data: {{ chart_amounts|json_encode|raw }},
+                backgroundColor: colors.slice(0, {{ chart_categories|length }})
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    onClick: function(e, legendItem, legend) {
+                        const index = legendItem.datasetIndex;
+                        const chart = legend.chart;
+                        const meta = chart.getDatasetMeta(index);
+                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                        chart.update();
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return context.label + ': €' + value.toLocaleString('pt-PT', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (' + pct + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+    {% endif %}
+});
+</script>

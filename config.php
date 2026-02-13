@@ -143,6 +143,56 @@ $twig->addFilter(new \Twig\TwigFilter('sanitize_html', function($html) {
     return \App\Core\Security::sanitizeHtml($html);
 }, ['is_safe' => ['html']]));
 
+// Addons: discover and enable from .env
+$addonsBase = __DIR__ . '/addons';
+$addon_manifests = [];
+$enabled_addons = [];
+if (is_dir($addonsBase)) {
+    foreach (glob($addonsBase . '/*', GLOB_ONLYDIR) as $addonDir) {
+        $addonFile = $addonDir . '/addon.php';
+        if (!is_file($addonFile)) {
+            continue;
+        }
+        $manifest = require $addonFile;
+        if (empty($manifest['key']) || empty($manifest['env_key'])) {
+            continue;
+        }
+        $manifest['folder'] = basename($addonDir);
+        $addon_manifests[$manifest['key']] = $manifest;
+        $envVal = $config[$manifest['env_key']] ?? $_ENV[$manifest['env_key']] ?? '';
+        $enabled = ($envVal === 'true' || $envVal === '1' || $envVal === true);
+        if ($enabled) {
+            $enabled_addons[] = $manifest['key'];
+        }
+    }
+}
+if (!function_exists('addon_enabled')) {
+    function addon_enabled(string $key): bool {
+        global $enabled_addons;
+        return in_array($key, $enabled_addons ?? [], true);
+    }
+}
+$addons_twig = [];
+foreach ($enabled_addons as $k) {
+    $addons_twig[$k] = true;
+}
+$twig->addGlobal('addons', $addons_twig);
+$GLOBALS['addon_manifests'] = $addon_manifests;
+$GLOBALS['enabled_addons'] = $enabled_addons;
+
+// Add Twig paths for each enabled addon (Views namespace)
+foreach ($enabled_addons as $key) {
+    $manifest = $addon_manifests[$key] ?? null;
+    if (!$manifest || empty($manifest['folder'])) {
+        continue;
+    }
+    $viewsPath = $addonsBase . '/' . $manifest['folder'] . '/Views';
+    if (is_dir($viewsPath)) {
+        $twigNs = 'addon_' . $key;
+        $loader->addPath($viewsPath, $twigNs);
+    }
+}
+
 // Make Twig available globally
 $GLOBALS['twig'] = $twig;
 

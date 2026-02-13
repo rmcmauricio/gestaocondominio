@@ -160,7 +160,6 @@ try {
         'reservations' => [true, null, null],
         'spaces' => [true, null, null],
         'occurrences' => [true, null, null],
-        'expenses' => [true, null, null],
         'budgets' => [true, null, null],
         'contracts' => [true, null, null],
         'suppliers' => [true, null, null],

@@ -129,6 +129,9 @@
     <!-- Help Modal (available on all pages) -->
     {% include 'blocks/help-modal.html.twig' %}
 
+    <!-- Modal: Nova categoria (receitas, despesas, movimentos, importação) -->
+    {% include 'blocks/modal-new-category.html.twig' %}
+
     <!-- Cookie Consent Banner and Modal -->
     {% include 'blocks/cookie-banner.html.twig' %}
     {% include 'blocks/cookie-preferences-modal.html.twig' %}
@@ -153,6 +156,58 @@
     </script>
     <!-- Cookie Consent JS -->
     <script src="{{ BASE_URL }}assets/js/cookie-consent.js?v={{ VERSION }}"></script>
+    <script>
+    (function() {
+        var modalEl = document.getElementById('newCategoryModal');
+        var inputEl = document.getElementById('newCategoryName');
+        var invalidEl = document.getElementById('newCategoryNameInvalid');
+        var submitBtn = document.getElementById('newCategoryModalSubmit');
+        if (!modalEl || !inputEl || !submitBtn) return;
+        var modal = new bootstrap.Modal(modalEl);
+        var callback = null;
+        function clearValidation() {
+            inputEl.classList.remove('is-invalid');
+            invalidEl.style.display = 'none';
+        }
+        function showValidation() {
+            inputEl.classList.add('is-invalid');
+            invalidEl.style.display = 'block';
+        }
+        modalEl.addEventListener('show.bs.modal', function() {
+            inputEl.value = '';
+            clearValidation();
+            setTimeout(function() { inputEl.focus(); }, 300);
+        });
+        modalEl.addEventListener('shown.bs.modal', function() {
+            callback = window._newCategoryCallback || null;
+        });
+        modalEl.addEventListener('hidden.bs.modal', function() {
+            callback = null;
+            window._newCategoryCallback = null;
+            clearValidation();
+        });
+        submitBtn.addEventListener('click', function() {
+            var name = (inputEl.value || '').trim();
+            if (!name) {
+                showValidation();
+                inputEl.focus();
+                return;
+            }
+            if (typeof callback === 'function') callback(name);
+            modal.hide();
+        });
+        inputEl.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitBtn.click();
+            }
+        });
+        window.openNewCategoryModal = function(cb) {
+            window._newCategoryCallback = cb;
+            modal.show();
+        };
+    })();
+    </script>
     {% if user %}
     <script src="{{ BASE_URL }}assets/js/notifications-update.js?v={{ VERSION }}"></script>
     {% endif %}

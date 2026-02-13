@@ -104,6 +104,8 @@ class CondominiumBackupService
             $data['tables']['folders'] = $this->exportTable("folders", "condominium_id", $condominiumId);
             $data['tables']['budgets'] = $this->exportTable("budgets", "condominium_id", $condominiumId);
             $data['tables']['budget_items'] = $this->exportBudgetItems($condominiumId);
+            $data['tables']['expense_categories'] = $this->exportTable("expense_categories", "condominium_id", $condominiumId);
+            $data['tables']['revenue_categories'] = $this->exportTable("revenue_categories", "condominium_id", $condominiumId);
             $data['tables']['suppliers'] = $this->exportTable("suppliers", "condominium_id", $condominiumId);
             $data['tables']['contracts'] = $this->exportTable("contracts", "condominium_id", $condominiumId);
             $data['tables']['fees'] = $this->exportTable("fees", "condominium_id", $condominiumId);
@@ -124,7 +126,6 @@ class CondominiumBackupService
             $data['tables']['fee_payment_history'] = $this->exportFeePaymentHistory($condominiumId);
             $data['tables']['fraction_account_movements'] = $this->exportFractionAccountMovements($condominiumId);
             $data['tables']['revenues'] = $this->exportTable("revenues", "condominium_id", $condominiumId);
-            $data['tables']['expenses'] = $this->exportTable("expenses", "condominium_id", $condominiumId);
             $data['tables']['receipts'] = $this->exportTable("receipts", "condominium_id", $condominiumId);
             $data['tables']['reservations'] = $this->exportTable("reservations", "condominium_id", $condominiumId);
             $data['tables']['messages'] = $this->exportTable("messages", "condominium_id", $condominiumId);
@@ -282,7 +283,7 @@ class CondominiumBackupService
 
             try {
                 $map = ['users' => [], 'condominiums' => [], 'fractions' => [], 'bank_accounts' => [], 'budgets' => [],
-                    'budget_items' => [], 'suppliers' => [], 'contracts' => [], 'fees' => [], 'fraction_accounts' => [],
+                    'budget_items' => [], 'expense_categories' => [], 'revenue_categories' => [], 'suppliers' => [], 'contracts' => [], 'fees' => [], 'fraction_accounts' => [],
                     'assemblies' => [], 'assembly_vote_topics' => [], 'spaces' => [], 'folders' => [], 'documents' => [],
                     'financial_transactions' => [], 'fee_payments' => [], 'standalone_votes' => [], 'occurrences' => [],
                     'messages' => [], 'assembly_agenda_points' => []];
@@ -350,6 +351,16 @@ class CondominiumBackupService
                     if ($newBudgetId) {
                         $this->insertRow("budget_items", $row, ['budget_id' => $newBudgetId], $restoreInPlace);
                     }
+                }
+
+                // 7b. Expense categories
+                foreach ($data['tables']['expense_categories'] ?? [] as $row) {
+                    $newId = $this->insertRow("expense_categories", $row, ['condominium_id' => $newCondominiumId], $restoreInPlace);
+                    $map['expense_categories'][$row['id']] = $newId;
+                }
+                foreach ($data['tables']['revenue_categories'] ?? [] as $row) {
+                    $newId = $this->insertRow("revenue_categories", $row, ['condominium_id' => $newCondominiumId], $restoreInPlace);
+                    $map['revenue_categories'][$row['id']] = $newId;
                 }
 
                 // 8. Suppliers, contracts
@@ -461,7 +472,7 @@ class CondominiumBackupService
                 // 17. Financial transactions
                 foreach ($data['tables']['financial_transactions'] ?? [] as $row) {
                     $bankId = $map['bank_accounts'][$row['bank_account_id']] ?? null;
-                    $transferToId = !empty($row['transfer_to_account_id']) ? ($map['bank_accounts'][$row['transfer_to_account_id']] ?? null) : null;
+                    $transferToId = !empty($row['transfer_account_id']) ? ($map['bank_accounts'][$row['transfer_account_id']] ?? null) : null;
                     $createdBy = !empty($row['created_by']) ? ($map['users'][$row['created_by']] ?? null) : null;
                     $fracId = !empty($row['fraction_id']) ? ($map['fractions'][$row['fraction_id']] ?? null) : null;
                     $ftOverrides = [
@@ -471,7 +482,7 @@ class CondominiumBackupService
                         'created_by' => $createdBy
                     ];
                     if ($transferToId !== null) {
-                        $ftOverrides['transfer_to_account_id'] = $transferToId;
+                        $ftOverrides['transfer_account_id'] = $transferToId;
                     }
                     if ($bankId) {
                         $newId = $this->insertRow("financial_transactions", $row, $ftOverrides, $restoreInPlace);
@@ -512,11 +523,6 @@ class CondominiumBackupService
                 foreach ($data['tables']['revenues'] ?? [] as $row) {
                     $fracId = !empty($row['fraction_id']) ? ($map['fractions'][$row['fraction_id']] ?? null) : null;
                     $this->insertRow("revenues", $row, ['condominium_id' => $newCondominiumId, 'fraction_id' => $fracId], $restoreInPlace);
-                }
-                foreach ($data['tables']['expenses'] ?? [] as $row) {
-                    $fracId = !empty($row['fraction_id']) ? ($map['fractions'][$row['fraction_id']] ?? null) : null;
-                    $supplierId = !empty($row['supplier_id']) ? ($map['suppliers'][$row['supplier_id']] ?? null) : null;
-                    $this->insertRow("expenses", $row, ['condominium_id' => $newCondominiumId, 'fraction_id' => $fracId, 'supplier_id' => $supplierId], $restoreInPlace);
                 }
                 // Receipts: when restore in place keep original receipt_number; when new condominium generate new numbers (UNIQUE is global)
                 $receiptsRows = $data['tables']['receipts'] ?? [];
@@ -697,7 +703,7 @@ class CondominiumBackupService
             'assembly_vote_topics', 'assembly_agenda_points', 'assembly_agenda_point_vote_topics',
             'assembly_attendees', 'assembly_votes', 'standalone_votes', 'vote_options', 'standalone_vote_responses',
             'financial_transactions', 'fee_payments', 'fee_payment_history', 'fraction_account_movements',
-            'revenues', 'expenses', 'receipts', 'reservations', 'documents', 'minutes_revisions',
+            'revenues', 'receipts', 'reservations', 'documents', 'minutes_revisions',
             'messages', 'message_attachments', 'occurrences', 'occurrence_comments',
             'occurrence_history', 'occurrence_attachments', 'notifications', 'invitations',
             'assembly_account_approvals', 'admin_transfer_pending'

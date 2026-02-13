@@ -121,6 +121,20 @@ spl_autoload_register(function ($class) {
     }
 });
 
+// autoload para addons (Addons\HelpChatbot\Controllers\X -> addons/HelpChatbot/Controllers/X.php)
+spl_autoload_register(function ($class) {
+    $prefix = 'Addons\\';
+    if (strpos($class, $prefix) !== 0) {
+        return;
+    }
+    $base_dir = __DIR__ . '/addons/';
+    $relative_class = substr($class, strlen($prefix));
+    $file = $base_dir . str_replace('\\', '/', $relative_class) . '.php';
+    if (file_exists($file)) {
+        require $file;
+    }
+});
+
 $router = new Router();
 
 // Load routes file if it exists

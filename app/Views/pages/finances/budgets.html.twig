@@ -1,0 +1,334 @@
+<div class="container py-4">
+    {% set page_actions %}
+        {% if is_admin %}
+        <div class="page-header-actions">
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create{% if selected_year %}?year={{ selected_year }}{% endif %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle"></i> Criar orçamento
+            </a>
+        </div>
+        {% endif %}
+    {% endset %}
+    {% include 'blocks/page-header.html.twig' with {
+        'title': 'Orçamentos',
+        'help_section': 'finances-budgets',
+        'help_title': 'Ajuda com Orçamentos',
+        'actions': page_actions
+    } %}
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- Seletor de ano -->
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <span class="text-muted small fw-bold me-2">Ano:</span>
+        {% for y in available_years|default([current_year]) %}
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets?year={{ y }}" class="btn btn-sm py-1 px-2 {{ y == selected_year ? 'btn-warning' : 'btn-outline-secondary' }}" style="font-size: 0.75rem;">
+            <i class="bi bi-calendar3"></i> {{ y }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Orçamento actual em destaque - detalhes completos inline -->
+    <div class="card shadow-sm mb-4 {% if current_budget and selected_year == current_year %}border-primary border-2{% endif %}">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+            <h5 class="mb-0">
+                <i class="bi bi-calendar-check"></i>
+                Orçamento {{ selected_year }}
+                {% if selected_year == current_year %}
+                <span class="badge bg-primary ms-2">Actual</span>
+                {% endif %}
+            </h5>
+            {% if current_budget and is_admin and current_budget.status == 'draft' %}
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ current_budget.id }}/edit" class="btn btn-sm btn-primary">
+                <i class="bi bi-pencil"></i> Editar
+            </a>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            {% if current_budget %}
+            <!-- Resumo (Total Receitas, Total Despesas, Estado) -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <h6 class="text-muted mb-1">Total Receitas</h6>
+                    <h4 class="text-success mb-0">€{{ total_revenue|number_format(2, ',', '.') }}</h4>
+                </div>
+                <div class="col-md-3">
+                    <h6 class="text-muted mb-1">Total Despesas</h6>
+                    <h4 class="text-danger mb-0">€{{ total_expenses|number_format(2, ',', '.') }}</h4>
+                </div>
+                <div class="col-md-3">
+                    <h6 class="text-muted mb-1">Saldo Previsto</h6>
+                    <h4 class="mb-0 {% if (total_revenue - total_expenses) < 0 %}text-danger{% else %}text-success{% endif %}">
+                        €{{ (total_revenue - total_expenses)|number_format(2, ',', '.') }}
+                    </h4>
+                </div>
+                <div class="col-md-3">
+                    <h6 class="text-muted mb-1">Estado</h6>
+                    {% if current_budget.status == 'draft' %}
+                    <span class="badge bg-secondary">Rascunho</span>
+                    {% elseif current_budget.status == 'approved' %}
+                    <span class="badge bg-success">Aprovado</span>
+                    {% elseif current_budget.status == 'active' %}
+                    <span class="badge bg-info">Activo</span>
+                    {% elseif current_budget.status == 'closed' %}
+                    <span class="badge bg-dark">Encerrado</span>
+                    {% else %}
+                    <span class="badge bg-secondary">{{ current_budget.status }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Receitas e Despesas detalhadas -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card border-success mb-0">
+                        <div class="card-header bg-success text-white py-2">
+                            <h6 class="mb-0">Receitas</h6>
+                        </div>
+                        <div class="card-body py-2">
+                            {% if revenue_items %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-budget-mobile mb-0">
+                                    <tbody>
+                                        {% for item in revenue_items %}
+                                        <tr>
+                                            <td>{{ item.description|default('-') }}</td>
+                                            <td class="text-end"><strong>€{{ item.amount|number_format(2, ',', '.') }}</strong></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <th>Total</th>
+                                            <th class="text-end">€{{ total_revenue|number_format(2, ',', '.') }}</th>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted mb-0 small">Sem receitas definidas.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-danger mb-0">
+                        <div class="card-header bg-danger text-white py-2">
+                            <h6 class="mb-0">Despesas</h6>
+                        </div>
+                        <div class="card-body py-2">
+                            {% if expense_items %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-budget-mobile mb-0">
+                                    <tbody>
+                                        {% for item in expense_items %}
+                                        <tr>
+                                            <td>{{ item.description|default('-') }}</td>
+                                            <td class="text-end"><strong>€{{ item.amount|number_format(2, ',', '.') }}</strong></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <th>Total</th>
+                                            <th class="text-end">€{{ total_expenses|number_format(2, ',', '.') }}</th>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted mb-0 small">Sem despesas definidas.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">Nenhum orçamento definido para {{ selected_year }}.</p>
+            {% if is_admin %}
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create?year={{ selected_year }}" class="btn btn-primary btn-sm mt-2">
+                <i class="bi bi-plus-circle"></i> Criar orçamento para {{ selected_year }}
+            </a>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Gráfico evolução orçamentos -->
+    {% if chart_labels|length > 0 %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-graph-up"></i> Evolução dos Orçamentos (Receitas, Despesas e Saldo Início do Ano)</h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-container" style="position: relative; height: 300px;">
+                <canvas id="budgetsEvolutionChart"></canvas>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Lista de orçamentos -->
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">Todos os orçamentos</h5>
+        </div>
+        <div class="card-body">
+            {% if all_budgets %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Ano</th>
+                            <th class="text-end">Total</th>
+                            <th>Estado</th>
+                            <th class="text-end">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in all_budgets %}
+                        <tr class="{% if current_budget and b.id == current_budget.id %}table-active{% endif %}">
+                            <td>
+                                {{ b.year }}
+                                {% if b.year == current_year %}
+                                <span class="badge bg-primary ms-1">Actual</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end fw-bold">€{{ b.total_amount|number_format(2, ',', '.') }}</td>
+                            <td>
+                                {% if b.status == 'draft' %}
+                                <span class="badge bg-secondary">Rascunho</span>
+                                {% elseif b.status == 'approved' %}
+                                <span class="badge bg-success">Aprovado</span>
+                                {% elseif b.status == 'active' %}
+                                <span class="badge bg-info">Activo</span>
+                                {% elseif b.status == 'closed' %}
+                                <span class="badge bg-dark">Encerrado</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ b.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ b.id }}" class="btn btn-sm btn-outline-primary" title="Ver">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                {% if is_admin and b.status == 'draft' %}
+                                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ b.id }}/edit" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center py-4">Nenhum orçamento criado.</p>
+            {% if is_admin %}
+            <div class="text-center">
+                <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/create" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Criar primeiro orçamento
+                </a>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar às Finanças
+        </a>
+    </div>
+</div>
+
+{% if chart_labels|length > 0 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('budgetsEvolutionChart');
+    if (!ctx) return;
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ chart_labels|json_encode|raw }},
+            datasets: [
+                {
+                    label: 'Receitas',
+                    data: {{ chart_revenues|json_encode|raw }},
+                    borderColor: 'rgb(40, 167, 69)',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Despesas',
+                    data: {{ chart_expenses|json_encode|raw }},
+                    borderColor: 'rgb(220, 53, 69)',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Saldo início do ano',
+                    data: {{ chart_saldo_inicio|json_encode|raw }},
+                    borderColor: 'rgb(13, 110, 253)',
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.3,
+                    borderDash: [5, 5]
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    onClick: function(e, legendItem, legend) {
+                        const index = legendItem.datasetIndex;
+                        const chart = legend.chart;
+                        const meta = chart.getDatasetMeta(index);
+                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                        chart.update();
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': €' + context.raw.toFixed(2).replace('.', ',');
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            return '€' + value.toLocaleString('pt-PT', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
