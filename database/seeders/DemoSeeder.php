@@ -12,7 +12,6 @@ use App\Models\BankAccount;
 use App\Models\FinancialTransaction;
 use App\Models\Budget;
 use App\Models\BudgetItem;
-use App\Models\FinancialTransaction;
 use App\Models\Supplier;
 use App\Models\Assembly;
 use App\Models\AssemblyAttendee;
