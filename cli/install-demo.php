@@ -147,17 +147,14 @@ try {
     echo "Agora pode usar restore-demo.php para restaurar os dados demo quando necessário.\n";
     echo "\n";
 
-} catch (\PDOException $e) {
-    // Re-enable auditing even on error
-    AuditManager::enable();
-    echo "Erro de banco de dados: " . $e->getMessage() . "\n";
-    echo "Stack trace: " . $e->getTraceAsString() . "\n";
-    exit(1);
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
     // Re-enable auditing even on error
     AuditManager::enable();
     
-    echo "Erro: " . $e->getMessage() . "\n";
-    echo "Stack trace: " . $e->getTraceAsString() . "\n";
+    $msg = $e->getMessage();
+    $class = get_class($e);
+    echo "Erro ({$class}): " . (strlen($msg) ? $msg : '(sem mensagem)') . "\n";
+    echo "Ficheiro: " . $e->getFile() . " (linha " . $e->getLine() . ")\n";
+    echo "Stack trace:\n" . $e->getTraceAsString() . "\n";
     exit(1);
 }
