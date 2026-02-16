@@ -472,7 +472,10 @@ class CondominiumBackupService
                 // 17. Financial transactions
                 foreach ($data['tables']['financial_transactions'] ?? [] as $row) {
                     $bankId = $map['bank_accounts'][$row['bank_account_id']] ?? null;
-                    $transferToId = !empty($row['transfer_account_id']) ? ($map['bank_accounts'][$row['transfer_account_id']] ?? null) : null;
+                    // Backup may have old column name transfer_to_account_id (renamed to transfer_account_id in migration 128)
+                    $transferSourceId = $row['transfer_account_id'] ?? $row['transfer_to_account_id'] ?? null;
+                    $transferToId = !empty($transferSourceId) ? ($map['bank_accounts'][$transferSourceId] ?? null) : null;
+                    unset($row['transfer_to_account_id']); // avoid INSERT with old column name
                     $createdBy = !empty($row['created_by']) ? ($map['users'][$row['created_by']] ?? null) : null;
                     $fracId = !empty($row['fraction_id']) ? ($map['fractions'][$row['fraction_id']] ?? null) : null;
                     $ftOverrides = [
