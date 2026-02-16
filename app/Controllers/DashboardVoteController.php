@@ -42,11 +42,11 @@ class DashboardVoteController extends Controller
 
         $vote = $this->voteModel->findById($voteId);
         if (!$vote || $vote['condominium_id'] != $condominiumId) {
-            $this->jsonError('Votação não encontrada', 404, 'VOTE_NOT_FOUND');
+            $this->jsonError('Inquérito não encontrado', 404, 'VOTE_NOT_FOUND');
         }
 
         if ($vote['status'] !== 'open') {
-            $this->jsonError('Esta votação não está aberta para votação', 400, 'VOTE_NOT_OPEN');
+            $this->jsonError('Este inquérito não está aberto para resposta', 400, 'VOTE_NOT_OPEN');
         }
 
         $userId = AuthMiddleware::userId();

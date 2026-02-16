@@ -58,7 +58,7 @@ class SubscriptionController extends Controller
             'documentos' => 'Gestão de Documentos',
             'ocorrencias_simples' => 'Ocorrências Simples',
             'ocorrencias' => 'Ocorrências',
-            'votacoes_online' => 'Votações Online',
+            'votacoes_online' => 'Inquéritos Online',
             'reservas_espacos' => 'Reservas de Espaços',
             'gestao_contratos' => 'Gestão de Contratos',
             'gestao_fornecedores' => 'Gestão de Fornecedores'

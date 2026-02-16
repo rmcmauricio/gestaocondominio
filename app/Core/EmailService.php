@@ -223,10 +223,27 @@ class EmailService
      */
     public function sendEmail(string $to, string $subject, string $html, string $text = '', ?string $emailType = null, ?int $userId = null): bool
     {
-        return $this->sendEmailInternal($to, $subject, $html, $text, $emailType, $userId);
+        return $this->sendEmailInternal($to, $subject, $html, $text, $emailType, $userId, null);
     }
 
-    private function sendEmailInternal(string $to, string $subject, string $html, string $text, ?string $emailType = null, ?int $userId = null): bool
+    /**
+     * Send email with optional attachment (e.g. convocation PDF).
+     *
+     * @param string $to Recipient email
+     * @param string $subject Subject
+     * @param string $html HTML body
+     * @param string $text Plain text body (optional)
+     * @param string|null $attachmentPath Full path to file to attach
+     * @param string|null $emailType Type of email for preference checking
+     * @param int|null $userId User ID for preference checking
+     * @return bool
+     */
+    public function send(string $to, string $subject, string $html, string $text = '', ?string $attachmentPath = null, ?string $emailType = null, ?int $userId = null): bool
+    {
+        return $this->sendEmailInternal($to, $subject, $html, $text, $emailType, $userId, $attachmentPath);
+    }
+
+    private function sendEmailInternal(string $to, string $subject, string $html, string $text, ?string $emailType = null, ?int $userId = null, ?string $attachmentPath = null): bool
     {
         // Check if user is demo - demo users never receive emails
         if ($userId !== null) {
@@ -378,6 +395,11 @@ class EmailService
             $mail->Subject = $subject;
             $mail->Body = $html;
             $mail->AltBody = $text;
+
+            // Optional attachment
+            if ($attachmentPath !== null && is_string($attachmentPath) && file_exists($attachmentPath)) {
+                $mail->addAttachment($attachmentPath, basename($attachmentPath));
+            }
 
             // Send email
             $result = $mail->send();

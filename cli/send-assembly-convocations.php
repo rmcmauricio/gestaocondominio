@@ -89,7 +89,7 @@ foreach ($assemblies as $assembly) {
     // Generate PDF
     try {
         $pdfFilename = $pdfService->generateConvocation($assembly['id'], $assembly, []);
-        $pdfPath = __DIR__ . '/../storage/documents/' . $pdfFilename;
+        $pdfPath = __DIR__ . '/../storage/' . $pdfFilename;
         
         if (!file_exists($pdfPath)) {
             echo "  ERRO: PDF não foi gerado corretamente.\n";
@@ -114,8 +114,10 @@ foreach ($assemblies as $assembly) {
                 $user['email'],
                 'Convocatória de Assembleia: ' . $assembly['title'],
                 $emailBody,
+                '',
+                $pdfPath,
                 null,
-                $pdfPath
+                $user['id'] ?? null
             );
             
             $sent++;

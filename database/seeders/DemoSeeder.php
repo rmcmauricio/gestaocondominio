@@ -3789,7 +3789,7 @@ class DemoSeeder
 
     protected function createStandaloneVotes(int $condominiumIndex = 0): void
     {
-        echo "17. Criando votações standalone...\n";
+        echo "17. Criando inquéritos...\n";
 
         // Check if standalone votes already exist for this condominium
         $stmt = $this->db->prepare("SELECT id FROM standalone_votes WHERE condominium_id = :condominium_id");
@@ -3797,12 +3797,12 @@ class DemoSeeder
         $existingVotes = $stmt->fetchAll();
 
         if (!empty($existingVotes)) {
-            echo "   Votações standalone já existem para este condomínio, a saltar criação.\n";
+            echo "   Inquéritos já existem para este condomínio, a saltar criação.\n";
             return;
         }
 
         if (empty($this->fractionIds)) {
-            echo "   Aviso: Nenhuma fração encontrada. Pulando criação de votações.\n";
+            echo "   Aviso: Nenhuma fração encontrada. Pulando criação de inquéritos.\n";
             return;
         }
 
@@ -3838,7 +3838,7 @@ class DemoSeeder
         $abstencaoOptionId = $optionIds[2] ?? null;
 
         if (!$favorOptionId || !$contraOptionId || !$abstencaoOptionId) {
-            echo "   Aviso: Opções de voto insuficientes. Pulando criação de votações.\n";
+            echo "   Aviso: Opções de resposta insuficientes. Pulando criação de inquéritos.\n";
             return;
         }
 
@@ -3863,7 +3863,7 @@ class DemoSeeder
         }
 
         if (empty($fractionsWithUsers)) {
-            echo "   Aviso: Nenhuma fração com utilizador encontrada. Pulando criação de votações.\n";
+            echo "   Aviso: Nenhuma fração com utilizador encontrada. Pulando criação de inquéritos.\n";
             return;
         }
 

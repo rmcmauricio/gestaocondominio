@@ -23,7 +23,7 @@ class VoteOptionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdminInCondominium($id);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         $condominiumModel = new Condominium();
         $condominium = $condominiumModel->findById($condominiumId);
@@ -59,7 +59,7 @@ class VoteOptionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdminInCondominium($id);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/vote-options');
@@ -109,7 +109,7 @@ class VoteOptionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdminInCondominium($id);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/vote-options');
@@ -156,7 +156,7 @@ class VoteOptionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
-        RoleMiddleware::requireAdminInCondominium($id);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'DELETE' && ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['_method']) || $_POST['_method'] !== 'DELETE')) {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/vote-options');

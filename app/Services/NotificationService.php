@@ -395,8 +395,8 @@ class NotificationService
                 $user['id'],
                 $condominiumId,
                 'vote',
-                'Nova Votação Aberta',
-                'Uma nova votação foi aberta: ' . $voteTitle,
+                'Novo Inquérito Aberto',
+                'Um novo inquérito foi aberto: ' . $voteTitle,
                 BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId
             );
         }

@@ -102,15 +102,15 @@ class BreadcrumbService
         'pages/assemblies/edit-minutes-template.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Assembleias', 'condominiums/{condominium_id}/assemblies'], ['page.titulo', null] ],
         'pages/assemblies/revisions.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Assembleias', 'condominiums/{condominium_id}/assemblies'], ['page.titulo', 'condominiums/{condominium_id}/assemblies/{id}'], ['Revisões', null] ],
 
-        'pages/votes/index.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Votações', null] ],
-        'pages/votes/create.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Votações', 'condominiums/{condominium_id}/votes'], ['Nova votação', null] ],
-        'pages/votes/show.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Votações', 'condominiums/{condominium_id}/votes'], ['page.titulo', null] ],
-        'pages/votes/edit.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Votações', 'condominiums/{condominium_id}/votes'], ['Editar votação', null] ],
+        'pages/votes/index.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Inquéritos', null] ],
+        'pages/votes/create.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Inquéritos', 'condominiums/{condominium_id}/votes'], ['Novo inquérito', null] ],
+        'pages/votes/show.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Inquéritos', 'condominiums/{condominium_id}/votes'], ['page.titulo', null] ],
+        'pages/votes/edit.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Inquéritos', 'condominiums/{condominium_id}/votes'], ['Editar inquérito', null] ],
         'pages/votes/create-topic.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Assembleias', 'condominiums/{condominium_id}/assemblies'], ['page.titulo', null] ],
         'pages/votes/edit-topic.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Assembleias', 'condominiums/{condominium_id}/assemblies'], ['Editar tema', null] ],
         'pages/votes/results.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Assembleias', 'condominiums/{condominium_id}/assemblies'], ['Resultados', null] ],
 
-        'pages/vote-options/index.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Opções de voto', null] ],
+        'pages/vote-options/index.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Opções de resposta', null] ],
 
         'pages/messages/index.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Mensagens', null] ],
         'pages/messages/create.html.twig' => [ ['Início', 'dashboard'], ['condominium.name', 'condominiums/{condominium_id}'], ['Mensagens', 'condominiums/{condominium_id}/messages'], ['Nova mensagem', null] ],

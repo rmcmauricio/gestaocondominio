@@ -57,6 +57,88 @@
                     <i class="bi bi-lightning-charge-fill"></i> Ações Rápidas
                 </h6>
                 {% if assembly.status == 'scheduled' %}
+                {# Convocatórias: data de envio, frações que receberam por email, link documento, reenviar #}
+                {% if assembly.convocation_sent_at %}
+                <div class="alert alert-light border mb-4">
+                    <h6 class="mb-2"><i class="bi bi-envelope-check"></i> Convocatórias enviadas</h6>
+                    <p class="mb-1"><strong>Data:</strong> {{ assembly.convocation_sent_at|date('d/m/Y H:i') }}</p>
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                        {% if convocation_document_available %}
+                        <a href="{{ convocation_document_url }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                            <i class="bi bi-file-pdf"></i> Descarregar convocatória (PDF)
+                        </a>
+                        {% endif %}
+                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/resend-convocation" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Reenviar convocatória por email (lembrete) aos mesmos destinatários?');">
+                                <i class="bi bi-envelope-arrow-up"></i> Reenviar (lembrete)
+                            </button>
+                        </form>
+                    </div>
+                    {% if convocation_letter_fractions|length > 0 %}
+                    {% set recipient_identifiers = convocation_recipient_identifiers|default([]) %}
+                    <h6 class="mt-3 mb-2">
+                        <a class="text-dark text-decoration-none d-flex align-items-center" data-bs-toggle="collapse" data-bs-target="#cartas-correio-table" aria-expanded="false" aria-controls="cartas-correio-table">
+                            <i class="bi bi-mailbox me-2"></i> Cartas para envio por correio
+                            <i class="bi bi-chevron-down ms-2 collapse-icon"></i>
+                        </a>
+                    </h6>
+                    <p class="small text-muted mb-2">Um documento por fração para imprimir e enviar por correio.</p>
+                    <div class="collapse" id="cartas-correio-table">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Fração</th>
+                                        <th>Data envio email</th>
+                                        <th>Carta registada</th>
+                                        <th class="text-end">Documento</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in convocation_letter_fractions %}
+                                    <tr>
+                                        <td>{{ item.identifier }}</td>
+                                        <td>
+                                            {% if item.email_sent_at %}
+                                            <span class="text-success" title="Enviado por email"><i class="bi bi-envelope-check"></i> {{ item.email_sent_at|date('d/m/Y H:i') }}</span>
+                                            {% else %}
+                                            <span class="text-muted">—</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if is_admin %}
+                                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/convocation-letter/{{ item.fraction_id }}/registered-number" class="d-inline-flex align-items-center gap-1 flex-wrap">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                <input type="text" name="registered_letter_number" class="form-control form-control-sm" style="width: 120px;" value="{{ item.registered_letter_number|default('') }}" placeholder="N.º carta registada" maxlength="100">
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Guardar número da carta registada"><i class="bi bi-check-lg"></i></button>
+                                            </form>
+                                            {% else %}
+                                            {% if item.registered_letter_number %}
+                                            <span title="Carta registada">{{ item.registered_letter_number }}</span>
+                                            {% else %}
+                                            <span class="text-muted">—</span>
+                                            {% endif %}
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            {% if item.document_available %}
+                                            <a href="{{ item.download_url }}" class="btn btn-sm btn-outline-primary" target="_blank" title="Descarregar carta para fração {{ item.identifier }}">
+                                                <i class="bi bi-download"></i> Descarregar
+                                            </a>
+                                            {% else %}
+                                            <span class="text-muted small">—</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
                 <div class="row g-3">
                     <div class="col-md-6 col-lg-3">
                         <a href="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/edit" class="btn btn-outline-primary w-100">
@@ -67,7 +149,7 @@
                         <form method="POST" action="{{ BASE_URL }}condominiums/{{ assembly.condominium_id }}/assemblies/{{ assembly.id }}/send-convocation" class="d-inline w-100">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button type="submit" class="btn btn-outline-primary w-100">
-                                <i class="bi bi-envelope"></i> Enviar Convocatórias
+                                <i class="bi bi-envelope"></i> {% if assembly.convocation_sent_at %}Enviar novamente{% else %}Enviar Convocatórias{% endif %}
                             </button>
                         </form>
                     </div>

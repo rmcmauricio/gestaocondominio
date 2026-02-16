@@ -349,6 +349,10 @@ $router->post('/condominiums/{condominium_id}/assemblies/{id}/start', 'App\Contr
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/close', 'App\Controllers\AssemblyController@close');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/cancel', 'App\Controllers\AssemblyController@cancel');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/send-convocation', 'App\Controllers\AssemblyController@sendConvocation');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/resend-convocation', 'App\Controllers\AssemblyController@resendConvocation');
+$router->get('/condominiums/{condominium_id}/assemblies/{id}/convocation-document', 'App\Controllers\AssemblyController@downloadConvocationDocument');
+$router->get('/condominiums/{condominium_id}/assemblies/{id}/convocation-letter/{fraction_id}', 'App\Controllers\AssemblyController@downloadConvocationLetter');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/convocation-letter/{fraction_id}/registered-number', 'App\Controllers\AssemblyController@saveRegisteredLetterNumber');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/attendance', 'App\Controllers\AssemblyController@registerAttendance');
 $router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes', 'App\Controllers\AssemblyController@generateMinutes');
 $router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes/view', 'App\Controllers\AssemblyController@viewMinutes');

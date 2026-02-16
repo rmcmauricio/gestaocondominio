@@ -164,6 +164,92 @@ class Assembly extends Model
     }
 
     /**
+     * Get fraction IDs that received convocation by email for this assembly (with sent_at for display)
+     * @return array List of fraction rows with id, identifier, sent_at
+     */
+    public function getConvocationRecipients(int $assemblyId): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+        $stmt = $this->db->prepare("
+            SELECT f.id, f.identifier, acr.sent_at
+            FROM assembly_convocation_recipients acr
+            INNER JOIN fractions f ON f.id = acr.fraction_id
+            WHERE acr.assembly_id = :assembly_id AND acr.sent_at IS NOT NULL
+            ORDER BY f.identifier ASC
+        ");
+        $stmt->execute([':assembly_id' => $assemblyId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * Get convocation delivery info per fraction (sent_at by email, registered_letter_number by post)
+     * @return array [ fraction_id => ['sent_at' => ..., 'registered_letter_number' => ...], ... ]
+     */
+    public function getConvocationDeliveryByAssembly(int $assemblyId): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+        $stmt = $this->db->prepare("
+            SELECT fraction_id, sent_at, registered_letter_number
+            FROM assembly_convocation_recipients
+            WHERE assembly_id = :assembly_id
+        ");
+        $stmt->execute([':assembly_id' => $assemblyId]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(int)$r['fraction_id']] = [
+                'sent_at' => $r['sent_at'] ?? null,
+                'registered_letter_number' => $r['registered_letter_number'] ?? null,
+            ];
+        }
+        return $map;
+    }
+
+    /**
+     * Set or update registered letter number for a fraction (envio por correio)
+     */
+    public function setRegisteredLetterNumber(int $assemblyId, int $fractionId, ?string $number): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+        $stmt = $this->db->prepare("
+            INSERT INTO assembly_convocation_recipients (assembly_id, fraction_id, sent_at, registered_letter_number)
+            VALUES (:aid, :fid, NULL, :num)
+            ON DUPLICATE KEY UPDATE registered_letter_number = VALUES(registered_letter_number)
+        ");
+        return $stmt->execute([
+            ':aid' => $assemblyId,
+            ':fid' => $fractionId,
+            ':num' => $number !== null && $number !== '' ? $number : null,
+        ]);
+    }
+
+    /**
+     * Set convocation recipients (fraction IDs that received by email). Keeps registered_letter_number for other fractions.
+     */
+    public function setConvocationRecipients(int $assemblyId, array $fractionIds, string $sentAt = null): void
+    {
+        if (!$this->db) {
+            return;
+        }
+        $sentAt = $sentAt ?? date('Y-m-d H:i:s');
+        $this->db->prepare("UPDATE assembly_convocation_recipients SET sent_at = NULL WHERE assembly_id = :aid")->execute([':aid' => $assemblyId]);
+        $stmt = $this->db->prepare("
+            INSERT INTO assembly_convocation_recipients (assembly_id, fraction_id, sent_at)
+            VALUES (:aid, :fid, :sent_at)
+            ON DUPLICATE KEY UPDATE sent_at = VALUES(sent_at)
+        ");
+        foreach ($fractionIds as $fid) {
+            $stmt->execute([':aid' => $assemblyId, ':fid' => (int)$fid, ':sent_at' => $sentAt]);
+        }
+    }
+
+    /**
      * Start assembly
      */
     public function start(int $id): bool

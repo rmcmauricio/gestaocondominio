@@ -10,6 +10,7 @@ use App\Models\Assembly;
 use App\Models\AssemblyAttendee;
 use App\Models\AssemblyAccountApproval;
 use App\Models\Condominium;
+use App\Models\Document;
 use App\Models\Fraction;
 use App\Models\VoteTopic;
 use App\Models\Vote;
@@ -386,6 +387,31 @@ class AssemblyController extends Controller
             exit;
         }
 
+        // Convocation: recipients (fractions that received by email) and document link
+        $convocationRecipients = $this->assemblyModel->getConvocationRecipients($id);
+        $convocationDocumentAvailable = false;
+        $convocationLetterFractions = [];
+        if (!empty($assembly['convocation_sent_at'])) {
+            $storageBase = __DIR__ . '/../../storage/';
+            $folder = $this->pdfService->getConvocationFolder($assembly);
+            $pdfPath = $storageBase . $folder . '/convocation_' . $id . '.pdf';
+            $convocationDocumentAvailable = file_exists($pdfPath);
+            $deliveryMap = $this->assemblyModel->getConvocationDeliveryByAssembly($id);
+            foreach ($fractions as $frac) {
+                $fid = (int) $frac['id'];
+                $letterPath = $storageBase . $folder . '/carta_' . $id . '_fraction_' . $fid . '.pdf';
+                $delivery = $deliveryMap[$fid] ?? [];
+                $convocationLetterFractions[] = [
+                    'fraction_id' => $fid,
+                    'identifier' => $frac['identifier'],
+                    'document_available' => file_exists($letterPath),
+                    'download_url' => BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/convocation-letter/' . $fid,
+                    'email_sent_at' => $delivery['sent_at'] ?? null,
+                    'registered_letter_number' => $delivery['registered_letter_number'] ?? null,
+                ];
+            }
+        }
+
         $userId = AuthMiddleware::userId();
         $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
         $isAdmin = ($userRole === 'admin');
@@ -473,6 +499,11 @@ class AssemblyController extends Controller
             'approved_years' => $approvedYears,
             'current_year' => (int)date('Y'),
             'csrf_token' => Security::generateCSRFToken(),
+            'convocation_recipients' => $convocationRecipients,
+            'convocation_recipient_identifiers' => array_column($convocationRecipients, 'identifier'),
+            'convocation_document_available' => $convocationDocumentAvailable,
+            'convocation_document_url' => BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id . '/convocation-document',
+            'convocation_letter_fractions' => $convocationLetterFractions,
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null,
             'info' => $_SESSION['info'] ?? null
@@ -642,34 +673,152 @@ class AssemblyController extends Controller
             exit;
         }
 
-        // Get all condominium users
+        // Get condominium users with address data; only fractions that receive convocation by email
         global $db;
         $stmt = $db->prepare("
-            SELECT DISTINCT u.*, cu.fraction_id
+            SELECT DISTINCT u.id, u.email, u.name,
+                   cu.fraction_id, cu.alternative_address,
+                   f.floor AS fraction_floor, f.identifier AS fraction_identifier,
+                   COALESCE(f.receives_convocation_by_email, 1) AS receives_convocation_by_email,
+                   c.address AS condominium_address, c.postal_code AS condominium_postal_code,
+                   c.city AS condominium_city, c.country AS condominium_country
             FROM users u
             INNER JOIN condominium_users cu ON cu.user_id = u.id
+            LEFT JOIN fractions f ON f.id = cu.fraction_id
+            INNER JOIN condominiums c ON c.id = cu.condominium_id
             WHERE cu.condominium_id = :condominium_id
+            AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+            AND (f.id IS NULL OR COALESCE(f.receives_convocation_by_email, 1) = 1)
         ");
         $stmt->execute([':condominium_id' => $condominiumId]);
         $users = $stmt->fetchAll();
 
-        // Generate PDF
-        $pdfFilename = $this->pdfService->generateConvocation($id, $assembly, []);
+        // Generate convocation PDF (saved in convocatorias/ANO/DATA/convocation_ID.pdf)
+        $pdfRelativePath = $this->pdfService->generateConvocation($id, $assembly, []);
+        $storageBase = __DIR__ . '/../../storage/';
+        $pdfFullPath = $storageBase . $pdfRelativePath;
 
-        // Send emails
+        $fractionIdsSent = [];
         $sent = 0;
+
+        // Build one letter per fraction for postal (destinatário na janela do envelope)
+        $fractionModel = new Fraction();
+        $allFractions = $fractionModel->getByCondominiumId($condominiumId);
+        $stmtFractionRep = $db->prepare("
+            SELECT u.name, cu.alternative_address, f.floor AS fraction_floor,
+                   c.address AS condominium_address, c.postal_code AS condominium_postal_code,
+                   c.city AS condominium_city, c.country AS condominium_country
+            FROM condominium_users cu
+            INNER JOIN users u ON u.id = cu.user_id
+            LEFT JOIN fractions f ON f.id = cu.fraction_id
+            INNER JOIN condominiums c ON c.id = cu.condominium_id
+            WHERE cu.condominium_id = :cid AND cu.fraction_id = :fid
+            AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+            LIMIT 1
+        ");
+        foreach ($allFractions as $frac) {
+            $stmtFractionRep->execute([':cid' => $condominiumId, ':fid' => $frac['id']]);
+            $rep = $stmtFractionRep->fetch(\PDO::FETCH_ASSOC);
+            $recipientName = $rep ? trim($rep['name'] ?? '') : 'Condómino';
+            if ($recipientName === '') {
+                $recipientName = 'Fração ' . $frac['identifier'];
+            }
+            $fakeUser = [
+                'alternative_address' => $rep['alternative_address'] ?? null,
+                'condominium_address' => $rep['condominium_address'] ?? null,
+                'condominium_postal_code' => $rep['condominium_postal_code'] ?? null,
+                'condominium_city' => $rep['condominium_city'] ?? null,
+                'condominium_country' => $rep['condominium_country'] ?? 'Portugal',
+                'fraction_floor' => $rep['fraction_floor'] ?? $frac['floor'] ?? null
+            ];
+            $addressLines = $this->getConvocationRecipientAddress($fakeUser);
+            try {
+                $this->pdfService->generateConvocationLetterForFraction(
+                    $id,
+                    $assembly,
+                    (int) $frac['id'],
+                    $frac['identifier'],
+                    $recipientName,
+                    $addressLines
+                );
+            } catch (\Exception $e) {
+                error_log("Letter (fraction) PDF error for fraction {$frac['id']}: " . $e->getMessage());
+            }
+        }
+
         foreach ($users as $user) {
             try {
                 $this->emailService->send(
                     $user['email'],
                     'Convocatória de Assembleia: ' . $assembly['title'],
                     $this->getConvocationEmailBody($assembly),
+                    '',
+                    $pdfFullPath,
                     null,
-                    __DIR__ . '/../../storage/documents/' . $pdfFilename
+                    $user['id'] ?? null
                 );
                 $sent++;
+                if (!empty($user['fraction_id']) && !in_array($user['fraction_id'], $fractionIdsSent)) {
+                    $fractionIdsSent[] = $user['fraction_id'];
+                }
             } catch (\Exception $e) {
                 error_log("Email error: " . $e->getMessage());
+            }
+        }
+
+        $this->assemblyModel->setConvocationRecipients($id, $fractionIdsSent);
+
+        // Register convocation PDFs in documents (subpasta por assembleia: Convocatórias/{data} - {título})
+        $convocationFolder = $this->pdfService->getConvocationFolder($assembly);
+        $assemblyDate = date('Y-m-d', strtotime($assembly['scheduled_date'] ?? 'now'));
+        $assemblyTitle = preg_replace('/[\/\\\\]/', '-', trim($assembly['title'] ?? 'Assembleia'));
+        $assemblyTitle = mb_substr($assemblyTitle, 0, 80);
+        $convocationDocFolder = 'Convocatórias/' . $assemblyDate . ' - ' . $assemblyTitle;
+        $documentModel = new Document();
+        global $db;
+        $stmtDel = $db->prepare("DELETE FROM documents WHERE condominium_id = :cid AND assembly_id = :aid AND document_type = 'convocatoria'");
+        $stmtDel->execute([':cid' => $condominiumId, ':aid' => $id]);
+        $uploadedBy = AuthMiddleware::userId();
+        $mainPdfPath = $convocationFolder . '/convocation_' . $id . '.pdf';
+        $mainPdfFull = $storageBase . $mainPdfPath;
+        if (file_exists($mainPdfFull)) {
+            $documentModel->create([
+                'condominium_id' => $condominiumId,
+                'assembly_id' => $id,
+                'fraction_id' => null,
+                'folder' => $convocationDocFolder,
+                'title' => 'Convocatória - ' . ($assembly['title'] ?? 'Assembleia'),
+                'description' => null,
+                'file_path' => $mainPdfPath,
+                'file_name' => 'convocatoria_' . $id . '.pdf',
+                'file_size' => filesize($mainPdfFull),
+                'mime_type' => 'application/pdf',
+                'visibility' => 'condominos',
+                'document_type' => 'convocatoria',
+                'status' => 'approved',
+                'uploaded_by' => $uploadedBy,
+            ]);
+        }
+        foreach ($allFractions as $frac) {
+            $letterPath = $convocationFolder . '/carta_' . $id . '_fraction_' . $frac['id'] . '.pdf';
+            $letterFull = $storageBase . $letterPath;
+            if (file_exists($letterFull)) {
+                $documentModel->create([
+                    'condominium_id' => $condominiumId,
+                    'assembly_id' => $id,
+                    'fraction_id' => (int) $frac['id'],
+                    'folder' => $convocationDocFolder,
+                    'title' => 'Convocatória (carta) - Fração ' . $frac['identifier'],
+                    'description' => 'Carta para envio por correio',
+                    'file_path' => $letterPath,
+                    'file_name' => 'convocatoria_carta_fracao_' . $frac['identifier'] . '.pdf',
+                    'file_size' => filesize($letterFull),
+                    'mime_type' => 'application/pdf',
+                    'visibility' => 'condominos',
+                    'document_type' => 'convocatoria',
+                    'status' => 'approved',
+                    'uploaded_by' => $uploadedBy,
+                ]);
             }
         }
 
@@ -689,6 +838,209 @@ class AssemblyController extends Controller
         }
 
         $_SESSION['success'] = "Convocatórias enviadas para {$sent} utilizadores!";
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+        exit;
+    }
+
+    /**
+     * Resend convocation (reminder) without regenerating documents
+     */
+    public function resendConvocation(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        $storageBase = __DIR__ . '/../../storage/';
+        $folder = $this->pdfService->getConvocationFolder($assembly);
+        $pdfRelativePath = $folder . '/convocation_' . $id . '.pdf';
+        $pdfFullPath = $storageBase . $pdfRelativePath;
+
+        if (!file_exists($pdfFullPath)) {
+            $_SESSION['error'] = 'Documento da convocatória não encontrado. Envie as convocatórias primeiro.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $recipients = $this->assemblyModel->getConvocationRecipients($id);
+        $fractionIds = array_column($recipients, 'id');
+        if (empty($fractionIds)) {
+            $_SESSION['error'] = 'Nenhuma fração registada como destinatária. Envie as convocatórias primeiro.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        global $db;
+        $placeholders = implode(',', array_fill(0, count($fractionIds), '?'));
+        $stmt = $db->prepare("
+            SELECT DISTINCT u.id, u.email, u.name, cu.fraction_id
+            FROM users u
+            INNER JOIN condominium_users cu ON cu.user_id = u.id
+            WHERE cu.condominium_id = ?
+            AND cu.fraction_id IN ({$placeholders})
+            AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+        ");
+        $stmt->execute(array_merge([$condominiumId], $fractionIds));
+        $users = $stmt->fetchAll();
+
+        $sent = 0;
+        foreach ($users as $user) {
+            try {
+                $this->emailService->send(
+                    $user['email'],
+                    '[Lembrete] Convocatória de Assembleia: ' . $assembly['title'],
+                    $this->getConvocationEmailBody($assembly, true),
+                    '',
+                    $pdfFullPath,
+                    null,
+                    $user['id'] ?? null
+                );
+                $sent++;
+            } catch (\Exception $e) {
+                error_log("Resend email error: " . $e->getMessage());
+            }
+        }
+
+        $this->assemblyModel->markConvocationSent($id);
+        $_SESSION['success'] = "Lembrete enviado para {$sent} utilizadores!";
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+        exit;
+    }
+
+    /**
+     * Download convocation PDF document
+     */
+    public function downloadConvocationDocument(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        $storageBase = __DIR__ . '/../../storage/';
+        $folder = $this->pdfService->getConvocationFolder($assembly);
+        $pdfRelativePath = $folder . '/convocation_' . $id . '.pdf';
+        $pdfFullPath = $storageBase . $pdfRelativePath;
+
+        if (!file_exists($pdfFullPath)) {
+            $_SESSION['error'] = 'Documento da convocatória ainda não foi gerado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $filename = 'convocatoria_' . $id . '_' . date('Y-m-d', strtotime($assembly['scheduled_date'])) . '.pdf';
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . filesize($pdfFullPath));
+        readfile($pdfFullPath);
+        exit;
+    }
+
+    /**
+     * Download convocation letter PDF for one fraction (for postal mail, envelope window)
+     */
+    public function downloadConvocationLetter(int $condominiumId, int $id, int $fractionId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        $fractionModel = new Fraction();
+        $fraction = $fractionModel->findById($fractionId);
+        if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Fração não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $storageBase = __DIR__ . '/../../storage/';
+        $folder = $this->pdfService->getConvocationFolder($assembly);
+        $pdfRelativePath = $folder . '/carta_' . $id . '_fraction_' . $fractionId . '.pdf';
+        $pdfFullPath = $storageBase . $pdfRelativePath;
+
+        if (!file_exists($pdfFullPath)) {
+            $_SESSION['error'] = 'Carta para esta fração ainda não foi gerada. Envie as convocatórias primeiro.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $filename = 'convocatoria_carta_fracao_' . $fraction['identifier'] . '_' . date('Y-m-d', strtotime($assembly['scheduled_date'])) . '.pdf';
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . filesize($pdfFullPath));
+        readfile($pdfFullPath);
+        exit;
+    }
+
+    /**
+     * Save registered letter number for a fraction (envio por correio)
+     */
+    public function saveRegisteredLetterNumber(int $condominiumId, int $id, int $fractionId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies');
+            exit;
+        }
+
+        $fractionModel = new Fraction();
+        $fraction = $fractionModel->findById($fractionId);
+        if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Fração não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $number = trim($_POST['registered_letter_number'] ?? '');
+        $this->assemblyModel->setRegisteredLetterNumber($id, $fractionId, $number === '' ? null : $number);
+        $_SESSION['success'] = $number !== '' ? 'Número da carta registada guardado.' : 'Número da carta registada removido.';
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
         exit;
     }
@@ -1856,16 +2208,53 @@ class AssemblyController extends Controller
         exit;
     }
 
-    protected function getConvocationEmailBody(array $assembly): string
+    /**
+     * Build recipient address lines for convocation letter: morada alternativa if set,
+     * otherwise morada do condomínio + piso/andar da fração.
+     * @return array List of address lines (e.g. ['Rua X, 123', '2º andar', '1000-001 Lisboa', 'Portugal'])
+     */
+    protected function getConvocationRecipientAddress(array $user): array
+    {
+        $alt = trim((string) ($user['alternative_address'] ?? ''));
+        if ($alt !== '') {
+            $lines = preg_split('/\r\n|\r|\n/', $alt);
+            return array_values(array_filter(array_map('trim', $lines)));
+        }
+
+        $addr = trim((string) ($user['condominium_address'] ?? ''));
+        $postal = trim((string) ($user['condominium_postal_code'] ?? ''));
+        $city = trim((string) ($user['condominium_city'] ?? ''));
+        $country = trim((string) ($user['condominium_country'] ?? 'Portugal'));
+        $floor = trim((string) ($user['fraction_floor'] ?? ''));
+
+        $lines = [];
+        if ($addr !== '') {
+            $lines[] = $floor !== '' ? $addr . ', ' . $floor : $addr;
+        } elseif ($floor !== '') {
+            $lines[] = $floor;
+        }
+        if ($postal !== '' || $city !== '') {
+            $lines[] = trim($postal . ' ' . $city);
+        }
+        if ($country !== '') {
+            $lines[] = $country;
+        }
+        if (empty($lines)) {
+            $lines[] = 'Morada não indicada';
+        }
+        return $lines;
+    }
+
+    protected function getConvocationEmailBody(array $assembly, bool $isReminder = false): string
     {
         $condominium = $this->condominiumModel->findById($assembly['condominium_id']);
         $date = date('d/m/Y', strtotime($assembly['scheduled_date']));
         $time = date('H:i', strtotime($assembly['scheduled_date']));
-        // Map type for display
         $type = ($assembly['type'] === 'extraordinary' || $assembly['type'] === 'extraordinaria') ? 'Extraordinária' : 'Ordinária';
         $quorum = $assembly['quorum_percentage'] ?? 50;
         $condominiumName = $condominium['name'] ?? 'Condomínio';
-        
+        $reminderNote = $isReminder ? '<p><strong>Este é um lembrete.</strong> Em anexo segue novamente o documento da convocatória.</p>' : '';
+
         return "
         <html>
         <head>
@@ -1886,7 +2275,7 @@ class AssemblyController extends Controller
                 </div>
                 <div class='content'>
                     <p>Prezado(a) Condómino(a),</p>
-                    
+                    {$reminderNote}
                     <p>Informamos que foi agendada uma assembleia para o condomínio <strong>{$condominiumName}</strong>.</p>
                     
                     <div class='info-box'>

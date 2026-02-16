@@ -76,12 +76,13 @@ class Fraction extends Model
             throw new \Exception("Database connection not available");
         }
 
+        $receivesConvocationByEmail = isset($data['receives_convocation_by_email']) ? (int)(bool)$data['receives_convocation_by_email'] : 1;
         $stmt = $this->db->prepare("
             INSERT INTO fractions (
-                condominium_id, identifier, permillage, floor, typology, area, notes
+                condominium_id, identifier, permillage, floor, typology, area, notes, receives_convocation_by_email
             )
             VALUES (
-                :condominium_id, :identifier, :permillage, :floor, :typology, :area, :notes
+                :condominium_id, :identifier, :permillage, :floor, :typology, :area, :notes, :receives_convocation_by_email
             )
         ");
 
@@ -92,7 +93,8 @@ class Fraction extends Model
             ':floor' => $data['floor'] ?? null,
             ':typology' => $data['typology'] ?? null,
             ':area' => $data['area'] ?? null,
-            ':notes' => $data['notes'] ?? null
+            ':notes' => $data['notes'] ?? null,
+            ':receives_convocation_by_email' => $receivesConvocationByEmail
         ]);
 
         $fractionId = (int)$this->db->lastInsertId();
