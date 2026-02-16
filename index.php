@@ -14,23 +14,24 @@ function getBasePathForRedirect(): string {
     return rtrim($basePath, '/');
 }
 
+// Session: 24 hours after last user interaction (single source of truth)
+define('SESSION_INACTIVITY_SECONDS', 86400); // 24 * 3600
+
 // Configure secure session settings before starting session
 if (session_status() === PHP_SESSION_NONE) {
-    // Set session garbage collection max lifetime to 24 hours (86400 seconds)
-    // This must be set BEFORE session_start() to take effect
-    ini_set('session.gc_maxlifetime', 86400);
-    
-    // Set secure session cookie parameters
+    // Set session garbage collection max lifetime to 24 hours (must be before session_start)
+    ini_set('session.gc_maxlifetime', (string) SESSION_INACTIVITY_SECONDS);
+
     $isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ||
                (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
 
     session_set_cookie_params([
-        'lifetime' => 86400, // Session cookie expires after 24 hours
+        'lifetime' => SESSION_INACTIVITY_SECONDS,
         'path' => '/',
         'domain' => '',
-        'secure' => $isHttps, // Only send over HTTPS in production
-        'httponly' => true, // Prevent JavaScript access
-        'samesite' => 'Lax' // CSRF protection
+        'secure' => $isHttps,
+        'httponly' => true,
+        'samesite' => 'Lax'
     ]);
 
     session_start();
@@ -80,21 +81,27 @@ if (session_status() === PHP_SESSION_NONE) {
             $_SESSION['last_activity'] = time();
         }
 
-        // Check for session timeout due to inactivity (24 hours)
-        $inactivityTimeout = 86400; // 24 hours (86400 seconds)
-        if (isset($_SESSION['last_activity'])) {
-            if (time() - $_SESSION['last_activity'] > $inactivityTimeout) {
-                // Session expired due to inactivity
-                session_destroy();
-                session_start();
-                $_SESSION['login_error'] = 'Sua sessão expirou devido à inatividade. Por favor, faça login novamente.';
-                header('Location: ' . getBasePathForRedirect() . '/login');
-                exit;
-            }
+        // Timeout: 24 hours after last activity
+        if (time() - $_SESSION['last_activity'] > SESSION_INACTIVITY_SECONDS) {
+            session_destroy();
+            session_start();
+            $_SESSION['login_error'] = 'Sua sessão expirou devido à inatividade. Por favor, faça login novamente.';
+            header('Location: ' . getBasePathForRedirect() . '/login');
+            exit;
         }
 
-        // Update last activity timestamp on every request
         $_SESSION['last_activity'] = time();
+
+        // Sliding expiration: refresh cookie so it expires 24h from THIS request (not from login)
+        $params = session_get_cookie_params();
+        setcookie(session_name(), session_id(), [
+            'expires' => time() + SESSION_INACTIVITY_SECONDS,
+            'path' => $params['path'],
+            'domain' => $params['domain'],
+            'secure' => $params['secure'],
+            'httponly' => $params['httponly'],
+            'samesite' => $params['samesite'] ?? 'Lax'
+        ]);
     }
 }
 
