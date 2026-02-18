@@ -13,6 +13,10 @@
 // Use catch-all pattern: /storage/{path...} where path can contain slashes
 $router->get('/storage/{path}', 'App\Controllers\StorageController@serve');
 
+// PWA: manifest and service worker for mobile version
+$router->get('/manifest-mobile.json', 'App\Controllers\PwaController@manifest');
+$router->get('/sw-mobile.js', 'App\Controllers\PwaController@serviceWorker');
+
 // Home route
 $router->get('/', 'App\Controllers\HomeController@index');
 

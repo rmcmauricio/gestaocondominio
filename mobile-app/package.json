@@ -1,0 +1,29 @@
+{
+  "name": "omeupredio-mobile",
+  "version": "1.0.0",
+  "description": "App mobile O Meu Prédio (versão condómino)",
+  "capabilities": {
+    "web": {
+      "enabled": true
+    }
+  },
+  "scripts": {
+    "build": "echo No build required - app loads remote URL",
+    "cap:sync": "cap sync",
+    "ios": "cap open ios",
+    "android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/ios": "^6.0.0"
+  },
+  "capacitor": {
+    "appId": "com.omeupredio.app",
+    "appName": "O Meu Prédio",
+    "webDir": "www"
+  }
+}

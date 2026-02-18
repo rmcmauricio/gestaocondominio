@@ -175,7 +175,7 @@ class FractionController extends Controller
                 'typology' => Security::sanitize($_POST['typology'] ?? ''),
                 'area' => !empty($_POST['area']) ? (float)$_POST['area'] : null,
                 'notes' => Security::sanitize($_POST['notes'] ?? ''),
-                'receives_convocation_by_email' => isset($_POST['receives_convocation_by_email']) ? 1 : 1
+                'receives_convocation_by_email' => isset($_POST['receives_convocation_by_email']) ? 1 : 0
             ]);
 
             $_SESSION['success'] = 'Fração criada com sucesso!';
@@ -306,11 +306,6 @@ class FractionController extends Controller
             $_SESSION['error'] = 'Erro ao remover fração.';
         }
 
-        $redirect = $_POST['redirect_url'] ?? '';
-        if ($redirect !== '' && strpos($redirect, BASE_URL . 'condominiums/' . $condominiumId . '/setup-wizard') === 0) {
-            header('Location: ' . $redirect);
-            exit;
-        }
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fractions');
         exit;
     }
@@ -1025,4 +1020,3 @@ class FractionController extends Controller
         exit;
     }
 }
-
