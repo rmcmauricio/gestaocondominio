@@ -299,6 +299,11 @@ class SpaceController extends Controller
             $_SESSION['error'] = 'Erro ao eliminar espaço: ' . $e->getMessage();
         }
 
+        $redirect = $_POST['redirect_url'] ?? '';
+        if ($redirect !== '' && strpos($redirect, BASE_URL . 'condominiums/' . $condominiumId . '/setup-wizard') === 0) {
+            header('Location: ' . $redirect);
+            exit;
+        }
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/spaces');
         exit;
     }

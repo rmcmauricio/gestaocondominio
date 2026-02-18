@@ -1,0 +1,89 @@
+{% if suppliers|default([])|length > 0 %}
+<div class="card shadow-sm mb-3 border-success">
+    <div class="card-header bg-success bg-opacity-10 text-success">
+        <i class="bi bi-truck me-2"></i>{{ page.t.suppliers_added|default('Fornecedores já adicionados') }} ({{ suppliers|length }})
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light"><tr><th>Nome</th><th>NIF</th><th>Contacto</th><th></th></tr></thead>
+                <tbody>
+                {% for s in suppliers %}
+                    <tr>
+                        <td>{{ s.name }}</td><td>{{ s.nif|default('-') }}</td><td>{{ s.phone|default(s.email|default('-')) }}</td>
+                        <td>
+                            <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/suppliers/{{ s.id }}/delete" class="d-inline" onsubmit="return confirm('{{ page.t.step6_confirm_delete|default('Apagar este fornecedor?') }}');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="redirect_url" value="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step=6">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ page.t.delete|default('Apagar') }}"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <i class="bi bi-plus-circle me-2"></i>{{ page.t.add_new_supplier|default('Adicionar novo fornecedor') }}
+    </div>
+    <div class="card-body p-4">
+        <p class="text-muted small mb-3">{{ page.t.step_6_help|default('Opcional: adicione fornecedores. Pode saltar e configurar depois.') }}</p>
+        {% set o = old_input|default({}) %}
+        {% set err = error_field|default('') %}
+        <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/6" id="wizard-step6-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="wizard_action" id="wizard_step6_action" value="">
+    <div class="mb-3">
+        <label for="name" class="form-label">Nome do fornecedor <span class="text-danger">*</span></label>
+        <input type="text" class="form-control {{ err == 'name' ? 'is-invalid' : '' }}" id="name" name="name" required value="{{ o.name|default('')|e('html_attr') }}">
+        {% if err == 'name' and error %}<div class="invalid-feedback">{{ error }}</div>{% endif %}
+    </div>
+    <div class="mb-3">
+        <label for="nif" class="form-label">NIF</label>
+        <input type="text" class="form-control" id="nif" name="nif" value="{{ o.nif|default('')|e('html_attr') }}">
+    </div>
+    <div class="mb-3">
+        <label for="email" class="form-label">Email</label>
+        <input type="email" class="form-control" id="email" name="email" value="{{ o.email|default('')|e('html_attr') }}">
+    </div>
+    <div class="mb-3">
+        <label for="phone" class="form-label">Telefone</label>
+        <input type="text" class="form-control" id="phone" name="phone" value="{{ o.phone|default('')|e('html_attr') }}">
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary" name="wizard_add" value="1" id="wizard_step6_add">{{ page.t.add_supplier|default('Adicionar fornecedor') }}</button>
+        <button type="button" class="btn btn-outline-primary" id="wizard_step6_next">{{ page.t.next_step|default('Seguinte passo') }}</button>
+        <button type="button" class="btn btn-outline-secondary" id="wizard_step6_skip">{{ page.t.skip_configure_later|default('Saltar') }}</button>
+    </div>
+</form>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('wizard-step6-form');
+    var actionInput = document.getElementById('wizard_step6_action');
+    var btnAdd = document.getElementById('wizard_step6_add');
+    var btnNext = document.getElementById('wizard_step6_next');
+    var btnSkip = document.getElementById('wizard_step6_skip');
+    if (actionInput && btnAdd) btnAdd.addEventListener('click', function() { actionInput.value = 'add'; });
+    if (form && actionInput && btnNext) {
+        btnNext.addEventListener('click', function() {
+            actionInput.value = 'next';
+            form.noValidate = true;
+            form.submit();
+        });
+    }
+    if (form && actionInput && btnSkip) {
+        btnSkip.addEventListener('click', function() {
+            actionInput.value = 'skip';
+            form.noValidate = true;
+            form.submit();
+        });
+    }
+});
+</script>

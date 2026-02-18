@@ -35,6 +35,14 @@
     </div>
     {% endif %}
 
+    {% if show_setup_wizard_banner|default(false) and can_edit|default(false) %}
+    <div class="alert alert-info alert-dismissible fade show d-flex align-items-center justify-content-between flex-wrap gap-2" role="alert">
+        <span><i class="bi bi-magic"></i> {% if setup_wizard_complete|default(false) %}Pode retomar o assistente de configuração para completar quotas, orçamentos ou outros passos.{% else %}A configuração inicial do condomínio ainda não está concluída.{% endif %}</span>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/setup-wizard" class="btn btn-sm btn-info">{% if setup_wizard_complete|default(false) %}Retomar assistente de configuração{% else %}Continuar configuração{% endif %}</a>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
     <div class="row g-3">
         <div class="col-12">
             <div class="row g-3">

@@ -1,0 +1,592 @@
+{# Script do wizard "Gerar Quotas". Variáveis: condominium_id, base_url.
+   Opcional: form_id (default generateFeesForm), modal_id (se vazio, não regista reset ao fechar modal). #}
+<script>
+(function() {
+    const formId = '{{ form_id|default("generateFeesForm") }}';
+    const baseUrl = '{{ base_url }}';
+    const condominiumId = {{ condominium_id }};
+    const modalId = {{ (modal_id is defined and modal_id) ? ('"' ~ modal_id|e('js') ~ '"') : 'null' }};
+
+    document.addEventListener('DOMContentLoaded', function() {
+        let currentStep = 1;
+        const form = document.getElementById(formId);
+        if (!form) return;
+
+        const yearInput = document.getElementById('generate_fee_year');
+        let selectedFeeMode = 'annual';
+        let selectedAnnualType = '';
+        let selectedExtraType = '';
+        let budgetStatus = null;
+        let annualFeesGeneratedFlag = false;
+
+        const stepIndicators = form.querySelectorAll('.step-indicator');
+        const stepContents = form.querySelectorAll('.step-content');
+        const btnNext = document.getElementById('btnNext');
+        const btnBack = document.getElementById('btnBack');
+        const btnSubmit = document.getElementById('btnSubmit');
+
+        function updateStepIndicators(step) {
+            stepIndicators.forEach((indicator, index) => {
+                if (index + 1 < step) {
+                    indicator.classList.add('completed');
+                    indicator.classList.remove('active');
+                } else if (index + 1 === step) {
+                    indicator.classList.add('active');
+                    indicator.classList.remove('completed');
+                } else {
+                    indicator.classList.remove('active', 'completed');
+                }
+            });
+        }
+
+        function showStep(step) {
+            stepContents.forEach(content => {
+                content.style.display = 'none';
+            });
+
+            if (step === 1) {
+                const s1 = document.getElementById('step1');
+                if (s1) s1.style.display = 'block';
+            } else if (step === 2) {
+                const s2 = document.getElementById('step2');
+                if (s2) s2.style.display = 'block';
+
+                if (annualFeesGeneratedFlag) {
+                    const annualContainerImmediate = document.getElementById('fee_type_annual_container');
+                    const annualFeesAlertImmediate = document.getElementById('annual_fees_already_generated_alert');
+                    const feeTypeAnnualRadioImmediate = document.getElementById('fee_type_annual');
+                    const annualLabelImmediate = document.getElementById('fee_type_annual_label');
+                    const feeTypeExtraRadioImmediate = document.getElementById('fee_type_extra');
+
+                    if (annualContainerImmediate) {
+                        annualContainerImmediate.style.display = 'block';
+                        annualContainerImmediate.style.opacity = '0.6';
+                        annualContainerImmediate.style.cursor = 'not-allowed';
+                        annualContainerImmediate.style.pointerEvents = 'none';
+                    }
+                    if (annualFeesAlertImmediate) annualFeesAlertImmediate.style.display = 'block';
+                    if (feeTypeAnnualRadioImmediate) {
+                        feeTypeAnnualRadioImmediate.disabled = true;
+                        feeTypeAnnualRadioImmediate.checked = false;
+                    }
+                    if (annualLabelImmediate) {
+                        annualLabelImmediate.style.pointerEvents = 'none';
+                        annualLabelImmediate.style.cursor = 'not-allowed';
+                    }
+                    if (feeTypeExtraRadioImmediate) {
+                        feeTypeExtraRadioImmediate.checked = true;
+                        selectedFeeMode = 'extra';
+                        const feeModeInput = document.getElementById('fee_mode');
+                        if (feeModeInput) feeModeInput.value = 'extra';
+                    }
+                } else {
+                    const annualContainerCheck = document.getElementById('fee_type_annual_container');
+                    const annualFeesAlertCheck = document.getElementById('annual_fees_already_generated_alert');
+                    const feeTypeAnnualRadioCheck = document.getElementById('fee_type_annual');
+                    const annualLabelCheck = document.getElementById('fee_type_annual_label');
+                    if (annualContainerCheck) {
+                        annualContainerCheck.style.display = 'block';
+                        annualContainerCheck.style.opacity = '1';
+                        annualContainerCheck.style.cursor = 'pointer';
+                        annualContainerCheck.style.pointerEvents = 'auto';
+                    }
+                    if (annualFeesAlertCheck) annualFeesAlertCheck.style.display = 'none';
+                    if (feeTypeAnnualRadioCheck) feeTypeAnnualRadioCheck.disabled = false;
+                    if (annualLabelCheck) {
+                        annualLabelCheck.style.pointerEvents = 'auto';
+                        annualLabelCheck.style.cursor = 'pointer';
+                    }
+                }
+
+                const year = parseInt(yearInput.value);
+                if (year && year >= 2020 && year <= 2100) {
+                    checkBudgetStatus(year, true);
+                } else {
+                    const annualContainerNoYear = document.getElementById('fee_type_annual_container');
+                    const annualFeesAlertNoYear = document.getElementById('annual_fees_already_generated_alert');
+                    const feeTypeAnnualRadioNoYear = document.getElementById('fee_type_annual');
+                    const annualLabelNoYear = document.getElementById('fee_type_annual_label');
+                    if (annualContainerNoYear) {
+                        annualContainerNoYear.style.display = 'block';
+                        annualContainerNoYear.style.opacity = '1';
+                        annualContainerNoYear.style.cursor = 'pointer';
+                        annualContainerNoYear.style.pointerEvents = 'auto';
+                    }
+                    if (annualFeesAlertNoYear) annualFeesAlertNoYear.style.display = 'none';
+                    if (feeTypeAnnualRadioNoYear) feeTypeAnnualRadioNoYear.disabled = false;
+                    if (annualLabelNoYear) {
+                        annualLabelNoYear.style.pointerEvents = 'auto';
+                        annualLabelNoYear.style.cursor = 'pointer';
+                    }
+                }
+            } else if (step === 3) {
+                if (selectedFeeMode === 'annual') {
+                    const s3a = document.getElementById('step3_annual');
+                    if (s3a) s3a.style.display = 'block';
+                } else {
+                    const s3b = document.getElementById('step3_extra');
+                    if (s3b) s3b.style.display = 'block';
+                }
+            }
+
+            updateStepIndicators(step);
+            if (btnBack) btnBack.style.display = currentStep > 1 ? 'inline-block' : 'none';
+            if (btnNext) btnNext.style.display = currentStep < 3 ? 'inline-block' : 'none';
+            if (btnSubmit) btnSubmit.style.display = currentStep === 3 ? 'inline-block' : 'none';
+        }
+
+        function checkBudgetStatus(year, showInStep2) {
+            const statusInfo = document.getElementById('budget_status_info');
+            const statusText = document.getElementById('budget_status_text');
+            const generateButton = document.getElementById('budget_generate_button');
+            const annualFeesAlert = document.getElementById('annual_fees_already_generated_alert');
+            const feeTypeExtraRadio = document.getElementById('fee_type_extra');
+            const annualContainer = document.getElementById('fee_type_annual_container');
+
+            if (annualFeesGeneratedFlag && (showInStep2 || currentStep === 2)) {
+                const annualLabel = document.getElementById('fee_type_annual_label');
+                const feeTypeAnnualRadio = document.getElementById('fee_type_annual');
+                if (annualContainer) {
+                    annualContainer.style.display = 'block';
+                    annualContainer.style.opacity = '0.6';
+                    annualContainer.style.cursor = 'not-allowed';
+                    annualContainer.style.pointerEvents = 'none';
+                }
+                if (annualFeesAlert) annualFeesAlert.style.display = 'block';
+                if (feeTypeAnnualRadio) {
+                    feeTypeAnnualRadio.disabled = true;
+                    feeTypeAnnualRadio.checked = false;
+                }
+                if (annualLabel) {
+                    annualLabel.style.pointerEvents = 'none';
+                    annualLabel.style.cursor = 'not-allowed';
+                }
+                if (feeTypeExtraRadio) {
+                    feeTypeExtraRadio.checked = true;
+                    selectedFeeMode = 'extra';
+                    const feeModeInput = document.getElementById('fee_mode');
+                    if (feeModeInput) feeModeInput.value = 'extra';
+                }
+            }
+
+            if (statusInfo && statusText) {
+                statusText.textContent = 'A verificar status do orçamento...';
+                statusInfo.className = 'alert alert-info';
+            }
+
+            fetch(baseUrl + 'condominiums/' + condominiumId + '/budgets/' + year + '/check-status')
+                .then(response => response.json())
+                .then(data => {
+                    budgetStatus = data;
+                    annualFeesGeneratedFlag = Boolean(data.annual_fees_generated);
+
+                    if (showInStep2 || currentStep === 2) {
+                        const annualContainerEl = document.getElementById('fee_type_annual_container');
+                        const annualFeesAlertEl = document.getElementById('annual_fees_already_generated_alert');
+                        const feeTypeExtraRadioEl = document.getElementById('fee_type_extra');
+                        const feeTypeAnnualRadioEl = document.getElementById('fee_type_annual');
+                        const annualLabelEl = document.getElementById('fee_type_annual_label');
+
+                        if (annualFeesGeneratedFlag) {
+                            if (annualContainerEl) {
+                                annualContainerEl.style.display = 'block';
+                                annualContainerEl.style.opacity = '0.6';
+                                annualContainerEl.style.cursor = 'not-allowed';
+                                annualContainerEl.style.pointerEvents = 'none';
+                            }
+                            if (annualFeesAlertEl) annualFeesAlertEl.style.display = 'block';
+                            if (feeTypeAnnualRadioEl) {
+                                feeTypeAnnualRadioEl.disabled = true;
+                                feeTypeAnnualRadioEl.checked = false;
+                            }
+                            if (annualLabelEl) {
+                                annualLabelEl.style.pointerEvents = 'none';
+                                annualLabelEl.style.cursor = 'not-allowed';
+                            }
+                            if (feeTypeExtraRadioEl) {
+                                feeTypeExtraRadioEl.checked = true;
+                                selectedFeeMode = 'extra';
+                                const feeModeInput = document.getElementById('fee_mode');
+                                if (feeModeInput) feeModeInput.value = 'extra';
+                            }
+                        } else {
+                            if (annualContainerEl) {
+                                annualContainerEl.style.display = 'block';
+                                annualContainerEl.style.opacity = '1';
+                                annualContainerEl.style.cursor = 'pointer';
+                                annualContainerEl.style.pointerEvents = 'auto';
+                            }
+                            if (annualFeesAlertEl) annualFeesAlertEl.style.display = 'none';
+                            if (feeTypeAnnualRadioEl) feeTypeAnnualRadioEl.disabled = false;
+                            if (annualLabelEl) {
+                                annualLabelEl.style.pointerEvents = 'auto';
+                                annualLabelEl.style.cursor = 'pointer';
+                            }
+                        }
+                    }
+
+                    if (statusInfo && statusText) {
+                        if (data.exists) {
+                            if (data.annual_fees_generated) {
+                                statusInfo.className = 'alert alert-warning';
+                                statusText.innerHTML = '<i class="bi bi-exclamation-triangle"></i> ' + data.message;
+                                if (generateButton) generateButton.style.display = 'none';
+                            } else if (data.approved) {
+                                statusInfo.className = 'alert alert-success';
+                                statusText.innerHTML = '<i class="bi bi-check-circle"></i> ' + data.message;
+                                if (generateButton) generateButton.style.display = 'block';
+                            } else {
+                                statusInfo.className = 'alert alert-danger';
+                                statusText.innerHTML = '<i class="bi bi-x-circle"></i> ' + data.message;
+                                if (generateButton) generateButton.style.display = 'none';
+                            }
+                        } else {
+                            statusInfo.className = 'alert alert-warning';
+                            statusText.innerHTML = '<i class="bi bi-info-circle"></i> ' + data.message;
+                            if (generateButton) generateButton.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao verificar orçamento:', error);
+                    if (statusInfo && statusText) {
+                        statusInfo.className = 'alert alert-danger';
+                        statusText.innerHTML = '<i class="bi bi-x-circle"></i> Erro ao verificar status do orçamento.';
+                    }
+                    if (generateButton) generateButton.style.display = 'none';
+                    if ((showInStep2 || currentStep === 2) && annualFeesGeneratedFlag) {
+                        const feeTypeExtraRadioError = document.getElementById('fee_type_extra');
+                        const feeTypeAnnualRadioError = document.getElementById('fee_type_annual');
+                        if (annualContainer) {
+                            annualContainer.style.display = 'block';
+                            annualContainer.style.opacity = '0.6';
+                            annualContainer.style.cursor = 'not-allowed';
+                            annualContainer.style.pointerEvents = 'none';
+                        }
+                        if (annualFeesAlert) annualFeesAlert.style.display = 'block';
+                        if (feeTypeAnnualRadioError) {
+                            feeTypeAnnualRadioError.disabled = true;
+                            feeTypeAnnualRadioError.checked = false;
+                        }
+                        if (feeTypeExtraRadioError) {
+                            feeTypeExtraRadioError.checked = true;
+                            selectedFeeMode = 'extra';
+                            document.getElementById('fee_mode').value = 'extra';
+                        }
+                    }
+                });
+        }
+
+        function validateStep(step) {
+            if (step === 1) {
+                const year = parseInt(yearInput.value);
+                if (!year || year < 2020 || year > 2100) {
+                    alert('Por favor, selecione um ano válido.');
+                    return false;
+                }
+                return true;
+            } else if (step === 2) {
+                const feeTypeRadio = form.querySelector('input[name="fee_type_radio"]:checked');
+                if (!feeTypeRadio) {
+                    alert('Por favor, selecione o tipo de quota.');
+                    return false;
+                }
+                if (annualFeesGeneratedFlag && feeTypeRadio.value === 'annual') {
+                    const extraRadio = document.getElementById('fee_type_extra');
+                    if (extraRadio) {
+                        extraRadio.checked = true;
+                        selectedFeeMode = 'extra';
+                        document.getElementById('fee_mode').value = 'extra';
+                    }
+                    return false;
+                }
+                selectedFeeMode = feeTypeRadio.value;
+                document.getElementById('fee_mode').value = selectedFeeMode;
+                return true;
+            } else if (step === 3) {
+                if (selectedFeeMode === 'annual') {
+                    const annualTypeRadio = form.querySelector('input[name="annual_type_radio"]:checked');
+                    if (!annualTypeRadio) {
+                        alert('Por favor, selecione o método de geração.');
+                        return false;
+                    }
+                    selectedAnnualType = annualTypeRadio.value;
+                    document.getElementById('annual_type').value = selectedAnnualType;
+
+                    if (selectedAnnualType === 'budget') {
+                        if (!budgetStatus || !budgetStatus.approved || budgetStatus.annual_fees_generated) {
+                            alert('Não é possível gerar quotas automaticamente. Verifique o status do orçamento.');
+                            return false;
+                        }
+                        return true;
+                    } else {
+                        const usePermillage = document.getElementById('manual_use_permillage_check');
+                        document.getElementById('manual_use_permillage').value = (usePermillage && usePermillage.checked) ? '1' : '0';
+                        if (usePermillage && usePermillage.checked) {
+                            const totalAmount = parseFloat(document.getElementById('total_amount').value);
+                            if (!totalAmount || totalAmount <= 0) {
+                                alert('Por favor, insira um valor total válido.');
+                                return false;
+                            }
+                        } else {
+                            const fractionInputs = form.querySelectorAll('.fraction-amount-input');
+                            let hasValue = false;
+                            fractionInputs.forEach(input => { if (parseFloat(input.value) > 0) hasValue = true; });
+                            if (!hasValue) {
+                                alert('Por favor, insira valores para pelo menos uma fração.');
+                                return false;
+                            }
+                        }
+                        return true;
+                    }
+                } else {
+                    const extraTypeRadio = form.querySelector('input[name="extra_type_radio"]:checked');
+                    if (!extraTypeRadio) {
+                        alert('Por favor, selecione o método de geração.');
+                        return false;
+                    }
+                    selectedExtraType = extraTypeRadio.value;
+                    document.getElementById('extra_use_permillage').value = selectedExtraType === 'permillage' ? '1' : '0';
+                    const monthsChecked = form.querySelectorAll('.extra-month-checkbox:checked');
+                    if (monthsChecked.length === 0) {
+                        alert('Por favor, selecione pelo menos um mês.');
+                        return false;
+                    }
+                    if (selectedExtraType === 'permillage') {
+                        const totalAmount = parseFloat(document.getElementById('extra_total_amount').value);
+                        if (!totalAmount || totalAmount <= 0) {
+                            alert('Por favor, insira um valor total válido.');
+                            return false;
+                        }
+                    } else {
+                        const fractionInputs = form.querySelectorAll('.extra-fraction-amount-input');
+                        let hasValue = false;
+                        fractionInputs.forEach(input => { if (parseFloat(input.value) > 0) hasValue = true; });
+                        if (!hasValue) {
+                            alert('Por favor, insira valores para pelo menos uma fração.');
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+            }
+            return true;
+        }
+
+        if (btnNext) {
+            btnNext.addEventListener('click', function() {
+                if (validateStep(currentStep)) {
+                    if (currentStep === 1) {
+                        const year = parseInt(yearInput.value);
+                        currentStep = 2;
+                        showStep(currentStep);
+                        checkBudgetStatus(year, true);
+                    } else if (currentStep === 2) {
+                        currentStep = 3;
+                        showStep(currentStep);
+                        if (selectedFeeMode === 'annual') {
+                            const annualTypeRadio = form.querySelector('input[name="annual_type_radio"]:checked');
+                            if (annualTypeRadio) {
+                                selectedAnnualType = annualTypeRadio.value;
+                                if (selectedAnnualType === 'budget') {
+                                    document.getElementById('annual_budget_section').style.display = 'block';
+                                    document.getElementById('annual_manual_section').style.display = 'none';
+                                } else {
+                                    document.getElementById('annual_budget_section').style.display = 'none';
+                                    document.getElementById('annual_manual_section').style.display = 'block';
+                                    const manualPermillageCheck = document.getElementById('manual_use_permillage_check');
+                                    if (manualPermillageCheck) {
+                                        if (manualPermillageCheck.checked) {
+                                            document.getElementById('manual_with_permillage').style.display = 'block';
+                                            document.getElementById('manual_without_permillage').style.display = 'none';
+                                        } else {
+                                            document.getElementById('manual_with_permillage').style.display = 'none';
+                                            document.getElementById('manual_without_permillage').style.display = 'block';
+                                        }
+                                    } else {
+                                        document.getElementById('manual_with_permillage').style.display = 'none';
+                                        document.getElementById('manual_without_permillage').style.display = 'block';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        if (btnBack) {
+            btnBack.addEventListener('click', function() {
+                if (currentStep > 1) {
+                    currentStep--;
+                    showStep(currentStep);
+                }
+            });
+        }
+
+        form.querySelectorAll('input[name="fee_type_radio"]').forEach(radio => {
+            radio.addEventListener('change', function(e) {
+                if (this.value === 'annual' && annualFeesGeneratedFlag) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const extraRadio = document.getElementById('fee_type_extra');
+                    if (extraRadio) {
+                        extraRadio.checked = true;
+                        selectedFeeMode = 'extra';
+                        document.getElementById('fee_mode').value = 'extra';
+                    }
+                    this.checked = false;
+                    return false;
+                }
+                selectedFeeMode = this.value;
+                document.getElementById('fee_mode').value = selectedFeeMode;
+            });
+        });
+
+        form.querySelectorAll('input[name="annual_type_radio"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                selectedAnnualType = this.value;
+                if (this.value === 'budget') {
+                    document.getElementById('annual_budget_section').style.display = 'block';
+                    document.getElementById('annual_manual_section').style.display = 'none';
+                } else {
+                    document.getElementById('annual_budget_section').style.display = 'none';
+                    document.getElementById('annual_manual_section').style.display = 'block';
+                    const manualPermillageCheck = document.getElementById('manual_use_permillage_check');
+                    if (manualPermillageCheck) {
+                        if (manualPermillageCheck.checked) {
+                            document.getElementById('manual_with_permillage').style.display = 'block';
+                            document.getElementById('manual_without_permillage').style.display = 'none';
+                        } else {
+                            document.getElementById('manual_with_permillage').style.display = 'none';
+                            document.getElementById('manual_without_permillage').style.display = 'block';
+                        }
+                    } else {
+                        document.getElementById('manual_with_permillage').style.display = 'none';
+                        document.getElementById('manual_without_permillage').style.display = 'block';
+                    }
+                }
+            });
+        });
+
+        const manualPermillageCheck = document.getElementById('manual_use_permillage_check');
+        if (manualPermillageCheck) {
+            manualPermillageCheck.addEventListener('change', function() {
+                if (this.checked) {
+                    document.getElementById('manual_with_permillage').style.display = 'block';
+                    document.getElementById('manual_without_permillage').style.display = 'none';
+                } else {
+                    document.getElementById('manual_with_permillage').style.display = 'none';
+                    document.getElementById('manual_without_permillage').style.display = 'block';
+                }
+            });
+        }
+
+        form.querySelectorAll('input[name="extra_type_radio"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                selectedExtraType = this.value;
+                if (this.value === 'permillage') {
+                    document.getElementById('extra_with_permillage').style.display = 'block';
+                    document.getElementById('extra_manual').style.display = 'none';
+                } else {
+                    document.getElementById('extra_with_permillage').style.display = 'none';
+                    document.getElementById('extra_manual').style.display = 'block';
+                }
+            });
+        });
+
+        const generateFromBudgetBtn = document.getElementById('generateFromBudgetBtn');
+        if (generateFromBudgetBtn) {
+            generateFromBudgetBtn.addEventListener('click', function() {
+                if (validateStep(3)) form.submit();
+            });
+        }
+
+        form.addEventListener('submit', function(e) {
+            if (!validateStep(currentStep)) {
+                e.preventDefault();
+                return false;
+            }
+        });
+
+        if (modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.addEventListener('show.bs.modal', function() {
+                    annualFeesGeneratedFlag = false;
+                    budgetStatus = null;
+                });
+                modal.addEventListener('hidden.bs.modal', function() {
+                    currentStep = 1;
+                    selectedFeeMode = 'annual';
+                    selectedAnnualType = '';
+                    selectedExtraType = '';
+                    budgetStatus = null;
+                    annualFeesGeneratedFlag = false;
+                    form.reset();
+                    const annualContainerReset = document.getElementById('fee_type_annual_container');
+                    const annualFeesAlertReset = document.getElementById('annual_fees_already_generated_alert');
+                    const feeTypeAnnualRadio = document.getElementById('fee_type_annual');
+                    const annualLabelReset = document.getElementById('fee_type_annual_label');
+                    const feeTypeExtraRadio = document.getElementById('fee_type_extra');
+                    if (annualContainerReset) {
+                        annualContainerReset.style.display = 'block';
+                        annualContainerReset.style.opacity = '1';
+                        annualContainerReset.style.cursor = 'pointer';
+                        annualContainerReset.style.pointerEvents = 'auto';
+                    }
+                    if (annualFeesAlertReset) annualFeesAlertReset.style.display = 'none';
+                    if (feeTypeAnnualRadio) {
+                        feeTypeAnnualRadio.disabled = false;
+                        feeTypeAnnualRadio.checked = true;
+                    }
+                    if (annualLabelReset) {
+                        annualLabelReset.style.pointerEvents = 'auto';
+                        annualLabelReset.style.cursor = 'pointer';
+                    }
+                    if (feeTypeExtraRadio) feeTypeExtraRadio.checked = false;
+                    const ab = document.getElementById('annual_budget_section');
+                    const am = document.getElementById('annual_manual_section');
+                    const mwp = document.getElementById('manual_with_permillage');
+                    const mwop = document.getElementById('manual_without_permillage');
+                    const ewp = document.getElementById('extra_with_permillage');
+                    const em = document.getElementById('extra_manual');
+                    if (ab) ab.style.display = 'none';
+                    if (am) am.style.display = 'none';
+                    if (mwp) mwp.style.display = 'none';
+                    if (mwop) mwop.style.display = 'none';
+                    if (ewp) ewp.style.display = 'none';
+                    if (em) em.style.display = 'none';
+                    showStep(1);
+                });
+            }
+        }
+
+        yearInput.addEventListener('change', function() {
+            const year = parseInt(this.value);
+            if (year && year >= 2020 && year <= 2100) {
+                annualFeesGeneratedFlag = false;
+                const annualContainerTemp = document.getElementById('fee_type_annual_container');
+                const annualFeesAlertTemp = document.getElementById('annual_fees_already_generated_alert');
+                const feeTypeAnnualRadioTemp = document.getElementById('fee_type_annual');
+                const annualLabelTemp = document.getElementById('fee_type_annual_label');
+                if (annualContainerTemp) {
+                    annualContainerTemp.style.display = 'block';
+                    annualContainerTemp.style.opacity = '1';
+                    annualContainerTemp.style.cursor = 'pointer';
+                    annualContainerTemp.style.pointerEvents = 'auto';
+                }
+                if (annualFeesAlertTemp) annualFeesAlertTemp.style.display = 'none';
+                if (feeTypeAnnualRadioTemp) feeTypeAnnualRadioTemp.disabled = false;
+                if (annualLabelTemp) {
+                    annualLabelTemp.style.pointerEvents = 'auto';
+                    annualLabelTemp.style.cursor = 'pointer';
+                }
+                checkBudgetStatus(year, currentStep === 2);
+            }
+        });
+
+        showStep(1);
+    });
+})();
+</script>

@@ -1,0 +1,149 @@
+{% if fractions|default([])|length > 0 %}
+<div class="card shadow-sm mb-3 border-success">
+    <div class="card-header bg-success bg-opacity-10 text-success d-flex align-items-center justify-content-between py-2 cursor-pointer" data-bs-toggle="collapse" data-bs-target="#wizard-fractions-list-collapse" aria-expanded="false" aria-controls="wizard-fractions-list-collapse" role="button">
+        <span><i class="bi bi-grid-3x3-gap me-2"></i>{{ page.t.fractions_added|default('Frações já adicionadas') }} ({{ fractions|length }})</span>
+        <i class="bi bi-chevron-down collapse-icon"></i>
+    </div>
+    <div class="collapse" id="wizard-fractions-list-collapse">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light"><tr><th>Identificador</th><th>Permilagem</th><th>Piso</th><th>Tipologia</th><th></th></tr></thead>
+                    <tbody>
+                    {% for f in fractions %}
+                        <tr>
+                            <td>{{ f.identifier }}</td><td>{{ f.permillage }}</td><td>{{ f.floor|default('-') }}</td><td>{{ f.typology|default('-') }}</td>
+                            <td>
+                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/fractions/{{ f.id }}/delete" class="d-inline" onsubmit="return confirm('{{ page.t.step2_confirm_delete_fraction|default('Apagar esta fração?') }}');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="redirect_url" value="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step=2">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ page.t.delete|default('Apagar') }}"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var col = document.getElementById('wizard-fractions-list-collapse');
+    if (col) {
+        col.addEventListener('show.bs.collapse', function() {
+            var i = this.closest('.card').querySelector('.collapse-icon');
+            if (i) { i.classList.remove('bi-chevron-down'); i.classList.add('bi-chevron-up'); }
+        });
+        col.addEventListener('hide.bs.collapse', function() {
+            var i = this.closest('.card').querySelector('.collapse-icon');
+            if (i) { i.classList.remove('bi-chevron-up'); i.classList.add('bi-chevron-down'); }
+        });
+    }
+});
+</script>
+{% endif %}
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <i class="bi bi-plus-circle me-2"></i>{{ page.t.add_new_fraction|default('Adicionar nova fração') }}
+    </div>
+    <div class="card-body p-4">
+        <p class="text-muted small mb-3">{{ page.t.step_2_help|default('Adicione as frações do condomínio. Pode importar por CSV ou adicionar manualmente. Pode saltar e configurar depois na secção Frações.') }}</p>
+        <p class="mb-3">
+            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#wizard-import-fractions-modal">
+                <i class="bi bi-upload"></i> {{ page.t.import_csv|default('Importar frações (CSV)') }}
+            </button>
+        </p>
+
+        {# Modal Importar frações #}
+        <div class="modal fade" id="wizard-import-fractions-modal" tabindex="-1" aria-labelledby="wizard-import-fractions-modal-label" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="wizard-import-fractions-modal-label">
+                            <i class="bi bi-upload me-2"></i>{{ page.t.import_csv|default('Importar frações (CSV)') }}
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-0">{{ page.t.import_modal_help|default('Clique em "Abrir importação" para abrir a página de importação noutra janela. Faça o upload do ficheiro CSV e processe. Quando terminar, clique em "Já importado" para atualizar a lista de frações aqui.') }}</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ page.t.cancel|default('Cancelar') }}</button>
+                        <a href="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/fractions/import" class="btn btn-primary" target="_blank" rel="noopener noreferrer" id="wizard-import-fractions-open-link">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>{{ page.t.open_import_page|default('Abrir importação') }}
+                        </a>
+                        <button type="button" class="btn btn-success" id="wizard-import-fractions-refresh-btn">
+                            <i class="bi bi-check2-circle me-1"></i>{{ page.t.already_imported|default('Já importado') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% set o = old_input|default({}) %}
+        {% set err = error_field|default('') %}
+        <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/2" id="wizard-step2-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="wizard_action" id="wizard_step2_action" value="">
+    <div class="mb-3">
+        <label for="identifier" class="form-label">Identificador <span class="text-danger">*</span></label>
+        <input type="text" class="form-control {{ err == 'identifier' ? 'is-invalid' : '' }}" id="identifier" name="identifier" required placeholder="Ex: A, 1.1, RC" value="{{ o.identifier|default('')|e('html_attr') }}">
+        {% if err == 'identifier' and error %}<div class="invalid-feedback">{{ error }}</div>{% endif %}
+    </div>
+    <div class="mb-3">
+        <label for="permillage" class="form-label">Permilagem</label>
+        <input type="number" class="form-control" id="permillage" name="permillage" step="0.01" min="0" value="{{ o.permillage|default('0')|e('html_attr') }}">
+    </div>
+    <div class="mb-3">
+        <label for="floor" class="form-label">Piso</label>
+        <input type="text" class="form-control" id="floor" name="floor" placeholder="Ex: R/C, 1" value="{{ o.floor|default('')|e('html_attr') }}">
+    </div>
+    <div class="mb-3">
+        <label for="typology" class="form-label">Tipologia</label>
+        <input type="text" class="form-control" id="typology" name="typology" placeholder="Ex: T2" value="{{ o.typology|default('')|e('html_attr') }}">
+    </div>
+    <div class="mb-3">
+        <label for="area" class="form-label">Área (m²)</label>
+        <input type="number" class="form-control" id="area" name="area" step="0.01" min="0" value="{{ o.area|default('')|e('html_attr') }}">
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary" name="wizard_add" value="1" id="wizard_step2_add">{{ page.t.add_fraction|default('Adicionar fração') }}</button>
+        <button type="button" class="btn btn-outline-primary" id="wizard_step2_next">{{ page.t.next_step|default('Seguinte passo') }}</button>
+        <button type="button" class="btn btn-outline-secondary" id="wizard_step2_skip">{{ page.t.skip_configure_later|default('Saltar') }}</button>
+    </div>
+</form>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('wizard-step2-form');
+    var actionInput = document.getElementById('wizard_step2_action');
+    var btnAdd = document.getElementById('wizard_step2_add');
+    var btnNext = document.getElementById('wizard_step2_next');
+    var btnSkip = document.getElementById('wizard_step2_skip');
+    if (actionInput && btnAdd) btnAdd.addEventListener('click', function() { actionInput.value = 'add'; });
+    if (form && actionInput && btnNext) {
+        btnNext.addEventListener('click', function() {
+            actionInput.value = 'next';
+            form.noValidate = true;
+            form.submit();
+        });
+    }
+    if (form && actionInput && btnSkip) {
+        btnSkip.addEventListener('click', function() {
+            actionInput.value = 'skip';
+            form.noValidate = true;
+            form.submit();
+        });
+    }
+
+    var refreshBtn = document.getElementById('wizard-import-fractions-refresh-btn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            window.location.reload();
+        });
+    }
+});
+</script>

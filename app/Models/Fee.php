@@ -675,7 +675,28 @@ class Fee extends Model
     }
 
     /**
-     * Get available years for fees in a condominium
+     * Count distinct regular (non-historical) fee slots (period_index/period_month) for a year.
+     * Used to infer period type (monthly=12, bimonthly=6, etc.).
+     */
+    public function getRegularFeeSlotCount(int $condominiumId, int $year): ?int
+    {
+        if (!$this->db) {
+            return null;
+        }
+        $stmt = $this->db->prepare("
+            SELECT COUNT(DISTINCT COALESCE(period_index, period_month)) as c
+            FROM fees
+            WHERE condominium_id = :condominium_id AND period_year = :year
+            AND (fee_type = 'regular' OR fee_type IS NULL) AND COALESCE(is_historical, 0) = 0
+        ");
+        $stmt->execute([':condominium_id' => $condominiumId, ':year' => $year]);
+        $r = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $r ? (int)$r['c'] : null;
+    }
+
+    /**
+     * Get available years for fees in a condominium (all fees, including historical).
+     * Use getAvailableYearsWithRegularFees() when only years with created quotas are needed (e.g. wizard).
      */
     public function getAvailableYears(int $condominiumId): array
     {
@@ -688,6 +709,33 @@ class Fee extends Model
             FROM fees
             WHERE condominium_id = :condominium_id
             AND period_year IS NOT NULL
+            ORDER BY period_year DESC
+        ");
+
+        $stmt->execute([':condominium_id' => $condominiumId]);
+        $results = $stmt->fetchAll() ?: [];
+        
+        return array_map(function($row) {
+            return (int)$row['year'];
+        }, $results);
+    }
+
+    /**
+     * Get years that have at least one regular (non-historical) fee.
+     * Use in the wizard map so only years with created quotas appear; the fees page uses getAvailableYears to show historical years too.
+     */
+    public function getAvailableYearsWithRegularFees(int $condominiumId): array
+    {
+        if (!$this->db) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT DISTINCT period_year as year
+            FROM fees
+            WHERE condominium_id = :condominium_id
+            AND period_year IS NOT NULL
+            AND COALESCE(is_historical, 0) = 0
             ORDER BY period_year DESC
         ");
 

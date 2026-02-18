@@ -6,6 +6,7 @@ use App\Core\Controller;
 use App\Core\Security;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\RoleMiddleware;
+use App\Models\AssemblyAccountApproval;
 use App\Models\BankAccount;
 use App\Models\Condominium;
 
@@ -126,6 +127,7 @@ class BankAccountController extends Controller
         $name = Security::sanitize($_POST['name'] ?? '');
         $accountType = Security::sanitize($_POST['account_type'] ?? 'bank');
         $initialBalance = (float)($_POST['initial_balance'] ?? 0);
+        $initialBalanceDate = !empty($_POST['initial_balance_date']) ? $_POST['initial_balance_date'] : null;
 
         // Validation
         if (empty($name)) {
@@ -166,6 +168,7 @@ class BankAccountController extends Controller
                 'iban' => $iban,
                 'swift' => $swift,
                 'initial_balance' => $initialBalance,
+                'initial_balance_date' => $initialBalanceDate,
                 'current_balance' => $initialBalance,
                 'is_active' => true
             ]);
@@ -200,6 +203,10 @@ class BankAccountController extends Controller
             exit;
         }
 
+        $approvalModel = new AssemblyAccountApproval();
+        $approvals = $approvalModel->getByCondominium($condominiumId);
+        $canEditInitialBalance = empty($approvals);
+
         $this->loadPageTranslations('finances');
         
         $this->data += [
@@ -207,6 +214,7 @@ class BankAccountController extends Controller
             'page' => ['titulo' => 'Editar Conta Bancária'],
             'condominium' => $condominium,
             'account' => $account,
+            'can_edit_initial_balance' => $canEditInitialBalance,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
@@ -240,6 +248,10 @@ class BankAccountController extends Controller
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/bank-accounts');
             exit;
         }
+
+        $approvalModel = new AssemblyAccountApproval();
+        $approvals = $approvalModel->getByCondominium($condominiumId);
+        $canEditInitialBalance = empty($approvals);
 
         $name = Security::sanitize($_POST['name'] ?? '');
         $accountType = Security::sanitize($_POST['account_type'] ?? $account['account_type']);
@@ -285,8 +297,13 @@ class BankAccountController extends Controller
             $updateData['account_number'] = null;
         }
 
-        if (isset($_POST['initial_balance'])) {
-            $updateData['initial_balance'] = (float)$_POST['initial_balance'];
+        if ($canEditInitialBalance) {
+            if (isset($_POST['initial_balance'])) {
+                $updateData['initial_balance'] = (float)$_POST['initial_balance'];
+            }
+            if (isset($_POST['initial_balance_date'])) {
+                $updateData['initial_balance_date'] = !empty($_POST['initial_balance_date']) ? $_POST['initial_balance_date'] : null;
+            }
         }
 
         if (isset($_POST['is_active'])) {
@@ -346,6 +363,11 @@ class BankAccountController extends Controller
             $_SESSION['error'] = 'Erro ao eliminar conta: ' . $e->getMessage();
         }
 
+        $redirect = $_POST['redirect_url'] ?? '';
+        if ($redirect !== '' && strpos($redirect, BASE_URL . 'condominiums/' . $condominiumId . '/setup-wizard') === 0) {
+            header('Location: ' . $redirect);
+            exit;
+        }
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/bank-accounts');
         exit;
     }

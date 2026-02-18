@@ -1628,6 +1628,11 @@ class FinanceController extends Controller
                 }
             }
             
+            $redirect = $_POST['redirect_url'] ?? '';
+            if ($redirect !== '' && strpos($redirect, BASE_URL . 'condominiums/' . $condominiumId . '/setup-wizard') === 0) {
+                header('Location: ' . $redirect);
+                exit;
+            }
             header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         } catch (\Exception $e) {
@@ -1641,6 +1646,11 @@ class FinanceController extends Controller
                 $_SESSION['error'] = $errorMessage;
             }
             
+            $redirect = $_POST['redirect_url'] ?? '';
+            if ($redirect !== '' && strpos($redirect, BASE_URL . 'condominiums/' . $condominiumId . '/setup-wizard') === 0) {
+                header('Location: ' . $redirect);
+                exit;
+            }
             header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
             exit;
         }
@@ -3566,6 +3576,11 @@ class FinanceController extends Controller
         } else {
             $_SESSION['error'] = 'Erro ao eliminar dívida histórica.';
         }
+        $redirect = $_POST['redirect_url'] ?? '';
+        if ($redirect !== '' && strpos($redirect, BASE_URL . 'condominiums/' . $condominiumId . '/setup-wizard') === 0) {
+            header('Location: ' . $redirect);
+            exit;
+        }
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-debts');
         exit;
     }
@@ -3836,6 +3851,11 @@ class FinanceController extends Controller
             $_SESSION['success'] = 'Crédito histórico eliminado com sucesso!';
         } else {
             $_SESSION['error'] = 'Erro ao eliminar crédito histórico.';
+        }
+        $redirect = $_POST['redirect_url'] ?? '';
+        if ($redirect !== '' && strpos($redirect, BASE_URL . 'condominiums/' . $condominiumId . '/setup-wizard') === 0) {
+            header('Location: ' . $redirect);
+            exit;
         }
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/finances/historical-credits');
         exit;

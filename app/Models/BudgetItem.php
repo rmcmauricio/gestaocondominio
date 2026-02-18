@@ -28,6 +28,19 @@ class BudgetItem extends Model
     }
 
     /**
+     * Find budget item by ID
+     */
+    public function findById(int $id): ?array
+    {
+        if (!$this->db) {
+            return null;
+        }
+        $stmt = $this->db->prepare("SELECT * FROM budget_items WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
      * Create budget item
      */
     public function create(array $data): int

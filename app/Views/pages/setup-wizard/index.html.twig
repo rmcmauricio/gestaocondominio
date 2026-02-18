@@ -1,0 +1,119 @@
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>{{ page.t.wizard_title|default('Configuração do Condomínio') }}: {{ condominium.name }}</h2>
+        <a href="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}" class="btn btn-outline-secondary">
+            <i class="bi bi-box-arrow-left"></i> {{ page.t.exit_wizard|default('Sair do assistente') }}
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+    {% if wizard_warning|default('') %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle me-2"></i>{{ wizard_warning }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {# Stepper: verde só quando o passo tem conteúdo (quotas geradas, fornecedores/espaços adicionados, etc.) #}
+    <nav class="mb-4" aria-label="Progresso da configuração">
+        <ol class="list-unstyled d-flex flex-wrap gap-2 align-items-center">
+            {% set max_reached = wizard_max_reached_step|default(wizard_current_step) %}
+            {% set has_content = step_has_content|default({}) %}
+            {% for s in 1..wizard_max_step %}
+            <li class="d-flex align-items-center">
+                {% if s == wizard_current_step %}
+                <span class="badge bg-primary rounded-pill" title="Passo atual">{{ s }}</span>
+                {% elseif s <= max_reached %}
+                {% if has_content[s]|default(false) %}
+                <a href="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step={{ s }}" class="badge bg-success rounded-pill text-decoration-none" title="Concluído — clicar para voltar">{{ s }}</a>
+                {% else %}
+                <a href="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step={{ s }}" class="badge bg-secondary rounded-pill text-decoration-none" title="Visitado — sem conteúdo (ex.: quotas não geradas)">{{ s }}</a>
+                {% endif %}
+                {% else %}
+                <span class="badge bg-secondary rounded-pill" title="Por fazer">{{ s }}</span>
+                {% endif %}
+                {% if s < wizard_max_step %}
+                <i class="bi bi-chevron-right mx-1 text-muted small"></i>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ol>
+        <p class="text-muted small mb-0">
+            Passo {{ wizard_current_step }} de {{ wizard_max_step }}:
+            {% if wizard_current_step == 1 %}{{ page.t.step_1_title|default('Contas bancárias') }}
+            {% elseif wizard_current_step == 2 %}{{ page.t.step_2_title|default('Frações') }}
+            {% elseif wizard_current_step == 3 %}{{ page.t.step_3_title|default('Data de entrada e saldos') }}
+            {% elseif wizard_current_step == 4 %}{{ page.t.step_4_title|default('Orçamentos') }}
+            {% elseif wizard_current_step == 5 %}{{ page.t.step_5_title|default('Quotas') }}
+            {% elseif wizard_current_step == 6 %}{{ page.t.step_6_title|default('Fornecedores') }}
+            {% elseif wizard_current_step == 7 %}{{ page.t.step_7_title|default('Espaços') }}
+            {% else %}{{ page.t.step_8_title|default('Conclusão') }}
+            {% endif %}
+        </p>
+    </nav>
+
+    {% if wizard_current_step == 1 %}
+        {% include 'pages/setup-wizard/steps/step1_bank_accounts.html.twig' %}
+    {% elseif wizard_current_step == 2 %}
+        {% include 'pages/setup-wizard/steps/step2_fractions.html.twig' %}
+    {% elseif wizard_current_step == 3 %}
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                {% include 'pages/setup-wizard/steps/step3_entry_debts.html.twig' %}
+            </div>
+        </div>
+    {% elseif wizard_current_step == 4 %}
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                {% include 'pages/setup-wizard/steps/step4_budgets.html.twig' %}
+            </div>
+        </div>
+    {% elseif wizard_current_step == 5 %}
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                {% include 'pages/setup-wizard/steps/step5_quotas.html.twig' %}
+            </div>
+        </div>
+    {% elseif wizard_current_step == 6 %}
+        {% include 'pages/setup-wizard/steps/step6_suppliers.html.twig' %}
+    {% elseif wizard_current_step == 7 %}
+        {% include 'pages/setup-wizard/steps/step7_spaces.html.twig' %}
+    {% else %}
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                {% include 'pages/setup-wizard/steps/step8_done.html.twig' %}
+            </div>
+        </div>
+    {% endif %}
+    {% if wizard_current_step > 1 and wizard_current_step < 8 %}
+    <div class="mt-3">
+        <a href="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step={{ wizard_current_step - 1 }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> {{ page.t.previous_step|default('Passo anterior') }}
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.card-body form').forEach(function(form) {
+        var skipBtn = form.querySelector('button[name=wizard_skip]');
+        if (skipBtn) {
+            skipBtn.addEventListener('click', function() {
+                form.noValidate = true;
+            });
+        }
+    });
+});
+</script>

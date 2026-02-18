@@ -8,6 +8,7 @@ use App\Middleware\AuthMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Models\Condominium;
 use App\Models\CondominiumUser;
+use App\Models\CondominiumSetupWizardProgress;
 use App\Models\Fraction;
 use App\Models\Subscription;
 use App\Models\User;
@@ -136,37 +137,13 @@ class CondominiumController extends Controller
                 'rules' => Security::sanitize($_POST['rules'] ?? '')
             ]);
 
-            // Create entry in condominium_users with admin role (without fraction - admin entry)
+            // Create entry in condominium_users with admin role (without fraction - admins may not be condóminos)
             $condominiumUserModel = new CondominiumUser();
             $condominiumUserModel->associate([
                 'condominium_id' => $condominiumId,
                 'user_id' => $userId,
-                'fraction_id' => null, // Admin entry without fraction
+                'fraction_id' => null,
                 'role' => 'admin',
-                'can_view_finances' => true,
-                'can_vote' => true,
-                'is_primary' => true,
-                'started_at' => date('Y-m-d')
-            ]);
-
-            // Create default fraction for admin and associate as proprietario
-            $fractionModel = new Fraction();
-            $fractionId = $fractionModel->create([
-                'condominium_id' => $condominiumId,
-                'identifier' => 'Admin',
-                'permillage' => 100, // Default permillage
-                'floor' => null,
-                'typology' => null,
-                'area' => null,
-                'notes' => 'Fração padrão do administrador'
-            ]);
-
-            // Associate admin as proprietario of this fraction
-            $condominiumUserModel->associate([
-                'condominium_id' => $condominiumId,
-                'user_id' => $userId,
-                'fraction_id' => $fractionId,
-                'role' => 'proprietario',
                 'can_view_finances' => true,
                 'can_vote' => true,
                 'is_primary' => true,
@@ -214,8 +191,8 @@ class CondominiumController extends Controller
                 }
             }
 
-            $_SESSION['success'] = 'Condomínio criado com sucesso!';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId);
+            $_SESSION['success'] = 'Condomínio criado com sucesso! Siga o assistente para configurar.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/setup-wizard');
             exit;
         } catch (\Exception $e) {
             // Log the full error for debugging
@@ -493,11 +470,17 @@ class CondominiumController extends Controller
         $error = $_SESSION['error'] ?? null;
         $success = $_SESSION['success'] ?? null;
         unset($_SESSION['error'], $_SESSION['success']);
-        
+
+        $wizardProgress = new CondominiumSetupWizardProgress();
+        $setupWizardComplete = $wizardProgress->isComplete($id);
+        $showSetupWizardBanner = true;
+
         $this->data += [
             'viewName' => 'pages/condominiums/show.html.twig',
             'page' => ['titulo' => $condominium['name']],
             'condominium' => $condominium,
+            'show_setup_wizard_banner' => $showSetupWizardBanner,
+            'setup_wizard_complete' => $setupWizardComplete,
             'bank_accounts' => $bankAccounts,
             'condominium_users' => $condominiumUsers,
             'stats' => $stats,

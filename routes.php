@@ -130,6 +130,9 @@ $router->post('/condominiums/{id}/remove-admin', 'App\Controllers\CondominiumCon
 $router->post('/condominiums/{condominium_id}/switch-view-mode', 'App\Controllers\CondominiumController@switchViewMode');
 $router->get('/condominiums/{id}/restore', 'App\Controllers\CondominiumController@backupRestorePage');
 $router->post('/condominiums/{id}/create-backup', 'App\Controllers\CondominiumController@createBackup');
+// Setup wizard (must be before condominiums/{id} so {id} is used for wizard)
+$router->get('/condominiums/{id}/setup-wizard', 'App\Controllers\SetupWizardController@index');
+$router->post('/condominiums/{id}/setup-wizard/step/{step}', 'App\Controllers\SetupWizardController@processStep');
 
 // Admin transfer routes
 $router->get('/admin-transfers/pending', 'App\Controllers\AdminTransferController@pending');

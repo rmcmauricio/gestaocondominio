@@ -1,0 +1,71 @@
+<style>
+    .generate-fees-form .step-indicator {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex: 0 0 auto;
+        min-width: 80px;
+    }
+    .generate-fees-form .step-number {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: #e9ecef;
+        color: #6c757d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        margin-bottom: 5px;
+        transition: all 0.3s;
+        flex-shrink: 0;
+    }
+    .generate-fees-form .step-indicator.active .step-number {
+        background-color: #0d6efd;
+        color: white;
+    }
+    .generate-fees-form .step-indicator.completed .step-number {
+        background-color: #198754;
+        color: white;
+    }
+    .generate-fees-form .step-label {
+        font-size: 0.875rem;
+        color: #6c757d;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100px;
+    }
+    .generate-fees-form .step-indicator.active .step-label {
+        color: #0d6efd;
+        font-weight: 600;
+    }
+    .generate-fees-form .step-indicator.completed .step-label {
+        color: #198754;
+    }
+    .generate-fees-form .step-line {
+        flex: 1 1 auto;
+        height: 2px;
+        background-color: #e9ecef;
+        margin: 0 10px;
+        margin-top: -20px;
+        align-self: center;
+        min-width: 20px;
+        max-width: 100%;
+    }
+    .generate-fees-form .step-content {
+        min-height: 300px;
+    }
+    .generate-fees-form .form-check input[type="radio"]:disabled + label {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+    .generate-fees-form .form-check input[type="radio"]:disabled {
+        cursor: not-allowed;
+    }
+    .generate-fees-form .form-check:has(input[type="radio"]:disabled) {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+</style>

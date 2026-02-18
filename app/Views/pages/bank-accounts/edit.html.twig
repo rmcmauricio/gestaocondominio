@@ -60,13 +60,24 @@
                             </div>
                         </div>
 
+                        {% if not can_edit_initial_balance %}
+                        <div class="alert alert-info">
+                            O saldo inicial e a data do saldo inicial não podem ser alterados porque existem anos com contas aprovadas em assembleia.
+                        </div>
+                        {% endif %}
                         <div class="mb-3">
                             <label for="initial_balance" class="form-label">Saldo Inicial</label>
                             <div class="input-group">
                                 <span class="input-group-text">€</span>
-                                <input type="number" class="form-control" id="initial_balance" name="initial_balance" step="0.01" value="{{ account.initial_balance }}" min="0">
+                                <input type="number" class="form-control" id="initial_balance" name="initial_balance" step="0.01" value="{{ account.initial_balance }}" min="0" {% if not can_edit_initial_balance %}readonly{% endif %}>
                             </div>
                             <small class="form-text text-muted">Saldo inicial da conta. Alterar este valor recalcula o saldo atual.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="initial_balance_date" class="form-label">Data do Saldo Inicial</label>
+                            <input type="date" class="form-control" id="initial_balance_date" name="initial_balance_date" value="{{ account.initial_balance_date|default('') }}" {% if not can_edit_initial_balance %}readonly{% endif %}>
+                            <small class="form-text text-muted">Data a que se refere o saldo inicial</small>
                         </div>
 
                         <div class="mb-3">
