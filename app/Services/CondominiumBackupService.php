@@ -525,11 +525,17 @@ class CondominiumBackupService
                 foreach ($data['tables']['fraction_account_movements'] ?? [] as $row) {
                     $faId = $map['fraction_accounts'][$row['fraction_account_id']] ?? null;
                     $ftId = !empty($row['source_financial_transaction_id']) ? ($map['financial_transactions'][$row['source_financial_transaction_id']] ?? null) : null;
+                    $overrides = [
+                        'fraction_account_id' => $faId,
+                        'source_financial_transaction_id' => $ftId
+                    ];
+                    // Quando source_type é quota_application, source_reference_id é fee_payment id: mapear para o novo id
+                    // para que FeePayment::getByFee encontre o movimento e mostre a referência nos detalhes da quota
+                    if (!empty($row['source_reference_id']) && ($row['source_type'] ?? '') === 'quota_application') {
+                        $overrides['source_reference_id'] = $map['fee_payments'][$row['source_reference_id']] ?? $row['source_reference_id'];
+                    }
                     if ($faId) {
-                        $this->insertRow("fraction_account_movements", $row, [
-                            'fraction_account_id' => $faId,
-                            'source_financial_transaction_id' => $ftId
-                        ], $restoreInPlace);
+                        $this->insertRow("fraction_account_movements", $row, $overrides, $restoreInPlace);
                     }
                 }
 
