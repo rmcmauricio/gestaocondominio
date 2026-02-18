@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>{{ page.titulo|default('Minisite') }}</title>
+    <meta name="description" content="{{ page.description|default('') }}">
+    <link rel="icon" type="image/png" href="{{ BASE_URL }}assets/images/favicon-96x96.png" sizes="96x96">
+    <link rel="icon" type="image/svg+xml" href="{{ BASE_URL }}assets/images/favicon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ BASE_URL }}assets/images/apple-touch-icon.png">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href="{{ BASE_URL }}assets/css/bootstrap-override.css?v={{ VERSION }}" rel="stylesheet">
+    <link href="{{ BASE_URL }}assets/css/main.css?v={{ VERSION }}" rel="stylesheet">
+    <link href="{{ BASE_URL }}assets/css/mobile.css?v={{ VERSION }}" rel="stylesheet">
+</head>
+<body class="m-minisite">
+    <header class="m-header">
+        <div class="m-header-inner">
+            <a href="{{ BASE_URL }}m/dashboard" class="m-logo-link">
+                <img src="{{ BASE_URL }}assets/images/logo.svg" alt="O Meu Prédio" class="m-logo-img">
+            </a>
+            {% if user_condominiums is defined and user_condominiums|length > 0 %}
+            <div class="m-condominium-selector">
+                {% if user_condominiums|length > 1 %}
+                <div class="dropdown">
+                    <button class="m-condominium-btn dropdown-toggle" type="button" id="mCondominiumDropdown" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false" aria-label="Condomínio">
+                        <i class="bi bi-building m-condominium-icon"></i>
+                        <span class="m-condominium-name">{{ condominium ? condominium.name : user_condominiums[0].name }}</span>
+                        <i class="bi bi-chevron-down m-condominium-chevron"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end m-condominium-menu" aria-labelledby="mCondominiumDropdown">
+                        {% for condo in user_condominiums %}
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center {% if condominium and condo.id == condominium.id %}active{% endif %}" href="{{ BASE_URL }}condominiums/switch/{{ condo.id }}">
+                                <i class="bi bi-building me-2 opacity-75"></i>
+                                <span class="flex-grow-1">{{ condo.name }}</span>
+                                {% if condominium and condo.id == condominium.id %}<i class="bi bi-check2 text-success"></i>{% endif %}
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% else %}
+                <span class="m-condominium-pill">
+                    <i class="bi bi-building m-condominium-icon"></i>
+                    <span class="m-condominium-name m-condominium-name-single">{{ condominium ? condominium.name : user_condominiums[0].name }}</span>
+                </span>
+                {% endif %}
+            </div>
+            {% endif %}
+            <a href="{{ BASE_URL }}m/versao-completa" class="m-versao-completa" target="_blank" rel="noopener noreferrer">Versão completa</a>
+        </div>
+    </header>
+
+    <main class="m-main">
+        {% include viewName %}
+    </main>
+
+    <nav class="m-bottom-nav" aria-label="Navegação principal">
+        <a href="{{ BASE_URL }}m/dashboard" class="m-nav-item" aria-label="Início">
+            <i class="bi bi-house-door"></i>
+            <span class="m-nav-label">Início</span>
+        </a>
+        <a href="{{ BASE_URL }}m/receipts" class="m-nav-item" aria-label="Recibos">
+            <i class="bi bi-receipt"></i>
+            <span class="m-nav-label">Recibos</span>
+        </a>
+        <a href="{{ BASE_URL }}m/fees" class="m-nav-item" aria-label="Quotas">
+            <i class="bi bi-currency-euro"></i>
+            <span class="m-nav-label">Quotas</span>
+        </a>
+        <a href="{{ BASE_URL }}m/occurrences" class="m-nav-item" aria-label="Ocorrências">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span class="m-nav-label">Ocorrências</span>
+        </a>
+        <a href="{{ BASE_URL }}m/messages" class="m-nav-item" aria-label="Mensagens">
+            <i class="bi bi-envelope"></i>
+            <span class="m-nav-label">Mensagens</span>
+        </a>
+        <a href="{{ BASE_URL }}m/reservations" class="m-nav-item" aria-label="Reservas">
+            <i class="bi bi-calendar-check"></i>
+            <span class="m-nav-label">Reservas</span>
+        </a>
+    </nav>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        if (typeof window.BASE_URL === 'undefined') { window.BASE_URL = '{{ BASE_URL }}'; }
+    </script>
+</body>
+</html>

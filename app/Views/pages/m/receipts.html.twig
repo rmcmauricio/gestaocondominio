@@ -1,0 +1,47 @@
+<div class="m-dashboard">
+    <h1 class="m-page-title">Os meus recibos</h1>
+
+    <section class="m-section">
+        <div class="m-card">
+            <form method="GET" action="{{ BASE_URL }}m/receipts" class="m-form">
+                <div class="m-form-group">
+                    <label for="condominium_id" class="m-label">Condomínio</label>
+                    <select class="m-select" id="condominium_id" name="condominium_id">
+                        <option value="">Todos</option>
+                        {% for condo in condominiums %}
+                        <option value="{{ condo.id }}" {% if selected_condominium_id == condo.id %}selected{% endif %}>{{ condo.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="m-form-group">
+                    <label for="year" class="m-label">Ano</label>
+                    <select class="m-select" id="year" name="year">
+                        <option value="">Todos</option>
+                        {% for y in available_years %}
+                        <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="m-btn-report">Filtrar</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="m-section">
+        <div class="m-card">
+            <h2 class="m-card-title">Recibos</h2>
+            {% if receipts|length > 0 %}
+            <ul class="m-list">
+                {% for r in receipts %}
+                <li class="m-list-item">
+                    <span class="m-receipt-period">{{ r.condominium_name }} – {{ r.period_display }}</span>
+                    <a href="{{ BASE_URL }}condominiums/{{ r.condominium_id }}/receipts/{{ r.id }}/download" class="m-link-block">Descarregar</a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="m-empty">Sem recibos para os filtros selecionados.</p>
+            {% endif %}
+        </div>
+    </section>
+</div>

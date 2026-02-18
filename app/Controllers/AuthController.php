@@ -414,9 +414,9 @@ class AuthController extends Controller
         // Log audit
         $this->logAudit($demoUser['id'], 'login', 'Demo access via token - email: ' . $tokenData['email']);
 
-        // Redirect to dashboard
+        // Redirect to dashboard (or /m/dashboard for condomino on mobile)
         $_SESSION['login_success'] = 'Bem-vindo à demo! Explore todas as funcionalidades. Todas as alterações serão repostas automaticamente.';
-        header('Location: ' . BASE_URL . 'dashboard');
+        $this->redirectToDashboard();
         exit;
     }
 
@@ -484,9 +484,9 @@ class AuthController extends Controller
         // Log audit
         $this->logAudit($demoUser['id'], 'login', 'Demo access by super admin: ' . $currentUser['email'] . ' (ID: ' . $currentUser['id'] . ')');
 
-        // Redirect to dashboard
+        // Redirect to dashboard (or /m/dashboard for condomino on mobile)
         $_SESSION['login_success'] = 'Bem-vindo à demo! Explore todas as funcionalidades. Todas as alterações serão repostas automaticamente.';
-        header('Location: ' . BASE_URL . 'dashboard');
+        $this->redirectToDashboard();
         exit;
     }
 
@@ -1168,6 +1168,14 @@ class AuthController extends Controller
 
         $userId = $_SESSION['user']['id'];
         $role = $_SESSION['user']['role'];
+
+        // Condomino on mobile: redirect to minisite (demo profile condomino or actual role condomino)
+        $demoProfile = $_SESSION['demo_profile'] ?? null;
+        $isCondomino = ($demoProfile === 'condomino') || ($demoProfile === null && $role === 'condomino');
+        if ($isCondomino && \App\Services\MobileDetect::shouldServeMobile()) {
+            header('Location: ' . BASE_URL . 'm/dashboard');
+            exit;
+        }
         
         // Get user's condominiums
         $userCondominiums = [];

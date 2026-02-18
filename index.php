@@ -105,6 +105,11 @@ if (session_status() === PHP_SESSION_NONE) {
     }
 }
 
+// Mobile version: when user lands on a page with ?from_mobile=1 (e.g. from /m/occurrences redirect), use mobile template for subsequent pages
+if (isset($_GET['from_mobile']) && $_GET['from_mobile'] === '1') {
+    $_SESSION['mobile_version'] = true;
+}
+
 require __DIR__ . '/vendor/autoload.php';
 
 use App\Core\Router;

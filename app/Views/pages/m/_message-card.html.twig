@@ -1,0 +1,48 @@
+<div class="m-card m-notification-card {% if not is_sent and not message.is_read %}m-notification-unread m-notif-primary{% endif %}">
+    <div class="m-notification-inner">
+        <div class="m-notification-icon {% if is_sent %}m-notif-success{% else %}m-notif-primary{% endif %}">
+            <i class="bi {% if is_sent %}bi-send{% else %}bi-envelope{% endif %}"></i>
+        </div>
+        <div class="m-notification-body">
+            <div class="m-notification-row">
+                <h2 class="m-notification-title {% if not is_sent and not message.is_read %}m-notification-title-unread{% endif %}">{{ message.subject }}</h2>
+            </div>
+            <p class="m-notification-message">{{ message.message|striptags|slice(0, 120) }}{% if message.message|striptags|length > 120 %}...{% endif %}</p>
+            <div class="m-notification-meta">
+                {% if is_sent %}
+                <i class="bi bi-person"></i> Para: {{ message.recipient_name|default('Condomínio') }}
+                {% else %}
+                <i class="bi bi-person"></i> {{ message.sender_name|default('Sistema') }}
+                {% endif %}
+                {% if message.condominium_name %} · {{ message.condominium_name }}{% endif %}
+            </div>
+            <div class="m-notification-meta">
+                <i class="bi bi-clock"></i>
+                {% set created_at = message.created_at|date('U') %}
+                {% set now = 'now'|date('U') %}
+                {% set diff = now - created_at %}
+                {% if diff < 60 %}
+                    agora
+                {% elseif diff < 3600 %}
+                    há {{ (diff / 60)|round }} minutos
+                {% elseif diff < 86400 %}
+                    há {{ (diff / 3600)|round }} horas
+                {% elseif diff < 604800 %}
+                    há {{ (diff / 86400)|round }} dias
+                {% elseif diff < 2592000 %}
+                    há {{ (diff / 604800)|round }} semanas
+                {% else %}
+                    há {{ (diff / 2592000)|round }} meses
+                {% endif %}
+            </div>
+            <div class="m-notification-actions">
+                <a href="{{ BASE_URL }}m/messages/show?id={{ message.id }}" class="m-btn m-btn-sm m-btn-ver-mais" title="Ver mais"><i class="bi bi-envelope-open"></i> Ver mais</a>
+                {% if not is_sent and not message.is_read %}
+                <form method="POST" action="{{ BASE_URL }}m/messages/{{ message.id }}/mark-read" class="m-notification-form-inline">
+                    <button type="submit" class="m-btn m-btn-sm m-btn-success" title="Marcar como lida"><i class="bi bi-check"></i></button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

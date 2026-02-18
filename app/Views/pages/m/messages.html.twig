@@ -1,0 +1,76 @@
+<div class="m-dashboard">
+    <div class="m-notifications-header m-messages-header">
+        <h1 class="m-page-title m-notifications-title">
+            <i class="bi bi-envelope"></i> Mensagens
+            {% if unread_count > 0 %}<span class="m-badge m-badge-danger">{{ unread_count }}</span>{% endif %}
+        </h1>
+        {% if first_condominium %}
+        <a href="{{ BASE_URL }}condominiums/{{ first_condominium.id }}/messages/create" class="m-btn m-btn-enviar"><i class="bi bi-plus-circle"></i> Enviar mensagem</a>
+        {% endif %}
+    </div>
+
+    {% if success %}
+    <div class="m-alert m-alert-success" role="alert">
+        <i class="bi bi-check-circle"></i> {{ success }}
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="m-alert m-alert-error" role="alert">
+        <i class="bi bi-exclamation-circle"></i> {{ error }}
+    </div>
+    {% endif %}
+
+    {# Tabs Recebidas / Enviadas #}
+    <ul class="nav nav-tabs m-nav-tabs" id="mMessagesTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active m-tab-link" id="m-received-tab" data-bs-toggle="tab" data-bs-target="#m-received" type="button" role="tab" aria-controls="m-received" aria-selected="true">
+                <i class="bi bi-inbox"></i> Recebidas
+                {% if received_messages|length > 0 %}<span class="m-badge m-badge-tab">{{ received_messages|length }}</span>{% endif %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link m-tab-link" id="m-sent-tab" data-bs-toggle="tab" data-bs-target="#m-sent" type="button" role="tab" aria-controls="m-sent" aria-selected="false">
+                <i class="bi bi-send"></i> Enviadas
+                {% if sent_messages|length > 0 %}<span class="m-badge m-badge-tab m-badge-success">{{ sent_messages|length }}</span>{% endif %}
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content m-tab-content" id="mMessagesTabsContent">
+        {# Tab Recebidas #}
+        <div class="tab-pane fade show active" id="m-received" role="tabpanel" aria-labelledby="m-received-tab">
+            {% if received_messages|length == 0 %}
+            <div class="m-card">
+                <div class="m-notifications-empty">
+                    <i class="bi bi-inbox"></i>
+                    <p>Sem mensagens recebidas.</p>
+                </div>
+            </div>
+            {% else %}
+            <div class="m-notifications-list">
+                {% for message in received_messages %}
+                    {% include 'pages/m/_message-card.html.twig' with { 'message': message, 'is_sent': false } %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        {# Tab Enviadas #}
+        <div class="tab-pane fade" id="m-sent" role="tabpanel" aria-labelledby="m-sent-tab">
+            {% if sent_messages|length == 0 %}
+            <div class="m-card">
+                <div class="m-notifications-empty">
+                    <i class="bi bi-send"></i>
+                    <p>Sem mensagens enviadas.</p>
+                </div>
+            </div>
+            {% else %}
+            <div class="m-notifications-list">
+                {% for message in sent_messages %}
+                    {% include 'pages/m/_message-card.html.twig' with { 'message': message, 'is_sent': true } %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

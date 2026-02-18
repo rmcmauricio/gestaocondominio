@@ -92,6 +92,23 @@ $router->post('/subscription/recalculate-licenses', 'App\Controllers\Subscriptio
 $router->get('/dashboard', 'App\Controllers\DashboardController@index');
 $router->get('/admin', 'App\Controllers\DashboardController@admin');
 
+// Mobile minisite routes (condomino only; admin/super_admin redirected to dashboard)
+$router->get('/m', 'App\Controllers\Mobile\DashboardController@redirectToDashboard');
+$router->get('/m/dashboard', 'App\Controllers\Mobile\DashboardController@index');
+$router->get('/m/receipts', 'App\Controllers\Mobile\ReceiptController@index');
+$router->get('/m/fees', 'App\Controllers\Mobile\FeesController@index');
+$router->get('/m/occurrences', 'App\Controllers\Mobile\OccurrenceController@index');
+$router->get('/m/messages', 'App\Controllers\Mobile\MessageController@index');
+$router->get('/m/messages/show', 'App\Controllers\Mobile\MessageController@show');
+$router->post('/m/messages/{id}/mark-read', 'App\Controllers\Mobile\MessageController@markAsRead');
+$router->get('/m/reservations', 'App\Controllers\Mobile\ReservationController@index');
+$router->get('/m/notifications', 'App\Controllers\Mobile\NotificationController@index');
+$router->get('/m/notifications/show', 'App\Controllers\Mobile\NotificationController@show');
+$router->post('/m/notifications/{id}/mark-read', 'App\Controllers\Mobile\NotificationController@markAsRead');
+$router->post('/m/notifications/mark-all-read', 'App\Controllers\Mobile\NotificationController@markAllAsRead');
+$router->post('/m/notifications/{id}/delete', 'App\Controllers\Mobile\NotificationController@delete');
+$router->get('/m/versao-completa', 'App\Controllers\Mobile\DashboardController@versaoCompleta');
+
 // Profile routes
 $router->get('/profile', 'App\Controllers\ProfileController@show');
 $router->post('/profile/update', 'App\Controllers\ProfileController@update');

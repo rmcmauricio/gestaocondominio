@@ -1156,8 +1156,12 @@ class CondominiumController extends Controller
         }
         // If user has both roles, keep current view mode (or default to admin)
 
-        // Redirect to condominium overview
-        header('Location: ' . BASE_URL . 'condominiums/' . $id);
+        // Redirect: mobile version stays on mobile dashboard; full version goes to condominium overview
+        if (!empty($_SESSION['mobile_version'])) {
+            header('Location: ' . BASE_URL . 'm/dashboard');
+        } else {
+            header('Location: ' . BASE_URL . 'condominiums/' . $id);
+        }
         exit;
     }
 

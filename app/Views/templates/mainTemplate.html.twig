@@ -92,6 +92,48 @@
     </style>
 </head>
 <body>
+    {% if user %}
+    <script>
+    (function() {
+        var preferFullSite = {{ (prefer_full_site is defined and prefer_full_site) ? 'true' : 'false' }};
+        if (preferFullSite) return;
+        var breakpoint = {{ mobile_viewport_breakpoint|default(768) }};
+        var cookieName = '{{ viewport_mobile_cookie|default("viewport_mobile") }}';
+        var baseUrl = '{{ BASE_URL }}';
+        if (typeof baseUrl !== 'string') baseUrl = '';
+        var baseUrlNorm = baseUrl.slice(-1) === '/' ? baseUrl : baseUrl + '/';
+        var path = (window.location.pathname || '');
+        var viewingAsCondomino = {{ (viewing_as_condomino is defined and viewing_as_condomino) ? 'true' : 'false' }};
+        var forceMobile = (window.location.search || '').indexOf('mobile=1') !== -1;
+        function getViewportSmall() { return window.innerWidth < breakpoint || document.documentElement.clientWidth < breakpoint; }
+        function notOnMinisite() {
+            var p = (window.location.pathname || '');
+            return p.indexOf('/m/') === -1 && p !== '/m' && p.slice(-2) !== '/m';
+        }
+        function doRedirect() {
+            if (!notOnMinisite()) return;
+            var maxAge = 60 * 60 * 24 * 365;
+            document.cookie = cookieName + '=1; path=/; max-age=' + maxAge + '; SameSite=Lax';
+            if (viewingAsCondomino) {
+                window.location.replace(baseUrlNorm + 'm/dashboard');
+            }
+        }
+        if (viewingAsCondomino && notOnMinisite() && (forceMobile || getViewportSmall())) {
+            doRedirect();
+            return;
+        }
+        if (viewingAsCondomino && notOnMinisite()) {
+            var resizeTimer;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function() {
+                    if (getViewportSmall() && notOnMinisite()) doRedirect();
+                }, 150);
+            });
+        }
+    })();
+    </script>
+    {% endif %}
     {% include 'blocks/header.html.twig' %}
 
     <div class="main-wrapper">

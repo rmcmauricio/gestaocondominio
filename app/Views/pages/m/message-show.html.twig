@@ -1,0 +1,29 @@
+<div class="m-dashboard">
+    <div class="m-notification-show-header">
+        <a href="{{ BASE_URL }}m/messages" class="m-back-link"><i class="bi bi-arrow-left"></i> Mensagens</a>
+    </div>
+
+    <div class="m-card m-notification-show-card">
+        <div class="m-notification-show-icon m-notif-primary">
+            <i class="bi bi-envelope"></i>
+        </div>
+        <h1 class="m-notification-show-title">{{ message.subject }}</h1>
+        <div class="m-notification-show-meta">
+            <i class="bi bi-person"></i> {{ message.sender_name|default('Sistema') }}
+            {% if message.condominium_name %} · {{ message.condominium_name }}{% endif %}
+        </div>
+        <div class="m-notification-show-meta">
+            <i class="bi bi-clock"></i>
+            {{ message.created_at|date('d/m/Y H:i') }}
+        </div>
+        <div class="m-notification-show-message">{{ message.message|raw }}</div>
+        <div class="m-notification-show-actions">
+            {% if not message.is_read %}
+            <form method="POST" action="{{ BASE_URL }}m/messages/{{ message.id }}/mark-read" class="m-message-show-form-inline">
+                <button type="submit" class="m-btn m-btn-primary">Marcar como lida</button>
+            </form>
+            {% endif %}
+            <a href="{{ BASE_URL }}condominiums/{{ message.condominium_id }}/messages/{{ message.id }}" class="m-btn m-btn-primary m-btn-abrir">Abrir na versão completa</a>
+        </div>
+    </div>
+</div>
