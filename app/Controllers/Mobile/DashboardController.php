@@ -48,17 +48,32 @@ class DashboardController extends Controller
             exit;
         }
 
+        // Determinar condomínio selecionado: sessão > primeiro com fração
+        $selectedCondominiumId = (int)($_SESSION['current_condominium_id'] ?? 0);
+        $userCondominiumsWithFraction = array_values(array_filter($userCondominiums, function ($uc) {
+            return !empty($uc['fraction_id']);
+        }));
+        $validCondominiumIds = array_unique(array_column($userCondominiumsWithFraction, 'condominium_id'));
+        if ($selectedCondominiumId <= 0 || !in_array($selectedCondominiumId, $validCondominiumIds)) {
+            $selectedCondominiumId = !empty($userCondominiumsWithFraction)
+                ? (int)$userCondominiumsWithFraction[0]['condominium_id']
+                : 0;
+            if ($selectedCondominiumId > 0) {
+                $_SESSION['current_condominium_id'] = $selectedCondominiumId;
+            }
+        }
+        $filteredUserCondominiums = array_filter($userCondominiumsWithFraction, function ($uc) use ($selectedCondominiumId) {
+            return (int)$uc['condominium_id'] === $selectedCondominiumId;
+        });
+
         $today = date('Y-m-d');
 
-        // Overdue fees (quotas em atraso) com valor em falta (remaining) e total
+        // Overdue fees (quotas em atraso) – apenas do condomínio selecionado
         $feeModel = new \App\Models\Fee();
         $overdueFees = [];
         $totalOverdue = 0.0;
         $overdueCondominiumIds = [];
-        foreach ($userCondominiums as $uc) {
-            if (empty($uc['fraction_id'])) {
-                continue;
-            }
+        foreach ($filteredUserCondominiums as $uc) {
             $fees = $feeModel->getOutstandingByFraction($uc['fraction_id']);
             foreach ($fees as $f) {
                 $dueDate = $f['due_date'] ?? null;
@@ -77,13 +92,10 @@ class DashboardController extends Controller
         }
         $overdueCondominiumIds = array_keys($overdueCondominiumIds);
 
-        // Pending fees (quotas pendentes: não pagas, vencimento >= hoje)
+        // Pending fees (quotas pendentes) – apenas do condomínio selecionado
         $pendingFees = [];
         $totalPending = 0.0;
-        foreach ($userCondominiums as $uc) {
-            if (empty($uc['fraction_id'])) {
-                continue;
-            }
+        foreach ($filteredUserCondominiums as $uc) {
             $fees = $feeModel->getOutstandingByFraction($uc['fraction_id']);
             foreach ($fees as $f) {
                 $dueDate = $f['due_date'] ?? null;
@@ -100,39 +112,34 @@ class DashboardController extends Controller
             }
         }
 
-        // IBAN por condomínio (conta principal) para os condomínios com quotas em atraso
+        // IBAN – apenas do condomínio selecionado (se tiver quotas em atraso)
         $overdueCondominiumIbans = [];
-        if (!empty($overdueCondominiumIds)) {
+        if (!empty($overdueCondominiumIds) && in_array($selectedCondominiumId, $overdueCondominiumIds)) {
             $bankAccountModel = new \App\Models\BankAccount();
             $condominiumModel = new \App\Models\Condominium();
-            foreach ($overdueCondominiumIds as $cid) {
-                $accounts = $bankAccountModel->getActiveAccounts($cid);
-                $iban = null;
-                foreach ($accounts as $acc) {
-                    if (($acc['account_type'] ?? '') === 'bank' && !empty($acc['iban'])) {
-                        $iban = trim($acc['iban']);
-                        break;
-                    }
+            $accounts = $bankAccountModel->getActiveAccounts($selectedCondominiumId);
+            $iban = null;
+            foreach ($accounts as $acc) {
+                if (($acc['account_type'] ?? '') === 'bank' && !empty($acc['iban'])) {
+                    $iban = trim($acc['iban']);
+                    break;
                 }
-                $condo = $condominiumModel->findById($cid);
-                if ($iban !== null && $iban !== '') {
-                    $overdueCondominiumIbans[] = [
-                        'condominium_id' => $cid,
-                        'condominium_name' => $condo['name'] ?? '',
-                        'iban' => $iban,
-                    ];
-                }
+            }
+            $condo = $condominiumModel->findById($selectedCondominiumId);
+            if ($iban !== null && $iban !== '') {
+                $overdueCondominiumIbans[] = [
+                    'condominium_id' => $selectedCondominiumId,
+                    'condominium_name' => $condo['name'] ?? '',
+                    'iban' => $iban,
+                ];
             }
         }
 
-        // Fraction account balance (saldo em conta) per user fraction
+        // Saldo em conta – apenas do condomínio selecionado
         $fractionAccountModel = new \App\Models\FractionAccount();
         $condominiumModel = new \App\Models\Condominium();
         $fractionBalances = [];
-        foreach ($userCondominiums as $uc) {
-            if (empty($uc['fraction_id'])) {
-                continue;
-            }
+        foreach ($filteredUserCondominiums as $uc) {
             $acc = $fractionAccountModel->getByFraction($uc['fraction_id']);
             if ($acc && (float)$acc['balance'] != 0) {
                 $condo = $condominiumModel->findById($uc['condominium_id']);
@@ -144,17 +151,25 @@ class DashboardController extends Controller
             }
         }
 
-        // Unread notifications (last 3 for dashboard, same structure as notifications page)
+        // Notificações não lidas – apenas do condomínio selecionado
         $notificationService = new \App\Services\NotificationService();
         $allNotifications = $notificationService->getUnifiedNotifications($userId, 50);
-        $unreadNotifications = array_values(array_filter($allNotifications, function ($n) {
-            return isset($n['is_read']) && !$n['is_read'];
+        $unreadNotifications = array_values(array_filter($allNotifications, function ($n) use ($selectedCondominiumId) {
+            if (!isset($n['is_read']) || $n['is_read']) {
+                return false;
+            }
+            $nCid = $n['condominium_id'] ?? null;
+            return $nCid === null || (int)$nCid === $selectedCondominiumId;
         }));
         $unreadNotifications = array_slice($unreadNotifications, 0, 3);
 
-        // Last 3 receipts
+        // Últimos recibos – apenas do condomínio selecionado
         $receiptModel = new \App\Models\Receipt();
-        $allReceipts = $receiptModel->getByUser($userId, ['receipt_type' => 'final']);
+        $receiptFilters = ['receipt_type' => 'final'];
+        if ($selectedCondominiumId > 0) {
+            $receiptFilters['condominium_id'] = $selectedCondominiumId;
+        }
+        $allReceipts = $receiptModel->getByUser($userId, $receiptFilters);
         foreach ($allReceipts as &$r) {
             $r['period_display'] = \App\Models\Fee::formatPeriodForDisplay([
                 'period_year' => $r['period_year'] ?? null,
@@ -168,78 +183,57 @@ class DashboardController extends Controller
         unset($r);
         $lastReceipts = array_slice($allReceipts, 0, 3);
 
-        // Unread messages count and last 3 unread (same layout as notifications)
-        // Query includes root + replies (getUnreadCount counts all; getByCondominium only roots)
+        // Mensagens não lidas – apenas do condomínio selecionado
         $messageModel = new \App\Models\Message();
         $unreadMessagesCount = 0;
         $unreadMessages = [];
-        $condominiumIds = array_unique(array_map(function ($uc) {
-            return (int)$uc['condominium_id'];
-        }, $userCondominiums));
-        foreach ($condominiumIds as $condoId) {
-            $unreadMessagesCount += $messageModel->getUnreadCount($condoId, $userId);
+        if ($selectedCondominiumId > 0) {
+            $unreadMessagesCount = $messageModel->getUnreadCount($selectedCondominiumId, $userId);
+            if ($unreadMessagesCount > 0) {
+                global $db;
+                if ($db) {
+                    $stmt = $db->prepare("
+                        SELECT m.id, m.subject, m.message, m.created_at, m.condominium_id, m.from_user_id, m.to_user_id, m.thread_id,
+                               u.name as sender_name, c.name as condominium_name
+                        FROM messages m
+                        LEFT JOIN users u ON u.id = m.from_user_id
+                        INNER JOIN condominiums c ON c.id = m.condominium_id
+                        WHERE m.condominium_id = ?
+                        AND (m.to_user_id = ? OR m.to_user_id IS NULL)
+                        AND m.is_read = 0
+                        AND m.from_user_id != ?
+                        ORDER BY m.created_at DESC
+                        LIMIT 3
+                    ");
+                    $stmt->execute([$selectedCondominiumId, $userId, $userId]);
+                    $unreadMessages = $stmt->fetchAll() ?: [];
+                }
+            }
         }
-        if (!empty($condominiumIds) && $unreadMessagesCount > 0) {
+
+        // Marcações futuras – apenas do condomínio selecionado
+        $futureReservations = [];
+        if ($selectedCondominiumId > 0) {
             global $db;
             if ($db) {
-                $placeholders = implode(',', array_fill(0, count($condominiumIds), '?'));
                 $stmt = $db->prepare("
-                    SELECT m.id, m.subject, m.message, m.created_at, m.condominium_id, m.from_user_id, m.to_user_id, m.thread_id,
-                           u.name as sender_name, c.name as condominium_name
-                    FROM messages m
-                    LEFT JOIN users u ON u.id = m.from_user_id
-                    INNER JOIN condominiums c ON c.id = m.condominium_id
-                    WHERE m.condominium_id IN ($placeholders)
-                    AND (m.to_user_id = ? OR m.to_user_id IS NULL)
-                    AND m.is_read = 0
-                    AND m.from_user_id != ?
-                    ORDER BY m.created_at DESC
-                    LIMIT 3
+                    SELECT r.*, s.name as space_name, f.identifier as fraction_identifier, c.name as condominium_name
+                    FROM reservations r
+                    INNER JOIN spaces s ON s.id = r.space_id
+                    INNER JOIN fractions f ON f.id = r.fraction_id
+                    INNER JOIN condominiums c ON c.id = r.condominium_id
+                    WHERE r.user_id = ?
+                    AND r.condominium_id = ?
+                    AND r.start_date >= ?
+                    ORDER BY r.start_date ASC
+                    LIMIT 10
                 ");
-                $params = array_merge($condominiumIds, [$userId, $userId]);
-                $stmt->execute($params);
-                $rows = $stmt->fetchAll() ?: [];
-                foreach ($rows as $m) {
-                    $unreadMessages[] = $m;
-                }
+                $stmt->execute([$userId, $selectedCondominiumId, $today]);
+                $futureReservations = $stmt->fetchAll() ?: [];
             }
         }
 
-        // Future reservations
-        $reservationModel = new \App\Models\Reservation();
-        $futureReservations = [];
-        if (!empty($userCondominiums)) {
-            global $db;
-            $condominiumIds = array_unique(array_column($userCondominiums, 'condominium_id'));
-            $placeholders = implode(',', array_fill(0, count($condominiumIds), '?'));
-            $stmt = $db->prepare("
-                SELECT r.*, s.name as space_name, f.identifier as fraction_identifier, c.name as condominium_name
-                FROM reservations r
-                INNER JOIN spaces s ON s.id = r.space_id
-                INNER JOIN fractions f ON f.id = r.fraction_id
-                INNER JOIN condominiums c ON c.id = r.condominium_id
-                WHERE r.user_id = ?
-                AND r.condominium_id IN ($placeholders)
-                AND r.start_date >= ?
-                ORDER BY r.start_date ASC
-                LIMIT 10
-            ");
-            $params = array_merge([$userId], $condominiumIds, [$today]);
-            $stmt->execute($params);
-            $futureReservations = $stmt->fetchAll() ?: [];
-        }
-
-        // First condominium ID for links (e.g. reportar ocorrência) – prefer one where user has fraction
-        $firstCondominiumId = null;
-        foreach ($userCondominiums as $uc) {
-            $cid = isset($uc['condominium_id']) ? (int) $uc['condominium_id'] : 0;
-            if ($cid > 0) {
-                $firstCondominiumId = $cid;
-                if (!empty($uc['fraction_id'])) {
-                    break;
-                }
-            }
-        }
+        $firstCondominiumId = $selectedCondominiumId > 0 ? $selectedCondominiumId : null;
 
         $_SESSION['mobile_version'] = true;
 
@@ -249,7 +243,6 @@ class DashboardController extends Controller
             'viewName' => 'pages/m/dashboard.html.twig',
             'page' => ['titulo' => 'Início - Minisite'],
             'user' => $user,
-            'user_condominiums' => $userCondominiums,
             'first_condominium_id' => $firstCondominiumId,
             'overdue_fees' => $overdueFees,
             'total_overdue' => $totalOverdue,
