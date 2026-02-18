@@ -13,6 +13,10 @@
 // Use catch-all pattern: /storage/{path...} where path can contain slashes
 $router->get('/storage/{path}', 'App\Controllers\StorageController@serve');
 
+// PWA: manifest and service worker for mobile version
+$router->get('/manifest-mobile.json', 'App\Controllers\PwaController@manifest');
+$router->get('/sw-mobile.js', 'App\Controllers\PwaController@serviceWorker');
+
 // Home route
 $router->get('/', 'App\Controllers\HomeController@index');
 
@@ -92,6 +96,23 @@ $router->post('/subscription/recalculate-licenses', 'App\Controllers\Subscriptio
 $router->get('/dashboard', 'App\Controllers\DashboardController@index');
 $router->get('/admin', 'App\Controllers\DashboardController@admin');
 
+// Mobile minisite routes (condomino only; admin/super_admin redirected to dashboard)
+$router->get('/m', 'App\Controllers\Mobile\DashboardController@redirectToDashboard');
+$router->get('/m/dashboard', 'App\Controllers\Mobile\DashboardController@index');
+$router->get('/m/receipts', 'App\Controllers\Mobile\ReceiptController@index');
+$router->get('/m/fees', 'App\Controllers\Mobile\FeesController@index');
+$router->get('/m/occurrences', 'App\Controllers\Mobile\OccurrenceController@index');
+$router->get('/m/messages', 'App\Controllers\Mobile\MessageController@index');
+$router->get('/m/messages/show', 'App\Controllers\Mobile\MessageController@show');
+$router->post('/m/messages/{id}/mark-read', 'App\Controllers\Mobile\MessageController@markAsRead');
+$router->get('/m/reservations', 'App\Controllers\Mobile\ReservationController@index');
+$router->get('/m/notifications', 'App\Controllers\Mobile\NotificationController@index');
+$router->get('/m/notifications/show', 'App\Controllers\Mobile\NotificationController@show');
+$router->post('/m/notifications/{id}/mark-read', 'App\Controllers\Mobile\NotificationController@markAsRead');
+$router->post('/m/notifications/mark-all-read', 'App\Controllers\Mobile\NotificationController@markAllAsRead');
+$router->post('/m/notifications/{id}/delete', 'App\Controllers\Mobile\NotificationController@delete');
+$router->get('/m/versao-completa', 'App\Controllers\Mobile\DashboardController@versaoCompleta');
+
 // Profile routes
 $router->get('/profile', 'App\Controllers\ProfileController@show');
 $router->post('/profile/update', 'App\Controllers\ProfileController@update');
@@ -130,6 +151,9 @@ $router->post('/condominiums/{id}/remove-admin', 'App\Controllers\CondominiumCon
 $router->post('/condominiums/{condominium_id}/switch-view-mode', 'App\Controllers\CondominiumController@switchViewMode');
 $router->get('/condominiums/{id}/restore', 'App\Controllers\CondominiumController@backupRestorePage');
 $router->post('/condominiums/{id}/create-backup', 'App\Controllers\CondominiumController@createBackup');
+// Setup wizard (must be before condominiums/{id} so {id} is used for wizard)
+$router->get('/condominiums/{id}/setup-wizard', 'App\Controllers\SetupWizardController@index');
+$router->post('/condominiums/{id}/setup-wizard/step/{step}', 'App\Controllers\SetupWizardController@processStep');
 
 // Admin transfer routes
 $router->get('/admin-transfers/pending', 'App\Controllers\AdminTransferController@pending');
@@ -349,6 +373,10 @@ $router->post('/condominiums/{condominium_id}/assemblies/{id}/start', 'App\Contr
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/close', 'App\Controllers\AssemblyController@close');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/cancel', 'App\Controllers\AssemblyController@cancel');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/send-convocation', 'App\Controllers\AssemblyController@sendConvocation');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/resend-convocation', 'App\Controllers\AssemblyController@resendConvocation');
+$router->get('/condominiums/{condominium_id}/assemblies/{id}/convocation-document', 'App\Controllers\AssemblyController@downloadConvocationDocument');
+$router->get('/condominiums/{condominium_id}/assemblies/{id}/convocation-letter/{fraction_id}', 'App\Controllers\AssemblyController@downloadConvocationLetter');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/convocation-letter/{fraction_id}/registered-number', 'App\Controllers\AssemblyController@saveRegisteredLetterNumber');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/attendance', 'App\Controllers\AssemblyController@registerAttendance');
 $router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes', 'App\Controllers\AssemblyController@generateMinutes');
 $router->get('/condominiums/{condominium_id}/assemblies/{id}/minutes/view', 'App\Controllers\AssemblyController@viewMinutes');

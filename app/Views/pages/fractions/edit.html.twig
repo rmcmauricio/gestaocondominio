@@ -66,6 +66,16 @@
                         </div>
 
                         <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="receives_convocation_by_email" name="receives_convocation_by_email" value="1" {% if fraction.receives_convocation_by_email|default(1) %}checked{% endif %}>
+                                <label class="form-check-label" for="receives_convocation_by_email">
+                                    Recebe convocatória de assembleia por email
+                                </label>
+                            </div>
+                            <small class="text-muted">Se desmarcar, esta fração não receberá as convocatórias por email (apenas por correio).</small>
+                        </div>
+
+                        <div class="mb-3">
                             <label for="notes" class="form-label">Notas</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3">{{ fraction.notes|default('') }}</textarea>
                         </div>

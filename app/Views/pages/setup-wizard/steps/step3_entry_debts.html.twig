@@ -1,0 +1,216 @@
+<h5 class="mb-3">{{ page.t.step_3_title|default('Data de Entrada e Saldos') }}</h5>
+<p class="text-muted">{{ page.t.step_3_help|default('Opcional: indique a data de entrada no sistema e registe dívidas/créditos históricos. Pode fazer depois em Finanças.') }}</p>
+
+{# Dívidas já registadas — colapsado no topo (vermelho) #}
+{% if historical_debts|default([])|length > 0 %}
+<div class="card shadow-sm mb-3 border-danger">
+    <div class="card-header bg-danger bg-opacity-10 text-danger d-flex align-items-center py-2 cursor-pointer" data-bs-toggle="collapse" data-bs-target="#wizard-step3-debts-collapse" aria-expanded="false" aria-controls="wizard-step3-debts-collapse" role="button">
+        <span class="d-flex align-items-center flex-nowrap"><i class="bi bi-currency-euro me-2"></i>{{ page.t.step3_debts_list|default('Dívidas históricas já registadas (à data de entrada no sistema)') }} ({{ historical_debts|length }})<i class="bi bi-chevron-down collapse-icon-debts ms-2"></i></span>
+    </div>
+    <div class="collapse" id="wizard-step3-debts-collapse">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr><th>Fração</th><th>Período</th><th>Valor</th><th>Vencimento</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                    {% for d in historical_debts %}
+                        <tr>
+                            <td>{{ d.fraction_identifier|default('-') }}</td>
+                            <td>{{ d.period_display|default('-') }}</td>
+                            <td>{{ d.amount|number_format(2, ',', ' ') }} €</td>
+                            <td>{{ d.due_date|default('-') }}</td>
+                            <td>
+                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/finances/historical-debts/{{ d.id }}/delete" class="d-inline" onsubmit="return confirm('{{ page.t.step3_confirm_delete_debt|default('Apagar esta dívida histórica?') }}');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="redirect_url" value="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step=3">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ page.t.delete|default('Apagar') }}"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# Créditos já registados — colapsado no topo #}
+{% if historical_credits|default([])|length > 0 %}
+<div class="card shadow-sm mb-3 border-success">
+    <div class="card-header bg-success bg-opacity-10 text-success d-flex align-items-center py-2 cursor-pointer" data-bs-toggle="collapse" data-bs-target="#wizard-step3-credits-collapse" aria-expanded="false" aria-controls="wizard-step3-credits-collapse" role="button">
+        <span class="d-flex align-items-center flex-nowrap"><i class="bi bi-plus-circle me-2"></i>{{ page.t.step3_credits_list|default('Créditos históricos já registados (à data de entrada no sistema)') }} ({{ historical_credits|length }})<i class="bi bi-chevron-down collapse-icon-credits ms-2"></i></span>
+    </div>
+    <div class="collapse" id="wizard-step3-credits-collapse">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr><th>Fração</th><th>Valor</th><th>Descrição</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                    {% for c in historical_credits %}
+                        <tr>
+                            <td>{{ c.fraction_identifier|default('-') }}</td>
+                            <td>{{ c.amount|number_format(2, ',', ' ') }} €</td>
+                            <td>{{ c.description|default('-') }}</td>
+                            <td>
+                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/finances/historical-credits/{{ c.id }}/delete" class="d-inline" onsubmit="return confirm('{{ page.t.step3_confirm_delete_credit|default('Apagar este crédito histórico?') }}');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="redirect_url" value="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step=3">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ page.t.delete|default('Apagar') }}"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# Card principal: formulário (data de entrada + adicionar dívida + adicionar crédito) #}
+<div class="card shadow-sm">
+    <div class="card-header">
+        <i class="bi bi-calendar-plus me-2"></i>{{ page.t.step3_entry_date_label|default('Data de entrada e registar dívidas/créditos') }}
+    </div>
+    <div class="card-body p-4">
+        <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/3" id="step3-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="wizard_step3_submit" id="wizard_step3_submit" value="">
+
+            <div class="mb-4">
+                <label for="entry_date" class="form-label">{{ page.t.step3_entry_date_label|default('Data de entrada no sistema') }}</label>
+                <input type="date" class="form-control" id="entry_date" name="entry_date" value="{{ old_input.entry_date|default('') }}">
+            </div>
+
+            {# Adicionar dívida histórica #}
+            <div class="mb-4">
+                <h6 class="mb-2">{{ page.t.step3_debts_title|default('Dívidas históricas (à data de entrada no sistema)') }}</h6>
+                <p class="text-muted small">{{ page.t.step3_debts_help|default('Registe quotas em atraso por fração (ano, mês opcional, valor e data de vencimento).') }}</p>
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 col-md">
+                        <label for="fraction_id" class="form-label small">{{ page.t.step3_fraction|default('Fração') }}</label>
+                        <select class="form-select form-select-sm" id="fraction_id" name="fraction_id">
+                            <option value="">{{ page.t.step3_select_fraction|default('— Selecionar —') }}</option>
+                            {% for fr in fractions %}
+                            <option value="{{ fr.id }}">{{ fr.identifier }}{% if fr.permillage is defined %} ({{ fr.permillage }}‱){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md">
+                        <label for="debt_year" class="form-label small">{{ page.t.step3_year|default('Ano') }}</label>
+                        <input type="number" class="form-control form-control-sm" id="debt_year" name="debt_year" min="2000" max="{{ current_year|default('2030') }}" value="{{ current_year|default('') }}">
+                    </div>
+                    <div class="col-6 col-md">
+                        <label for="debt_month" class="form-label small">{{ page.t.step3_month|default('Mês') }} <span class="text-muted">(opc.)</span></label>
+                        <select class="form-select form-select-sm" id="debt_month" name="debt_month">
+                            <option value="">{{ page.t.step3_yearly|default('Anual') }}</option>
+                            {% for m in 1..12 %}
+                            <option value="{{ m }}">{{ m }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md">
+                        <label for="debt_amount" class="form-label small">{{ page.t.step3_amount|default('Valor (€)') }}</label>
+                        <input type="number" class="form-control form-control-sm" id="debt_amount" name="debt_amount" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="col-6 col-md">
+                        <label for="debt_due_date" class="form-label small">{{ page.t.step3_due_date|default('Vencimento') }}</label>
+                        <input type="date" class="form-control form-control-sm" id="debt_due_date" name="debt_due_date" value="{{ debt_due_date_default|default('') }}">
+                    </div>
+                    <div class="col-12 col-md">
+                        <label for="debt_notes" class="form-label small">{{ page.t.step3_notes|default('Notas') }}</label>
+                        <input type="text" class="form-control form-control-sm" id="debt_notes" name="debt_notes" placeholder="{{ page.t.step3_notes_optional|default('Opcional') }}">
+                    </div>
+                    <div class="col-12 col-md-auto">
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-debt">{{ page.t.step3_add_debt|default('Adicionar dívida') }}</button>
+                    </div>
+                </div>
+            </div>
+
+            {# Adicionar crédito histórico #}
+            <div class="mb-4">
+                <h6 class="mb-2">{{ page.t.step3_credits_title|default('Créditos históricos (à data de entrada no sistema)') }}</h6>
+                <p class="text-muted small">{{ page.t.step3_credits_help|default('Registe créditos por fração (ex. saldos a favor para liquidação de quotas).') }}</p>
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 col-md">
+                        <label for="credit_fraction_id" class="form-label small">{{ page.t.step3_fraction|default('Fração') }}</label>
+                        <select class="form-select form-select-sm" id="credit_fraction_id" name="credit_fraction_id">
+                            <option value="">{{ page.t.step3_select_fraction|default('— Selecionar —') }}</option>
+                            {% for fr in fractions %}
+                            <option value="{{ fr.id }}">{{ fr.identifier }}{% if fr.permillage is defined %} ({{ fr.permillage }}‱){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md">
+                        <label for="credit_amount" class="form-label small">{{ page.t.step3_amount|default('Valor (€)') }}</label>
+                        <input type="number" class="form-control form-control-sm" id="credit_amount" name="credit_amount" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="col-12 col-md">
+                        <label for="credit_notes" class="form-label small">{{ page.t.step3_notes|default('Notas') }}</label>
+                        <input type="text" class="form-control form-control-sm" id="credit_notes" name="credit_notes" placeholder="{{ page.t.step3_notes_optional|default('Opcional') }}">
+                    </div>
+                    <div class="col-12 col-md-auto">
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-credit">{{ page.t.step3_add_credit|default('Adicionar crédito') }}</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary">{{ page.t.step3_save_continue|default('Guardar e continuar') }}</button>
+                <button type="submit" class="btn btn-outline-secondary" name="wizard_skip" value="1" formnovalidate>{{ page.t.skip_configure_later|default('Saltar — configurar depois') }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('step3-form');
+    var hidden = document.getElementById('wizard_step3_submit');
+    if (form && hidden) {
+        document.getElementById('btn-add-debt')?.addEventListener('click', function() {
+            hidden.value = 'add_debt';
+            form.noValidate = true;
+            form.submit();
+        });
+        document.getElementById('btn-add-credit')?.addEventListener('click', function() {
+            hidden.value = 'add_credit';
+            form.noValidate = true;
+            form.submit();
+        });
+    }
+    var colDebts = document.getElementById('wizard-step3-debts-collapse');
+    if (colDebts) {
+        colDebts.addEventListener('show.bs.collapse', function() {
+            var card = this.closest('.card');
+            var i = card ? card.querySelector('.collapse-icon-debts') : null;
+            if (i) { i.classList.remove('bi-chevron-down'); i.classList.add('bi-chevron-up'); }
+        });
+        colDebts.addEventListener('hide.bs.collapse', function() {
+            var card = this.closest('.card');
+            var i = card ? card.querySelector('.collapse-icon-debts') : null;
+            if (i) { i.classList.remove('bi-chevron-up'); i.classList.add('bi-chevron-down'); }
+        });
+    }
+    var colCredits = document.getElementById('wizard-step3-credits-collapse');
+    if (colCredits) {
+        colCredits.addEventListener('show.bs.collapse', function() {
+            var card = this.closest('.card');
+            var i = card ? card.querySelector('.collapse-icon-credits') : null;
+            if (i) { i.classList.remove('bi-chevron-down'); i.classList.add('bi-chevron-up'); }
+        });
+        colCredits.addEventListener('hide.bs.collapse', function() {
+            var card = this.closest('.card');
+            var i = card ? card.querySelector('.collapse-icon-credits') : null;
+            if (i) { i.classList.remove('bi-chevron-up'); i.classList.add('bi-chevron-down'); }
+        });
+    }
+});
+</script>

@@ -112,6 +112,7 @@ class CondominiumBackupService
             $data['tables']['fraction_accounts'] = $this->exportFractionAccounts($condominiumId);
             $data['tables']['condominium_users'] = $this->exportTable("condominium_users", "condominium_id", $condominiumId);
             $data['tables']['assemblies'] = $this->exportTable("assemblies", "condominium_id", $condominiumId);
+            $data['tables']['assembly_convocation_recipients'] = $this->exportAssemblyConvocationRecipients($condominiumId);
             $data['tables']['assembly_agenda_points'] = $this->exportAssemblyAgendaPoints($condominiumId);
             $data['tables']['assembly_vote_topics'] = $this->exportAssemblyVoteTopics($condominiumId);
             $data['tables']['assembly_attendees'] = $this->exportAssemblyAttendees($condominiumId);
@@ -144,14 +145,15 @@ class CondominiumBackupService
 
             file_put_contents($tempDir . '/data.json', json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
-            // Copy storage files
+            // Copy all condominium storage (includes receipts, convocations, assemblies-related PDFs, etc.)
+            // Path: storage/condominiums/{id}/ → temp/files/ (so convocatorias, etc. are backed up)
             $condoStorage = $this->basePath . '/condominiums/' . $condominiumId;
             if (is_dir($condoStorage)) {
                 $this->copyDirectory($condoStorage, $tempDir . '/files');
             }
 
             // Only backup documents that live under storage/documents (legacy). Documents under
-            // condominiums/{id}/ (e.g. receipts) are already in the "files" copy above.
+            // condominiums/{id}/ (e.g. receipts, convocations in condominiums/{id}/convocatorias/) are already in the "files" copy above.
             $this->copyCondominiumDocumentsLegacyOnly($condominiumId, $tempDir . '/documents_storage');
 
             $safeName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $condominium['name']);
@@ -453,6 +455,15 @@ class CondominiumBackupService
                     }
                 }
 
+                // 15b. Assembly convocation recipients (histórico de envio de convocatórias por fração)
+                foreach ($data['tables']['assembly_convocation_recipients'] ?? [] as $row) {
+                    $asmId = $map['assemblies'][$row['assembly_id']] ?? null;
+                    $fracId = $map['fractions'][$row['fraction_id']] ?? null;
+                    if ($asmId && $fracId) {
+                        $this->insertRow("assembly_convocation_recipients", $row, ['assembly_id' => $asmId, 'fraction_id' => $fracId], $restoreInPlace);
+                    }
+                }
+
                 // 16. Standalone votes, responses
                 foreach ($data['tables']['standalone_votes'] ?? [] as $row) {
                     $newId = $this->insertRow("standalone_votes", $row, ['condominium_id' => $newCondominiumId], $restoreInPlace);
@@ -514,11 +525,17 @@ class CondominiumBackupService
                 foreach ($data['tables']['fraction_account_movements'] ?? [] as $row) {
                     $faId = $map['fraction_accounts'][$row['fraction_account_id']] ?? null;
                     $ftId = !empty($row['source_financial_transaction_id']) ? ($map['financial_transactions'][$row['source_financial_transaction_id']] ?? null) : null;
+                    $overrides = [
+                        'fraction_account_id' => $faId,
+                        'source_financial_transaction_id' => $ftId
+                    ];
+                    // Quando source_type é quota_application, source_reference_id é fee_payment id: mapear para o novo id
+                    // para que FeePayment::getByFee encontre o movimento e mostre a referência nos detalhes da quota
+                    if (!empty($row['source_reference_id']) && ($row['source_type'] ?? '') === 'quota_application') {
+                        $overrides['source_reference_id'] = $map['fee_payments'][$row['source_reference_id']] ?? $row['source_reference_id'];
+                    }
                     if ($faId) {
-                        $this->insertRow("fraction_account_movements", $row, [
-                            'fraction_account_id' => $faId,
-                            'source_financial_transaction_id' => $ftId
-                        ], $restoreInPlace);
+                        $this->insertRow("fraction_account_movements", $row, $overrides, $restoreInPlace);
                     }
                 }
 
@@ -661,7 +678,7 @@ class CondominiumBackupService
                     }
                 }
 
-                // 27. Copy storage files
+                // 27. Copy storage files (convocations, receipts, assemblies-related PDFs; document file_path already remapped in step 22)
                 $filesDir = $tempDir . '/files';
                 if (is_dir($filesDir)) {
                     $targetDir = $this->basePath . '/condominiums/' . $newCondominiumId;
@@ -703,7 +720,7 @@ class CondominiumBackupService
         $tables = [
             'fractions', 'spaces', 'bank_accounts', 'folders', 'budgets', 'budget_items',
             'suppliers', 'contracts', 'fees', 'fraction_accounts', 'assemblies',
-            'assembly_vote_topics', 'assembly_agenda_points', 'assembly_agenda_point_vote_topics',
+            'assembly_convocation_recipients', 'assembly_vote_topics', 'assembly_agenda_points', 'assembly_agenda_point_vote_topics',
             'assembly_attendees', 'assembly_votes', 'standalone_votes', 'vote_options', 'standalone_vote_responses',
             'financial_transactions', 'fee_payments', 'fee_payment_history', 'fraction_account_movements',
             'revenues', 'receipts', 'reservations', 'documents', 'minutes_revisions',
@@ -856,6 +873,13 @@ class CondominiumBackupService
     private function exportAssemblyVoteTopics(int $condominiumId): array
     {
         $stmt = $this->db->prepare("SELECT avt.* FROM assembly_vote_topics avt INNER JOIN assemblies a ON a.id = avt.assembly_id WHERE a.condominium_id = :cid");
+        $stmt->execute([':cid' => $condominiumId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    private function exportAssemblyConvocationRecipients(int $condominiumId): array
+    {
+        $stmt = $this->db->prepare("SELECT acr.* FROM assembly_convocation_recipients acr INNER JOIN assemblies a ON a.id = acr.assembly_id WHERE a.condominium_id = :cid");
         $stmt->execute([':cid' => $condominiumId]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }

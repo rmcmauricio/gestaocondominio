@@ -129,6 +129,7 @@ class Controller
         $demoBannerMessage = null;
         $unreadNotificationsCount = 0;
         $unreadMessagesCount = 0;
+        $pendingInvitationsForUser = [];
         $isDemoUser = false;
         $demoProfile = null;
         $condominium = null;
@@ -340,6 +341,16 @@ class Controller
                     
                     // Unified count includes both notifications and messages
                     $unreadNotificationsCount = $systemNotificationsCount + $unreadMessagesCount;
+                    // Pending invitations for current user (by email) so they can accept in dashboard
+                    $userEmail = trim($_SESSION['user']['email'] ?? '');
+                    if ($userEmail !== '') {
+                        try {
+                            $invitationService = new \App\Services\InvitationService();
+                            $pendingInvitationsForUser = $invitationService->getPendingInvitationsForEmail($userEmail);
+                        } catch (\Exception $e) {
+                            $pendingInvitationsForUser = [];
+                        }
+                    }
                 }
             }
         }
@@ -426,6 +437,11 @@ class Controller
             'template_id' => $finalTemplateId, // Use preview if available, otherwise database template
             'logo_url' => $logoUrl,
             'csrf_token' => \App\Core\Security::generateCSRFToken(),
+            'prefer_full_site' => \App\Services\MobileDetect::prefersFullSite(),
+            'mobile_viewport_breakpoint' => \App\Services\MobileDetect::VIEWPORT_BREAKPOINT,
+            'viewport_mobile_cookie' => \App\Services\MobileDetect::COOKIE_VIEWPORT_MOBILE,
+            'viewing_as_condomino' => ($currentCondominiumRole ?? null) === 'condomino' || (($currentCondominiumRole ?? null) === null && (($demoProfile ?? null) === 'condomino' || (($_SESSION['user']['role'] ?? null) === 'condomino'))),
+            'pending_invitations_for_user' => $pendingInvitationsForUser ?? [],
         ];
         
         // Merge with data - data comes LAST so it overrides baseMergedData
@@ -486,13 +502,27 @@ class Controller
 
     /**
      * Render mainTemplate with merged global data. Ensures page meta (titulo, description, keywords) is always available.
+     * When session has mobile_version (user came from /m/ or ?from_mobile=1), render mobile template instead.
      */
     protected function renderMainTemplate(): void
     {
+        if (!empty($_SESSION['mobile_version'])) {
+            $this->renderMobileTemplate();
+            return;
+        }
         $merged = $this->mergeGlobalData($this->data);
         echo $GLOBALS['twig']->render('templates/mainTemplate.html.twig', $merged);
     }
-    
+
+    /**
+     * Render mobile minisite template (layout + view). Uses same merge as mainTemplate; viewName should point to pages/m/*.html.twig.
+     */
+    protected function renderMobileTemplate(): void
+    {
+        $merged = $this->mergeGlobalData($this->data);
+        echo $GLOBALS['twig']->render('templates/mobileTemplate.html.twig', $merged);
+    }
+
     /**
      * Update session condominium when condominium is set in data
      * This should be called after setting condominium in $this->data

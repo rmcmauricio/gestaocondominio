@@ -1,0 +1,129 @@
+{% if bank_accounts|default([])|length > 0 %}
+<div class="card shadow-sm mb-3 border-success">
+    <div class="card-header bg-success bg-opacity-10 text-success">
+        <i class="bi bi-bank2 me-2"></i>{{ page.t.accounts_added|default('Contas já adicionadas') }} ({{ bank_accounts|length }})
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light"><tr><th>Nome</th><th>Tipo</th><th>Saldo</th><th>Data saldo</th><th></th></tr></thead>
+                <tbody>
+                {% for acc in bank_accounts %}
+                    <tr>
+                        <td>{{ acc.name }}</td>
+                        <td>{{ acc.account_type == 'bank' ? 'Conta Bancária' : 'Caixa' }}</td>
+                        <td>{{ acc.current_balance|number_format(2, ',', ' ') }} €</td>
+                        <td>{{ acc.initial_balance_date|default('-') }}</td>
+                        <td>
+                            <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/bank-accounts/{{ acc.id }}/delete" class="d-inline" onsubmit="return confirm('{{ page.t.step1_confirm_delete_account|default('Apagar esta conta?') }}');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="redirect_url" value="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step=1">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ page.t.delete|default('Apagar') }}"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <i class="bi bi-plus-circle me-2"></i>{{ page.t.add_new_account|default('Adicionar nova conta') }}
+    </div>
+    <div class="card-body p-4">
+        <p class="text-muted small mb-3">{{ page.t.step_1_help|default('Adicione pelo menos uma conta bancária ou a caixa. Pode saltar e configurar depois.') }}</p>
+        <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/1" id="wizard-step1-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="wizard_step" value="1">
+    <input type="hidden" name="wizard_action" id="wizard_step1_action" value="">
+
+    {% set o = old_input|default({}) %}
+    {% set err = error_field|default('') %}
+    <div class="mb-3">
+        <label for="account_type" class="form-label">Tipo de Conta</label>
+        <select class="form-select" id="account_type" name="account_type">
+            <option value="bank" {{ (o.account_type|default('bank')) == 'bank' ? 'selected' : '' }}>Conta Bancária</option>
+            <option value="cash" {{ (o.account_type|default('bank')) == 'cash' ? 'selected' : '' }}>Caixa</option>
+        </select>
+    </div>
+    <div class="mb-3">
+        <label for="name" class="form-label">Nome <span class="text-danger">*</span></label>
+        <input type="text" class="form-control {{ err == 'name' ? 'is-invalid' : '' }}" id="name" name="name" required placeholder="Ex: Conta Principal" value="{{ o.name|default('')|e('html_attr') }}">
+        {% if err == 'name' and error %}<div class="invalid-feedback">{{ error }}</div>{% endif %}
+    </div>
+    <div id="bank-fields">
+        <div class="mb-3">
+            <label for="bank_name" class="form-label">Nome do Banco</label>
+            <input type="text" class="form-control" id="bank_name" name="bank_name" placeholder="Ex: Banco BPI" value="{{ o.bank_name|default('')|e('html_attr') }}">
+        </div>
+        <div class="mb-3">
+            <label for="account_number" class="form-label">Número de Conta</label>
+            <input type="text" class="form-control" id="account_number" name="account_number" value="{{ o.account_number|default('')|e('html_attr') }}">
+        </div>
+        <div class="mb-3">
+            <label for="iban" class="form-label">IBAN</label>
+            <input type="text" class="form-control {{ err == 'iban' ? 'is-invalid' : '' }}" id="iban" name="iban" placeholder="PT50 0000 0000 0000 0000 0000 0" value="{{ o.iban|default('')|e('html_attr') }}">
+            {% if err == 'iban' and error %}<div class="invalid-feedback">{{ error }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+            <label for="swift" class="form-label">SWIFT/BIC</label>
+            <input type="text" class="form-control {{ err == 'swift' ? 'is-invalid' : '' }}" id="swift" name="swift" placeholder="Ex: BBPIPTPL" value="{{ o.swift|default('')|e('html_attr') }}">
+            {% if err == 'swift' and error %}<div class="invalid-feedback">{{ error }}</div>{% endif %}
+        </div>
+    </div>
+    <div class="mb-3">
+        <label for="initial_balance" class="form-label">Saldo Inicial</label>
+        <div class="input-group">
+            <span class="input-group-text">€</span>
+            <input type="number" class="form-control" id="initial_balance" name="initial_balance" step="0.01" min="0" value="{{ o.initial_balance|default('0.00')|e('html_attr') }}">
+        </div>
+    </div>
+    <div class="mb-3">
+        <label for="initial_balance_date" class="form-label">Data do Saldo Inicial</label>
+        <input type="date" class="form-control" id="initial_balance_date" name="initial_balance_date" value="{{ o.initial_balance_date|default('')|e('html_attr') }}">
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary" name="wizard_add" value="1" id="wizard_step1_add">{{ page.t.add_account|default('Adicionar conta') }}</button>
+        <button type="button" class="btn btn-outline-primary" id="wizard_step1_next">{{ page.t.next_step|default('Seguinte passo') }}</button>
+        <button type="button" class="btn btn-outline-secondary" id="wizard_step1_skip">{{ page.t.skip_configure_later|default('Saltar — configurar depois') }}</button>
+    </div>
+</form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var t = document.getElementById('account_type');
+    var b = document.getElementById('bank-fields');
+    if (t && b) {
+        function toggle() { b.style.display = t.value === 'bank' ? 'block' : 'none'; }
+        t.addEventListener('change', toggle);
+        toggle();
+    }
+    var form = document.getElementById('wizard-step1-form');
+    var actionInput = document.getElementById('wizard_step1_action');
+    var btnAdd = document.getElementById('wizard_step1_add');
+    var btnNext = document.getElementById('wizard_step1_next');
+    var btnSkip = document.getElementById('wizard_step1_skip');
+    if (actionInput && btnAdd) btnAdd.addEventListener('click', function() { actionInput.value = 'add'; });
+    if (form && actionInput && btnNext) {
+        btnNext.addEventListener('click', function() {
+            actionInput.value = 'next';
+            form.noValidate = true;
+            form.submit();
+        });
+    }
+    if (form && actionInput && btnSkip) {
+        btnSkip.addEventListener('click', function() {
+            actionInput.value = 'skip';
+            form.noValidate = true;
+            form.submit();
+        });
+    }
+});
+</script>

@@ -225,9 +225,10 @@ class Document extends Model
         } else {
             // Get direct subfolders of parent folder (only immediate children, not grandchildren)
             // Example: if parent is "Contratos", get "Contratos/2026" but not "Contratos/2026/01"
-            // We extract the immediate subfolder by taking parent + '/' + first segment after parent
+            // Use character length (not byte length) so UTF-8 chars like "ó" in "Convocatórias" are correct
             $parentPattern = $parentFolder . '/%';
-            $parentLength = strlen($parentFolder);
+            $parentCharLength = mb_strlen($parentFolder, 'UTF-8');
+            $parentLengthPlus2 = $parentCharLength + 2; // skip parent + '/'
             $sql = "
                 SELECT DISTINCT 
                     CONCAT(:parent_folder, '/', SUBSTRING_INDEX(SUBSTRING(folder, :parent_length_plus_2), '/', 1)) as folder,
@@ -246,7 +247,7 @@ class Document extends Model
                 ':condominium_id' => $condominiumId,
                 ':parent_pattern' => $parentPattern,
                 ':parent_folder' => $parentFolder,
-                ':parent_length_plus_2' => $parentLength + 2
+                ':parent_length_plus_2' => $parentLengthPlus2
             ];
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);

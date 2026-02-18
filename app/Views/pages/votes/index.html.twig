@@ -6,13 +6,13 @@
                 <i class="bi bi-gear"></i> Opções de Resposta
             </a>
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes/create" class="btn btn-primary btn-sm">
-                <i class="bi bi-plus-circle"></i> Nova Votação
+                <i class="bi bi-plus-circle"></i> Novo Inquérito
             </a>
         </div>
         {% endif %}
     {% endset %}
     {% include 'blocks/page-header.html.twig' with {
-        'title': 'Votações',
+        'title': 'Inquéritos',
         'actions': page_actions
     } %}
 
@@ -117,9 +117,9 @@
     </div>
     {% else %}
     <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> Nenhuma votação encontrada.
+        <i class="bi bi-info-circle"></i> Nenhum inquérito encontrado.
         {% if is_admin %}
-        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes/create" class="alert-link">Criar primeira votação</a>
+        <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes/create" class="alert-link">Criar primeiro inquérito</a>
         {% endif %}
     </div>
     {% endif %}

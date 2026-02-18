@@ -17,6 +17,21 @@ function getBasePathForRedirect(): string {
 // Session: 24 hours after last user interaction (single source of truth)
 define('SESSION_INACTIVITY_SECONDS', 86400); // 24 * 3600
 
+// Read SESSION_SKIP_FINGERPRINT from .env if present (config not loaded yet)
+$sessionSkipFingerprint = false;
+$envFile = __DIR__ . '/.env';
+if (file_exists($envFile) && is_readable($envFile)) {
+    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+        if (strpos($line, '#') === 0) continue;
+        if (strpos($line, '=') === false) continue;
+        list($key, $val) = explode('=', $line, 2);
+        if (trim($key) === 'SESSION_SKIP_FINGERPRINT' && trim($val) === '1') {
+            $sessionSkipFingerprint = true;
+            break;
+        }
+    }
+}
+
 // Configure secure session settings before starting session
 if (session_status() === PHP_SESSION_NONE) {
     // Set session garbage collection max lifetime to 24 hours (must be before session_start)
@@ -36,40 +51,27 @@ if (session_status() === PHP_SESSION_NONE) {
 
     session_start();
 
-    // Regenerate session ID periodically to prevent session fixation
-    if (!isset($_SESSION['created'])) {
-        $_SESSION['created'] = time();
-    } else if (time() - $_SESSION['created'] > 1800) {
-        // Regenerate session ID every 30 minutes
-        session_regenerate_id(true);
-        $_SESSION['created'] = time();
-    }
+    // Session ID is only regenerated on login (AuthController) to prevent fixation.
+    // Do NOT regenerate here periodically: it invalidates other tabs/requests that still
+    // have the old cookie (e.g. mobile background tab, second tab) and causes constant logouts.
 
-    // Security: Session integrity check - verify session fingerprint
-    if (isset($_SESSION['user'])) {
-        // Create session fingerprint from IP and User Agent
-        $currentIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
-        if (strpos($currentIp, ',') !== false) {
-            $currentIp = trim(explode(',', $currentIp)[0]);
-        }
+    // Optional: Session fingerprint (User-Agent). Disable if you still get random logouts
+    // (e.g. mobile "request desktop site", PWA vs browser). Set SESSION_SKIP_FINGERPRINT=1 in .env
+    $skipFingerprint = $sessionSkipFingerprint || (getenv('SESSION_SKIP_FINGERPRINT') ?: '') === '1';
+
+    if (isset($_SESSION['user']) && !$skipFingerprint) {
         $currentUserAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
-        $currentFingerprint = hash('sha256', $currentIp . $currentUserAgent);
+        $currentFingerprint = hash('sha256', $currentUserAgent);
 
-        // Check if fingerprint exists and matches
         if (!isset($_SESSION['fingerprint'])) {
-            // First time - store fingerprint
             $_SESSION['fingerprint'] = $currentFingerprint;
         } elseif ($_SESSION['fingerprint'] !== $currentFingerprint) {
-            // Fingerprint changed - possible session hijacking
-            // Log security event
-            error_log("SECURITY WARNING: Session fingerprint mismatch for user ID: " . ($_SESSION['user']['id'] ?? 'unknown'));
+            error_log("SECURITY WARNING: Session fingerprint (User-Agent) mismatch for user ID: " . ($_SESSION['user']['id'] ?? 'unknown'));
 
-            // Destroy session and force re-login
             session_destroy();
             session_start();
             $_SESSION['login_error'] = 'Sessão inválida detectada. Por favor, faça login novamente.';
 
-            // Redirect to login if not already there
             if (strpos($_SERVER['REQUEST_URI'] ?? '', '/login') === false) {
                 header('Location: ' . getBasePathForRedirect() . '/login');
                 exit;
@@ -103,6 +105,11 @@ if (session_status() === PHP_SESSION_NONE) {
             'samesite' => $params['samesite'] ?? 'Lax'
         ]);
     }
+}
+
+// Mobile version: when user lands on a page with ?from_mobile=1 (e.g. from /m/occurrences redirect), use mobile template for subsequent pages
+if (isset($_GET['from_mobile']) && $_GET['from_mobile'] === '1') {
+    $_SESSION['mobile_version'] = true;
 }
 
 require __DIR__ . '/vendor/autoload.php';

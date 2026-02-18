@@ -19,7 +19,7 @@ class HomeController extends Controller
             'financas_completas' => 'Finanças Completas',
             'documentos' => 'Gestão de Documentos',
             'ocorrencias' => 'Ocorrências',
-            'votacoes_online' => 'Votações Online',
+            'votacoes_online' => 'Inquéritos Online',
             'reservas_espacos' => 'Reservas de Espaços',
             'gestao_contratos' => 'Gestão de Contratos',
             'gestao_fornecedores' => 'Gestão de Fornecedores'

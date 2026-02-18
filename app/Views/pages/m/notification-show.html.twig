@@ -1,0 +1,56 @@
+<div class="m-dashboard">
+    <div class="m-notification-show-header">
+        <a href="{{ BASE_URL }}m/notifications" class="m-back-link"><i class="bi bi-arrow-left"></i> {{ translations.title|default('Notificações') }}</a>
+    </div>
+
+    <div class="m-card m-notification-show-card">
+        {% set notification_icon = 'bi-bell' %}
+        {% set notification_color_class = 'm-notif-primary' %}
+        {% if notification.type == 'occurrence' %}
+            {% set notification_icon = 'bi-exclamation-triangle' %}
+            {% set notification_color_class = 'm-notif-warning' %}
+        {% elseif notification.type == 'assembly' %}
+            {% set notification_icon = 'bi-people' %}
+            {% set notification_color_class = 'm-notif-info' %}
+        {% elseif notification.type == 'fee_overdue' %}
+            {% set notification_icon = 'bi-currency-euro' %}
+            {% set notification_color_class = 'm-notif-danger' %}
+        {% elseif notification.type == 'message' or notification.source_type == 'message' %}
+            {% set notification_icon = 'bi-envelope' %}
+            {% set notification_color_class = 'm-notif-primary' %}
+        {% elseif notification.type == 'occurrence_comment' %}
+            {% set notification_icon = 'bi-chat' %}
+            {% set notification_color_class = 'm-notif-success' %}
+        {% endif %}
+
+        <div class="m-notification-show-icon {{ notification_color_class }}">
+            <i class="bi {{ notification_icon }}"></i>
+        </div>
+        <h1 class="m-notification-show-title">{{ notification.title }}</h1>
+        <div class="m-notification-show-meta">
+            <i class="bi bi-clock"></i>
+            {% set created_at = notification.created_at|date('U') %}
+            {% set now = 'now'|date('U') %}
+            {% set diff = now - created_at %}
+            {% if diff < 60 %}
+                {{ translations.just_now|default('agora') }}
+            {% elseif diff < 3600 %}
+                há {{ (diff / 60)|round }} minutos
+            {% elseif diff < 86400 %}
+                há {{ (diff / 3600)|round }} horas
+            {% elseif diff < 604800 %}
+                há {{ (diff / 86400)|round }} dias
+            {% elseif diff < 2592000 %}
+                há {{ (diff / 604800)|round }} semanas
+            {% else %}
+                há {{ (diff / 2592000)|round }} meses
+            {% endif %}
+        </div>
+        <div class="m-notification-show-message">{{ notification.message }}</div>
+        {% if notification.link %}
+        <div class="m-notification-show-actions">
+            <a href="{{ notification.link }}" class="m-btn m-btn-primary m-btn-abrir">Abrir</a>
+        </div>
+        {% endif %}
+    </div>
+</div>

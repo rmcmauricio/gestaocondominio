@@ -11,13 +11,13 @@
                 </a>
                 <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes/{{ vote.id }}/start" class="d-inline">
                     <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="bi bi-play-circle"></i> Abrir Votação
+                        <i class="bi bi-play-circle"></i> Abrir Inquérito
                     </button>
                 </form>
                 {% elseif vote.status == 'open' %}
                 <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes/{{ vote.id }}/close" class="d-inline">
                     <button type="submit" class="btn btn-warning btn-sm">
-                        <i class="bi bi-stop-circle"></i> Encerrar Votação
+                        <i class="bi bi-stop-circle"></i> Encerrar Inquérito
                     </button>
                 </form>
                 {% endif %}
@@ -85,7 +85,7 @@
             {% if vote.status == 'open' and user_fraction and not user_vote %}
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="mb-0">Votar</h5>
+                    <h5 class="mb-0">Responder</h5>
                 </div>
                 <div class="card-body">
                     <form id="voteForm" method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/votes/{{ vote.id }}/vote">
@@ -106,7 +106,7 @@
                             <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
                         </div>
                         <button type="submit" class="btn btn-primary" id="submitVoteBtn" disabled>
-                            <i class="bi bi-check-circle"></i> Confirmar Voto
+                            <i class="bi bi-check-circle"></i> Confirmar Resposta
                         </button>
                     </form>
                 </div>
@@ -114,12 +114,12 @@
             {% elseif vote.status == 'open' and user_vote %}
             <div class="alert alert-success">
                 <i class="bi bi-check-circle"></i> 
-                <strong>Voto registado:</strong> Votou em "{{ user_vote.option_label }}" em {{ user_vote.created_at|date('d/m/Y H:i') }}.
+                <strong>Resposta registada:</strong> Respondeu com "{{ user_vote.option_label }}" em {{ user_vote.created_at|date('d/m/Y H:i') }}.
             </div>
             {% elseif vote.status == 'open' and not user_fraction %}
             <div class="alert alert-warning">
                 <i class="bi bi-exclamation-triangle"></i> 
-                Não tem uma fração associada neste condomínio para poder votar.
+                Não tem uma fração associada neste condomínio para poder responder.
             </div>
             {% endif %}
         </div>
@@ -154,7 +154,7 @@
                                      aria-valuenow="{{ result.vote_count }}" 
                                      aria-valuemin="0" 
                                      aria-valuemax="{{ total_votes }}">
-                                    {{ result.vote_count }} voto{{ result.vote_count != 1 ? 's' : '' }}
+                                    {{ result.vote_count }} resposta{{ result.vote_count != 1 ? 's' : '' }}
                                 </div>
                             </div>
                         </div>
@@ -162,10 +162,10 @@
                         
                         <hr>
                         <div class="text-center">
-                            <strong>Total: {{ total_votes }} voto{{ total_votes != 1 ? 's' : '' }}</strong>
+                            <strong>Total: {{ total_votes }} resposta{{ total_votes != 1 ? 's' : '' }}</strong>
                         </div>
                     {% else %}
-                        <p class="text-muted mb-0">Ainda não há votos registados.</p>
+                        <p class="text-muted mb-0">Ainda não há respostas registadas.</p>
                     {% endif %}
                 </div>
             </div>

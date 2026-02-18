@@ -32,21 +32,8 @@ class InvitationService
             return null;
         }
 
-        // If email is provided, check if user already exists
-        if (!empty($email)) {
-            try {
-                $user = $this->userModel->findByEmail($email);
-                
-                if ($user) {
-                    // User exists, just associate with fraction (no invitation needed)
-                    $result = $this->associateExistingUser($condominiumId, $fractionId, $user['id'], $role, $contactData);
-                    return $result ? -1 : null; // Return -1 to indicate user was associated directly
-                }
-            } catch (\Exception $e) {
-                error_log("InvitationService::createInvitation - Error checking user existence: " . $e->getMessage());
-                return null;
-            }
-        }
+        // Always create an invitation when email is provided; do NOT auto-associate existing users.
+        // The user (existing or new) must accept the invitation to get access; admin can revoke before accept.
 
         // Generate invitation token (only if email is provided, otherwise null)
         $token = !empty($email) ? Security::generateToken(32) : null;
@@ -113,12 +100,12 @@ class InvitationService
         $html = "
             <h2>Convite para Condomínio</h2>
             <p>Olá {$name},</p>
-            <p>Foi convidado para fazer parte de um condomínio.</p>
-            <p>Clique no link abaixo para criar a sua conta e aceitar o convite:</p>
+            <p>Foi convidado para fazer parte de um condomínio (fração).</p>
+            <p>Clique no link abaixo para <strong>aceitar o convite</strong>. Se ainda não tiver conta, poderá criá-la; se já tiver, basta aceitar para ter acesso.</p>
             <p><a href='{$invitationLink}'>Aceitar Convite</a></p>
-            <p>Este link expira em 7 dias.</p>
+            <p>Este link expira em 7 dias. Até aceitar, não terá acesso ao condomínio. O administrador pode cancelar o convite a qualquer momento.</p>
         ";
-        $text = "Convite para Condomínio\n\nOlá {$name},\n\nFoi convidado para fazer parte de um condomínio.\n\nClique no link abaixo para criar a sua conta e aceitar o convite:\n{$invitationLink}\n\nEste link expira em 7 dias.";
+        $text = "Convite para Condomínio\n\nOlá {$name},\n\nFoi convidado para fazer parte de um condomínio (fração).\n\nClique no link abaixo para aceitar o convite. Se ainda não tiver conta, poderá criá-la; se já tiver, basta aceitar para ter acesso.\n{$invitationLink}\n\nEste link expira em 7 dias. Até aceitar, não terá acesso ao condomínio. O administrador pode cancelar o convite a qualquer momento.";
 
         // Try to send email
         $emailSent = $this->emailService->sendEmail($email, $subject, $html, $text);
@@ -159,69 +146,7 @@ class InvitationService
             return false;
         }
 
-        // Check if user already exists with this email
-        try {
-            $user = $this->userModel->findByEmail($email);
-            
-            if ($user) {
-                // User exists, get invitation details and associate
-                $stmt = $db->prepare("
-                    SELECT fraction_id, name, role, nif, phone, alternative_address FROM invitations 
-                    WHERE id = :invitation_id 
-                    AND condominium_id = :condominium_id
-                    AND accepted_at IS NULL
-                    LIMIT 1
-                ");
-                $stmt->execute([
-                    ':invitation_id' => $invitationId,
-                    ':condominium_id' => $condominiumId
-                ]);
-                $invitation = $stmt->fetch();
-                
-                if ($invitation) {
-                    // Associate user and mark invitation as accepted
-                    // Use user's NIF/phone if available, otherwise use invitation data
-                    // User data prevails: if user has NIF and invitation doesn't or is different, use user NIF
-                    $invitationNif = $invitation['nif'] ?? null;
-                    $userNif = $user['nif'] ?? null;
-                    $finalNif = null;
-                    
-                    // If user has NIF and (invitation doesn't have NIF or it's different), use user NIF
-                    if (!empty($userNif)) {
-                        if (empty($invitationNif) || $invitationNif !== $userNif) {
-                            $finalNif = $userNif;
-                        } else {
-                            $finalNif = $invitationNif; // Keep invitation NIF if it matches
-                        }
-                    } else {
-                        $finalNif = $invitationNif; // Use invitation NIF if user doesn't have one
-                    }
-                    
-                    // Phone: prefer user phone, fallback to invitation phone
-                    $finalPhone = !empty($user['phone']) ? $user['phone'] : ($invitation['phone'] ?? null);
-                    
-                    $result = $this->associateExistingUser(
-                        $condominiumId,
-                        $invitation['fraction_id'],
-                        $user['id'],
-                        $invitation['role'],
-                        [
-                            'nif' => $finalNif,
-                            'phone' => $finalPhone,
-                            'alternative_address' => $invitation['alternative_address'] ?? null
-                        ]
-                    );
-                    if ($result) {
-                        $this->markInvitationAsAcceptedById($invitationId);
-                        return true;
-                    }
-                }
-                return false;
-            }
-        } catch (\Exception $e) {
-            error_log("InvitationService::updateInvitationEmailAndSend - Error checking user existence: " . $e->getMessage());
-            return false;
-        }
+        // Do not auto-associate existing users: always update invitation and send email so the user must accept.
 
         // Get invitation details
         $stmt = $db->prepare("
@@ -454,14 +379,10 @@ class InvitationService
                 ':invitation_id' => $invitationId
             ]);
 
-            // If email was added/changed and is valid, send invitation email
+            // If email was added/changed and is valid, always send invitation email
+            // (existing users also receive the link so they can accept and get associated)
             if (!empty($email) && !empty($token) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                // Check if user already exists
-                $user = $this->userModel->findByEmail($email);
-                if (!$user) {
-                    // Only send email if user doesn't exist
-                    $this->sendInvitationEmail($email, $name, $token);
-                }
+                $this->sendInvitationEmail($email, $name, $token);
             }
 
             return true;
@@ -489,6 +410,57 @@ class InvitationService
         ");
 
         return $stmt->execute([':invitation_id' => $invitationId]);
+    }
+
+    /**
+     * Accept invitation when user is already logged in (no password needed).
+     * Only succeeds if the invitation email matches the current user's email.
+     */
+    public function acceptInvitationForLoggedInUser(string $token, int $userId): bool
+    {
+        global $db;
+
+        if (!$db || empty($token)) {
+            return false;
+        }
+
+        $stmt = $db->prepare("
+            SELECT * FROM invitations 
+            WHERE token = :token 
+            AND expires_at > NOW() 
+            AND accepted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([':token' => $token]);
+        $invitation = $stmt->fetch();
+
+        if (!$invitation || empty($invitation['email'])) {
+            return false;
+        }
+
+        $user = $this->userModel->findById($userId);
+        if (!$user || strcasecmp(trim($user['email'] ?? ''), trim($invitation['email'])) !== 0) {
+            return false;
+        }
+
+        $invitationNif = $invitation['nif'] ?? null;
+        $userNif = $user['nif'] ?? null;
+        $finalNif = !empty($userNif) ? $userNif : $invitationNif;
+        $finalPhone = !empty($user['phone']) ? $user['phone'] : ($invitation['phone'] ?? null);
+
+        $this->associateExistingUser(
+            (int)$invitation['condominium_id'],
+            $invitation['fraction_id'] ? (int)$invitation['fraction_id'] : null,
+            (int)$user['id'],
+            $invitation['role'] ?? 'condomino',
+            [
+                'nif' => $finalNif,
+                'phone' => $finalPhone,
+                'alternative_address' => $invitation['alternative_address'] ?? null
+            ]
+        );
+        $this->markInvitationAsAccepted($token);
+        return true;
     }
 
     /**
@@ -741,6 +713,34 @@ class InvitationService
         ");
 
         return $stmt->execute([':token' => $token]);
+    }
+
+    /**
+     * Get pending (not accepted) invitations sent to a given email (e.g. current user).
+     * Used to show "Convites pendentes" in the dashboard so the user can accept.
+     */
+    public function getPendingInvitationsForEmail(string $email): array
+    {
+        global $db;
+
+        if (!$db || empty(trim($email))) {
+            return [];
+        }
+
+        $stmt = $db->prepare("
+            SELECT i.id, i.condominium_id, i.fraction_id, i.name, i.email, i.role, i.token, i.expires_at, i.created_at,
+                   c.name AS condominium_name,
+                   f.identifier AS fraction_identifier
+            FROM invitations i
+            JOIN condominiums c ON c.id = i.condominium_id
+            LEFT JOIN fractions f ON f.id = i.fraction_id
+            WHERE LOWER(TRIM(i.email)) = LOWER(TRIM(:email))
+            AND i.accepted_at IS NULL
+            AND (i.expires_at IS NULL OR i.expires_at > NOW())
+            ORDER BY i.created_at DESC
+        ");
+        $stmt->execute([':email' => $email]);
+        return $stmt->fetchAll() ?: [];
     }
 
     /**

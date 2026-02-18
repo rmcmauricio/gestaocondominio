@@ -74,27 +74,217 @@ class PdfService
     }
 
     /**
-     * Generate assembly convocation PDF
+     * Get convocation storage folder: condominiums/{id}/convocatorias/{data_assembleia}
+     * Subpasta com a data da assembleia (Y-m-d), ex.: condominiums/1/convocatorias/2025-02-16
+     */
+    public function getConvocationFolder(array $assembly): string
+    {
+        $condominiumId = (int) ($assembly['condominium_id'] ?? 0);
+        $scheduled = $assembly['scheduled_date'] ?? date('Y-m-d');
+        $date = date('Y-m-d', strtotime($scheduled));
+        return 'condominiums/' . $condominiumId . '/convocatorias/' . $date;
+    }
+
+    /**
+     * Generate assembly convocation as PDF and save in condominiums/{id}/convocatorias/{data}
+     * Returns path relative to storage root (e.g. condominiums/1/convocatorias/2025-02-16/convocation_519.pdf)
      */
     public function generateConvocation(int $assemblyId, array $assembly, array $attendees): string
     {
-        // Simple HTML to PDF conversion
-        // In production, use a library like TCPDF, DomPDF, or mPDF
-
         $html = $this->getConvocationHtml($assembly, $attendees);
-
-        // Save to storage
-        $filename = 'convocation_' . $assemblyId . '_' . time() . '.html';
-        $filepath = __DIR__ . '/../../storage/documents/' . $filename;
+        $folder = $this->getConvocationFolder($assembly);
+        $filename = 'convocation_' . $assemblyId . '.pdf';
+        $relativePath = $folder . '/' . $filename;
+        $filepath = __DIR__ . '/../../storage/' . $relativePath;
 
         $dir = dirname($filepath);
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
 
-        file_put_contents($filepath, $html);
+        if (!class_exists('\Dompdf\Dompdf')) {
+            $autoloadPath = __DIR__ . '/../../vendor/autoload.php';
+            if (file_exists($autoloadPath)) {
+                require_once $autoloadPath;
+            }
+        }
 
-        return $filename;
+        if (class_exists('\Dompdf\Dompdf')) {
+            try {
+                $dompdf = new \Dompdf\Dompdf();
+                $dompdf->loadHtml($html);
+                $dompdf->setPaper('A4', 'portrait');
+                $dompdf->render();
+                file_put_contents($filepath, $dompdf->output());
+                return $relativePath;
+            } catch (\Exception $e) {
+                error_log("Convocation PDF error: " . $e->getMessage());
+            }
+        }
+
+        // Fallback: save as HTML
+        $fallbackPath = $folder . '/convocation_' . $assemblyId . '.html';
+        $fallbackFull = __DIR__ . '/../../storage/' . $fallbackPath;
+        file_put_contents($fallbackFull, $html);
+        return $fallbackPath;
+    }
+
+    /**
+     * Generate letter PDF for postal mail (envelope window format).
+     * Address block is positioned so when printed and folded it appears in the envelope window.
+     * Returns path relative to storage root.
+     */
+    public function generateConvocationLetter(
+        int $assemblyId,
+        array $assembly,
+        string $recipientName,
+        array $recipientAddressLines,
+        int $userId
+    ): string {
+        $html = $this->getConvocationLetterHtml($assembly, $recipientName, $recipientAddressLines);
+        $folder = $this->getConvocationFolder($assembly);
+        $filename = 'carta_' . $assemblyId . '_' . $userId . '.pdf';
+        $relativePath = $folder . '/' . $filename;
+        $filepath = __DIR__ . '/../../storage/' . $relativePath;
+
+        $dir = dirname($filepath);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        if (!class_exists('\Dompdf\Dompdf')) {
+            $autoloadPath = __DIR__ . '/../../vendor/autoload.php';
+            if (file_exists($autoloadPath)) {
+                require_once $autoloadPath;
+            }
+        }
+
+        if (class_exists('\Dompdf\Dompdf')) {
+            try {
+                $dompdf = new \Dompdf\Dompdf();
+                $dompdf->loadHtml($html);
+                $dompdf->setPaper('A4', 'portrait');
+                $dompdf->render();
+                file_put_contents($filepath, $dompdf->output());
+                return $relativePath;
+            } catch (\Exception $e) {
+                error_log("Convocation letter PDF error: " . $e->getMessage());
+            }
+        }
+
+        $fallbackPath = $folder . '/carta_' . $assemblyId . '_' . $userId . '.html';
+        $fallbackFull = __DIR__ . '/../../storage/' . $fallbackPath;
+        file_put_contents($fallbackFull, $html);
+        return $fallbackPath;
+    }
+
+    /**
+     * Generate one letter PDF per fraction for postal mail (envelope window format).
+     * One document per fraction to print and send by post. Returns path relative to storage root.
+     */
+    public function generateConvocationLetterForFraction(
+        int $assemblyId,
+        array $assembly,
+        int $fractionId,
+        string $fractionIdentifier,
+        string $recipientName,
+        array $recipientAddressLines
+    ): string {
+        $html = $this->getConvocationLetterHtml($assembly, $recipientName, $recipientAddressLines);
+        $folder = $this->getConvocationFolder($assembly);
+        $filename = 'carta_' . $assemblyId . '_fraction_' . $fractionId . '.pdf';
+        $relativePath = $folder . '/' . $filename;
+        $filepath = __DIR__ . '/../../storage/' . $relativePath;
+
+        $dir = dirname($filepath);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        if (!class_exists('\Dompdf\Dompdf')) {
+            $autoloadPath = __DIR__ . '/../../vendor/autoload.php';
+            if (file_exists($autoloadPath)) {
+                require_once $autoloadPath;
+            }
+        }
+
+        if (class_exists('\Dompdf\Dompdf')) {
+            try {
+                $dompdf = new \Dompdf\Dompdf();
+                $dompdf->loadHtml($html);
+                $dompdf->setPaper('A4', 'portrait');
+                $dompdf->render();
+                file_put_contents($filepath, $dompdf->output());
+                return $relativePath;
+            } catch (\Exception $e) {
+                error_log("Convocation letter (fraction) PDF error: " . $e->getMessage());
+            }
+        }
+
+        $fallbackPath = $folder . '/carta_' . $assemblyId . '_fraction_' . $fractionId . '.html';
+        $fallbackFull = __DIR__ . '/../../storage/' . $fallbackPath;
+        file_put_contents($fallbackFull, $html);
+        return $fallbackPath;
+    }
+
+    /**
+     * Get letter HTML for postal mail (envelope window: address in top-left zone for window)
+     * Base text: Convocatória, Exmº(ª) Senhor(a), arts. 1431º e 1432º CC, ordem de trabalhos, 2.ª convocação 30 min depois
+     */
+    protected function getConvocationLetterHtml(array $assembly, string $recipientName, array $recipientAddressLines): string
+    {
+        $condominiumModel = new \App\Models\Condominium();
+        $condominium = $condominiumModel->findById($assembly['condominium_id']);
+        $logoPath = $condominium ? $condominiumModel->getLogoPath($assembly['condominium_id']) : null;
+
+        $convocationBody = $this->buildConvocationBodyHtml($assembly, $condominium);
+
+        $addressLinesHtml = htmlspecialchars($recipientName);
+        foreach ($recipientAddressLines as $line) {
+            $addressLinesHtml .= '<br>' . htmlspecialchars($line);
+        }
+
+        return '<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Carta - Convocatória</title>
+    <style>
+        /* A4: 210mm x 297mm. Carta dobrada em 3 para envelope com janela à direita: destinatário no topo à direita, alinhado à janela. */
+        @page { size: A4; margin: 0; }
+        body { font-family: "Times New Roman", serif; margin: 0; padding: 0; color: #333; line-height: 1.6; }
+        .envelope-window-address {
+            position: relative;
+            margin-top: 40mm;
+            margin-left: auto;
+            margin-right: 20mm;
+            width: 90mm;
+            min-height: 45mm;
+            max-height: 50mm;
+            font-size: 11pt;
+            line-height: 1.35;
+            text-align: right;
+        }
+        .letter-body { margin-top: 15mm; margin-left: 20mm; margin-right: 20mm; padding-bottom: 20mm; }
+        .letter-body .header { text-align: center; margin-bottom: 20px; }
+        .letter-body .header-logo { max-width: 120px; max-height: 60px; }
+        .letter-body h1 { font-size: 18px; margin: 0 0 15px 0; text-align: center; text-transform: uppercase; }
+        .letter-body .content { margin-bottom: 15px; }
+        .letter-body .content p { margin: 12px 0; }
+        .letter-body .footer { margin-top: 25px; font-size: 10px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="envelope-window-address">' . $addressLinesHtml . '</div>
+    <div class="letter-body">
+        <div class="header">' . $this->getLogoHtml($logoPath) . '</div>
+        <h1>CONVOCATÓRIA</h1>
+        <p class="content"><strong>Exm.º(ª) Senhor(a)</strong></p>
+        <div class="content">' . $convocationBody . '</div>
+        <div class="footer">Documento gerado em ' . date('d/m/Y H:i') . ' - Para envio por correio</div>
+    </div>
+</body>
+</html>';
     }
 
     /**
@@ -118,45 +308,115 @@ class PdfService
     }
 
     /**
+     * Build convocation data (date long form, location, order of works, second convocation 30 min later)
+     */
+    protected function buildConvocationData(array $assembly, ?array $condominium): array
+    {
+        $ts = strtotime($assembly['scheduled_date'] ?? 'now');
+        $day = (int) date('j', $ts);
+        $months = [1 => 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+        $month = $months[(int) date('n', $ts)] ?? '';
+        $year = date('Y', $ts);
+        $dateLong = $day . ' de ' . $month . ' de ' . $year;
+        $date = date('d/m/Y', $ts);
+        $time = date('H:i', $ts);
+        $type = ($assembly['type'] === 'extraordinary' || $assembly['type'] === 'extraordinaria') ? 'Extraordinária' : 'Ordinária';
+
+        $locationPart = trim($assembly['location'] ?? '');
+        $addr = $condominium ? trim($condominium['address'] ?? '') : '';
+        $postal = $condominium ? trim($condominium['postal_code'] ?? '') : '';
+        $city = $condominium ? trim($condominium['city'] ?? '') : '';
+        $addressPart = trim($addr . ($addr && ($postal || $city) ? ', ' : '') . $postal . ($postal && $city ? ' ' : '') . $city);
+        $locationFull = $locationPart;
+        if ($addressPart !== '') {
+            $locationFull = $locationPart !== '' ? $locationPart . ' do prédio sito na ' . $addressPart : $addressPart;
+        }
+        if ($locationFull === '') {
+            $locationFull = 'A definir';
+        }
+
+        $agendaPointModel = new \App\Models\AssemblyAgendaPoint();
+        $agendaPoints = $agendaPointModel->getByAssembly((int) $assembly['id']);
+        $orderOfWorksHtml = '';
+        if (!empty($agendaPoints)) {
+            $orderOfWorksHtml = '<ol style="margin: 10px 0; padding-left: 20px;">';
+            foreach ($agendaPoints as $p) {
+                $title = htmlspecialchars(trim($p['title'] ?? ''));
+                if ($title !== '') {
+                    $orderOfWorksHtml .= '<li style="margin: 6px 0;">' . $title . '</li>';
+                }
+            }
+            $orderOfWorksHtml .= '</ol>';
+        } else {
+            $fallback = $assembly['description'] ?? $assembly['agenda'] ?? 'A definir na assembleia';
+            $orderOfWorksHtml = nl2br(htmlspecialchars($fallback));
+        }
+
+        $secondTs = strtotime($assembly['scheduled_date'] ?? 'now') + 30 * 60;
+        $secondDay = (int) date('j', $secondTs);
+        $secondMonth = $months[(int) date('n', $secondTs)] ?? '';
+        $secondYear = date('Y', $secondTs);
+        $secondDateLong = $secondDay . ' de ' . $secondMonth . ' de ' . $secondYear;
+        $secondTime = date('H:i', $secondTs);
+
+        return [
+            'date_long' => $dateLong,
+            'date' => $date,
+            'time' => $time,
+            'type' => $type,
+            'location_full' => $locationFull,
+            'order_of_works_html' => $orderOfWorksHtml,
+            'second_convocation_date_long' => $secondDateLong,
+            'second_convocation_time' => $secondTime,
+        ];
+    }
+
+    /**
+     * Build convocation body HTML (formal text based on arts. 1431º e 1432º CC, ordem de trabalhos, 2.ª convocação 30 min depois)
+     */
+    protected function buildConvocationBodyHtml(array $assembly, ?array $condominium): string
+    {
+        $d = $this->buildConvocationData($assembly, $condominium);
+        $loc = htmlspecialchars($d['location_full']);
+        return '<p>Na qualidade de administradores do condomínio do edifício em referência, nos termos e para os efeitos do que dispõem os artigos 1431.º e 1432.º do Código Civil, convocamos V.ª Ex.ª para a Assembleia ' . $d['type'] . ' a realizar no próximo dia ' . $d['date_long'] . ' pelas ' . $d['time'] . ' em ' . $loc . ', com a seguinte ordem de trabalhos:</p>'
+            . $d['order_of_works_html']
+            . '<p>Não se obtendo o número de condóminos necessários para deliberar, fica, desde já, convocada nova reunião, no mesmo local e com a mesma ordem de trabalhos, para o dia ' . $d['second_convocation_date_long'] . ', pelas ' . $d['second_convocation_time'] . ' horas.</p>'
+            . '<p>Caso não possa estar presente, poderá fazer-se representar por outra pessoa, desde que esta se faça acompanhar da respetiva procuração.</p>'
+            . '<p>Com os melhores cumprimentos,<br>A administração do Condomínio</p>';
+    }
+
+    /**
      * Get convocation HTML
      */
     protected function getConvocationHtml(array $assembly, array $attendees): string
     {
-        // Get condominium info
         $condominiumModel = new \App\Models\Condominium();
         $condominium = $condominiumModel->findById($assembly['condominium_id']);
-
-        // Get template ID (null means default template, which will be handled by getTemplatePath)
         $templateId = $condominium ? $condominiumModel->getDocumentTemplate($assembly['condominium_id']) : 1;
         if ($templateId === null) {
-            $templateId = 1; // Default template
+            $templateId = 1;
         }
-
-        // Get logo path
         $logoPath = $condominium ? $condominiumModel->getLogoPath($assembly['condominium_id']) : null;
 
-        // Load template
         $templatePath = $this->getTemplatePath($templateId, 'convocation');
         $template = file_get_contents($templatePath);
 
-        // Prepare data
-        $date = date('d/m/Y', strtotime($assembly['scheduled_date']));
-        $time = date('H:i', strtotime($assembly['scheduled_date']));
-        $type = ($assembly['type'] === 'extraordinary' || $assembly['type'] === 'extraordinaria') ? 'Extraordinária' : 'Ordinária';
-        $quorum = $assembly['quorum_percentage'] ?? 50;
-        $location = $assembly['location'] ?? 'A definir';
-        $description = nl2br(htmlspecialchars($assembly['description'] ?? $assembly['agenda'] ?? 'A definir na assembleia'));
+        $d = $this->buildConvocationData($assembly, $condominium);
+        $convocationBody = $this->buildConvocationBodyHtml($assembly, $condominium);
         $generationDate = date('d/m/Y H:i');
 
-        // Replace placeholders
         $template = str_replace('{{LOGO_HTML}}', $this->getLogoHtml($logoPath), $template);
         $template = str_replace('{{ASSEMBLY_TITLE}}', htmlspecialchars($assembly['title'] ?? ''), $template);
-        $template = str_replace('{{ASSEMBLY_TYPE}}', $type, $template);
-        $template = str_replace('{{ASSEMBLY_DATE}}', $date, $template);
-        $template = str_replace('{{ASSEMBLY_TIME}}', $time, $template);
-        $template = str_replace('{{ASSEMBLY_LOCATION}}', htmlspecialchars($location), $template);
-        $template = str_replace('{{QUORUM}}', $quorum, $template);
-        $template = str_replace('{{ASSEMBLY_DESCRIPTION}}', $description, $template);
+        $template = str_replace('{{ASSEMBLY_TYPE}}', $d['type'], $template);
+        $template = str_replace('{{ASSEMBLY_DATE}}', $d['date'], $template);
+        $template = str_replace('{{ASSEMBLY_DATE_LONG}}', $d['date_long'], $template);
+        $template = str_replace('{{ASSEMBLY_TIME}}', $d['time'], $template);
+        $template = str_replace('{{ASSEMBLY_LOCATION}}', htmlspecialchars($d['location_full']), $template);
+        $template = str_replace('{{QUORUM}}', $assembly['quorum_percentage'] ?? 50, $template);
+        $template = str_replace('{{ASSEMBLY_DESCRIPTION}}', $d['order_of_works_html'], $template);
+        $template = str_replace('{{CONVOCATION_BODY}}', $convocationBody, $template);
+        $template = str_replace('{{SECOND_CONVOCATION_DATE}}', $d['second_convocation_date_long'] ?? '', $template);
+        $template = str_replace('{{SECOND_CONVOCATION_TIME}}', $d['second_convocation_time'] ?? '', $template);
         $template = str_replace('{{GENERATION_DATE}}', $generationDate, $template);
 
         return $template;

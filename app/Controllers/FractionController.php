@@ -174,7 +174,8 @@ class FractionController extends Controller
                 'floor' => Security::sanitize($_POST['floor'] ?? ''),
                 'typology' => Security::sanitize($_POST['typology'] ?? ''),
                 'area' => !empty($_POST['area']) ? (float)$_POST['area'] : null,
-                'notes' => Security::sanitize($_POST['notes'] ?? '')
+                'notes' => Security::sanitize($_POST['notes'] ?? ''),
+                'receives_convocation_by_email' => isset($_POST['receives_convocation_by_email']) ? 1 : 0
             ]);
 
             $_SESSION['success'] = 'Fração criada com sucesso!';
@@ -254,6 +255,7 @@ class FractionController extends Controller
                 'typology' => Security::sanitize($_POST['typology'] ?? ''),
                 'area' => !empty($_POST['area']) ? (float)$_POST['area'] : null,
                 'is_active' => isset($_POST['is_active']) ? 1 : 0,
+                'receives_convocation_by_email' => isset($_POST['receives_convocation_by_email']) ? 1 : 0,
                 'notes' => Security::sanitize($_POST['notes'] ?? '')
             ]);
 
@@ -1018,4 +1020,3 @@ class FractionController extends Controller
         exit;
     }
 }
-

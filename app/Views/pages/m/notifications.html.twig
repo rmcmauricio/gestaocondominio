@@ -1,0 +1,106 @@
+<div class="m-dashboard">
+    <div class="m-notifications-header">
+        <h1 class="m-page-title m-notifications-title">
+            <i class="bi bi-bell"></i> {{ translations.title|default('Notificações') }}
+            {% if unread_count > 0 %}<span class="m-badge m-badge-danger">{{ unread_count }}</span>{% endif %}
+        </h1>
+        {% if notifications|length > 0 %}
+        <form method="POST" action="{{ BASE_URL }}m/notifications/mark-all-read" class="m-notifications-mark-all">
+            <button type="submit" class="m-btn m-btn-mark-all"><i class="bi bi-check-all"></i> {{ translations.mark_all_read|default('Marcar todas como lidas') }}</button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if success %}
+    <div class="m-alert m-alert-success" role="alert">
+        <i class="bi bi-check-circle"></i> {{ success }}
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="m-alert m-alert-error" role="alert">
+        <i class="bi bi-exclamation-circle"></i> {{ error }}
+    </div>
+    {% endif %}
+
+    {% if notifications|length == 0 %}
+    <div class="m-card">
+        <div class="m-notifications-empty">
+            <i class="bi bi-bell-slash"></i>
+            <p>{{ translations.no_notifications|default('Sem notificações.') }}</p>
+        </div>
+    </div>
+    {% else %}
+    <div class="m-notifications-list">
+        {% for notification in notifications %}
+            {% set notification_icon = 'bi-bell' %}
+            {% set notification_color_class = 'm-notif-primary' %}
+            {% if notification.type == 'occurrence' %}
+                {% set notification_icon = 'bi-exclamation-triangle' %}
+                {% set notification_color_class = 'm-notif-warning' %}
+            {% elseif notification.type == 'assembly' %}
+                {% set notification_icon = 'bi-people' %}
+                {% set notification_color_class = 'm-notif-info' %}
+            {% elseif notification.type == 'fee_overdue' %}
+                {% set notification_icon = 'bi-currency-euro' %}
+                {% set notification_color_class = 'm-notif-danger' %}
+            {% elseif notification.type == 'message' or notification.source_type == 'message' %}
+                {% set notification_icon = 'bi-envelope' %}
+                {% set notification_color_class = 'm-notif-primary' %}
+            {% elseif notification.type == 'occurrence_comment' %}
+                {% set notification_icon = 'bi-chat' %}
+                {% set notification_color_class = 'm-notif-success' %}
+            {% endif %}
+
+            <div class="m-card m-notification-card {% if not notification.is_read %}m-notification-unread {{ notification_color_class }}{% endif %}">
+                <div class="m-notification-inner">
+                    <div class="m-notification-icon {{ notification_color_class }}">
+                        <i class="bi {{ notification_icon }}"></i>
+                    </div>
+                    <div class="m-notification-body">
+                        <div class="m-notification-row">
+                            <h2 class="m-notification-title {% if not notification.is_read %}m-notification-title-unread{% endif %}">{{ notification.title }}</h2>
+                            {% if notification.type == 'occurrence' and notification.priority %}
+                                {% set priority_class = 'm-priority-' ~ (notification.priority|default('medium')) %}
+                                <span class="m-badge {{ priority_class }}">{{ notification.priority == 'urgent' ? 'Urgente' : (notification.priority == 'high' ? 'Alta' : (notification.priority == 'medium' ? 'Média' : 'Baixa')) }}</span>
+                            {% endif %}
+                        </div>
+                        <p class="m-notification-message">{{ notification.message }}</p>
+                        <div class="m-notification-meta">
+                            <i class="bi bi-clock"></i>
+                            {% set created_at = notification.created_at|date('U') %}
+                            {% set now = 'now'|date('U') %}
+                            {% set diff = now - created_at %}
+                            {% if diff < 60 %}
+                                {{ translations.just_now|default('agora') }}
+                            {% elseif diff < 3600 %}
+                                há {{ (diff / 60)|round }} minutos
+                            {% elseif diff < 86400 %}
+                                há {{ (diff / 3600)|round }} horas
+                            {% elseif diff < 604800 %}
+                                há {{ (diff / 86400)|round }} dias
+                            {% elseif diff < 2592000 %}
+                                há {{ (diff / 604800)|round }} semanas
+                            {% else %}
+                                há {{ (diff / 2592000)|round }} meses
+                            {% endif %}
+                        </div>
+                        <div class="m-notification-actions">
+                            <a href="{{ BASE_URL }}m/notifications/show?id={{ notification.id|e('url') }}" class="m-btn m-btn-sm m-btn-ver-mais" title="{{ translations.view_more|default('Ver mais') }}"><i class="bi bi-envelope"></i> Ver mais</a>
+                            {% if not notification.is_read %}
+                            <form method="POST" action="{{ BASE_URL }}m/notifications/{{ notification.id|e('url') }}/mark-read" class="m-notification-form-inline">
+                                <button type="submit" class="m-btn m-btn-sm m-btn-success" title="{{ translations.mark_read|default('Marcar como lida') }}"><i class="bi bi-check"></i></button>
+                            </form>
+                            {% endif %}
+                            {% if notification.source_type == 'notification' %}
+                            <form method="POST" action="{{ BASE_URL }}m/notifications/{{ notification.id|e('url') }}/delete" class="m-notification-form-inline" onsubmit="return confirm('Eliminar esta notificação?');">
+                                <button type="submit" class="m-btn m-btn-sm m-btn-danger" title="{{ translations.delete|default('Eliminar') }}"><i class="bi bi-trash"></i></button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>

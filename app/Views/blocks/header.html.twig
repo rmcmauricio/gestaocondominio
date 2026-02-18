@@ -53,6 +53,12 @@
         </div>
       </div>
       {% endif %}
+      {% if viewing_as_condomino is defined and viewing_as_condomino %}
+      <a href="{{ BASE_URL }}m/dashboard" class="btn btn-outline-primary sidebar-toggle-header header-link-mobile-minisite" aria-label="Ver versão móvel" title="Ver versão móvel">
+        <i class="bi bi-phone-landscape"></i>
+        <span class="header-link-mobile-minisite-text">Versão móvel</span>
+      </a>
+      {% endif %}
       
       <!-- Messages button -->
       {% if condominium %}

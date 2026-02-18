@@ -76,12 +76,13 @@ class Fraction extends Model
             throw new \Exception("Database connection not available");
         }
 
+        $receivesConvocationByEmail = isset($data['receives_convocation_by_email']) ? (int)(bool)$data['receives_convocation_by_email'] : 1;
         $stmt = $this->db->prepare("
             INSERT INTO fractions (
-                condominium_id, identifier, permillage, floor, typology, area, notes
+                condominium_id, identifier, permillage, floor, typology, area, notes, receives_convocation_by_email
             )
             VALUES (
-                :condominium_id, :identifier, :permillage, :floor, :typology, :area, :notes
+                :condominium_id, :identifier, :permillage, :floor, :typology, :area, :notes, :receives_convocation_by_email
             )
         ");
 
@@ -92,7 +93,8 @@ class Fraction extends Model
             ':floor' => $data['floor'] ?? null,
             ':typology' => $data['typology'] ?? null,
             ':area' => $data['area'] ?? null,
-            ':notes' => $data['notes'] ?? null
+            ':notes' => $data['notes'] ?? null,
+            ':receives_convocation_by_email' => $receivesConvocationByEmail
         ]);
 
         $fractionId = (int)$this->db->lastInsertId();
@@ -281,6 +283,40 @@ class Fraction extends Model
                 'owner_name' => trim((string)($r['owner_name'] ?? '')) ?: null,
                 'floor' => trim((string)($r['floor'] ?? '')) ?: null
             ];
+        }
+        return $out;
+    }
+
+    /**
+     * Nomes de todos os condóminos por fraction_id (condominium_users + users; convites pendentes se não houver).
+     * Retorna [fraction_id => [nome1, nome2, ...], ...].
+     */
+    public function getOwnerNamesByFractionIds(array $fractionIds): array
+    {
+        if (!$this->db || empty($fractionIds)) {
+            return [];
+        }
+        $ids = array_values(array_unique(array_map('intval', $fractionIds)));
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare("
+            SELECT cu.fraction_id, u.name
+            FROM condominium_users cu
+            INNER JOIN users u ON u.id = cu.user_id
+            WHERE cu.fraction_id IN ({$placeholders})
+            AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
+            ORDER BY cu.fraction_id, cu.is_primary DESC, CASE cu.role WHEN 'proprietario' THEN 0 WHEN 'arrendatario' THEN 1 ELSE 2 END, u.name ASC
+        ");
+        $stmt->execute($ids);
+        $out = [];
+        foreach ($ids as $fid) {
+            $out[$fid] = [];
+        }
+        foreach ($stmt->fetchAll() ?: [] as $r) {
+            $fid = (int)$r['fraction_id'];
+            $name = trim((string)($r['name'] ?? ''));
+            if ($name !== '') {
+                $out[$fid][] = $name;
+            }
         }
         return $out;
     }

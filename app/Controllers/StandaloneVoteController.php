@@ -53,7 +53,7 @@ class StandaloneVoteController extends Controller
         $userId = AuthMiddleware::userId();
         $this->data += [
             'viewName' => 'pages/votes/index.html.twig',
-            'page' => ['titulo' => 'Votações'],
+            'page' => ['titulo' => 'Inquéritos'],
             'condominium' => $condominium,
             'votes' => $votes,
             'current_status' => $status,
@@ -167,7 +167,7 @@ class StandaloneVoteController extends Controller
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes');
             exit;
         } catch (\Exception $e) {
-            $_SESSION['error'] = 'Erro ao criar votação: ' . $e->getMessage();
+            $_SESSION['error'] = 'Erro ao criar inquérito: ' . $e->getMessage();
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/create');
             exit;
         }
@@ -374,7 +374,7 @@ class StandaloneVoteController extends Controller
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
             exit;
         } catch (\Exception $e) {
-            $_SESSION['error'] = 'Erro ao atualizar votação: ' . $e->getMessage();
+            $_SESSION['error'] = 'Erro ao atualizar inquérito: ' . $e->getMessage();
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId . '/edit');
             exit;
         }
@@ -406,7 +406,7 @@ class StandaloneVoteController extends Controller
             
             $_SESSION['success'] = 'Votação aberta com sucesso!';
         } catch (\Exception $e) {
-            $_SESSION['error'] = 'Erro ao abrir votação: ' . $e->getMessage();
+            $_SESSION['error'] = 'Erro ao abrir inquérito: ' . $e->getMessage();
         }
 
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -444,7 +444,7 @@ class StandaloneVoteController extends Controller
             
             $_SESSION['success'] = 'Votação encerrada com sucesso!';
         } catch (\Exception $e) {
-            $_SESSION['error'] = 'Erro ao encerrar votação: ' . $e->getMessage();
+            $_SESSION['error'] = 'Erro ao encerrar inquérito: ' . $e->getMessage();
         }
 
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
@@ -489,7 +489,7 @@ class StandaloneVoteController extends Controller
             $stmt->execute([':id' => $voteId]);
             $_SESSION['success'] = 'Votação eliminada com sucesso!';
         } catch (\Exception $e) {
-            $_SESSION['error'] = 'Erro ao eliminar votação: ' . $e->getMessage();
+            $_SESSION['error'] = 'Erro ao eliminar inquérito: ' . $e->getMessage();
         }
 
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes');
@@ -531,9 +531,9 @@ class StandaloneVoteController extends Controller
 
         if ($vote['status'] !== 'open') {
             if ($this->isAjaxRequest()) {
-                $this->jsonError('Esta votação não está aberta para votação', 400, 'VOTE_NOT_OPEN');
+                $this->jsonError('Este inquérito não está aberto para resposta', 400, 'VOTE_NOT_OPEN');
             }
-            $_SESSION['error'] = 'Esta votação não está aberta para votação.';
+            $_SESSION['error'] = 'Este inquérito não está aberto para resposta.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
             exit;
         }
@@ -565,9 +565,9 @@ class StandaloneVoteController extends Controller
         $allowedOptionIds = $vote['allowed_options'] ?? [];
         if (!empty($allowedOptionIds) && !in_array($voteOptionId, $allowedOptionIds)) {
             if ($this->isAjaxRequest()) {
-                $this->jsonError('Esta opção não está permitida nesta votação', 400, 'OPTION_NOT_ALLOWED');
+                $this->jsonError('Esta opção não está permitida neste inquérito', 400, 'OPTION_NOT_ALLOWED');
             }
-            $_SESSION['error'] = 'Esta opção não está permitida nesta votação.';
+            $_SESSION['error'] = 'Esta opção não está permitida neste inquérito.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/votes/' . $voteId);
             exit;
         }
@@ -607,7 +607,7 @@ class StandaloneVoteController extends Controller
                 'action' => 'standalone_vote_cast',
                 'model' => 'standalone_vote',
                 'model_id' => $voteId,
-                'description' => "Voto registado na fração ID {$userFraction} para a votação standalone '{$vote['title']}' no condomínio ID {$condominiumId}. Opção: {$option['option_label']}"
+                'description' => "Resposta registada na fração ID {$userFraction} para o inquérito '{$vote['title']}' no condomínio ID {$condominiumId}. Opção: {$option['option_label']}"
             ]);
 
             if ($this->isAjaxRequest()) {

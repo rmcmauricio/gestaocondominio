@@ -1,0 +1,32 @@
+<h5 class="mb-3">{{ page.t.step_8_title|default('Conclusão') }}</h5>
+
+{% set step_titles = {
+    1: page.t.step_1_title|default('Contas bancárias'),
+    2: page.t.step_2_title|default('Frações'),
+    3: page.t.step_3_title|default('Data de entrada e saldos'),
+    4: page.t.step_4_title|default('Orçamentos'),
+    5: page.t.step_5_title|default('Quotas'),
+    6: page.t.step_6_title|default('Fornecedores'),
+    7: page.t.step_7_title|default('Espaços')
+} %}
+
+<p class="text-muted mb-3">{{ page.t.step_8_help|default('Resumo dos passos da configuração. Clique no passo para editar.') }}</p>
+
+<ul class="list-unstyled mb-0">
+    {% for s in 1..7 %}
+    <li class="d-flex align-items-center py-2 border-bottom">
+        {% if step_has_content[s]|default(false) %}
+        <i class="bi bi-check-circle-fill text-success me-2" title="{{ page.t.step_8_filled|default('Preenchido') }}"></i>
+        {% else %}
+        <i class="bi bi-circle text-muted me-2" title="{{ page.t.step_8_not_filled|default('Por preencher') }}"></i>
+        {% endif %}
+        <a href="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step={{ s }}" class="text-decoration-none flex-grow-1">
+            <span class="fw-medium">{{ s }}. {{ step_titles[s] }}</span>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+
+<div class="d-flex flex-wrap gap-2 mt-4">
+    <a href="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}" class="btn btn-primary">{{ page.t.go_to_condominium|default('Ir para o condomínio') }}</a>
+</div>

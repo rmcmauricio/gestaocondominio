@@ -81,6 +81,7 @@ class BankAccount extends Model
             'name' => 'Caixa',
             'account_type' => 'cash',
             'initial_balance' => 0.00,
+            'initial_balance_date' => null,
             'current_balance' => 0.00,
             'is_active' => true
         ]);
@@ -192,11 +193,11 @@ class BankAccount extends Model
         $stmt = $this->db->prepare("
             INSERT INTO bank_accounts (
                 condominium_id, name, account_type, bank_name, account_number,
-                iban, swift, initial_balance, current_balance, is_active
+                iban, swift, initial_balance, initial_balance_date, current_balance, is_active
             )
             VALUES (
                 :condominium_id, :name, :account_type, :bank_name, :account_number,
-                :iban, :swift, :initial_balance, :current_balance, :is_active
+                :iban, :swift, :initial_balance, :initial_balance_date, :current_balance, :is_active
             )
         ");
 
@@ -209,6 +210,7 @@ class BankAccount extends Model
             ':iban' => $data['iban'] ?? null,
             ':swift' => $data['swift'] ?? null,
             ':initial_balance' => $data['initial_balance'] ?? 0.00,
+            ':initial_balance_date' => $data['initial_balance_date'] ?? null,
             ':current_balance' => $data['current_balance'] ?? ($data['initial_balance'] ?? 0.00),
             ':is_active' => isset($data['is_active']) ? (int)$data['is_active'] : 1
         ]);
@@ -228,7 +230,7 @@ class BankAccount extends Model
         $fields = [];
         $params = [':id' => $id];
 
-        $allowedFields = ['name', 'account_type', 'bank_name', 'account_number', 'iban', 'swift', 'initial_balance', 'is_active'];
+        $allowedFields = ['name', 'account_type', 'bank_name', 'account_number', 'iban', 'swift', 'initial_balance', 'initial_balance_date', 'is_active'];
         
         foreach ($allowedFields as $field) {
             if (isset($data[$field])) {

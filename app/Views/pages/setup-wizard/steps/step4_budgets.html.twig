@@ -1,0 +1,282 @@
+<h5 class="mb-3">{{ page.t.step_4_title|default('Orçamentos') }}</h5>
+<p class="text-muted">{{ page.t.step_4_help|default('Crie um orçamento: indique o ano e adicione receitas e despesas. Clique em Guardar e continuar para criar o orçamento e avançar para o próximo passo.') }}</p>
+
+{# Orçamentos já criados — colapsado no topo (fora do form para não ter forms aninhados) #}
+{% if budgets|default([])|length > 0 %}
+<div class="card shadow-sm mb-3 border-success">
+    <div class="card-header bg-success bg-opacity-10 text-success d-flex align-items-center py-2 cursor-pointer" data-bs-toggle="collapse" data-bs-target="#wizard-step4-budgets-collapse" aria-expanded="false" aria-controls="wizard-step4-budgets-collapse" role="button">
+        <span class="d-flex align-items-center flex-nowrap"><i class="bi bi-calendar-check me-2"></i>{{ page.t.step4_budgets_list|default('Orçamentos já criados') }} ({{ budgets|length }})<i class="bi bi-chevron-down collapse-icon-budgets ms-2"></i></span>
+    </div>
+    <div class="collapse" id="wizard-step4-budgets-collapse">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr><th>Ano</th><th>Total (€)</th><th>Estado</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for b in budgets %}
+                        <tr>
+                            <td>{{ b.year }}</td>
+                            <td>{{ b.total_amount|number_format(2, ',', ' ') }} €</td>
+                            <td>{{ b.status == 'approved' ? 'Aprovado' : (b.status == 'draft' ? 'Rascunho' : b.status) }}</td>
+                        </tr>
+                        {% if b.items|default([])|length > 0 %}
+                        <tr class="table-light">
+                            <td colspan="3" class="p-2">
+                                <table class="table table-sm mb-0 ms-3" style="max-width: 42rem;">
+                                    <thead class="table-light">
+                                        <tr><th class="border-0 py-1">{{ page.t.step4_item_type|default('Tipo') }}</th><th class="border-0 py-1">{{ page.t.step4_description|default('Descrição') }}</th><th class="border-0 py-1 text-end">{{ page.t.step4_amount|default('Valor (€)') }}</th><th class="border-0 py-1" style="width: 2.5rem;"></th></tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for item in b.items %}
+                                        <tr>
+                                            <td class="py-1 border-0">{{ item.category|default('-') }}</td>
+                                            <td class="py-1 border-0">{{ item.description|default('-') }}</td>
+                                            <td class="py-1 border-0 text-end">{{ item.amount|number_format(2, ',', ' ') }} €</td>
+                                            <td class="py-1 border-0">
+                                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/4" class="d-inline" onsubmit="return confirm('{{ page.t.step4_confirm_remove_item|default('Remover esta linha do orçamento?') }}');">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                    <input type="hidden" name="wizard_step4_submit" value="remove_budget_item">
+                                                    <input type="hidden" name="budget_item_id" value="{{ item.id }}">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="{{ page.t.delete|default('Apagar') }}"><i class="bi bi-trash"></i></button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                        {% endif %}
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# Receitas adicionadas (rascunho) — colapsado, estilo créditos históricos #}
+{% if draft_revenues|default([])|length > 0 %}
+<div class="card shadow-sm mb-3 border-success">
+    <div class="card-header bg-success bg-opacity-10 text-success d-flex align-items-center py-2 cursor-pointer" data-bs-toggle="collapse" data-bs-target="#wizard-step4-revenues-collapse" aria-expanded="false" aria-controls="wizard-step4-revenues-collapse" role="button">
+        <span class="d-flex align-items-center flex-nowrap"><i class="bi bi-plus-circle me-2"></i>{{ page.t.step4_revenues_added|default('Receitas adicionadas') }} ({{ draft_revenues|length }})<i class="bi bi-chevron-down collapse-icon-revenues ms-2"></i></span>
+    </div>
+    <div class="collapse" id="wizard-step4-revenues-collapse">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr><th>Categoria</th><th>Descrição</th><th>Valor</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                    {% for r in draft_revenues %}
+                        <tr>
+                            <td>{{ r.category|default('-') }}</td>
+                            <td>{{ r.description|default('-') }}</td>
+                            <td>{{ r.amount|number_format(2, ',', ' ') }} €</td>
+                            <td>
+                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/4" class="d-inline" onsubmit="return confirm('{{ page.t.step4_confirm_remove|default('Remover esta receita?') }}');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="wizard_step4_submit" value="remove_revenue">
+                                    <input type="hidden" name="remove_revenue_index" value="{{ loop.index0 }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ page.t.delete|default('Apagar') }}"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# Despesas adicionadas (rascunho) — colapsado, estilo dívidas históricas #}
+{% if draft_expenses|default([])|length > 0 %}
+<div class="card shadow-sm mb-3 border-danger">
+    <div class="card-header bg-danger bg-opacity-10 text-danger d-flex align-items-center py-2 cursor-pointer" data-bs-toggle="collapse" data-bs-target="#wizard-step4-expenses-collapse" aria-expanded="false" aria-controls="wizard-step4-expenses-collapse" role="button">
+        <span class="d-flex align-items-center flex-nowrap"><i class="bi bi-currency-euro me-2"></i>{{ page.t.step4_expenses_added|default('Despesas adicionadas') }} ({{ draft_expenses|length }})<i class="bi bi-chevron-down collapse-icon-expenses ms-2"></i></span>
+    </div>
+    <div class="collapse" id="wizard-step4-expenses-collapse">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr><th>Categoria</th><th>Descrição</th><th>Valor</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                    {% for e in draft_expenses %}
+                        <tr>
+                            <td>{{ e.category|default('-') }}</td>
+                            <td>{{ e.description|default('-') }}</td>
+                            <td>{{ e.amount|number_format(2, ',', ' ') }} €</td>
+                            <td>
+                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/4" class="d-inline" onsubmit="return confirm('{{ page.t.step4_confirm_remove|default('Remover esta despesa?') }}');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="wizard_step4_submit" value="remove_expense">
+                                    <input type="hidden" name="remove_expense_index" value="{{ loop.index0 }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ page.t.delete|default('Apagar') }}"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# Form único: 1. Ano (uma vez) + 2. Receitas e despesas #}
+<form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/4" id="step4-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="wizard_step4_submit" id="wizard_step4_submit" value="">
+
+    {# 1. Ano do orçamento (uma vez, primeiro) #}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <i class="bi bi-calendar3 me-2"></i>{{ page.t.step4_year|default('Ano do orçamento') }}
+        </div>
+        <div class="card-body">
+            <label for="budget_year" class="form-label mb-0">{{ page.t.step4_year|default('Ano do orçamento') }} <span class="text-danger">*</span></label>
+            <select class="form-select mt-1" id="budget_year" name="budget_year" style="max-width: 10rem;">
+                {% for y in available_years|default([]) %}
+                <option value="{{ y }}" {% if (draft_year|default(current_year)) == y %}selected{% endif %}>{{ y }}{% if y == current_year %} (atual){% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    {# 2. Receitas e despesas #}
+<div class="card shadow-sm">
+    <div class="card-header">
+        <i class="bi bi-plus-circle me-2"></i>{{ page.t.step4_revenues_expenses_title|default('Receitas e despesas') }}
+    </div>
+    <div class="card-body p-4">
+            {# Adicionar receita #}
+            <div class="mb-4">
+                <h6 class="mb-2">{{ page.t.step4_add_revenue|default('Adicionar receita') }}</h6>
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 col-md">
+                        <label for="revenue_category" class="form-label small">{{ page.t.step4_revenue_category|default('Categoria') }}</label>
+                        <select class="form-select form-select-sm" id="revenue_category" name="revenue_category">
+                            {% for c in revenue_categories|default(['Quotas','Multas','Juros','Outras Receitas']) %}
+                            <option value="{{ c }}">{{ c }}</option>
+                            {% endfor %}
+                            <option value="__outras__">{{ page.t.step4_category_other|default('Outras (especificar)') }}</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md d-none" id="revenue_category_other_wrap">
+                        <label for="revenue_category_other" class="form-label small">{{ page.t.step4_category_name|default('Nome da categoria') }}</label>
+                        <input type="text" class="form-control form-control-sm" id="revenue_category_other" name="revenue_category_other" placeholder="{{ page.t.step4_category_name_placeholder|default('Ex.: Rendimentos garagem') }}">
+                    </div>
+                    <div class="col-12 col-md">
+                        <label for="revenue_description" class="form-label small">{{ page.t.step4_description|default('Descrição') }}</label>
+                        <input type="text" class="form-control form-control-sm" id="revenue_description" name="revenue_description" placeholder="{{ page.t.step4_revenue_desc_placeholder|default('Ex.: Quotas anuais') }}">
+                    </div>
+                    <div class="col-6 col-md">
+                        <label for="revenue_amount" class="form-label small">{{ page.t.step4_amount|default('Valor (€)') }} <span class="text-danger">*</span></label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">€</span>
+                            <input type="number" class="form-control" id="revenue_amount" name="revenue_amount" step="0.01" min="0.01" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-auto">
+                        <button type="button" class="btn btn-outline-success btn-sm" id="btn-add-revenue">{{ page.t.step4_add_revenue_btn|default('Adicionar receita') }}</button>
+                    </div>
+                </div>
+            </div>
+
+            {# Adicionar despesa #}
+            <div class="mb-4">
+                <h6 class="mb-2">{{ page.t.step4_add_expense|default('Adicionar despesa') }}</h6>
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 col-md">
+                        <label for="expense_category" class="form-label small">{{ page.t.step4_expense_category|default('Categoria') }}</label>
+                        <select class="form-select form-select-sm" id="expense_category" name="expense_category">
+                            {% for c in expense_categories|default(['Limpeza','Manutenção','Segurança','Energia','Água','Seguros','Administração','Outras Despesas']) %}
+                            <option value="{{ c }}">{{ c }}</option>
+                            {% endfor %}
+                            <option value="__outras__">{{ page.t.step4_category_other|default('Outras (especificar)') }}</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md d-none" id="expense_category_other_wrap">
+                        <label for="expense_category_other" class="form-label small">{{ page.t.step4_category_name|default('Nome da categoria') }}</label>
+                        <input type="text" class="form-control form-control-sm" id="expense_category_other" name="expense_category_other" placeholder="{{ page.t.step4_category_name_placeholder|default('Ex.: Reparações') }}">
+                    </div>
+                    <div class="col-12 col-md">
+                        <label for="expense_description" class="form-label small">{{ page.t.step4_description|default('Descrição') }}</label>
+                        <input type="text" class="form-control form-control-sm" id="expense_description" name="expense_description" placeholder="{{ page.t.step4_expense_desc_placeholder|default('Ex.: Limpeza mensal') }}">
+                    </div>
+                    <div class="col-6 col-md">
+                        <label for="expense_amount" class="form-label small">{{ page.t.step4_amount|default('Valor (€)') }} <span class="text-danger">*</span></label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">€</span>
+                            <input type="number" class="form-control" id="expense_amount" name="expense_amount" step="0.01" min="0.01" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-auto">
+                        <button type="button" class="btn btn-outline-danger btn-sm" id="btn-add-expense">{{ page.t.step4_add_expense_btn|default('Adicionar despesa') }}</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="budget_notes" class="form-label">{{ page.t.step4_notes|default('Notas') }}</label>
+                <textarea class="form-control" id="budget_notes" name="budget_notes" rows="2" placeholder="{{ page.t.step3_notes_optional|default('Opcional') }}"></textarea>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-primary" id="btn-save-continue">{{ page.t.step4_save_continue|default('Guardar e continuar') }}</button>
+                <button type="submit" class="btn btn-outline-secondary" name="wizard_skip" value="1" formnovalidate>{{ page.t.skip_configure_later|default('Saltar — configurar depois') }}</button>
+            </div>
+    </div>
+</div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('step4-form');
+    var hidden = document.getElementById('wizard_step4_submit');
+    if (form && hidden) {
+        document.getElementById('revenue_category')?.addEventListener('change', function() {
+            document.getElementById('revenue_category_other_wrap').classList.toggle('d-none', this.value !== '__outras__');
+        });
+        document.getElementById('expense_category')?.addEventListener('change', function() {
+            document.getElementById('expense_category_other_wrap').classList.toggle('d-none', this.value !== '__outras__');
+        });
+        document.getElementById('btn-add-revenue')?.addEventListener('click', function() {
+            hidden.value = 'add_revenue';
+            form.submit();
+        });
+        document.getElementById('btn-add-expense')?.addEventListener('click', function() {
+            hidden.value = 'add_expense';
+            form.submit();
+        });
+        document.getElementById('btn-save-continue')?.addEventListener('click', function() {
+            hidden.value = 'create_budget';
+            form.noValidate = true;
+            form.submit();
+        });
+    }
+    [['wizard-step4-budgets-collapse', 'collapse-icon-budgets'], ['wizard-step4-revenues-collapse', 'collapse-icon-revenues'], ['wizard-step4-expenses-collapse', 'collapse-icon-expenses']].forEach(function(pair) {
+        var col = document.getElementById(pair[0]);
+        if (!col) return;
+        col.addEventListener('show.bs.collapse', function() {
+            var card = this.closest('.card');
+            var i = card ? card.querySelector('.' + pair[1]) : null;
+            if (i) { i.classList.remove('bi-chevron-down'); i.classList.add('bi-chevron-up'); }
+        });
+        col.addEventListener('hide.bs.collapse', function() {
+            var card = this.closest('.card');
+            var i = card ? card.querySelector('.' + pair[1]) : null;
+            if (i) { i.classList.remove('bi-chevron-up'); i.classList.add('bi-chevron-down'); }
+        });
+    });
+});
+</script>

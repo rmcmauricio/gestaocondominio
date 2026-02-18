@@ -20,7 +20,7 @@
     <!-- Filters -->
     <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <form method="GET" action="{{ BASE_URL }}{% if is_admin %}condominiums/{{ condominium.id }}/receipts{% else %}receipts{% endif %}" class="row g-3">
+            <form method="GET" action="{{ is_admin ? (BASE_URL ~ 'condominiums/' ~ condominium.id ~ '/receipts') : (receipts_base_url|default(BASE_URL ~ 'receipts')) }}" class="row g-3">
                 {% if not is_admin %}
                 <div class="col-12 col-sm-6 col-md-3">
                     <label for="condominium_id" class="form-label">Condomínio</label>

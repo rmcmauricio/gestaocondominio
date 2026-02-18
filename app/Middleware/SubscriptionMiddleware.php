@@ -36,6 +36,15 @@ class SubscriptionMiddleware
     ];
 
     /**
+     * Routes that always require active subscription for admin (creating/managing condominiums).
+     * Access to a specific condominium where user is condomino (owner) is allowed without subscription.
+     */
+    protected static $subscriptionRequiredRoutes = [
+        'condominiums/create',  // GET - form to add new condominium
+        'condominiums',       // POST - store new condominium (path without id)
+    ];
+
+    /**
      * Check if route is allowed when trial expires
      */
     protected static function isAllowedRoute(string $route): bool
@@ -70,6 +79,52 @@ class SubscriptionMiddleware
         }
 
         return false;
+    }
+
+    /**
+     * Check if route is one that always requires subscription for admin (e.g. add/create condominium).
+     */
+    protected static function isSubscriptionRequiredRoute(string $route, string $method): bool
+    {
+        $route = trim($route, '/');
+        // GET condominiums/create or POST condominiums (store new condominium)
+        if ($route === 'condominiums/create' && $method === 'GET') {
+            return true;
+        }
+        if ($route === 'condominiums' && $method === 'POST') {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Extract condominium id from route like condominiums/123 or condominiums/123/finances.
+     * Returns id or null if not a condominium detail route.
+     */
+    protected static function getCondominiumIdFromRoute(string $route): ?int
+    {
+        $route = trim($route, '/');
+        $parts = array_filter(explode('/', $route));
+        if (count($parts) < 2 || $parts[0] !== 'condominiums') {
+            return null;
+        }
+        $id = $parts[1];
+        return (ctype_digit((string)$id)) ? (int)$id : null;
+    }
+
+    /**
+     * For admin without subscription: allow access to condominium pages only when user is condomino (owner).
+     * Block when user is admin of that condominium (subscription required to manage).
+     */
+    protected static function isCondominiumAccessAllowedAsCondomino(string $route, int $userId): bool
+    {
+        $condominiumId = self::getCondominiumIdFromRoute($route);
+        if ($condominiumId === null) {
+            return false;
+        }
+        $role = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
+        // Allow only when user has condomino role (owner of a fraction). Admin role requires subscription.
+        return $role === 'condomino';
     }
 
     /**
@@ -165,16 +220,45 @@ class SubscriptionMiddleware
             return true; // Allow access to subscription, payment, profile pages, etc.
         }
 
-        // If trial expired or no subscription, block access except allowed routes
+        // If trial expired or no subscription, only block when admin is trying to add/manage condominiums.
+        // Allow: dashboard, condominium list, and access to condominiums where user is condomino (owner).
         if ($trialExpired || $noSubscription) {
-            // Block access - redirect to subscription page
-            if ($trialExpired) {
-                $_SESSION['error'] = 'O seu período experimental expirou. Por favor, escolha um plano para continuar a utilizar o serviço.';
-            } else {
-                $_SESSION['error'] = 'É necessário ter uma subscrição ativa para aceder a esta área. Por favor, escolha um plano.';
+            $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+            // 1) Always require subscription when admin tries to add/create a condominium (dashboard -> add condominium)
+            if (self::isSubscriptionRequiredRoute($route, $method)) {
+                if ($trialExpired) {
+                    $_SESSION['error'] = 'O seu período experimental expirou. Por favor, escolha um plano para continuar a utilizar o serviço.';
+                } else {
+                    $_SESSION['error'] = 'É necessário ter uma subscrição ativa para aceder a esta área. Por favor, escolha um plano.';
+                }
+                header('Location: ' . BASE_URL . 'subscription');
+                exit;
             }
-            header('Location: ' . BASE_URL . 'subscription');
-            exit;
+
+            // 2) When accessing a specific condominium: allow if user is condomino (owner) of that condominium.
+            //    Block when user is admin of that condominium (subscription required to manage).
+            $condominiumId = self::getCondominiumIdFromRoute($route);
+            if ($condominiumId !== null) {
+                if (self::isCondominiumAccessAllowedAsCondomino($route, $user['id'])) {
+                    return true; // owner (condomino) can access without subscription
+                }
+                $roleInCondo = RoleMiddleware::getUserRoleInCondominium($user['id'], $condominiumId);
+                if ($roleInCondo === 'admin') {
+                    // admin of this condominium requires subscription to access management area
+                    if ($trialExpired) {
+                        $_SESSION['error'] = 'O seu período experimental expirou. Por favor, escolha um plano para continuar a utilizar o serviço.';
+                    } else {
+                        $_SESSION['error'] = 'É necessário ter uma subscrição ativa para aceder a esta área. Por favor, escolha um plano.';
+                    }
+                    header('Location: ' . BASE_URL . 'subscription');
+                    exit;
+                }
+                // no role or other: let controller handle access
+            }
+
+            // 3) For any other route (dashboard, admin, condominiums list, etc.) allow access.
+            return true;
         }
 
         return true;

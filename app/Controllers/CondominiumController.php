@@ -8,6 +8,7 @@ use App\Middleware\AuthMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Models\Condominium;
 use App\Models\CondominiumUser;
+use App\Models\CondominiumSetupWizardProgress;
 use App\Models\Fraction;
 use App\Models\Subscription;
 use App\Models\User;
@@ -136,37 +137,13 @@ class CondominiumController extends Controller
                 'rules' => Security::sanitize($_POST['rules'] ?? '')
             ]);
 
-            // Create entry in condominium_users with admin role (without fraction - admin entry)
+            // Create entry in condominium_users with admin role (without fraction - admins may not be condóminos)
             $condominiumUserModel = new CondominiumUser();
             $condominiumUserModel->associate([
                 'condominium_id' => $condominiumId,
                 'user_id' => $userId,
-                'fraction_id' => null, // Admin entry without fraction
+                'fraction_id' => null,
                 'role' => 'admin',
-                'can_view_finances' => true,
-                'can_vote' => true,
-                'is_primary' => true,
-                'started_at' => date('Y-m-d')
-            ]);
-
-            // Create default fraction for admin and associate as proprietario
-            $fractionModel = new Fraction();
-            $fractionId = $fractionModel->create([
-                'condominium_id' => $condominiumId,
-                'identifier' => 'Admin',
-                'permillage' => 100, // Default permillage
-                'floor' => null,
-                'typology' => null,
-                'area' => null,
-                'notes' => 'Fração padrão do administrador'
-            ]);
-
-            // Associate admin as proprietario of this fraction
-            $condominiumUserModel->associate([
-                'condominium_id' => $condominiumId,
-                'user_id' => $userId,
-                'fraction_id' => $fractionId,
-                'role' => 'proprietario',
                 'can_view_finances' => true,
                 'can_vote' => true,
                 'is_primary' => true,
@@ -214,8 +191,8 @@ class CondominiumController extends Controller
                 }
             }
 
-            $_SESSION['success'] = 'Condomínio criado com sucesso!';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId);
+            $_SESSION['success'] = 'Condomínio criado com sucesso! Siga o assistente para configurar.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/setup-wizard');
             exit;
         } catch (\Exception $e) {
             // Log the full error for debugging
@@ -356,31 +333,146 @@ class CondominiumController extends Controller
             }
         }
         
-        // Get condominium users (condóminos)
+        // Condóminos: uma linha por fração, agrupados; tipo (Proprietário/Arrendatário) junto ao nome; coluna Tipologia da fração.
+        $fractionModel = new \App\Models\Fraction();
+        $allFractions = $fractionModel->getByCondominiumId($id);
+        // 1) Todos os utilizadores associados por fração
         $stmt = $db->prepare("
             SELECT 
-                cu.id,
                 cu.fraction_id,
                 cu.role,
                 cu.is_primary,
-                u.id as user_id,
                 u.name,
                 u.email,
-                u.phone,
-                f.identifier as fraction_identifier
+                COALESCE(NULLIF(TRIM(cu.phone), ''), u.phone) AS phone
             FROM condominium_users cu
             INNER JOIN users u ON u.id = cu.user_id
-            LEFT JOIN fractions f ON f.id = cu.fraction_id
+            INNER JOIN fractions f ON f.id = cu.fraction_id
             WHERE cu.condominium_id = :condominium_id
+            AND cu.fraction_id IS NOT NULL
             AND (cu.ended_at IS NULL OR cu.ended_at > CURDATE())
-            ORDER BY cu.is_primary DESC, f.identifier ASC, u.name ASC
+            ORDER BY f.identifier ASC, cu.is_primary DESC, CASE cu.role WHEN 'proprietario' THEN 0 WHEN 'arrendatario' THEN 1 ELSE 2 END, u.name ASC
         ");
         $stmt->execute([':condominium_id' => $id]);
-        $condominiumUsers = $stmt->fetchAll() ?: [];
+        $usersByFraction = [];
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $fid = (int)$row['fraction_id'];
+            if (!isset($usersByFraction[$fid])) {
+                $usersByFraction[$fid] = [];
+            }
+            $usersByFraction[$fid][] = $row;
+        }
+        // 2) Convites pendentes por fração (id e created_at para reenviar convite na vista)
+        $stmtInv = $db->prepare("
+            SELECT id, fraction_id, name, email, phone, role, created_at
+            FROM invitations
+            WHERE condominium_id = :condominium_id
+            AND fraction_id IS NOT NULL
+            AND accepted_at IS NULL
+            AND (expires_at IS NULL OR expires_at > NOW())
+            ORDER BY fraction_id, created_at DESC
+        ");
+        $stmtInv->execute([':condominium_id' => $id]);
+        $invitationsByFraction = [];
+        foreach ($stmtInv->fetchAll() ?: [] as $row) {
+            $fid = (int)$row['fraction_id'];
+            if (!isset($invitationsByFraction[$fid])) {
+                $invitationsByFraction[$fid] = [];
+            }
+            $invitationsByFraction[$fid][] = $row;
+        }
+        // Uma linha por fração: residents = lista de pessoas (nome + tipo + principal); email/phone do contacto principal
+        $condominiumUsers = [];
+        foreach ($allFractions as $frac) {
+            $fid = (int)$frac['id'];
+            $identifier = $frac['identifier'] ?? ('#' . $fid);
+            $permillage = isset($frac['permillage']) ? (float)$frac['permillage'] : null;
+            $typology = isset($frac['typology']) ? trim((string)$frac['typology']) : null;
+            $typology = $typology !== '' ? $typology : null;
+            $users = $usersByFraction[$fid] ?? [];
+            $invitations = $invitationsByFraction[$fid] ?? [];
+            $residents = [];
+            $primaryEmail = '-';
+            $primaryPhone = '-';
+            $pendingInvitationId = null;
+            $pendingInvitationCreatedAt = null;
+            if (!empty($users)) {
+                foreach ($users as $user) {
+                    $isPrimary = (bool)($user['is_primary'] ?? false);
+                    $residents[] = [
+                        'name' => $user['name'],
+                        'role' => $user['role'],
+                        'is_primary' => $isPrimary,
+                    ];
+                    if ($isPrimary) {
+                        if (!empty(trim($user['email'] ?? ''))) {
+                            $primaryEmail = $user['email'];
+                        }
+                        if (!empty(trim($user['phone'] ?? ''))) {
+                            $primaryPhone = $user['phone'];
+                        }
+                    }
+                }
+                if ($primaryEmail === '-') {
+                    foreach ($users as $user) {
+                        if (!empty(trim($user['email'] ?? ''))) {
+                            $primaryEmail = $user['email'];
+                            break;
+                        }
+                    }
+                }
+                if ($primaryPhone === '-') {
+                    foreach ($users as $user) {
+                        if (!empty(trim($user['phone'] ?? ''))) {
+                            $primaryPhone = $user['phone'];
+                            break;
+                        }
+                    }
+                }
+            } elseif (!empty($invitations)) {
+                $firstInvitation = null;
+                foreach ($invitations as $invitation) {
+                    $residents[] = [
+                        'name' => trim($invitation['name'] ?? '') ?: '-',
+                        'role' => $invitation['role'] ?? 'condomino',
+                        'is_primary' => true,
+                    ];
+                    if ($primaryEmail === '-' && !empty(trim($invitation['email'] ?? ''))) {
+                        $primaryEmail = trim($invitation['email']);
+                    }
+                    if ($primaryPhone === '-' && !empty(trim($invitation['phone'] ?? ''))) {
+                        $primaryPhone = trim($invitation['phone']);
+                    }
+                    if ($firstInvitation === null) {
+                        $firstInvitation = $invitation;
+                    }
+                }
+                $pendingInvitationId = $firstInvitation !== null ? (int)$firstInvitation['id'] : null;
+                $pendingInvitationCreatedAt = $firstInvitation['created_at'] ?? null;
+            } else {
+                $residents[] = ['name' => '-', 'role' => null, 'is_primary' => false];
+                $pendingInvitationId = null;
+                $pendingInvitationCreatedAt = null;
+            }
+            if (!empty($users)) {
+                $pendingInvitationId = null;
+                $pendingInvitationCreatedAt = null;
+            }
+            $condominiumUsers[] = [
+                'fraction_identifier' => $identifier,
+                'residents' => $residents,
+                'email' => $primaryEmail,
+                'phone' => $primaryPhone,
+                'typology' => $typology,
+                'permillage' => $permillage,
+                'pending_invitation_id' => $pendingInvitationId ?? null,
+                'pending_invitation_created_at' => $pendingInvitationCreatedAt ?? null,
+            ];
+        }
         
         // Get additional statistics
         $stats = [
-            'total_residents' => count($condominiumUsers),
+            'total_residents' => count($allFractions),
             'total_bank_balance' => $totalBankBalance,
             'current_account_balance' => $currentAccountBalance,
             'total_bank_accounts' => count($bankAccounts)
@@ -487,17 +579,56 @@ class CondominiumController extends Controller
             }));
         }
 
+        // Enriquecer frações com nomes dos condóminos (para popover no quadro de quotas)
+        $fractionIds = array_column($fractions, 'id');
+        $ownerNamesByFraction = $fractionModel->getOwnerNamesByFractionIds($fractionIds);
+        $emptyNameFractionIds = array_keys(array_filter($ownerNamesByFraction, fn($names) => empty($names)));
+        if (!empty($emptyNameFractionIds)) {
+            $placeholders = implode(',', array_fill(0, count($emptyNameFractionIds), '?'));
+            $stmtInv = $db->prepare("
+                SELECT fraction_id, name FROM invitations
+                WHERE condominium_id = ? AND fraction_id IN ({$placeholders})
+                AND accepted_at IS NULL AND (expires_at IS NULL OR expires_at > NOW())
+                ORDER BY fraction_id, created_at DESC
+            ");
+            $stmtInv->execute(array_merge([$id], $emptyNameFractionIds));
+            foreach ($stmtInv->fetchAll() ?: [] as $row) {
+                $fid = (int)$row['fraction_id'];
+                $name = trim((string)($row['name'] ?? ''));
+                if ($name !== '' && isset($ownerNamesByFraction[$fid])) {
+                    $ownerNamesByFraction[$fid][] = $name;
+                }
+            }
+        }
+        foreach ($fractions as &$frac) {
+            $fid = (int)$frac['id'];
+            $names = $ownerNamesByFraction[$fid] ?? [];
+            $frac['owner_names'] = $names;
+            $frac['owner_name'] = $names[0] ?? null;
+            $frac['floor'] = isset($frac['floor']) ? trim((string)$frac['floor']) : null;
+            if ($frac['floor'] === '') {
+                $frac['floor'] = null;
+            }
+        }
+        unset($frac);
+
         $this->loadPageTranslations('condominiums');
         
         // Get and clear session messages
         $error = $_SESSION['error'] ?? null;
         $success = $_SESSION['success'] ?? null;
         unset($_SESSION['error'], $_SESSION['success']);
-        
+
+        $wizardProgress = new CondominiumSetupWizardProgress();
+        $setupWizardComplete = $wizardProgress->isComplete($id);
+        $showSetupWizardBanner = true;
+
         $this->data += [
             'viewName' => 'pages/condominiums/show.html.twig',
             'page' => ['titulo' => $condominium['name']],
             'condominium' => $condominium,
+            'show_setup_wizard_banner' => $showSetupWizardBanner,
+            'setup_wizard_complete' => $setupWizardComplete,
             'bank_accounts' => $bankAccounts,
             'condominium_users' => $condominiumUsers,
             'stats' => $stats,
@@ -511,7 +642,8 @@ class CondominiumController extends Controller
             'fees_map_form_action' => BASE_URL . 'condominiums/' . $id,
             'month_names' => $monthNames,
             'error' => $error,
-            'success' => $success
+            'success' => $success,
+            'csrf_token' => Security::generateCSRFToken(),
         ];
 
         // Update session with current condominium ID
@@ -1173,8 +1305,12 @@ class CondominiumController extends Controller
         }
         // If user has both roles, keep current view mode (or default to admin)
 
-        // Redirect to condominium overview
-        header('Location: ' . BASE_URL . 'condominiums/' . $id);
+        // Redirect: mobile version stays on mobile dashboard; full version goes to condominium overview
+        if (!empty($_SESSION['mobile_version'])) {
+            header('Location: ' . BASE_URL . 'm/dashboard');
+        } else {
+            header('Location: ' . BASE_URL . 'condominiums/' . $id);
+        }
         exit;
     }
 

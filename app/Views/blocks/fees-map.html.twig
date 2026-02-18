@@ -15,7 +15,10 @@
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="mb-0 text-light">Quotas</h5>
                 <div class="d-flex align-items-center gap-2">
-                    <form method="GET" action="{{ fees_map_form_action|default(BASE_URL ~ 'condominiums/' ~ condominium.id) }}" class="d-inline" id="feesYearForm">
+                    <form method="GET" action="{{ fees_map_form_action|default(BASE_URL ~ 'condominiums/' ~ condominium.id ~ '/fees') }}" class="d-inline" id="feesYearForm">
+                        {% if wizard_step is defined and wizard_step %}
+                        <input type="hidden" name="step" value="{{ wizard_step }}">
+                        {% endif %}
                         {% if selected_year is defined and selected_year %}
                         <input type="hidden" name="year" value="{{ selected_year }}">
                         {% endif %}
@@ -62,7 +65,7 @@
                         {% for fraction in fractions %}
                         <tr>
                             <td class="fw-bold text-center">
-                                {% include 'blocks/fraction-popover.html.twig' with { identifier: fraction.identifier, owner_name: fraction.owner_name, floor: fraction.floor, extra_class: 'badge bg-secondary' } only %}
+                                {% include 'blocks/fraction-popover.html.twig' with { identifier: fraction.identifier, owner_name: fraction.owner_name|default(null), owner_names: fraction.owner_names|default([]), floor: fraction.floor|default(null), typology: fraction.typology|default(null), permillage: fraction.permillage|default(null), extra_class: 'badge bg-secondary' } only %}
                             </td>
                             {% set fraction_total = 0 %}
                             {% set fraction_paid = 0 %}
@@ -119,7 +122,11 @@
                                         {% endfor %}
                                     {% endif %}
                                     {% set fee_id_to_show = extra_fee_id ?: (regular_fee_id ?: fee.id) %}
-                                    style="cursor: pointer;" onclick="showFeeDetails({{ fee_id_to_show }})"
+                                    {% if open_fee_details_in_new_tab|default(false) and fees_details_url_base is defined %}
+                                    style="cursor: pointer;" onclick="window.open('{{ fees_details_url_base|e('js') }}&fee_id={{ fee_id_to_show }}', '_blank')"
+                                    {% else %}
+                                    style="cursor: pointer;" onclick="typeof showFeeDetails === 'function' && showFeeDetails({{ fee_id_to_show }})"
+                                    {% endif %}
                                 {% endif %}
                                 {% if fee %}title="{{ tooltip_parts|join(' | ') }}"{% endif %}>
                                 {% if fee %}
@@ -186,3 +193,21 @@
         </div>
     </div>
 </div>
+<script>
+(function() {
+    function initFeesMapPopovers() {
+        var container = document.querySelector('.fees-map-table');
+        if (!container || typeof bootstrap === 'undefined') return;
+        container.querySelectorAll('.fraction-popover').forEach(function(el) {
+            if (!el._popover) {
+                el._popover = new bootstrap.Popover(el, { trigger: 'focus', html: true });
+            }
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initFeesMapPopovers);
+    } else {
+        initFeesMapPopovers();
+    }
+})();
+</script>
