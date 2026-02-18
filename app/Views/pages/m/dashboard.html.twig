@@ -1,12 +1,12 @@
 <div class="m-dashboard">
-    <h1 class="m-page-title">Bem-vindo, {{ user.name }}</h1>
+    <h1 class="m-page-title"><i class="bi bi-house-heart m-page-title-icon"></i> Bem-vindo, {{ user.name }}</h1>
 
     {% if overdue_fees|length > 0 %}
     <section class="m-section">
         <div class="m-card m-alert-overdue">
-            <h2 class="m-card-title">Quotas em atraso</h2>
+            <h2 class="m-card-title"><i class="bi bi-exclamation-triangle-fill m-card-title-icon m-card-title-icon-danger"></i> Quotas em atraso</h2>
             <div class="m-overdue-header">
-                <p class="m-overdue-total">Total em atraso: <strong>{{ total_overdue|number_format(2, ',', ' ') }} €</strong></p>
+                <p class="m-overdue-total"><i class="bi bi-currency-euro"></i> Total em atraso: <strong>{{ total_overdue|number_format(2, ',', ' ') }} €</strong></p>
                 {% if overdue_condominium_ibans|length > 0 %}
                 <button type="button" class="m-btn m-btn-iban" data-toggle="iban" aria-expanded="false" aria-controls="m-overdue-iban-block"><i class="bi bi-bank2"></i> Ver IBAN</button>
                 {% endif %}
@@ -25,12 +25,10 @@
                 {% endfor %}
             </div>
             <details class="m-overdue-details">
-                <summary class="m-overdue-summary">Ver lista de quotas em atraso ({{ overdue_fees|length }})</summary>
+                <summary class="m-overdue-summary"><i class="bi bi-list-ul"></i> Ver lista de quotas em atraso ({{ overdue_fees|length }})</summary>
                 <ul class="m-list">
                     {% for fee in overdue_fees %}
-                    <li class="m-list-item">
-                        {{ fee.condominium_name }}{% if fee.fraction_identifier %} – {{ fee.fraction_identifier }}{% endif %}: {{ fee.period_display }} – {{ fee.remaining|number_format(2, ',', ' ') }} €
-                    </li>
+                    <li class="m-list-item"><i class="bi bi-currency-euro m-list-icon"></i> {{ fee.condominium_name }}{% if fee.fraction_identifier %} – {{ fee.fraction_identifier }}{% endif %}: {{ fee.period_display }} – {{ fee.remaining|number_format(2, ',', ' ') }} €</li>
                     {% endfor %}
                 </ul>
             </details>
@@ -38,15 +36,31 @@
     </section>
     {% endif %}
 
+    {% if pending_fees|length > 0 %}
+    <section class="m-section">
+        <div class="m-card m-alert-pending">
+            <h2 class="m-card-title"><i class="bi bi-clock-history m-card-title-icon m-card-title-icon-warning"></i> Quotas pendentes</h2>
+            <p class="m-overdue-total"><i class="bi bi-currency-euro"></i> Total pendente: <strong>{{ total_pending|number_format(2, ',', ' ') }} €</strong></p>
+            <details class="m-overdue-details">
+                <summary class="m-overdue-summary"><i class="bi bi-list-ul"></i> Ver lista de quotas pendentes ({{ pending_fees|length }})</summary>
+                <ul class="m-list">
+                    {% for fee in pending_fees %}
+                    <li class="m-list-item"><i class="bi bi-calendar-check m-list-icon"></i> {{ fee.condominium_name }}{% if fee.fraction_identifier %} – {{ fee.fraction_identifier }}{% endif %}: {{ fee.period_display }} – {{ fee.remaining|number_format(2, ',', ' ') }} € <span class="m-badge m-badge-due">Venc. {{ fee.due_date|date('d/m/Y') }}</span></li>
+                    {% endfor %}
+                </ul>
+            </details>
+            <a href="{{ BASE_URL }}condominiums/{{ pending_fees[0].condominium_id }}/fees" class="m-link-block"><i class="bi bi-wallet2"></i> Ver quotas e pagar</a>
+        </div>
+    </section>
+    {% endif %}
+
     {% if fraction_balances|length > 0 %}
     <section class="m-section">
         <div class="m-card m-alert-balance">
-            <h2 class="m-card-title">Saldo em conta</h2>
+            <h2 class="m-card-title"><i class="bi bi-wallet2 m-card-title-icon m-card-title-icon-success"></i> Saldo em conta</h2>
             <ul class="m-list">
                 {% for row in fraction_balances %}
-                <li class="m-list-item">
-                    {{ row.condominium_name }}{% if row.fraction_identifier %} – {{ row.fraction_identifier }}{% endif %}: {{ row.balance|number_format(2, ',', ' ') }} €
-                </li>
+                <li class="m-list-item"><i class="bi bi-piggy-bank m-list-icon"></i> {{ row.condominium_name }}{% if row.fraction_identifier %} – {{ row.fraction_identifier }}{% endif %}: {{ row.balance|number_format(2, ',', ' ') }} €</li>
                 {% endfor %}
             </ul>
         </div>
@@ -55,7 +69,7 @@
 
     {% if unread_notifications|length > 0 %}
     <section class="m-section">
-        <h2 class="m-card-title">Notificações não lidas</h2>
+        <h2 class="m-card-title"><i class="bi bi-bell-fill m-card-title-icon m-card-title-icon-primary"></i> Notificações não lidas</h2>
         <div class="m-notifications-list">
             {% for notification in unread_notifications %}
                 {% set notification_icon = 'bi-bell' %}
@@ -126,13 +140,13 @@
                 </div>
             {% endfor %}
         </div>
-        <a href="{{ BASE_URL }}m/notifications" class="m-link-block m-notifications-ver-mais">Ver mais</a>
+        <a href="{{ BASE_URL }}m/notifications" class="m-link-block m-notifications-ver-mais"><i class="bi bi-chevron-right"></i> Ver mais</a>
     </section>
     {% endif %}
 
     {% if unread_messages_count > 0 %}
     <section class="m-section">
-        <h2 class="m-card-title">Mensagens por ler</h2>
+        <h2 class="m-card-title"><i class="bi bi-envelope-fill m-card-title-icon m-card-title-icon-primary"></i> Mensagens por ler</h2>
         {% if unread_messages|length > 0 %}
         <div class="m-notifications-list">
             {% for message in unread_messages %}
@@ -183,26 +197,26 @@
         {% else %}
         <p class="m-card-body">{{ unread_messages_count }} mensagem(ns) por ler.</p>
         {% endif %}
-        <a href="{{ BASE_URL }}m/messages" class="m-link-block m-notifications-ver-mais">Ver mais</a>
+        <a href="{{ BASE_URL }}m/messages" class="m-link-block m-notifications-ver-mais"><i class="bi bi-chevron-right"></i> Ver mais</a>
     </section>
     {% endif %}
 
     <section class="m-section">
-        <div class="m-card">
-            <h2 class="m-card-title">Últimos recibos</h2>
+        <div class="m-card m-alert-receipts">
+            <h2 class="m-card-title"><i class="bi bi-receipt m-card-title-icon m-card-title-icon-muted"></i> Últimos recibos</h2>
             {% if last_receipts|length > 0 %}
             <ul class="m-list">
                 {% for r in last_receipts %}
                 <li class="m-list-item">
-                    {{ r.condominium_name }} – {{ r.period_display }}
-                    <a href="{{ BASE_URL }}condominiums/{{ r.condominium_id }}/receipts/{{ r.id }}/download" class="m-link-block">Descarregar</a>
+                    <i class="bi bi-file-earmark-pdf m-list-icon"></i> {{ r.condominium_name }} – {{ r.period_display }}
+                    <a href="{{ BASE_URL }}condominiums/{{ r.condominium_id }}/receipts/{{ r.id }}/download" class="m-link-block"><i class="bi bi-download"></i> Descarregar</a>
                 </li>
                 {% endfor %}
             </ul>
-            <a href="{{ BASE_URL }}m/receipts" class="m-link-block">Ver todos os recibos</a>
+            <a href="{{ BASE_URL }}m/receipts" class="m-link-block"><i class="bi bi-chevron-right"></i> Ver todos os recibos</a>
             {% else %}
-            <p class="m-empty">Sem recibos.</p>
-            <a href="{{ BASE_URL }}m/receipts" class="m-link-block">Os meus recibos</a>
+            <p class="m-empty"><i class="bi bi-inbox"></i> Sem recibos.</p>
+            <a href="{{ BASE_URL }}m/receipts" class="m-link-block"><i class="bi bi-receipt"></i> Os meus recibos</a>
             {% endif %}
         </div>
     </section>
@@ -210,22 +224,20 @@
     {% if future_reservations|length > 0 %}
     <section class="m-section">
         <div class="m-card">
-            <h2 class="m-card-title">Marcações de espaços (futuras)</h2>
+            <h2 class="m-card-title"><i class="bi bi-calendar-event m-card-title-icon m-card-title-icon-info"></i> Marcações de espaços (futuras)</h2>
             <ul class="m-list">
                 {% for res in future_reservations %}
-                <li class="m-list-item">
-                    {{ res.space_name }} – {{ res.start_date|date('d/m/Y') }} – {{ res.condominium_name }}
-                </li>
+                <li class="m-list-item"><i class="bi bi-calendar3 m-list-icon"></i> {{ res.space_name }} – {{ res.start_date|date('d/m/Y') }} – {{ res.condominium_name }}</li>
                 {% endfor %}
             </ul>
-            <a href="{{ BASE_URL }}m/reservations" class="m-link-block">Ver reservas</a>
+            <a href="{{ BASE_URL }}m/reservations" class="m-link-block"><i class="bi bi-chevron-right"></i> Ver reservas</a>
         </div>
     </section>
     {% endif %}
 
     {% if first_condominium_id %}
     <section class="m-section">
-        <a href="{{ BASE_URL }}condominiums/{{ first_condominium_id }}/occurrences/create" class="m-btn-report">Reportar ocorrência</a>
+        <a href="{{ BASE_URL }}condominiums/{{ first_condominium_id }}/occurrences/create" class="m-btn-report"><i class="bi bi-plus-circle"></i> Reportar ocorrência</a>
     </section>
     {% endif %}
 </div>

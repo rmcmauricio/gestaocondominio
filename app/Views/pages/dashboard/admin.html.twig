@@ -43,6 +43,21 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
             {% endif %}
+
+            {% if pending_invitations_for_user is defined and pending_invitations_for_user|length > 0 %}
+            <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                <h5 class="mb-2"><i class="bi bi-envelope-exclamation"></i> Convites pendentes para condomínio (condómino)</h5>
+                <p class="mb-2 small">Foi convidado para as seguintes frações. Aceite o convite para ter acesso. O administrador pode cancelar o convite a qualquer momento.</p>
+                <ul class="list-unstyled mb-0">
+                    {% for inv in pending_invitations_for_user %}
+                    <li class="d-flex align-items-center justify-content-between flex-wrap gap-2 py-1">
+                        <span><strong>{{ inv.condominium_name }}</strong>{% if inv.fraction_identifier %} – Fração {{ inv.fraction_identifier }}{% endif %}</span>
+                        <a href="{{ BASE_URL }}invitation/accept?token={{ inv.token|e('url') }}" class="btn btn-success btn-sm"><i class="bi bi-check-circle"></i> Aceitar</a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
             
             {% if not admin_condominiums and (user.role == 'admin' or user.role == 'super_admin') %}
             <!-- Show create condominium first when no condominiums exist -->

@@ -224,16 +224,26 @@
   font-size: 1.25rem;
   font-weight: 600;
   margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.m-page-title-icon {
+  font-size: 1.5rem;
+  color: var(--color-primary, #2563eb);
+  flex-shrink: 0;
+}
   color: var(--color-text, #1f2937);
 }
 
 .m-card {
   background-color: var(--color-bg, #fff);
   border-radius: var(--radius-md, 0.5rem);
-  border: 1px solid var(--color-border, #e5e7eb);
+  border: 1px solid var(--color-border-soft, #e5e7eb);
   padding: 1rem;
   margin-bottom: 1rem;
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .m-card-title {
@@ -241,7 +251,22 @@
   font-weight: 600;
   margin-bottom: 0.75rem;
   color: var(--color-text, #1f2937);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
+
+.m-card-title-icon {
+  font-size: 1.125rem;
+  flex-shrink: 0;
+}
+
+.m-card-title-icon-danger { color: #dc2626; }
+.m-card-title-icon-warning { color: #d97706; }
+.m-card-title-icon-success { color: #059669; }
+.m-card-title-icon-primary { color: #2563eb; }
+.m-card-title-icon-muted { color: #6b7280; }
+.m-card-title-icon-info { color: #0891b2; }
 
 .m-card-body {
   font-size: 0.875rem;
@@ -258,6 +283,21 @@
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--color-border, #e5e7eb);
   font-size: 0.875rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.m-list-item .m-list-icon {
+  font-size: 1rem;
+  color: #6b7280;
+  margin-top: 0.125rem;
+  flex-shrink: 0;
+}
+
+.m-list-item .m-link-block {
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .m-list-item:last-child {
@@ -266,8 +306,92 @@
 
 .m-alert-overdue {
   background-color: #fef2f2;
-  border-color: #fecaca;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md, 0.5rem);
   color: #991b1b;
+  box-shadow: 0 1px 3px rgba(254, 202, 202, 0.3);
+  padding: 1.35rem;
+}
+
+.m-alert-overdue .m-card-title {
+  margin-bottom: 1rem;
+}
+
+.m-alert-overdue .m-overdue-header {
+  margin-bottom: 1rem;
+}
+
+.m-alert-overdue .m-overdue-details,
+.m-alert-overdue .m-overdue-iban-block {
+  margin-top: 0.5rem;
+}
+
+.m-alert-overdue .m-overdue-summary {
+  padding: 0.5rem 0;
+}
+
+.m-alert-pending {
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-md, 0.5rem);
+  color: #92400e;
+  box-shadow: 0 1px 3px rgba(253, 230, 138, 0.35);
+  padding: 1.35rem;
+}
+
+.m-alert-pending .m-card-title {
+  margin-bottom: 1rem;
+}
+
+.m-alert-pending .m-overdue-total {
+  margin-bottom: 0.5rem;
+}
+
+.m-alert-pending .m-overdue-details {
+  margin-top: 0.5rem;
+}
+
+.m-alert-pending .m-overdue-summary {
+  padding: 0.5rem 0;
+}
+
+.m-alert-pending .m-link-block {
+  margin-top: 1rem;
+}
+
+/* Últimos recibos: mesmo estilo de card que quotas (padding e espaçamento) */
+.m-alert-receipts {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md, 0.5rem);
+  color: #475569;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  padding: 1.35rem;
+}
+
+.m-alert-receipts .m-card-title {
+  margin-bottom: 1rem;
+}
+
+.m-alert-receipts .m-list {
+  margin-top: 0.5rem;
+}
+
+.m-alert-receipts .m-link-block {
+  margin-top: 1rem;
+}
+
+.m-alert-receipts .m-empty {
+  margin: 0.5rem 0 0;
+}
+
+.m-badge-due {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #92400e;
+  background: #fef3c7;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.25rem;
 }
 
 .m-overdue-header {
@@ -418,6 +542,9 @@
   cursor: pointer;
   list-style: none;
   padding: 0.25rem 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .m-overdue-summary::-webkit-details-marker {
@@ -437,8 +564,10 @@
 
 .m-alert-balance {
   background-color: #f0fdf4;
-  border-color: #bbf7d0;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-md, 0.5rem);
   color: #166534;
+  box-shadow: 0 1px 3px rgba(187, 247, 208, 0.35);
 }
 
 .m-btn-report {
@@ -460,7 +589,9 @@
 }
 
 .m-link-block {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0.5rem 0;
   color: var(--color-primary, #e07920);
   text-decoration: none;
@@ -488,8 +619,15 @@
   color: #fff;
 }
 
+/* Espaço entre o título e a primeira secção (quotas) no dashboard */
+.m-dashboard .m-page-title + .m-section {
+  margin-top: 1.5rem;
+}
+
 .m-section + .m-section {
   margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border-light, #e5e7eb);
 }
 
 .m-form .m-form-group {

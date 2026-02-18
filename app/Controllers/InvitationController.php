@@ -139,6 +139,20 @@ class InvitationController extends Controller
             exit;
         }
 
+        // Se o utilizador já está logado e o email do convite corresponde à conta, aceitar logo e redirecionar
+        if (AuthMiddleware::handle()) {
+            $userId = AuthMiddleware::userId();
+            if ($this->invitationService->acceptInvitationForLoggedInUser($token, $userId)) {
+                $_SESSION['success'] = 'Convite aceite com sucesso! Já tem acesso ao condomínio.';
+                header('Location: ' . BASE_URL . 'dashboard');
+                exit;
+            }
+            // Token inválido/expirado ou convite enviado para outro email
+            $_SESSION['error'] = 'Não foi possível aceitar o convite. Certifique-se de que está logado com o email para o qual o convite foi enviado e que o convite ainda é válido.';
+            header('Location: ' . BASE_URL . 'dashboard');
+            exit;
+        }
+
         $this->loadPageTranslations('invitations');
         
         // Get and clear session messages

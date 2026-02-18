@@ -207,8 +207,7 @@
                 </div>
             </div>
 
-            <!-- Condóminos -->
-            {% if condominium_users %}
+            <!-- Condóminos: uma linha por fração; admin só aparece na linha da fração a que está associado -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">Condóminos ({{ stats.total_residents }})</h5>
@@ -222,39 +221,66 @@
                                     <th>Nome</th>
                                     <th>Email</th>
                                     <th>Telefone</th>
-                                    <th>Tipo</th>
-                                    <th>Principal</th>
+                                    <th>Tipologia</th>
+                                    <th>Permilagem</th>
+                                    {% if can_edit %}
+                                    <th class="text-end">Ações</th>
+                                    {% endif %}
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for resident in condominium_users %}
+                                {% for row in condominium_users %}
                                 <tr>
                                     <td>
-                                        {% if resident.fraction_identifier %}
-                                        <span class="badge bg-secondary">{{ resident.fraction_identifier }}</span>
+                                        <span class="badge bg-secondary">{{ row.fraction_identifier }}</span>
+                                    </td>
+                                    <td>
+                                        {% for person in row.residents %}
+                                        <div class="{% if not loop.first %}mt-1{% endif %}">
+                                            <strong>{{ person.name }}</strong>
+                                            {% if person.role %}
+                                            <span class="badge ms-1
+                                                {% if person.role == 'admin' %}bg-danger
+                                                {% elseif person.role == 'proprietario' %}bg-primary
+                                                {% elseif person.role == 'arrendatario' %}bg-info
+                                                {% else %}bg-secondary{% endif %}" style="font-size: 0.65rem;">
+                                                {{ person.role|title }}
+                                            </span>
+                                            {% endif %}
+                                            {% if person.is_primary %}
+                                            <span class="badge bg-success ms-1" style="font-size: 0.65rem;">Principal</span>
+                                            {% endif %}
+                                        </div>
+                                        {% endfor %}
+                                    </td>
+                                    <td>{{ row.email }}</td>
+                                    <td>{{ row.phone|default('-') }}</td>
+                                    <td>
+                                        {% if row.typology %}
+                                        {{ row.typology }}
                                         {% else %}
                                         <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td><strong>{{ resident.name }}</strong></td>
-                                    <td>{{ resident.email }}</td>
-                                    <td>{{ resident.phone|default('-') }}</td>
                                     <td>
-                                        <span class="badge
-                                            {% if resident.role == 'admin' %}bg-danger
-                                            {% elseif resident.role == 'proprietario' %}bg-primary
-                                            {% elseif resident.role == 'arrendatario' %}bg-info
-                                            {% else %}bg-secondary{% endif %}">
-                                            {{ resident.role|title }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        {% if resident.is_primary %}
-                                        <span class="badge bg-success">Sim</span>
+                                        {% if row.permillage is defined and row.permillage is not null %}
+                                        {{ row.permillage|number_format(0, '', '') }}‰
                                         {% else %}
-                                        <span class="text-muted">Não</span>
+                                        <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
+                                    {% if can_edit %}
+                                    <td class="text-end">
+                                        {% if row.pending_invitation_id and row.email != '-' %}
+                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ row.pending_invitation_id }}/resend" class="d-inline">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-success" title="Reenviar convite por email" onclick="return confirm('Reenviar o convite por email?');">
+                                                <i class="bi bi-envelope-arrow-up"></i> Reenviar convite
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </td>
+                                    {% endif %}
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -262,7 +288,6 @@
                     </div>
                 </div>
             </div>
-            {% endif %}
         </div>
 
         <!-- Mapa de Quotas - Full Width -->

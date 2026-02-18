@@ -1241,7 +1241,7 @@ document.getElementById('editPaymentModal')?.addEventListener('show.bs.modal', f
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.fraction-popover').forEach(function(el) { new bootstrap.Popover(el, { trigger: 'focus' }); });
+    document.querySelectorAll('.fraction-popover').forEach(function(el) { if (!el._popover) { el._popover = new bootstrap.Popover(el, { trigger: 'focus', html: true }); } });
 });
 </script>
 

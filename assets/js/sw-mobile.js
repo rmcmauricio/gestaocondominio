@@ -40,11 +40,26 @@
         );
     });
 
+    /** True if the request URL is under the mobile scope (base + m/). */
+    function isMobileScopeNavigation(requestUrl) {
+        var base = baseUrl();
+        var basePath = base.replace(self.location.origin, '').replace(/\/?$/, '') || '';
+        var path = requestUrl.replace(self.location.origin, '').split('?')[0];
+        if (basePath && path.indexOf(basePath) !== 0) return false;
+        var afterBase = path.slice(basePath.length).replace(/^\//, '');
+        return afterBase === 'm' || afterBase.indexOf('m/') === 0;
+    }
+
     self.addEventListener('fetch', function (event) {
         var url = event.request.url;
         if (event.request.mode === 'navigate') {
+            // Do NOT intercept navigations outside /m/ (e.g. condominiums/.../occurrences/create).
+            // Let the browser handle them so session cookie is sent and user stays logged in.
+            if (!isMobileScopeNavigation(url)) {
+                return;
+            }
             event.respondWith(
-                fetch(event.request)
+                fetch(event.request, { credentials: 'same-origin' })
                     .then(function (response) {
                         var clone = response.clone();
                         if (response.status === 200 && response.type === 'basic') {

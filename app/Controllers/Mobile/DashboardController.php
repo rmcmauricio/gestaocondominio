@@ -77,6 +77,29 @@ class DashboardController extends Controller
         }
         $overdueCondominiumIds = array_keys($overdueCondominiumIds);
 
+        // Pending fees (quotas pendentes: não pagas, vencimento >= hoje)
+        $pendingFees = [];
+        $totalPending = 0.0;
+        foreach ($userCondominiums as $uc) {
+            if (empty($uc['fraction_id'])) {
+                continue;
+            }
+            $fees = $feeModel->getOutstandingByFraction($uc['fraction_id']);
+            foreach ($fees as $f) {
+                $dueDate = $f['due_date'] ?? null;
+                if ($dueDate && $dueDate >= $today) {
+                    $remaining = (float)($f['remaining'] ?? $f['amount'] ?? 0);
+                    $f['remaining'] = $remaining;
+                    $f['period_display'] = \App\Models\Fee::formatPeriodForDisplay($f);
+                    $f['condominium_name'] = $uc['condominium_name'] ?? '';
+                    $f['condominium_id'] = (int)$uc['condominium_id'];
+                    $f['fraction_identifier'] = $uc['fraction_identifier'] ?? '';
+                    $pendingFees[] = $f;
+                    $totalPending += $remaining;
+                }
+            }
+        }
+
         // IBAN por condomínio (conta principal) para os condomínios com quotas em atraso
         $overdueCondominiumIbans = [];
         if (!empty($overdueCondominiumIds)) {
@@ -231,6 +254,8 @@ class DashboardController extends Controller
             'overdue_fees' => $overdueFees,
             'total_overdue' => $totalOverdue,
             'overdue_condominium_ibans' => $overdueCondominiumIbans,
+            'pending_fees' => $pendingFees,
+            'total_pending' => $totalPending,
             'fraction_balances' => $fractionBalances,
             'unread_notifications' => $unreadNotifications,
             'last_receipts' => $lastReceipts,

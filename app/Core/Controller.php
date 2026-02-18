@@ -129,6 +129,7 @@ class Controller
         $demoBannerMessage = null;
         $unreadNotificationsCount = 0;
         $unreadMessagesCount = 0;
+        $pendingInvitationsForUser = [];
         $isDemoUser = false;
         $demoProfile = null;
         $condominium = null;
@@ -340,6 +341,16 @@ class Controller
                     
                     // Unified count includes both notifications and messages
                     $unreadNotificationsCount = $systemNotificationsCount + $unreadMessagesCount;
+                    // Pending invitations for current user (by email) so they can accept in dashboard
+                    $userEmail = trim($_SESSION['user']['email'] ?? '');
+                    if ($userEmail !== '') {
+                        try {
+                            $invitationService = new \App\Services\InvitationService();
+                            $pendingInvitationsForUser = $invitationService->getPendingInvitationsForEmail($userEmail);
+                        } catch (\Exception $e) {
+                            $pendingInvitationsForUser = [];
+                        }
+                    }
                 }
             }
         }
@@ -430,6 +441,7 @@ class Controller
             'mobile_viewport_breakpoint' => \App\Services\MobileDetect::VIEWPORT_BREAKPOINT,
             'viewport_mobile_cookie' => \App\Services\MobileDetect::COOKIE_VIEWPORT_MOBILE,
             'viewing_as_condomino' => ($currentCondominiumRole ?? null) === 'condomino' || (($currentCondominiumRole ?? null) === null && (($demoProfile ?? null) === 'condomino' || (($_SESSION['user']['role'] ?? null) === 'condomino'))),
+            'pending_invitations_for_user' => $pendingInvitationsForUser ?? [],
         ];
         
         // Merge with data - data comes LAST so it overrides baseMergedData
