@@ -724,11 +724,24 @@ class ReportController extends Controller
     {
         $balance = $report['balance'];
         $balanceClass = $balance < 0 ? ' class="text-danger"' : ($balance > 0 ? ' class="text-success"' : '');
-        $budgetResult = $report['budget_result'] ?? (($report['total_budget'] ?? 0) - $report['total_expenses']);
-        $budgetResultClass = $budgetResult < 0 ? ' class="text-danger"' : ($budgetResult > 0 ? ' class="text-success"' : '');
+        $budgetRevenue = $report['budget_revenue'] ?? ($report['total_budget'] ?? 0);
+        $budgetExpenses = $report['budget_expenses'] ?? 0;
+        // Diferença = Realizado − Orçamentado. Realizado receitas = total quotas recebidas no ano (ano em curso + anos anteriores)
+        $totalQuotasReceived = $report['total_quotas_received_in_year'] ?? ($report['paid_fees'] ?? 0);
+        $revDev = $report['revenue_deviation'] ?? ($totalQuotasReceived - $budgetRevenue);
+        $expDev = $report['expense_deviation'] ?? ($report['total_expenses'] - $budgetExpenses);
+        $budgetResultPlanned = $report['budget_result_planned'] ?? ($budgetRevenue - $budgetExpenses);
+        $budgetDeviation = $report['budget_deviation'] ?? ($balance - $budgetResultPlanned);
+        $revDevClass = $revDev >= 0 ? ' class="text-success"' : ' class="text-danger"';
+        $expDevClass = $expDev <= 0 ? ' class="text-success"' : ' class="text-danger"';
+        $budgetDevClass = $budgetDeviation >= 0 ? ' class="text-success"' : ' class="text-danger"';
+        $fmt = function ($n) { return '€' . number_format($n, 2, ',', '.'); };
+        $nbs = '—';
+        $paidCurrent = $report['paid_fees_current_year'] ?? 0;
+        $paidPrior = $report['paid_fees_prior_years'] ?? 0;
         return "
         <!DOCTYPE html>
-        <html>
+        <html lang=\"pt-PT\">
         <head>
             <meta charset='UTF-8'>
             <title>Balancete {$report['year']}</title>
@@ -738,45 +751,63 @@ class ReportController extends Controller
                 .subtitle { color: #666; font-size: 0.9em; margin-bottom: 16px; }
                 table { width: 100%; border-collapse: collapse; margin-top: 20px; }
                 th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                td.num { text-align: right; }
+                td.num, th.num { text-align: right; }
                 th { background-color: #f2f2f2; }
                 .total { font-weight: bold; }
                 .section { font-weight: bold; background-color: #f8f9fa; }
+                .highlight { font-weight: bold; background-color: #e8f4f8; }
+                .text-success { color: #28a745; }
+                .text-danger { color: #dc3545; }
             </style>
         </head>
         <body>
             <h1>Balancete {$report['year']}</h1>
-            <p class=\"subtitle\">Resumo financeiro do ano (orçamento, despesas, quotas e resultado).</p>
+            <p class=\"subtitle\">Resumo financeiro do ano (orçamento, despesas, quotas, resultado e diferenças).</p>
             <table>
                 <tr>
                     <th>Descrição</th>
-                    <th class=\"num\">Valor</th>
+                    <th class=\"num\">Orçamentado</th>
+                    <th class=\"num\">Realizado</th>
+                    <th class=\"num\">Diferença</th>
                 </tr>
-                <tr class=\"section\"><td colspan=\"2\">Receitas previstas e realizadas</td></tr>
+                <tr class=\"section\"><td colspan=\"4\">Receitas</td></tr>
                 <tr>
-                    <td>Orçamento (receita prevista)</td>
-                    <td class=\"num\">€" . number_format($report['total_budget'], 2, ',', '.') . "</td>
+                    <td>Quotas recebidas (ano em curso)</td>
+                    <td class=\"num\">{$nbs}</td>
+                    <td class=\"num\">" . $fmt($paidCurrent) . "</td>
+                    <td class=\"num\">{$nbs}</td>
                 </tr>
                 <tr>
-                    <td>Quotas Recebidas (receita realizada)</td>
-                    <td class=\"num\">€" . number_format($report['paid_fees'], 2, ',', '.') . "</td>
-                </tr>
-                <tr>
-                    <td>Quotas Pendentes (a receber)</td>
-                    <td class=\"num\">€" . number_format($report['pending_fees'], 2, ',', '.') . "</td>
-                </tr>
-                <tr class=\"section\"><td colspan=\"2\">Despesas e resultado</td></tr>
-                <tr>
-                    <td>Despesas</td>
-                    <td class=\"num\">€" . number_format($report['total_expenses'], 2, ',', '.') . "</td>
+                    <td>Quotas recebidas (anos anteriores)</td>
+                    <td class=\"num\">{$nbs}</td>
+                    <td class=\"num\">" . $fmt($paidPrior) . "</td>
+                    <td class=\"num\">{$nbs}</td>
                 </tr>
                 <tr class=\"total\">
-                    <td>Saldo do período (Quotas Recebidas − Despesas)</td>
-                    <td class=\"num\"{$balanceClass}>€" . number_format($balance, 2, ',', '.') . "</td>
+                    <td>Receitas (receita prevista vs total receitas realizadas)</td>
+                    <td class=\"num\">" . $fmt($budgetRevenue) . "</td>
+                    <td class=\"num\">" . $fmt($totalQuotasReceived) . "</td>
+                    <td class=\"num\"{$revDevClass}>" . $fmt($revDev) . "</td>
                 </tr>
                 <tr>
-                    <td>Resultado orçamental (Orçamento − Despesas)</td>
-                    <td class=\"num\"{$budgetResultClass}>€" . number_format($budgetResult, 2, ',', '.') . "</td>
+                    <td>Quotas pendentes (a receber)</td>
+                    <td class=\"num\">{$nbs}</td>
+                    <td class=\"num\">" . $fmt($report['pending_fees']) . "</td>
+                    <td class=\"num\">{$nbs}</td>
+                </tr>
+                <tr class=\"section\"><td colspan=\"4\">Despesas</td></tr>
+                <tr>
+                    <td>Despesas (previstas vs realizadas)</td>
+                    <td class=\"num\">" . $fmt($budgetExpenses) . "</td>
+                    <td class=\"num\">" . $fmt($report['total_expenses']) . "</td>
+                    <td class=\"num\"{$expDevClass}>" . $fmt($expDev) . "</td>
+                </tr>
+                <tr class=\"section\"><td colspan=\"4\">Balanço do exercício</td></tr>
+                <tr class=\"total highlight\">
+                    <td>Resultado (saldo do período: quotas recebidas − despesas)</td>
+                    <td class=\"num\">" . $fmt($budgetResultPlanned) . "</td>
+                    <td class=\"num\"{$balanceClass}>" . $fmt($balance) . "</td>
+                    <td class=\"num\"{$budgetDevClass}>" . $fmt($budgetDeviation) . "</td>
                 </tr>
             </table>
         </body>
@@ -3669,27 +3700,49 @@ class ReportController extends Controller
                 $sheet->setCellValue('A' . $row, 'Ano: ' . $year);
                 $row += 2;
                 $sheet->setCellValue('A' . $row, 'Descrição');
-                $sheet->setCellValue('B' . $row, 'Valor');
-                $sheet->getStyle('A' . $row . ':B' . $row)->applyFromArray($headerStyle);
+                $sheet->setCellValue('B' . $row, 'Orçamentado');
+                $sheet->setCellValue('C' . $row, 'Realizado');
+                $sheet->setCellValue('D' . $row, 'Diferença');
+                $sheet->getStyle('A' . $row . ':D' . $row)->applyFromArray($headerStyle);
                 $row++;
-                $sheet->setCellValue('A' . $row, 'Orçamento (receita prevista)');
-                $sheet->setCellValue('B' . $row, number_format($report['total_budget'], 2, ',', '.'));
+                $budgetRev = $report['budget_revenue'] ?? $report['total_budget'];
+                $budgetExp = $report['budget_expenses'] ?? 0;
+                $totalQuotasReceived = $report['total_quotas_received_in_year'] ?? $report['paid_fees'];
+                $revDev = $report['revenue_deviation'] ?? ($totalQuotasReceived - $budgetRev);
+                $expDev = $report['expense_deviation'] ?? ($report['total_expenses'] - $budgetExp);
+                $budgetRes = $report['budget_result_planned'] ?? ($budgetRev - $budgetExp);
+                $budgetDev = $report['budget_deviation'] ?? ($report['balance'] - $budgetRes);
+                $sheet->setCellValue('A' . $row, 'Quotas recebidas (ano em curso)');
+                $sheet->setCellValue('B' . $row, '—');
+                $sheet->setCellValue('C' . $row, number_format($report['paid_fees_current_year'] ?? 0, 2, ',', '.'));
+                $sheet->setCellValue('D' . $row, '—');
                 $row++;
-                $sheet->setCellValue('A' . $row, 'Quotas Recebidas (receita realizada)');
-                $sheet->setCellValue('B' . $row, number_format($report['paid_fees'], 2, ',', '.'));
+                $sheet->setCellValue('A' . $row, 'Quotas recebidas (anos anteriores)');
+                $sheet->setCellValue('B' . $row, '—');
+                $sheet->setCellValue('C' . $row, number_format($report['paid_fees_prior_years'] ?? 0, 2, ',', '.'));
+                $sheet->setCellValue('D' . $row, '—');
                 $row++;
-                $sheet->setCellValue('A' . $row, 'Quotas Pendentes (a receber)');
-                $sheet->setCellValue('B' . $row, number_format($report['pending_fees'], 2, ',', '.'));
+                $sheet->setCellValue('A' . $row, 'Receitas (receita prevista vs total receitas realizadas)');
+                $sheet->setCellValue('B' . $row, number_format($budgetRev, 2, ',', '.'));
+                $sheet->setCellValue('C' . $row, number_format($totalQuotasReceived, 2, ',', '.'));
+                $sheet->setCellValue('D' . $row, number_format($revDev, 2, ',', '.'));
+                $sheet->getStyle('A' . $row . ':D' . $row)->applyFromArray($totalStyle);
                 $row++;
-                $sheet->setCellValue('A' . $row, 'Despesas');
-                $sheet->setCellValue('B' . $row, number_format($report['total_expenses'], 2, ',', '.'));
+                $sheet->setCellValue('A' . $row, 'Quotas pendentes (a receber)');
+                $sheet->setCellValue('B' . $row, '—');
+                $sheet->setCellValue('C' . $row, number_format($report['pending_fees'], 2, ',', '.'));
+                $sheet->setCellValue('D' . $row, '—');
                 $row++;
-                $sheet->setCellValue('A' . $row, 'Saldo do período (Quotas Recebidas − Despesas)');
-                $sheet->setCellValue('B' . $row, number_format($report['balance'], 2, ',', '.'));
-                $sheet->getStyle('A' . $row . ':B' . $row)->applyFromArray($totalStyle);
+                $sheet->setCellValue('A' . $row, 'Despesas (previstas vs realizadas)');
+                $sheet->setCellValue('B' . $row, number_format($budgetExp, 2, ',', '.'));
+                $sheet->setCellValue('C' . $row, number_format($report['total_expenses'], 2, ',', '.'));
+                $sheet->setCellValue('D' . $row, number_format($expDev, 2, ',', '.'));
                 $row++;
-                $sheet->setCellValue('A' . $row, 'Resultado orçamental (Orçamento − Despesas)');
-                $sheet->setCellValue('B' . $row, number_format($report['budget_result'] ?? (($report['total_budget'] ?? 0) - $report['total_expenses']), 2, ',', '.'));
+                $sheet->setCellValue('A' . $row, 'Resultado (saldo do período: quotas recebidas − despesas)');
+                $sheet->setCellValue('B' . $row, number_format($budgetRes, 2, ',', '.'));
+                $sheet->setCellValue('C' . $row, number_format($report['balance'], 2, ',', '.'));
+                $sheet->setCellValue('D' . $row, number_format($budgetDev, 2, ',', '.'));
+                $sheet->getStyle('A' . $row . ':D' . $row)->applyFromArray($totalStyle);
                 break;
                 
             case 'fees':

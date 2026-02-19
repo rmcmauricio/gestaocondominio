@@ -79,7 +79,15 @@
                 <div class="card-body text-center p-4">
                     <h3 class="fw-bold mb-3">{{ plan.name }}</h3>
                     <div class="mb-4">
-                        {% if plan_promotion %}
+                        {% if is_pioneer|default(false) %}
+                            <div>
+                                <span class="text-muted text-decoration-line-through display-6" style="font-size: 1.75rem;">€{{ plan.price_monthly|number_format(2, ',', '.') }}</span>
+                                <span class="text-muted text-decoration-line-through">/mês</span>
+                            </div>
+                            <p class="text-success fw-bold mt-2 mb-0" style="font-size: 0.95rem;">
+                                Gratuito até ao lançamento + Oferta 3 meses após lançamento
+                            </p>
+                        {% elseif plan_promotion %}
                             {% set discount_amount = (plan_promotion.discount_type == 'percentage') ? (plan.price_monthly * plan_promotion.discount_value / 100) : plan_promotion.discount_value %}
                             {% set final_price = plan.price_monthly - discount_amount %}
                             <div>
@@ -89,12 +97,19 @@
                         {% else %}
                             <span class="display-3 fw-bold">€{{ plan.price_monthly|number_format(2, ',', '.') }}</span>
                         {% endif %}
+                        {% if not is_pioneer|default(false) %}
                         <span class="text-muted">/mês</span>
+                        {% endif %}
                     </div>
                     {% if plan.price_yearly %}
                     <p class="text-muted small mb-4">
-                        ou €{{ plan.price_yearly|number_format(2, ',', '.') }}/ano<br>
-                        <span class="text-success">Poupe {{ ((plan.price_monthly * 12 - plan.price_yearly) / (plan.price_monthly * 12) * 100)|round }}%</span>
+                        {% if is_pioneer|default(false) %}
+                            <span class="text-decoration-line-through">ou €{{ plan.price_yearly|number_format(2, ',', '.') }}/ano</span>
+                            <span class="text-success d-block mt-1">Poupe {{ ((plan.price_monthly * 12 - plan.price_yearly) / (plan.price_monthly * 12) * 100)|round }}%</span>
+                        {% else %}
+                            ou €{{ plan.price_yearly|number_format(2, ',', '.') }}/ano<br>
+                            <span class="text-success">Poupe {{ ((plan.price_monthly * 12 - plan.price_yearly) / (plan.price_monthly * 12) * 100)|round }}%</span>
+                        {% endif %}
                     </p>
                     {% endif %}
 
