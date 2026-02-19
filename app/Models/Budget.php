@@ -148,6 +148,34 @@ class Budget extends Model
     }
 
     /**
+     * Check if the condominium has an approved budget for the given year
+     * (status approved or active = orçamento aprovado)
+     */
+    public function hasApprovedBudgetForYear(int $condominiumId, int $year): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+        $budget = $this->getByCondominiumAndYear($condominiumId, $year);
+        if (!$budget) {
+            return false;
+        }
+        return in_array($budget['status'] ?? '', ['approved', 'active'], true);
+    }
+
+    /**
+     * Delete budget by ID (caller must delete budget_items first)
+     */
+    public function delete(int $id): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+        $stmt = $this->db->prepare("DELETE FROM budgets WHERE id = :id");
+        return $stmt->execute([':id' => $id]);
+    }
+
+    /**
      * Check if annual fees have been generated for this budget
      */
     public function hasAnnualFeesGenerated(int $budgetId): bool

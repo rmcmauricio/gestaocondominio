@@ -212,6 +212,7 @@ $router->get('/condominiums/{condominium_id}/budgets/{id}', 'App\Controllers\Fin
 $router->get('/condominiums/{condominium_id}/budgets/{id}/edit', 'App\Controllers\FinanceController@editBudget');
 $router->post('/condominiums/{condominium_id}/budgets/{id}', 'App\Controllers\FinanceController@updateBudget');
 $router->post('/condominiums/{condominium_id}/budgets/{id}/approve', 'App\Controllers\FinanceController@approveBudget');
+$router->post('/condominiums/{condominium_id}/budgets/{id}/delete', 'App\Controllers\FinanceController@deleteBudget');
 $router->get('/condominiums/{condominium_id}/expenses', 'App\Controllers\FinanceController@indexExpenses');
 $router->get('/condominiums/{condominium_id}/expenses/create', 'App\Controllers\FinanceController@redirectExpensesToTransactions');
 $router->post('/condominiums/{condominium_id}/expenses/{transaction_id}/set-category', 'App\Controllers\FinanceController@setExpenseCategory');
@@ -411,6 +412,7 @@ $router->get('/condominiums/{condominium_id}/financial-transactions/{id}/info', 
 $router->get('/condominiums/{condominium_id}/financial-transactions/{id}/edit', 'App\Controllers\FinancialTransactionController@edit');
 $router->post('/condominiums/{condominium_id}/financial-transactions/{id}/update', 'App\Controllers\FinancialTransactionController@update');
 $router->post('/condominiums/{condominium_id}/financial-transactions/{id}/delete', 'App\Controllers\FinancialTransactionController@delete');
+$router->post('/condominiums/{condominium_id}/financial-transactions/bulk-delete', 'App\Controllers\FinancialTransactionController@bulkDelete');
 $router->get('/condominiums/{condominium_id}/financial-transactions/balance/{account_id}', 'App\Controllers\FinancialTransactionController@getAccountBalance');
 // Import routes
 $router->get('/condominiums/{condominium_id}/financial-transactions/import', 'App\Controllers\FinancialTransactionController@import');

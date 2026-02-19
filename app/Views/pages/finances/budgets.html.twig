@@ -247,6 +247,65 @@
         </div>
     </div>
 
+    <!-- Histórico (mini log) colapsado -->
+    <div class="card shadow-sm mb-4 mt-4">
+        <div class="card-header py-2 d-flex align-items-center cursor-pointer collapsed" data-bs-toggle="collapse" data-bs-target="#budgetHistoryCollapse" aria-expanded="false" aria-controls="budgetHistoryCollapse" style="cursor: pointer;">
+            <i class="bi bi-clock-history me-2 text-muted"></i>
+            <span class="fw-bold">Histórico de orçamentos</span>
+            <span class="text-muted small ms-2">(criação, aprovação, edição, eliminação)</span>
+            <i class="bi bi-chevron-down ms-auto collapse-icon" style="transition: transform 0.2s;"></i>
+        </div>
+        <div class="collapse" id="budgetHistoryCollapse">
+            <div class="card-body py-2">
+                {% if budget_history|default([])|length > 0 %}
+                <ul class="list-group list-group-flush list-group-timeline">
+                    {% for e in budget_history %}
+                    <li class="list-group-item d-flex align-items-start py-2 px-3 border-0">
+                        <span class="me-2 mt-1">
+                            {% if e.label == 'Criação' %}
+                            <i class="bi bi-plus-circle-fill text-success" title="Criação"></i>
+                            {% elseif e.label == 'Aprovação' %}
+                            <i class="bi bi-check-circle-fill text-primary" title="Aprovação"></i>
+                            {% elseif e.label == 'Edição' %}
+                            <i class="bi bi-pencil-square text-secondary" title="Edição"></i>
+                            {% elseif e.label == 'Eliminação' %}
+                            <i class="bi bi-trash-fill text-danger" title="Eliminação"></i>
+                            {% else %}
+                            <i class="bi bi-circle-fill text-muted" style="font-size: 0.5rem;"></i>
+                            {% endif %}
+                        </span>
+                        <div class="flex-grow-1 min-w-0">
+                            <span class="badge bg-light text-dark me-1">{{ e.label }}</span>
+                            {% if e.description %}
+                            <span class="text-muted small">{{ e.description|slice(0, 120) }}{% if e.description|length > 120 %}...{% endif %}</span>
+                            {% endif %}
+                            <div class="small text-muted mt-0">
+                                {{ e.created_at|date('d/m/Y H:i') }}
+                                {% if e.user_id %}
+                                · {{ budget_history_user_names[e.user_id]|default('Utilizador #' ~ e.user_id) }}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted small mb-0 py-2">Ainda não há registos no histórico.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        var el = document.querySelector('#budgetHistoryCollapse');
+        var icon = document.querySelector('.collapse-icon');
+        if (el && icon) {
+            el.addEventListener('show.bs.collapse', function() { if (icon) icon.style.transform = 'rotate(180deg)'; });
+            el.addEventListener('hide.bs.collapse', function() { if (icon) icon.style.transform = ''; });
+        }
+    })();
+    </script>
+
     <div class="mt-3">
         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Voltar às Finanças

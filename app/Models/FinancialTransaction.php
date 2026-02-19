@@ -624,4 +624,46 @@ class FinancialTransaction extends Model
         
         return ($result['count'] ?? 0) > 0;
     }
+
+    /**
+     * Check if transaction has quotas associated (fee_payments or fraction_account_movements liquidation).
+     */
+    public function hasQuotasAssociated(int $id): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+        if ($this->isLinkedToFeePayment($id)) {
+            return true;
+        }
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) as count
+            FROM fraction_account_movements
+            WHERE source_financial_transaction_id = :id AND type = 'debit'
+        ");
+        $stmt->execute([':id' => $id]);
+        $result = $stmt->fetch();
+        return ($result['count'] ?? 0) > 0;
+    }
+
+    /**
+     * Return transaction IDs (from the given list) that have quotas associated.
+     * Used to mark which movements can be bulk-deleted (only those NOT in this set).
+     */
+    public function getTransactionIdsWithQuotas(array $transactionIds): array
+    {
+        if (!$this->db || empty($transactionIds)) {
+            return [];
+        }
+        $ids = array_map('intval', array_unique($transactionIds));
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare("
+            SELECT DISTINCT financial_transaction_id as id FROM fee_payments WHERE financial_transaction_id IN ($placeholders)
+            UNION
+            SELECT DISTINCT source_financial_transaction_id as id FROM fraction_account_movements WHERE source_financial_transaction_id IN ($placeholders) AND type = 'debit'
+        ");
+        $stmt->execute(array_merge($ids, $ids));
+        $rows = $stmt->fetchAll() ?: [];
+        return array_map(function ($r) { return (int)$r['id']; }, $rows);
+    }
 }
