@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\BankAccount;
 use App\Models\Budget;
+use App\Models\BudgetItem;
 use App\Models\Fee;
 use App\Models\FinancialTransaction;
 use App\Models\Occurrence;
@@ -17,6 +18,7 @@ use App\Models\Revenue;
 class ReportService
 {
     protected $budgetModel;
+    protected $budgetItemModel;
     protected $transactionModel;
     protected $feeModel;
     protected $occurrenceModel;
@@ -25,6 +27,7 @@ class ReportService
     public function __construct()
     {
         $this->budgetModel = new Budget();
+        $this->budgetItemModel = new BudgetItem();
         $this->transactionModel = new FinancialTransaction();
         $this->feeModel = new Fee();
         $this->occurrenceModel = new Occurrence();
@@ -52,8 +55,44 @@ class ReportService
             return $fees[$key]['status'] === 'paid';
         }, ARRAY_FILTER_USE_BOTH));
 
+        // Receita realizada: mesma fonte que o Resumo Financeiro (movimentos de entrada FT + tabela revenues, por data da transação)
+        $totalRevenueRealized = $this->transactionModel->getTotalByPeriodAndType($condominiumId, $startDate, $endDate, 'income');
+        $totalRevenueRealized += $this->revenueModel->getTotalByPeriod($condominiumId, $startDate, $endDate);
+
+        // Quotas recebidas no ano (por data de pagamento): ano em curso vs anos anteriores (apenas para detalhe)
+        $paidFeesCurrentYear = 0;
+        $paidFeesPriorYears = 0;
+        global $db;
+        if ($db) {
+            $stmt = $db->prepare("
+                SELECT f.period_year, COALESCE(SUM(fp.amount), 0) as total
+                FROM fee_payments fp
+                INNER JOIN fees f ON f.id = fp.fee_id
+                WHERE f.condominium_id = :condominium_id
+                AND YEAR(fp.payment_date) = :year
+                GROUP BY f.period_year
+            ");
+            $stmt->execute([':condominium_id' => $condominiumId, ':year' => $year]);
+            foreach ($stmt->fetchAll() ?: [] as $row) {
+                $py = (int)$row['period_year'];
+                $tot = (float)$row['total'];
+                if ($py === $year) {
+                    $paidFeesCurrentYear += $tot;
+                } elseif ($py < $year) {
+                    $paidFeesPriorYears += $tot;
+                }
+            }
+        }
+
         $totalBudget = $budget['total_amount'] ?? 0;
         $pendingFees = $totalFees - $paidFees;
+        // Receita e despesa orçamentadas (por categoria Receita: / Despesa:)
+        $budgetRevenue = $this->budgetItemModel->getTotalByType((int)$budget['id'], 'Receita:');
+        $budgetExpenses = $this->budgetItemModel->getTotalByType((int)$budget['id'], 'Despesa:');
+        // Saldo e desvios com base na receita total realizada (igual ao Resumo Financeiro)
+        $balance = $totalRevenueRealized - $totalExpenses;
+        $budgetResultPlanned = $budgetRevenue - $budgetExpenses;
+        // Diferença = Realizado − Orçamentado (positivo = a mais, negativo = a menos face ao orçamento)
         return [
             'year' => $year,
             'budget' => $budget,
@@ -62,8 +101,17 @@ class ReportService
             'total_fees' => $totalFees,
             'paid_fees' => $paidFees,
             'pending_fees' => $pendingFees,
-            'balance' => $paidFees - $totalExpenses,
-            'budget_result' => $totalBudget - $totalExpenses
+            'paid_fees_current_year' => $paidFeesCurrentYear,
+            'paid_fees_prior_years' => $paidFeesPriorYears,
+            'total_quotas_received_in_year' => $totalRevenueRealized,
+            'balance' => $balance,
+            'budget_result' => $totalBudget - $totalExpenses,
+            'budget_revenue' => $budgetRevenue,
+            'budget_expenses' => $budgetExpenses,
+            'revenue_deviation' => $totalRevenueRealized - $budgetRevenue,
+            'expense_deviation' => $totalExpenses - $budgetExpenses,
+            'budget_result_planned' => $budgetResultPlanned,
+            'budget_deviation' => $balance - $budgetResultPlanned,
         ];
     }
 

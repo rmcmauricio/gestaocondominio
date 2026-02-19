@@ -289,14 +289,16 @@ class FinanceController extends Controller
         )));
         sort($availableYears);
 
-        // Chart: evolução receitas/despesas/saldo início ano por ano
+        // Chart: evolução receitas/despesas/saldo início ano por ano (anos em ordem crescente)
         $chartLabels = [];
         $chartRevenues = [];
         $chartExpenses = [];
         $chartSaldoInicio = [];
         $bankAccountModel = new BankAccount();
         $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
-        foreach ($allBudgets as $b) {
+        $allBudgetsSorted = $allBudgets;
+        usort($allBudgetsSorted, fn($a, $b) => (int)$a['year'] <=> (int)$b['year']);
+        foreach ($allBudgetsSorted as $b) {
             $year = (int)$b['year'];
             $chartLabels[] = (string)$year;
             $chartRevenues[] = (float)$this->budgetItemModel->getTotalByType($b['id'], 'Receita');
