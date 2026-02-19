@@ -87,11 +87,30 @@
         </div>
         <div class="card-body">
             {% if transactions %}
+            {% if is_admin %}
+            <form id="form-bulk-delete-movements" method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/financial-transactions/bulk-delete" class="mb-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <label class="d-inline-flex align-items-center gap-1 mb-0">
+                        <input type="checkbox" id="bulk-select-all" class="form-check-input" title="Selecionar todos (apenas movimentos sem quotas)">
+                        <span class="small text-muted">Selecionar todos (apenas sem quotas)</span>
+                    </label>
+                    <button type="submit" class="btn btn-outline-danger btn-sm" id="btn-bulk-delete-movements" form="form-bulk-delete-movements" disabled data-confirm="Tem certeza que deseja eliminar os movimentos selecionados? Apenas movimentos sem quotas associadas serão eliminados.">
+                        <i class="bi bi-trash"></i> Eliminar selecionados (<span id="bulk-delete-count">0</span>)
+                    </button>
+                </div>
+            </form>
+            {% endif %}
             <!-- Desktop Table View -->
             <div class="table-responsive d-none d-lg-block" id="financial-transactions-table-container" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
                 <table class="table table-excel" id="financial-transactions-table" style="min-width: 100%; width: max-content;">
                     <thead>
                         <tr>
+                            {% if is_admin %}
+                            <th style="width: 44px; text-align: center;" title="Selecionar para eliminar">
+                                <input type="checkbox" class="form-check-input" id="bulk-select-all-table" title="Selecionar todos (apenas sem quotas)" aria-label="Selecionar todos">
+                            </th>
+                            {% endif %}
                             <th style="width: 60px; text-align: center;" title="ID">ID</th>
                             <th style="width: 50px; text-align: center;" title="Tipo">Tipo</th>
                             <th style="width: 100px;">Data</th>
@@ -110,6 +129,15 @@
                     <tbody>
                         {% for transaction in transactions %}
                         <tr class="transaction-row" style="cursor: pointer;" data-transaction-id="{{ transaction.id }}" data-transaction-type="{{ transaction.transaction_type }}" data-bank-account-id="{{ transaction.bank_account_id }}" title="Clique para ver detalhes">
+                            {% if is_admin %}
+                            <td class="no-row-click" style="text-align: center; vertical-align: middle;">
+                                {% if transaction.can_bulk_delete %}
+                                <input type="checkbox" class="form-check-input bulk-delete-cb" name="ids[]" value="{{ transaction.id }}" form="form-bulk-delete-movements" aria-label="Selecionar movimento #{{ transaction.id }}">
+                                {% else %}
+                                <span class="text-muted" title="Movimento com quotas associadas">—</span>
+                                {% endif %}
+                            </td>
+                            {% endif %}
                             <td style="text-align: center;"><span class="text-muted">#{{ transaction.id }}</span></td>
                             <td style="text-align: center;">
                                 {% if transaction.transaction_type == 'income' %}
@@ -225,6 +253,13 @@
                     <div class="col-12">
                         <div class="card shadow-sm transaction-card {% if transaction.transaction_type == 'income' %}border-success border-2{% else %}border-danger border-2{% endif %}" style="cursor: pointer;" data-transaction-id="{{ transaction.id }}" data-transaction-type="{{ transaction.transaction_type }}" data-bank-account-id="{{ transaction.bank_account_id }}" title="Clique para ver detalhes">
                             <div class="card-body">
+                                {% if is_admin and transaction.can_bulk_delete %}
+                                <div class="mb-2 no-row-click">
+                                    <label class="d-inline-flex align-items-center gap-1 mb-0 small text-muted">
+                                        <input type="checkbox" class="form-check-input bulk-delete-cb" name="ids[]" value="{{ transaction.id }}" form="form-bulk-delete-movements" aria-label="Selecionar movimento #{{ transaction.id }}"> Selecionar para eliminar
+                                    </label>
+                                </div>
+                                {% endif %}
                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                     <div class="flex-grow-1">
                                         <div class="d-flex align-items-center gap-2 mb-2">
@@ -522,8 +557,8 @@ body #financial-transactions-table-container #financial-transactions-table tbody
         const headers = table.querySelectorAll('thead th');
 
         headers.forEach((th, index) => {
-            // Skip last column (actions) - don't make it resizable
-            if (index === headers.length - 1) return;
+            // Skip first column (selection) and last column (actions) - don't make resizable
+            if (index === 0 || index === headers.length - 1) return;
 
             // Store original width
             const originalWidth = th.style.width || window.getComputedStyle(th).width;
@@ -599,6 +634,53 @@ body #financial-transactions-table-container #financial-transactions-table tbody
     }
 })();
 </script>
+
+{% if is_admin %}
+<script>
+(function() {
+    const form = document.getElementById('form-bulk-delete-movements');
+    const countEl = document.getElementById('bulk-delete-count');
+    const btnBulk = document.getElementById('btn-bulk-delete-movements');
+    const checkboxes = document.querySelectorAll('.bulk-delete-cb');
+    const selectAllTop = document.getElementById('bulk-select-all');
+    const selectAllTable = document.getElementById('bulk-select-all-table');
+
+    function updateBulkState() {
+        const n = document.querySelectorAll('.bulk-delete-cb:checked').length;
+        if (countEl) countEl.textContent = n;
+        if (btnBulk) {
+            btnBulk.disabled = n === 0;
+            if (n > 0) btnBulk.innerHTML = '<i class="bi bi-trash"></i> Eliminar selecionados (' + n + ')';
+        }
+        if (selectAllTop) selectAllTop.checked = n > 0 && n === checkboxes.length;
+        if (selectAllTable) selectAllTable.checked = n > 0 && n === checkboxes.length;
+    }
+
+    function setAll(checked) {
+        checkboxes.forEach(function(cb) { cb.checked = checked; });
+        updateBulkState();
+    }
+
+    if (selectAllTop) {
+        selectAllTop.addEventListener('change', function() { setAll(this.checked); });
+    }
+    if (selectAllTable) {
+        selectAllTable.addEventListener('change', function() { setAll(this.checked); });
+    }
+    checkboxes.forEach(function(cb) {
+        cb.addEventListener('change', updateBulkState);
+        cb.addEventListener('click', function(e) { e.stopPropagation(); });
+    });
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            var msg = btnBulk && btnBulk.getAttribute('data-confirm');
+            if (msg && !confirm(msg)) e.preventDefault();
+        });
+    }
+    updateBulkState();
+})();
+</script>
+{% endif %}
 
 <!-- Modal Marcar como transferência (lista de movimentos) -->
 {% if is_admin and accounts|length >= 2 %}

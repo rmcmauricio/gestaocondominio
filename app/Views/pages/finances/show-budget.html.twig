@@ -152,9 +152,70 @@
                 <i class="bi bi-calculator"></i> Gerar Quotas
             </a>
             {% endif %}
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalDeleteBudget" title="Eliminar orçamento (requer dupla validação)">
+                <i class="bi bi-trash"></i> Eliminar Orçamento
+            </button>
         </div>
     </div>
 </div>
+
+<!-- Modal Eliminar Orçamento (dupla validação) -->
+<div class="modal fade" id="modalDeleteBudget" tabindex="-1" aria-labelledby="modalDeleteBudgetLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/budgets/{{ budget.id }}/delete" id="formDeleteBudget">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalDeleteBudgetLabel"><i class="bi bi-exclamation-triangle text-danger"></i> Eliminar Orçamento {{ budget.year }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-danger mb-3">Esta ação é irreversível. O orçamento e todos os itens serão eliminados.</p>
+                    <p class="mb-2">Para confirmar, assinale a caixa abaixo e escreva <strong>ELIMINAR</strong> no campo:</p>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="confirm_delete" value="1" id="deleteBudgetConfirmCheck" required>
+                        <label class="form-check-label" for="deleteBudgetConfirmCheck">Confirmo que desejo eliminar o orçamento do ano {{ budget.year }}</label>
+                    </div>
+                    <div class="mb-0">
+                        <label for="deleteBudgetConfirmText" class="form-label">Escreva ELIMINAR para confirmar</label>
+                        <input type="text" class="form-control" name="confirm_text" id="deleteBudgetConfirmText" placeholder="ELIMINAR" required maxlength="20" autocomplete="off">
+                        <div class="invalid-feedback">Deve escrever exactamente ELIMINAR.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger" id="btnDeleteBudgetSubmit" disabled>
+                        <i class="bi bi-trash"></i> Eliminar Orçamento
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var modal = document.getElementById('modalDeleteBudget');
+    var form = document.getElementById('formDeleteBudget');
+    var check = document.getElementById('deleteBudgetConfirmCheck');
+    var textInput = document.getElementById('deleteBudgetConfirmText');
+    var btnSubmit = document.getElementById('btnDeleteBudgetSubmit');
+    if (!modal || !form || !check || !textInput || !btnSubmit) return;
+    function validate() {
+        var ok = check.checked && textInput.value.trim() === 'ELIMINAR';
+        btnSubmit.disabled = !ok;
+        textInput.classList.toggle('is-invalid', textInput.value.trim() !== '' && textInput.value.trim() !== 'ELIMINAR');
+    }
+    check.addEventListener('change', validate);
+    textInput.addEventListener('input', validate);
+    textInput.addEventListener('blur', validate);
+    modal.addEventListener('show.bs.modal', function() {
+        check.checked = false;
+        textInput.value = '';
+        btnSubmit.disabled = true;
+        textInput.classList.remove('is-invalid');
+    });
+})();
+</script>
 
 
 

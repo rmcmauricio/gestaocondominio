@@ -321,6 +321,8 @@ class FinanceController extends Controller
         $success = $_SESSION['success'] ?? null;
         unset($_SESSION['error'], $_SESSION['success']);
 
+        $budgetHistory = $this->getBudgetHistoryForCondominium($condominiumId, $allBudgets);
+
         $this->data += [
             'viewName' => 'pages/finances/budgets.html.twig',
             'page' => ['titulo' => 'Orçamentos'],
@@ -339,12 +341,120 @@ class FinanceController extends Controller
             'chart_expenses' => $chartExpenses,
             'chart_saldo_inicio' => $chartSaldoInicio,
             'is_admin' => $isAdmin,
+            'budget_history' => $budgetHistory['events'],
+            'budget_history_user_names' => $budgetHistory['user_names'],
             'error' => $error,
             'success' => $success,
             'user' => AuthMiddleware::user()
         ];
 
         $this->renderMainTemplate();
+    }
+
+    /**
+     * Histórico de criação/aprovação/edição/eliminação de orçamentos (mini log) a partir de audit_logs e audit_financial.
+     */
+    private function getBudgetHistoryForCondominium(int $condominiumId, array $allBudgets): array
+    {
+        global $db;
+        if (!$db) {
+            return ['events' => [], 'user_names' => []];
+        }
+
+        $budgetIds = array_column($allBudgets, 'id');
+        $events = [];
+        $userIds = [];
+
+        // audit_financial: eliminações e outros eventos de orçamento
+        $stmt = $db->prepare("
+            SELECT id, entity_id, action, description, user_id, created_at, new_status, old_status
+            FROM audit_financial
+            WHERE condominium_id = :cid AND entity_type = 'budget'
+            ORDER BY created_at DESC
+            LIMIT 100
+        ");
+        $stmt->execute([':cid' => $condominiumId]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $r) {
+            $budgetIds[] = (int)$r['entity_id'];
+            $label = 'Eliminação';
+            if (($r['action'] ?? '') === 'budget_deleted') {
+                $label = 'Eliminação';
+            } elseif (($r['action'] ?? '') === 'budget_approved' || (($r['new_status'] ?? '') === 'approved')) {
+                $label = 'Aprovação';
+            }
+            $events[] = [
+                'created_at' => $r['created_at'],
+                'action_type' => $r['action'] ?? 'budget_deleted',
+                'label' => $label,
+                'description' => $r['description'] ?? '',
+                'user_id' => $r['user_id'] ? (int)$r['user_id'] : null,
+                'entity_id' => (int)$r['entity_id'],
+                'source' => 'audit_financial',
+            ];
+            if (!empty($r['user_id'])) {
+                $userIds[(int)$r['user_id']] = true;
+            }
+        }
+
+        $budgetIds = array_values(array_unique(array_filter($budgetIds)));
+        if (!empty($budgetIds)) {
+            $placeholders = implode(',', array_fill(0, count($budgetIds), '?'));
+            $stmt = $db->prepare("
+                SELECT id, model_id, action, operation, description, new_data, user_id, created_at
+                FROM audit_logs
+                WHERE (table_name = 'budgets' OR model = 'budgets') AND model_id IN ({$placeholders})
+                ORDER BY created_at DESC
+                LIMIT 100
+            ");
+            $stmt->execute($budgetIds);
+            $logRows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            foreach ($logRows as $r) {
+                $op = $r['operation'] ?? $r['action'] ?? '';
+                $label = 'Edição';
+                if ($op === 'insert') {
+                    $label = 'Criação';
+                } elseif ($op === 'update') {
+                    $newData = $r['new_data'] ?? null;
+                    if (is_string($newData)) {
+                        $dec = json_decode($newData, true);
+                        if (is_array($dec) && isset($dec['status']) && $dec['status'] === 'approved') {
+                            $label = 'Aprovação';
+                        }
+                    }
+                }
+                $events[] = [
+                    'created_at' => $r['created_at'],
+                    'action_type' => $op,
+                    'label' => $label,
+                    'description' => $r['description'] ?? '',
+                    'user_id' => $r['user_id'] ? (int)$r['user_id'] : null,
+                    'entity_id' => (int)($r['model_id'] ?? 0),
+                    'source' => 'audit_logs',
+                ];
+                if (!empty($r['user_id'])) {
+                    $userIds[(int)$r['user_id']] = true;
+                }
+            }
+        }
+
+        usort($events, function ($a, $b) {
+            return strcmp($b['created_at'], $a['created_at']);
+        });
+        $events = array_slice($events, 0, 50);
+
+        $userNames = [];
+        if (!empty($userIds)) {
+            $uids = array_keys($userIds);
+            $ph = implode(',', array_fill(0, count($uids), '?'));
+            $stmt = $db->prepare("SELECT id, name FROM users WHERE id IN ({$ph})");
+            $stmt->execute($uids);
+            foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $u) {
+                $userNames[(int)$u['id']] = $u['name'] ?? ('#' . $u['id']);
+            }
+        }
+
+        return ['events' => $events, 'user_names' => $userNames];
     }
 
     public function createBudget(int $condominiumId)
@@ -1523,6 +1633,80 @@ class FinanceController extends Controller
 
         header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/budgets/' . $id);
         exit;
+    }
+
+    /**
+     * Delete budget with double validation (confirm_delete + confirm_text ELIMINAR) and audit log.
+     */
+    public function deleteBudget(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/budgets/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/budgets/' . $id);
+            exit;
+        }
+
+        // Dupla validação: checkbox e texto "ELIMINAR"
+        $confirmDelete = !empty($_POST['confirm_delete']) && $_POST['confirm_delete'] === '1';
+        $confirmText = trim($_POST['confirm_text'] ?? '');
+        if (!$confirmDelete || $confirmText !== 'ELIMINAR') {
+            $_SESSION['error'] = 'Para eliminar o orçamento deve assinalar a confirmação e escrever exactamente "ELIMINAR".';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/budgets/' . $id);
+            exit;
+        }
+
+        $budget = $this->budgetModel->findById($id);
+        if (!$budget || (int)($budget['condominium_id'] ?? 0) !== $condominiumId) {
+            $_SESSION['error'] = 'Orçamento não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/budgets');
+            exit;
+        }
+
+        $year = (int)($budget['year'] ?? 0);
+        $userId = AuthMiddleware::userId();
+
+        try {
+            global $db;
+            $db->beginTransaction();
+
+            // Registo de auditoria antes de eliminar
+            $this->auditService->logFinancial([
+                'condominium_id' => $condominiumId,
+                'entity_type' => 'budget',
+                'entity_id' => $id,
+                'action' => 'budget_deleted',
+                'user_id' => $userId,
+                'amount' => $budget['total_amount'] ?? null,
+                'old_status' => $budget['status'] ?? null,
+                'new_status' => 'deleted',
+                'description' => 'Orçamento eliminado (dupla validação). Ano: ' . $year . ', ID: ' . $id . ', Total: €' . number_format((float)($budget['total_amount'] ?? 0), 2, ',', '.') . '. Utilizador confirmou com texto ELIMINAR.',
+            ]);
+
+            $this->budgetItemModel->deleteByBudget($id);
+            $this->budgetModel->delete($id);
+
+            $db->commit();
+            $_SESSION['success'] = 'Orçamento do ano ' . $year . ' foi eliminado com sucesso.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/budgets');
+            exit;
+        } catch (\Exception $e) {
+            if (isset($db)) {
+                $db->rollBack();
+            }
+            $_SESSION['error'] = 'Erro ao eliminar orçamento: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/budgets/' . $id);
+            exit;
+        }
     }
 
     public function generateFees(int $condominiumId)
