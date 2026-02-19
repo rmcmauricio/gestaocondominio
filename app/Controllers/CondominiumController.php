@@ -283,6 +283,20 @@ class CondominiumController extends Controller
             exit;
         }
 
+        // Condómino: mostrar o painel condómino (dashboard) em vez da visão geral do condomínio
+        $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $id);
+        if ($userRole !== 'admin') {
+            $dashboardController = new \App\Controllers\DashboardController();
+            $this->data = array_merge($this->data, $dashboardController->getCondominoDashboardData());
+            $this->data['viewName'] = 'pages/dashboard/condomino.html.twig';
+            $this->data['page'] = ['titulo' => 'Painel Condómino'];
+            $this->data['condominium'] = $condominium;
+            $this->loadPageTranslations('dashboard');
+            $this->data = $this->mergeGlobalData($this->data);
+            $this->renderMainTemplate();
+            return;
+        }
+
         global $db;
         
         // Get bank accounts information

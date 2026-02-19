@@ -87,8 +87,8 @@
     <div class="card shadow">
         <div class="card-body text-center py-5">
             <i class="bi bi-truck display-1 text-muted"></i>
-            <h4 class="mt-3">Nenhum fornecedor cadastrado</h4>
-            <p class="text-muted">{% if is_admin %}Comece adicionando o primeiro fornecedor{% else %}Ainda não há fornecedores cadastrados{% endif %}</p>
+            <h4 class="mt-3">Nenhum fornecedor registado</h4>
+            <p class="text-muted">{% if is_admin %}Comece adicionando o primeiro fornecedor{% else %}Ainda não há fornecedores registados{% endif %}</p>
             {% if is_admin %}
             <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/suppliers/create" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> Adicionar Fornecedor

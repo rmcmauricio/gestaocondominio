@@ -189,8 +189,9 @@ class FinancialTransactionController extends Controller
             return ($b['id'] ?? 0) <=> ($a['id'] ?? 0); // DESC - newest first
         });
         
-        // Get liquidated fees for each transaction
+        // Get liquidated fees for each transaction and remaining amount (for "Liquidar mais" button)
         $liquidatedFeesByTransaction = [];
+        $remainingAmountByTransaction = [];
         $feePaymentModel = new FeePayment();
         $feeModel = new Fee();
         
@@ -215,6 +216,7 @@ class FinancialTransactionController extends Controller
                 
                 if (!empty($feePayments)) {
                     $liquidatedFees = [];
+                    $allocated = 0.0;
                     foreach ($feePayments as $fp) {
                         $label = self::feeLabel([
                             'fee_type' => $fp['fee_type'],
@@ -222,12 +224,18 @@ class FinancialTransactionController extends Controller
                             'period_year' => $fp['period_year'],
                             'period_month' => $fp['period_month']
                         ]);
+                        $amt = (float)$fp['amount'];
+                        $allocated += $amt;
                         $liquidatedFees[] = [
                             'label' => $label,
-                            'amount' => (float)$fp['amount']
+                            'amount' => $amt
                         ];
                     }
                     $liquidatedFeesByTransaction[$transaction['id']] = $liquidatedFees;
+                    $remaining = (float)$transaction['amount'] - $allocated;
+                    if ($remaining > 0) {
+                        $remainingAmountByTransaction[$transaction['id']] = round($remaining, 2);
+                    }
                 }
             }
         }
@@ -273,6 +281,7 @@ class FinancialTransactionController extends Controller
             'filters' => $filters,
             'fractions' => $fractions,
             'liquidatedFeesByTransaction' => $liquidatedFeesByTransaction,
+            'remainingAmountByTransaction' => $remainingAmountByTransaction,
             'revenue_categories' => $revenueCategories,
             'expense_categories' => $expenseCategories,
             'is_admin' => $isAdmin,
@@ -688,9 +697,20 @@ class FinancialTransactionController extends Controller
             }
         }
 
+        $amountAllocated = 0.0;
+        $remainingAmount = (float)$transaction['amount'];
+        if ($transaction['transaction_type'] === 'income') {
+            foreach ($liquidatedFees as $lf) {
+                $amountAllocated += $lf['amount'];
+            }
+            $remainingAmount = (float)$transaction['amount'] - $amountAllocated;
+        }
+
         echo json_encode([
             'transaction' => $transaction,
-            'liquidated_fees' => $liquidatedFees
+            'liquidated_fees' => $liquidatedFees,
+            'amount_allocated' => round($amountAllocated, 2),
+            'remaining_amount' => round($remainingAmount, 2)
         ]);
         exit;
     }
@@ -1196,18 +1216,30 @@ class FinancialTransactionController extends Controller
                         'description' => "Pagamento de quota eliminado com movimento. Quota ID: {$feeId}, Pagamento ID: {$paymentId}, Valor: €" . number_format((float)$payment['amount'], 2, ',', '.') . ", Movimento: #{$id}"
                     ]);
 
-                    if (empty($payment['financial_transaction_id'])) {
-                        $stmt = $db->prepare("
-                            SELECT id, fraction_account_id, amount
-                            FROM fraction_account_movements
-                            WHERE source_reference_id = :payment_id AND source_type = 'quota_application' AND type = 'debit'
-                        ");
-                        $stmt->execute([':payment_id' => $paymentId]);
-                        $debitMovements = $stmt->fetchAll() ?: [];
-                        foreach ($debitMovements as $mov) {
-                            $amt = (float)$mov['amount'];
-                            $faId = (int)$mov['fraction_account_id'];
-                            $movId = (int)$mov['id'];
+                    // Débitos na conta da fração: se pagamento ligado a movimento, reclassificar como quota_unlink (não gerar crédito); senão reverter
+                    $stmt = $db->prepare("
+                        SELECT id, fraction_account_id, amount, source_financial_transaction_id
+                        FROM fraction_account_movements
+                        WHERE source_reference_id = :payment_id AND source_type = 'quota_application' AND type = 'debit'
+                    ");
+                    $stmt->execute([':payment_id' => $paymentId]);
+                    $debitMovements = $stmt->fetchAll() ?: [];
+                    foreach ($debitMovements as $mov) {
+                        $amt = (float)$mov['amount'];
+                        $faId = (int)$mov['fraction_account_id'];
+                        $movId = (int)$mov['id'];
+                        $ftId = !empty($mov['source_financial_transaction_id']) ? (int)$mov['source_financial_transaction_id'] : (!empty($payment['financial_transaction_id']) ? (int)$payment['financial_transaction_id'] : null);
+                        $linkedToMovement = !empty($payment['financial_transaction_id']) || !empty($mov['source_financial_transaction_id']);
+                        if ($linkedToMovement) {
+                            $db->prepare("
+                                UPDATE fraction_account_movements
+                                SET source_type = 'quota_unlink',
+                                    source_reference_id = :ft_id,
+                                    source_financial_transaction_id = :ft_id2,
+                                    description = 'Valor libertado para movimento (desassociação de quota)'
+                                WHERE id = :id
+                            ")->execute([':ft_id' => $ftId ?: $paymentId, ':ft_id2' => $ftId, ':id' => $movId]);
+                        } else {
                             $db->prepare("UPDATE fraction_accounts SET balance = balance + :amt WHERE id = :id")
                                 ->execute([':amt' => $amt, ':id' => $faId]);
                             $db->prepare("DELETE FROM fraction_account_movements WHERE id = :id")
@@ -2301,11 +2333,19 @@ class FinancialTransactionController extends Controller
             exit;
         }
 
-        // Check if already linked to fee payment
-        if ($this->transactionModel->isLinkedToFeePayment($id)) {
-            $_SESSION['error'] = 'Este movimento já está associado a pagamentos de quotas.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
-            exit;
+        $alreadyLinked = $this->transactionModel->isLinkedToFeePayment($id);
+        $amountAllocated = 0.0;
+        if ($alreadyLinked) {
+            global $db;
+            $stmt = $db->prepare("SELECT COALESCE(SUM(amount), 0) as total FROM fee_payments WHERE financial_transaction_id = :id");
+            $stmt->execute([':id' => $id]);
+            $amountAllocated = (float)($stmt->fetch(\PDO::FETCH_ASSOC)['total'] ?? 0);
+            $remainingAmount = (float)$transaction['amount'] - $amountAllocated;
+            if ($remainingAmount <= 0) {
+                $_SESSION['error'] = 'Não há valor restante neste movimento para associar a mais quotas.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
+                exit;
+            }
         }
 
         $fractionId = !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null;
@@ -2347,16 +2387,20 @@ class FinancialTransactionController extends Controller
                 $existingBalance = (float)($account['balance'] ?? 0.0);
             }
 
-            // Add credit to fraction account from transaction
-            $movementId = $faModel->addCredit(
-                $accountId,
-                $transactionAmount,
-                'quota_payment',
-                $id,
-                'Crédito por liquidação de quotas - Movimento #' . $id
-            );
+            $movementId = null;
+            if (!$alreadyLinked) {
+                // Add credit to fraction account from transaction (first liquidation)
+                $movementId = $faModel->addCredit(
+                    $accountId,
+                    $transactionAmount,
+                    'quota_payment',
+                    $id,
+                    'Crédito por liquidação de quotas - Movimento #' . $id
+                );
+            }
+            // When already linked, the remaining amount is already in the fraction account from the first run; do not add credit again
 
-            // Liquidate fees (will use existing balance + transaction credit)
+            // Liquidate fees (will use existing balance + transaction credit, or only existing balance when already linked)
             $liquidationService = new LiquidationService();
             $result = $liquidationService->liquidateSelectedFees(
                 $fractionId,

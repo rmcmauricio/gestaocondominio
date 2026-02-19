@@ -55,22 +55,20 @@ class ReportService
             return $fees[$key]['status'] === 'paid';
         }, ARRAY_FILTER_USE_BOTH));
 
-        // Receita realizada: mesma fonte que o Resumo Financeiro (movimentos de entrada FT + tabela revenues, por data da transação)
-        $totalRevenueRealized = $this->transactionModel->getTotalByPeriodAndType($condominiumId, $startDate, $endDate, 'income');
-        $totalRevenueRealized += $this->revenueModel->getTotalByPeriod($condominiumId, $startDate, $endDate);
-
-        // Quotas recebidas no ano (por data de pagamento): ano em curso vs anos anteriores (apenas para detalhe)
+        // Quotas recebidas no ano: split pelo ano da quota (fee.period_year), igual à página de teste.
+        // Assim o Balancete bate certo com os valores da página "Teste: Quotas pagas no ano".
         $paidFeesCurrentYear = 0;
         $paidFeesPriorYears = 0;
+        $paidFeesFutureYears = 0;
         global $db;
         if ($db) {
             $stmt = $db->prepare("
-                SELECT f.period_year, COALESCE(SUM(fp.amount), 0) as total
+                SELECT COALESCE(f.period_year, :year) as period_year, COALESCE(SUM(fp.amount), 0) as total
                 FROM fee_payments fp
                 INNER JOIN fees f ON f.id = fp.fee_id
                 WHERE f.condominium_id = :condominium_id
                 AND YEAR(fp.payment_date) = :year
-                GROUP BY f.period_year
+                GROUP BY COALESCE(f.period_year, :year)
             ");
             $stmt->execute([':condominium_id' => $condominiumId, ':year' => $year]);
             foreach ($stmt->fetchAll() ?: [] as $row) {
@@ -80,16 +78,72 @@ class ReportService
                     $paidFeesCurrentYear += $tot;
                 } elseif ($py < $year) {
                     $paidFeesPriorYears += $tot;
+                } else {
+                    $paidFeesFutureYears += $tot;
                 }
             }
         }
+
+        // Saldos restantes de movimentos com categoria Quotas não aplicados a nenhuma quota (ex.: quotas de anos
+        // posteriores ainda não criadas). Contam como "quotas recebidas anos posteriores" e saem de outras receitas.
+        // "Allocated" = pagamentos ligados ao movimento por financial_transaction_id OU por fraction_account_movements.
+        $remainingQuotasNotApplied = 0.0;
+        if ($db) {
+            $stmt = $db->prepare("
+                SELECT COALESCE(SUM(ft.amount - COALESCE(alloc.total, 0)), 0) as remaining_total
+                FROM financial_transactions ft
+                LEFT JOIN (
+                    SELECT linked_ft_id as financial_transaction_id, SUM(amount) as total
+                    FROM (
+                        SELECT fp.id, fp.amount,
+                               COALESCE(fp.financial_transaction_id,
+                                   (SELECT fam.source_financial_transaction_id FROM fraction_account_movements fam
+                                    WHERE fam.source_reference_id = fp.id AND fam.type = 'debit' AND fam.source_type = 'quota_application'
+                                    LIMIT 1)) as linked_ft_id
+                        FROM fee_payments fp
+                        WHERE fp.financial_transaction_id IS NOT NULL
+                           OR EXISTS (SELECT 1 FROM fraction_account_movements fam
+                                      WHERE fam.source_reference_id = fp.id AND fam.type = 'debit' AND fam.source_type = 'quota_application')
+                    ) pay
+                    WHERE linked_ft_id IS NOT NULL
+                    GROUP BY linked_ft_id
+                ) alloc ON alloc.financial_transaction_id = ft.id
+                WHERE ft.condominium_id = :condominium_id
+                AND ft.transaction_type = 'income'
+                AND (ft.related_type = 'fee_payment' OR ft.related_type = 'fraction_account' OR ft.category = 'Quotas')
+                AND COALESCE(ft.related_type, '') != 'transfer'
+                AND ft.transaction_date >= :start
+                AND ft.transaction_date <= :end
+                AND (ft.amount - COALESCE(alloc.total, 0)) > 0
+            ");
+            $stmt->execute([
+                ':condominium_id' => $condominiumId,
+                ':start' => $startDate,
+                ':end' => $endDate,
+            ]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $remainingQuotasNotApplied = (float)($row['remaining_total'] ?? 0);
+        }
+        $paidFeesFutureYears += $remainingQuotasNotApplied;
+
+        // Total receitas do período (FT income + tabela revenues)
+        $totalRevenueRealized = $this->transactionModel->getTotalByPeriodAndType($condominiumId, $startDate, $endDate, 'income');
+        $totalRevenueRealized += $this->revenueModel->getTotalByPeriod($condominiumId, $startDate, $endDate);
+        // Outras receitas = total receitas − quotas (pagamentos aplicados + saldos restantes Quotas não aplicados)
+        $totalQuotasFromPayments = $paidFeesCurrentYear + $paidFeesPriorYears + $paidFeesFutureYears;
+        $otherRevenues = $totalRevenueRealized - $totalQuotasFromPayments;
+        if ($otherRevenues < 0) {
+            $otherRevenues = 0;
+        }
+        // Total quotas (ano em curso + anos anteriores) para comparação com orçamento
+        $totalQuotasReceivedInYear = $paidFeesCurrentYear + $paidFeesPriorYears;
 
         $totalBudget = $budget['total_amount'] ?? 0;
         $pendingFees = $totalFees - $paidFees;
         // Receita e despesa orçamentadas (por categoria Receita: / Despesa:)
         $budgetRevenue = $this->budgetItemModel->getTotalByType((int)$budget['id'], 'Receita:');
         $budgetExpenses = $this->budgetItemModel->getTotalByType((int)$budget['id'], 'Despesa:');
-        // Saldo e desvios com base na receita total realizada (igual ao Resumo Financeiro)
+        // Resultado realizado = total receitas realizadas − despesas
         $balance = $totalRevenueRealized - $totalExpenses;
         $budgetResultPlanned = $budgetRevenue - $budgetExpenses;
         // Diferença = Realizado − Orçamentado (positivo = a mais, negativo = a menos face ao orçamento)
@@ -103,7 +157,11 @@ class ReportService
             'pending_fees' => $pendingFees,
             'paid_fees_current_year' => $paidFeesCurrentYear,
             'paid_fees_prior_years' => $paidFeesPriorYears,
-            'total_quotas_received_in_year' => $totalRevenueRealized,
+            'paid_fees_future_years' => $paidFeesFutureYears,
+            'remaining_quotas_not_applied' => $remainingQuotasNotApplied,
+            'other_revenues' => $otherRevenues,
+            'total_quotas_received_in_year' => $totalQuotasReceivedInYear,
+            'total_revenue_realized' => $totalRevenueRealized,
             'balance' => $balance,
             'budget_result' => $totalBudget - $totalExpenses,
             'budget_revenue' => $budgetRevenue,
@@ -112,6 +170,105 @@ class ReportService
             'expense_deviation' => $totalExpenses - $budgetExpenses,
             'budget_result_planned' => $budgetResultPlanned,
             'budget_deviation' => $balance - $budgetResultPlanned,
+        ];
+    }
+
+    /**
+     * Debug: lista todos os pagamentos de quotas no ano para um condomínio, com ano da quota (period_year).
+     * Útil para despistar Balancete (anos anteriores / adiantamentos).
+     * Retorna: rows (lista por movimento), summary_by_period_year (totais por ano), summary_totals (ano em curso, anteriores, posteriores).
+     */
+    public function getDebugQuotasPaymentsByYear(int $condominiumId, int $year): array
+    {
+        global $db;
+        if (!$db) {
+            return ['rows' => [], 'summary_by_period_year' => [], 'summary_totals' => ['current' => 0, 'prior' => 0, 'future' => 0], 'year' => $year];
+        }
+        $stmt = $db->prepare("
+            SELECT fp.id as payment_id, fp.payment_date, fp.amount, fp.financial_transaction_id,
+                   f.id as fee_id, f.period_year, f.period_month, f.period_index, f.reference as fee_reference,
+                   fr.identifier as fraction_identifier,
+                   ft.category as ft_category
+            FROM fee_payments fp
+            INNER JOIN fees f ON f.id = fp.fee_id
+            INNER JOIN fractions fr ON fr.id = f.fraction_id
+            LEFT JOIN financial_transactions ft ON ft.id = fp.financial_transaction_id
+            WHERE f.condominium_id = :condominium_id
+            AND YEAR(fp.payment_date) = :year
+            ORDER BY fp.payment_date ASC, fp.id ASC, f.period_year ASC
+        ");
+        $stmt->execute([':condominium_id' => $condominiumId, ':year' => $year]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $byPeriodYear = [];
+        $totalCurrent = 0;
+        $totalPrior = 0;
+        $totalFuture = 0;
+        foreach ($rows as $row) {
+            $py = isset($row['period_year']) ? (int)$row['period_year'] : $year;
+            $amount = (float)($row['amount'] ?? 0);
+            $byPeriodYear[$py] = ($byPeriodYear[$py] ?? 0) + $amount;
+            if ($py === $year) {
+                $totalCurrent += $amount;
+            } elseif ($py < $year) {
+                $totalPrior += $amount;
+            } else {
+                $totalFuture += $amount;
+            }
+        }
+        ksort($byPeriodYear);
+
+        // Saldos restantes de movimentos Quotas no ano não aplicados a nenhuma quota (contam como anos posteriores).
+        // "Allocated" = pagamentos ligados ao movimento por financial_transaction_id OU por fraction_account_movements.
+        $remainingQuotasNotApplied = 0.0;
+        $startDate = "{$year}-01-01";
+        $endDate = "{$year}-12-31";
+        $stmtRem = $db->prepare("
+            SELECT COALESCE(SUM(ft.amount - COALESCE(alloc.total, 0)), 0) as remaining_total
+            FROM financial_transactions ft
+            LEFT JOIN (
+                SELECT linked_ft_id as financial_transaction_id, SUM(amount) as total
+                FROM (
+                    SELECT fp.id, fp.amount,
+                           COALESCE(fp.financial_transaction_id,
+                               (SELECT fam.source_financial_transaction_id FROM fraction_account_movements fam
+                                WHERE fam.source_reference_id = fp.id AND fam.type = 'debit' AND fam.source_type = 'quota_application'
+                                LIMIT 1)) as linked_ft_id
+                    FROM fee_payments fp
+                    WHERE fp.financial_transaction_id IS NOT NULL
+                       OR EXISTS (SELECT 1 FROM fraction_account_movements fam
+                                  WHERE fam.source_reference_id = fp.id AND fam.type = 'debit' AND fam.source_type = 'quota_application')
+                ) pay
+                WHERE linked_ft_id IS NOT NULL
+                GROUP BY linked_ft_id
+            ) alloc ON alloc.financial_transaction_id = ft.id
+            WHERE ft.condominium_id = :condominium_id
+            AND ft.transaction_type = 'income'
+            AND (ft.related_type = 'fee_payment' OR ft.related_type = 'fraction_account' OR ft.category = 'Quotas')
+            AND COALESCE(ft.related_type, '') != 'transfer'
+            AND ft.transaction_date >= :start
+            AND ft.transaction_date <= :end
+            AND (ft.amount - COALESCE(alloc.total, 0)) > 0
+        ");
+        $stmtRem->execute([
+            ':condominium_id' => $condominiumId,
+            ':start' => $startDate,
+            ':end' => $endDate,
+        ]);
+        $rowRem = $stmtRem->fetch(\PDO::FETCH_ASSOC);
+        $remainingQuotasNotApplied = (float)($rowRem['remaining_total'] ?? 0);
+        $totalFuture += $remainingQuotasNotApplied;
+
+        return [
+            'year' => $year,
+            'rows' => $rows,
+            'summary_by_period_year' => $byPeriodYear,
+            'summary_totals' => [
+                'current' => $totalCurrent,
+                'prior' => $totalPrior,
+                'future' => $totalFuture,
+            ],
+            'remaining_quotas_not_applied' => $remainingQuotasNotApplied,
         ];
     }
 
@@ -327,6 +484,35 @@ class ReportService
         $stmt->execute([':budget_id' => $budget['id']]);
         $budgetItems = $stmt->fetchAll() ?: [];
 
+        // Despesas realizadas por categoria (evita repetir o total global em todas as linhas)
+        $expensesByCategory = [];
+        foreach ($this->transactionModel->getExpensesByCategory($condominiumId, $startDate, $endDate) as $row) {
+            $expensesByCategory[$row['category']] = (float)$row['total'];
+        }
+
+        // Receitas realizadas por categoria: quotas (fee_payments) + movimentos de entrada por categoria + tabela revenues por categoria
+        $feePaymentsTotal = 0;
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(fp.amount), 0) as total
+            FROM fee_payments fp
+            INNER JOIN fees f ON f.id = fp.fee_id
+            WHERE f.condominium_id = :condominium_id
+            AND YEAR(fp.payment_date) = :year
+        ");
+        $stmt->execute([':condominium_id' => $condominiumId, ':year' => $year]);
+        $result = $stmt->fetch();
+        $feePaymentsTotal = (float)($result['total'] ?? 0);
+
+        $incomesByCategory = [];
+        foreach ($this->transactionModel->getIncomesByCategory($condominiumId, $startDate, $endDate) as $row) {
+            $incomesByCategory[$row['category']] = (float)$row['total'];
+        }
+
+        $revenuesByCategory = [];
+        foreach ($this->revenueModel->getRevenuesByCategory($condominiumId, $startDate, $endDate) as $row) {
+            $revenuesByCategory[$row['category']] = (float)$row['total'];
+        }
+
         $comparison = [];
         $totalBudgeted = 0;
         $totalActual = 0;
@@ -334,33 +520,17 @@ class ReportService
         foreach ($budgetItems as $item) {
             $isRevenue = strpos($item['category'], 'Receita:') === 0;
             $category = str_replace(['Receita: ', 'Despesa: '], '', $item['category']);
-            
+
             $actual = 0;
             if ($isRevenue) {
-                // Receitas realizadas: fee_payments + income FT (excl. transferências) + tabela revenues
-                $stmt = $db->prepare("
-                    SELECT COALESCE(SUM(fp.amount), 0) as total
-                    FROM fee_payments fp
-                    INNER JOIN fees f ON f.id = fp.fee_id
-                    WHERE f.condominium_id = :condominium_id
-                    AND YEAR(fp.payment_date) = :year
-                ");
-                $stmt->execute([
-                    ':condominium_id' => $condominiumId,
-                    ':year' => $year
-                ]);
-                $result = $stmt->fetch();
-                $actual = (float)($result['total'] ?? 0);
-                $actual += $this->transactionModel->getTotalByPeriodAndType($condominiumId, $startDate, $endDate, 'income');
-                $actual += $this->revenueModel->getTotalByPeriod($condominiumId, $startDate, $endDate);
+                // Receitas realizadas por categoria: Quotas = fee_payments + entradas/revenues na mesma categoria
+                $actual = ($incomesByCategory[$category] ?? 0) + ($revenuesByCategory[$category] ?? 0);
+                if (strcasecmp($category, 'Quotas') === 0) {
+                    $actual += $feePaymentsTotal;
+                }
             } else {
-                // Despesas realizadas: financial_transactions expense, excluindo transferências
-                $actual = $this->transactionModel->getTotalByPeriodAndType(
-                    $condominiumId,
-                    $startDate,
-                    $endDate,
-                    'expense'
-                );
+                // Despesas realizadas: total da categoria (não o total global)
+                $actual = $expensesByCategory[$category] ?? 0;
             }
 
             $variance = $actual - $item['amount'];

@@ -30,6 +30,17 @@
         </div>
     </div>
 
+    <!-- Teste: Quotas pagas no ano (despiste Balancete) -->
+    <div class="card shadow-sm mt-4 border-warning">
+        <div class="card-body">
+            <h5 class="card-title"><i class="bi bi-bug"></i> Teste: Quotas pagas no ano</h5>
+            <p class="card-text text-muted small">Lista todos os pagamentos de quotas no ano com o ano da quota (period_year). Ajuda a despistar valores do Balancete (anos anteriores / adiantamentos).</p>
+            <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/debug-quotas-payments?year={{ current_year }}" class="btn btn-outline-warning btn-sm">
+                <i class="bi bi-list-ul"></i> Abrir página de teste
+            </a>
+        </div>
+    </div>
+
     <!-- Relatórios Personalizados -->
     <div class="card shadow-sm mt-4">
         <div class="card-header">

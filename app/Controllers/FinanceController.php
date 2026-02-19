@@ -2939,16 +2939,16 @@ class FinanceController extends Controller
             $byFraction[(int)$a['fraction_id']] = $a;
         }
 
-        // Condómino: filtrar pelas suas frações
-        if (!$isAdmin) {
-            $cuModel = new \App\Models\CondominiumUser();
-            $ucs = $cuModel->getUserCondominiums($userId);
-            $userFractionIds = array_filter(array_unique(array_column(
-                array_filter($ucs, fn($u) => (int)($u['condominium_id'] ?? 0) === $condominiumId && !empty($u['fraction_id'])),
-                'fraction_id'
-            )));
-            $allFractions = array_filter($allFractions, fn($f) => in_array((int)$f['id'], $userFractionIds));
+        // Frações do utilizador neste condomínio (para destacar na lista quando for condómino)
+        $userFractionIds = [];
+        $cuModel = new \App\Models\CondominiumUser();
+        $ucs = $cuModel->getUserCondominiums($userId);
+        foreach ($ucs as $u) {
+            if ((int)($u['condominium_id'] ?? 0) === $condominiumId && !empty($u['fraction_id'])) {
+                $userFractionIds[] = (int)$u['fraction_id'];
+            }
         }
+        $userFractionIds = array_values(array_unique($userFractionIds));
 
         $rows = [];
         foreach ($allFractions as $f) {
@@ -2980,6 +2980,7 @@ class FinanceController extends Controller
             'condominium' => $condominium,
             'rows' => $rows,
             'is_admin' => $isAdmin,
+            'user_fraction_ids' => $userFractionIds,
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null
         ];
@@ -3663,18 +3664,29 @@ class FinanceController extends Controller
             $historyModel->logDeletion($paymentId, $id, $userId, $p,
                 'Desassociação: Pagamento eliminado €' . number_format((float)$p['amount'], 2, ',', '.') . ' (' . ($p['payment_method'] ?? 'N/A') . ')');
 
-            if (empty($p['financial_transaction_id'])) {
-                $stmt = $db->prepare("
-                    SELECT id, fraction_account_id, amount
-                    FROM fraction_account_movements
-                    WHERE source_reference_id = :payment_id AND source_type = 'quota_application' AND type = 'debit'
-                ");
-                $stmt->execute([':payment_id' => $paymentId]);
-                $debitMovements = $stmt->fetchAll() ?: [];
-                foreach ($debitMovements as $mov) {
-                    $amt = (float)$mov['amount'];
-                    $faId = (int)$mov['fraction_account_id'];
-                    $movId = (int)$mov['id'];
+            $stmt = $db->prepare("
+                SELECT id, fraction_account_id, amount, source_financial_transaction_id
+                FROM fraction_account_movements
+                WHERE source_reference_id = :payment_id AND source_type = 'quota_application' AND type = 'debit'
+            ");
+            $stmt->execute([':payment_id' => $paymentId]);
+            $debitMovements = $stmt->fetchAll() ?: [];
+            foreach ($debitMovements as $mov) {
+                $amt = (float)$mov['amount'];
+                $faId = (int)$mov['fraction_account_id'];
+                $movId = (int)$mov['id'];
+                $ftId = !empty($mov['source_financial_transaction_id']) ? (int)$mov['source_financial_transaction_id'] : (!empty($p['financial_transaction_id']) ? (int)$p['financial_transaction_id'] : null);
+                $linkedToMovement = !empty($p['financial_transaction_id']) || !empty($mov['source_financial_transaction_id']);
+                if ($linkedToMovement) {
+                    $db->prepare("
+                        UPDATE fraction_account_movements
+                        SET source_type = 'quota_unlink',
+                            source_reference_id = :ft_id,
+                            source_financial_transaction_id = :ft_id2,
+                            description = 'Valor libertado para movimento (desassociação de quota)'
+                        WHERE id = :id
+                    ")->execute([':ft_id' => $ftId ?: $paymentId, ':ft_id2' => $ftId, ':id' => $movId]);
+                } else {
                     $db->prepare("UPDATE fraction_accounts SET balance = balance + :amt WHERE id = :id")
                         ->execute([':amt' => $amt, ':id' => $faId]);
                     $db->prepare("DELETE FROM fraction_account_movements WHERE id = :id")
@@ -4947,20 +4959,35 @@ class FinanceController extends Controller
             'description' => "Pagamento de quota eliminado. Quota ID: {$feeId}, Pagamento ID: {$paymentId}, Valor: €" . number_format((float)$payment['amount'], 2, ',', '.') . ", Método: {$payment['payment_method']}"
         ]);
 
-        // Se o pagamento veio de aplicação de crédito (sem movimento financeiro), reverter o débito na conta da fração
-        if (empty($payment['financial_transaction_id'])) {
-            global $db;
-            $stmt = $db->prepare("
-                SELECT id, fraction_account_id, amount 
-                FROM fraction_account_movements 
-                WHERE source_reference_id = :payment_id AND source_type = 'quota_application' AND type = 'debit'
-            ");
-            $stmt->execute([':payment_id' => $paymentId]);
-            $debitMovements = $stmt->fetchAll() ?: [];
-            foreach ($debitMovements as $mov) {
-                $amt = (float)$mov['amount'];
-                $faId = (int)$mov['fraction_account_id'];
-                $movId = (int)$mov['id'];
+        // Débitos na conta da fração associados a este pagamento (quota_application)
+        global $db;
+        $stmt = $db->prepare("
+            SELECT id, fraction_account_id, amount, source_financial_transaction_id
+            FROM fraction_account_movements
+            WHERE source_reference_id = :payment_id AND source_type = 'quota_application' AND type = 'debit'
+        ");
+        $stmt->execute([':payment_id' => $paymentId]);
+        $debitMovements = $stmt->fetchAll() ?: [];
+        $transactionIdFromDebit = null;
+        foreach ($debitMovements as $mov) {
+            $amt = (float)$mov['amount'];
+            $faId = (int)$mov['fraction_account_id'];
+            $movId = (int)$mov['id'];
+            $ftId = !empty($mov['source_financial_transaction_id']) ? (int)$mov['source_financial_transaction_id'] : (!empty($payment['financial_transaction_id']) ? (int)$payment['financial_transaction_id'] : null);
+            $linkedToMovement = !empty($payment['financial_transaction_id']) || !empty($mov['source_financial_transaction_id']);
+            if ($linkedToMovement) {
+                $transactionIdFromDebit = $ftId;
+                // Pagamento ligado a movimento: apenas desassociar — reclassificar débito como "valor libertado para movimento" (não gerar crédito na conta)
+                $db->prepare("
+                    UPDATE fraction_account_movements
+                    SET source_type = 'quota_unlink',
+                        source_reference_id = :ft_id,
+                        source_financial_transaction_id = :ft_id2,
+                        description = 'Valor libertado para movimento (desassociação de quota)'
+                    WHERE id = :id
+                ")->execute([':ft_id' => $ftId ?: $paymentId, ':ft_id2' => $ftId, ':id' => $movId]);
+            } else {
+                // Pagamento sem movimento (veio do saldo da fração): reverter o débito na conta da fração
                 $db->prepare("UPDATE fraction_accounts SET balance = balance + :amt WHERE id = :id")
                     ->execute([':amt' => $amt, ':id' => $faId]);
                 $db->prepare("DELETE FROM fraction_account_movements WHERE id = :id")
@@ -4972,6 +4999,31 @@ class FinanceController extends Controller
         $success = $this->feePaymentModel->delete($paymentId);
 
         if ($success) {
+            // Se o pagamento estava ligado a um movimento e este ficou sem quotas associadas, limpar referência e categoria para nova classificação
+            $transactionId = !empty($payment['financial_transaction_id']) ? (int)$payment['financial_transaction_id'] : $transactionIdFromDebit;
+            if ($transactionId) {
+                $stmtCount = $db->prepare("
+                    SELECT (
+                        (SELECT COUNT(*) FROM fee_payments WHERE financial_transaction_id = :tid)
+                        + (SELECT COUNT(DISTINCT fp.id) FROM fee_payments fp
+                           INNER JOIN fraction_account_movements fam ON fam.source_reference_id = fp.id
+                               AND fam.type = 'debit' AND fam.source_type = 'quota_application' AND fam.source_financial_transaction_id = :tid2)
+                    ) AS cnt
+                ");
+                $stmtCount->execute([':tid' => $transactionId, ':tid2' => $transactionId]);
+                $count = (int)($stmtCount->fetch(\PDO::FETCH_ASSOC)['cnt'] ?? 0);
+                if ($count === 0) {
+                    $transactionModel = new FinancialTransaction();
+                    $transactionModel->update($transactionId, [
+                        'reference' => null,
+                        'category' => null,
+                        'related_type' => null,
+                        'fraction_id' => null,
+                        'income_entry_type' => null,
+                    ]);
+                }
+            }
+
             // Regenerate receipts for this fee (will delete existing and create new if fully paid)
             (new ReceiptService())->regenerateReceiptsForFee($feeId, $condominiumId, $userId);
             
