@@ -71,7 +71,7 @@
 
                 <form method="POST" action="{{ BASE_URL }}api-keys/revoke" class="d-inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="btn btn-danger" onclick="return confirm('Tem certeza que deseja revogar esta API Key? Todas as integrações que a utilizam deixarão de funcionar.');">
+                    <button type="submit" class="btn btn-danger" data-confirm="Tem certeza que deseja revogar esta API Key? Todas as integrações que a utilizam deixarão de funcionar.">
                         <i class="bi bi-x-circle"></i> Revogar API Key
                     </button>
                 </form>

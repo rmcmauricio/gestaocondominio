@@ -36,7 +36,7 @@
             <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Gerar Relatório</h5>
         </div>
         <div class="card-body">
-            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/custom" class="report-form" id="custom-report-form">
+            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports/custom" class="report-form" id="custom-report-form" data-current-year="{{ current_year }}" onsubmit="var e=arguments[0]||window.event;if(e)e.preventDefault();if(window.__reportFormSubmit)window.__reportFormSubmit(e,this);return false;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="mode" value="ajax">
                 
@@ -61,14 +61,28 @@
                         <small class="form-text text-muted">Selecione o tipo de relatório que deseja gerar</small>
                     </div>
                     
-                    <div class="col-md-3 mb-3">
-                        <label for="start_date" class="form-label"><strong>Data Início</strong></label>
-                        <input type="date" class="form-control" id="start_date" name="start_date" value="{{ current_year }}-01-01" required>
+                    <div id="year-field" class="col-md-3 mb-3" style="display: none;">
+                        <label for="report_year" class="form-label"><strong>Ano</strong></label>
+                        <select class="form-select" id="report_year">
+                            {% for y in (current_year - 5)..(current_year + 2) %}
+                                <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted">Ano do relatório</small>
                     </div>
                     
-                    <div class="col-md-3 mb-3">
-                        <label for="end_date" class="form-label"><strong>Data Fim</strong></label>
-                        <input type="date" class="form-control" id="end_date" name="end_date" value="{{ current_year }}-12-31" required>
+                    <div id="date-range-fields" class="col-md-6 mb-3">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label for="start_date" class="form-label"><strong>Data Início</strong></label>
+                                <input type="date" class="form-control" id="start_date" name="start_date" value="{{ current_year }}-01-01" required>
+                            </div>
+                            <div class="col-6">
+                                <label for="end_date" class="form-label"><strong>Data Fim</strong></label>
+                                <input type="date" class="form-control" id="end_date" name="end_date" value="{{ current_year }}-12-31" required>
+                            </div>
+                        </div>
+                        <small class="form-text text-muted">Período do relatório</small>
                     </div>
                 </div>
 
@@ -104,7 +118,7 @@
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-file-earmark-text"></i> Gerar Relatório
                     </button>
-                    <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('custom-report-form').reset(); document.getElementById('start_date').value='{{ current_year }}-01-01'; document.getElementById('end_date').value='{{ current_year }}-12-31';">
+                    <button type="button" class="btn btn-outline-secondary" id="btn-clear-report-form">
                         <i class="bi bi-arrow-counterclockwise"></i> Limpar
                     </button>
                 </div>
@@ -141,15 +155,7 @@
 (function() {
     'use strict';
     
-    const reportContainer = document.getElementById('report-container');
-    const reportContent = document.getElementById('report-content');
-    const reportTitle = document.getElementById('report-title');
-    const btnPrintReport = document.getElementById('btn-print-report');
-    const btnSaveReport = document.getElementById('btn-save-report');
-    const reportTypeSelect = document.getElementById('report_type');
-    const occurrenceFilters = document.getElementById('occurrence-filters');
-    
-    let currentReportData = {
+    var currentReportData = {
         html: '',
         printUrl: '',
         title: '',
@@ -157,182 +163,178 @@
         params: {}
     };
     
-    // Show/hide occurrence filters based on report type
-    if (reportTypeSelect && occurrenceFilters) {
-        function toggleOccurrenceFilters() {
-            const selectedType = reportTypeSelect.value;
-            if (selectedType === 'occurrences') {
-                occurrenceFilters.style.display = 'block';
-            } else {
-                occurrenceFilters.style.display = 'none';
-                // Clear occurrence filter values when hidden
-                document.getElementById('occ_status').value = '';
-                document.getElementById('occ_priority').value = '';
-                document.getElementById('occ_category').value = '';
-            }
+    function doReportSubmit(ev, formEl) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var reportContainer = document.getElementById('report-container');
+        var reportContent = document.getElementById('report-content');
+        var reportTitle = document.getElementById('report-title');
+        var btnPrintReport = document.getElementById('btn-print-report');
+        var btnSaveReport = document.getElementById('btn-save-report');
+        var reportYearSelect = document.getElementById('report_year');
+        var startDateInput = document.getElementById('start_date');
+        var endDateInput = document.getElementById('end_date');
+        var ANNUAL = ['balance', 'fees', 'cash-flow', 'budget-vs-actual'];
+        if (!reportContainer || !reportContent) return;
+        var reportType = formEl.querySelector('[name="report_type"]') ? formEl.querySelector('[name="report_type"]').value : '';
+        if (ANNUAL.indexOf(reportType) !== -1 && reportYearSelect && startDateInput && endDateInput) {
+            var y = reportYearSelect.value;
+            startDateInput.value = y + '-01-01';
+            endDateInput.value = y + '-12-31';
         }
-        
-        reportTypeSelect.addEventListener('change', toggleOccurrenceFilters);
-        toggleOccurrenceFilters(); // Initial check
+        var formData = new FormData(formEl);
+        formData.append('mode', 'ajax');
+        reportContainer.style.display = 'block';
+        reportContent.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">A carregar...</span></div><p class="mt-2">A carregar relatório...</p></div>';
+        reportContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        var action = formEl.getAttribute('action');
+        fetch(action, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success || !data.data) {
+                reportContent.innerHTML = '<div class="alert alert-danger">Erro ao carregar relatório: ' + (data.error || 'Erro desconhecido') + '</div>';
+                return;
+            }
+            var html = data.data.html || data.data;
+            var printUrl = data.data.printUrl || '';
+            var title = data.data.title || 'Relatório';
+            var params = {};
+            try { var it = formData.entries(); var n; while (!(n = it.next()).done) { params[n.value[0]] = n.value[1]; } } catch(e) {}
+            currentReportData = { html: html, printUrl: printUrl, title: title, type: formData.get('report_type') || '', params: params };
+            var reportForm = document.getElementById('custom-report-form');
+            if (reportForm && params.start_date) { var si = reportForm.querySelector('[name="start_date"]'); if (si) si.value = params.start_date; }
+            if (reportForm && params.end_date) { var ei = reportForm.querySelector('[name="end_date"]'); if (ei) ei.value = params.end_date; }
+            if (reportTitle) reportTitle.textContent = title;
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            var scriptsToRun = [];
+            tempDiv.querySelectorAll('script').forEach(function(s) {
+                if (s.src) scriptsToRun.push({ t: 'src', v: s.src }); else scriptsToRun.push({ t: 'inline', v: s.textContent || s.innerHTML });
+                s.remove();
+            });
+            reportContent.innerHTML = tempDiv.innerHTML;
+            var idx = 0;
+            function runNext() {
+                if (idx >= scriptsToRun.length) {
+                    var ry = document.getElementById('report_year');
+                    if (ry && params.start_date && ANNUAL.indexOf(currentReportData.type) !== -1) ry.value = params.start_date.substring(0,4);
+                    return;
+                }
+                var info = scriptsToRun[idx++];
+                if (info.t === 'src') {
+                    var ex = document.querySelector('script[src="' + info.v + '"]');
+                    if (ex) { runNext(); return; }
+                    var sc = document.createElement('script'); sc.src = info.v;
+                    sc.onload = sc.onerror = function() { runNext(); };
+                    document.head.appendChild(sc);
+                } else {
+                    var sc = document.createElement('script');
+                    sc.textContent = '(function(){ ' + info.v + ' })();';
+                    document.body.appendChild(sc);
+                    setTimeout(runNext, 80);
+                }
+            }
+            var needsChart = html.indexOf('chart') !== -1 || html.indexOf('Chart') !== -1 || html.indexOf('canvas') !== -1;
+            if (needsChart && typeof Chart === 'undefined') {
+                var sc = document.createElement('script');
+                sc.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+                sc.onload = function() { setTimeout(runNext, 50); };
+                sc.onerror = function() { runNext(); };
+                document.head.appendChild(sc);
+            } else {
+                setTimeout(runNext, 50);
+            }
+            if (printUrl && btnPrintReport) { btnPrintReport.onclick = function() { window.open(printUrl, '_blank'); }; btnPrintReport.style.display = ''; }
+            else if (btnPrintReport) btnPrintReport.style.display = 'none';
+            if (btnSaveReport) btnSaveReport.style.display = 'inline-block';
+        })
+        .catch(function(err) { console.error(err); reportContent.innerHTML = '<div class="alert alert-danger">Erro ao carregar relatório. Tente novamente.</div>'; });
     }
     
-    // Intercept all report forms
-    document.querySelectorAll('.report-form').forEach(form => {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            formData.append('mode', 'ajax');
-            
-            // Show loading
-            reportContainer.style.display = 'block';
-            reportContent.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">A carregar...</span></div><p class="mt-2">A carregar relatório...</p></div>';
-            
-            // Scroll to container
-            reportContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            
-            // Get report type from form
-            const action = this.getAttribute('action');
-            const reportType = action.includes('custom') ? formData.get('report_type') : 'unknown';
-            
-            // Make AJAX request
-            fetch(action, {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.data) {
-                    // Extract HTML from response
-                    const html = data.data.html || data.data;
-                    const printUrl = data.data.printUrl || '';
-                    const title = data.data.title || 'Relatório';
-                    
-                    // Store current report data
-                    currentReportData = {
-                        html: html,
-                        printUrl: printUrl,
-                        title: title,
-                        type: reportType,
-                        params: Object.fromEntries(formData.entries())
-                    };
-                    
-                    // Update container
-                    reportTitle.textContent = title;
-                    
-                    // Check if Chart.js is needed and loaded
-                    const needsChart = html.includes('chart') || html.includes('Chart') || html.includes('canvas');
-                    const chartLoaded = typeof Chart !== 'undefined';
-                    
-                    function insertReportHtml(htmlContent) {
-                        // Extract scripts from HTML
-                        const tempDiv = document.createElement('div');
-                        tempDiv.innerHTML = htmlContent;
-                        const scriptsToExecute = [];
-                        
-                        // Extract script sources and content
-                        tempDiv.querySelectorAll('script').forEach(script => {
-                            if (script.src) {
-                                scriptsToExecute.push({type: 'src', value: script.src});
-                            } else {
-                                scriptsToExecute.push({type: 'inline', value: script.textContent || script.innerHTML});
-                            }
-                            script.remove();
-                        });
-                        
-                        // Insert HTML without scripts
-                        reportContent.innerHTML = tempDiv.innerHTML;
-                        
-                        // Execute scripts
-                        let scriptIndex = 0;
-                        function executeNextScript() {
-                            if (scriptIndex >= scriptsToExecute.length) {
-                                return;
-                            }
-                            
-                            const scriptInfo = scriptsToExecute[scriptIndex];
-                            
-                            if (scriptInfo.type === 'src') {
-                                // Check if script is already loaded
-                                const existingScript = document.querySelector('script[src="' + scriptInfo.value + '"]');
-                                if (existingScript) {
-                                    scriptIndex++;
-                                    executeNextScript();
-                                    return;
-                                }
-                                
-                                // Load external script
-                                const script = document.createElement('script');
-                                script.src = scriptInfo.value;
-                                script.onload = function() {
-                                    scriptIndex++;
-                                    executeNextScript();
-                                };
-                                script.onerror = function() {
-                                    console.error('Error loading script:', scriptInfo.value);
-                                    scriptIndex++;
-                                    executeNextScript();
-                                };
-                                document.head.appendChild(script);
-                            } else {
-                                // Execute inline script in isolated scope to avoid variable conflicts
-                                const script = document.createElement('script');
-                                // Wrap script in IIFE to create isolated scope
-                                script.textContent = '(function() { ' + scriptInfo.value + ' })();';
-                                document.body.appendChild(script);
-                                scriptIndex++;
-                                setTimeout(executeNextScript, 100);
-                            }
-                        }
-                        
-                        // Start executing scripts after a short delay
-                        setTimeout(() => {
-                            executeNextScript();
-                        }, 100);
-                    }
-                    
-                    if (needsChart && !chartLoaded) {
-                        // Load Chart.js dynamically first
-                        const script = document.createElement('script');
-                        script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
-                        script.onload = function() {
-                            insertReportHtml(html);
-                        };
-                        script.onerror = function() {
-                            console.error('Error loading Chart.js');
-                            insertReportHtml(html);
-                        };
-                        document.head.appendChild(script);
-                    } else {
-                        insertReportHtml(html);
-                    }
-                    
-                    // Update print button
-                    if (printUrl && btnPrintReport) {
-                        btnPrintReport.onclick = function() {
-                            window.open(printUrl, '_blank');
-                        };
-                    }
-                    
-                    // Show save button if admin
-                    {% if is_admin %}
-                    if (btnSaveReport) {
-                        btnSaveReport.style.display = 'inline-block';
-                    }
-                    {% endif %}
-                } else {
-                    reportContent.innerHTML = '<div class="alert alert-danger">Erro ao carregar relatório: ' + (data.error || 'Erro desconhecido') + '</div>';
+    window.__reportFormSubmit = doReportSubmit;
+    
+    function initReportForm() {
+        var reportForm = document.getElementById('custom-report-form');
+        if (!reportForm) return;
+        var reportContainer = document.getElementById('report-container');
+        var reportContent = document.getElementById('report-content');
+        var reportTitle = document.getElementById('report-title');
+        var btnPrintReport = document.getElementById('btn-print-report');
+        var btnSaveReport = document.getElementById('btn-save-report');
+        var reportTypeSelect = document.getElementById('report_type');
+        var occurrenceFilters = document.getElementById('occurrence-filters');
+        var yearField = document.getElementById('year-field');
+        var dateRangeFields = document.getElementById('date-range-fields');
+        var reportYearSelect = document.getElementById('report_year');
+        var startDateInput = document.getElementById('start_date');
+        var endDateInput = document.getElementById('end_date');
+        var ANNUAL_REPORT_TYPES = ['balance', 'fees', 'cash-flow', 'budget-vs-actual'];
+        var DATE_RANGE_REPORT_TYPES = ['expenses', 'summary', 'occurrences', 'occurrences-by-supplier'];
+        function syncYearToDates() {
+            if (!reportYearSelect || !startDateInput || !endDateInput) return;
+            var y = reportYearSelect.value;
+            startDateInput.value = y + '-01-01';
+            endDateInput.value = y + '-12-31';
+        }
+        function toggleDateFields() {
+            var selectedType = reportTypeSelect ? reportTypeSelect.value : '';
+            var isAnnual = ANNUAL_REPORT_TYPES.indexOf(selectedType) !== -1;
+            var isDateRange = DATE_RANGE_REPORT_TYPES.indexOf(selectedType) !== -1;
+            if (isAnnual) {
+                if (yearField) { yearField.style.display = 'block'; yearField.classList.remove('d-none'); }
+                if (dateRangeFields) { dateRangeFields.style.display = 'none'; dateRangeFields.classList.add('d-none'); }
+                if (reportYearSelect && startDateInput) {
+                    reportYearSelect.value = startDateInput.value ? startDateInput.value.substring(0, 4) : new Date().getFullYear();
+                    syncYearToDates();
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                reportContent.innerHTML = '<div class="alert alert-danger">Erro ao carregar relatório. Por favor, tente novamente.</div>';
+            } else if (isDateRange) {
+                if (yearField) { yearField.style.display = 'none'; yearField.classList.add('d-none'); }
+                if (dateRangeFields) { dateRangeFields.style.display = 'block'; dateRangeFields.classList.remove('d-none'); }
+            } else {
+                if (yearField) { yearField.style.display = 'none'; yearField.classList.add('d-none'); }
+                if (dateRangeFields) { dateRangeFields.style.display = 'none'; dateRangeFields.classList.add('d-none'); }
+            }
+            if (startDateInput) startDateInput.required = isDateRange;
+            if (endDateInput) endDateInput.required = isDateRange;
+        }
+        if (reportYearSelect) reportYearSelect.addEventListener('change', syncYearToDates);
+        if (reportTypeSelect) {
+            reportTypeSelect.addEventListener('change', function() {
+                toggleDateFields();
+                if (occurrenceFilters) {
+                    if (reportTypeSelect.value === 'occurrences') occurrenceFilters.style.display = 'block';
+                    else {
+                        occurrenceFilters.style.display = 'none';
+                        var os = document.getElementById('occ_status'); var op = document.getElementById('occ_priority'); var oc = document.getElementById('occ_category');
+                        if (os) os.value = ''; if (op) op.value = ''; if (oc) oc.value = '';
+                    }
+                }
             });
+        }
+        toggleDateFields();
+        if (reportTypeSelect && occurrenceFilters) {
+            if (reportTypeSelect.value === 'occurrences') occurrenceFilters.style.display = 'block';
+            else occurrenceFilters.style.display = 'none';
+        }
+        var clearBtn = document.getElementById('btn-clear-report-form');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                var form = document.getElementById('custom-report-form');
+                if (!form) return;
+                form.reset();
+                var cy = form.getAttribute('data-current-year') || new Date().getFullYear();
+                if (startDateInput) startDateInput.value = cy + '-01-01';
+                if (endDateInput) endDateInput.value = cy + '-12-31';
+                if (reportYearSelect) reportYearSelect.value = cy;
+                toggleDateFields();
+            });
+        }
+        reportForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            doReportSubmit(e, reportForm);
         });
-    });
+    }
     
     // Check if report type can be exported to Excel (all types now support Excel)
     function canExportToExcel(reportType) {
@@ -402,6 +404,7 @@
     
     // Save report button
     {% if is_admin %}
+    var btnSaveReport = document.getElementById('btn-save-report');
     if (btnSaveReport) {
         btnSaveReport.addEventListener('click', function() {
             if (!currentReportData.html) {
@@ -513,6 +516,12 @@
         });
     }
     {% endif %}
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initReportForm);
+    } else {
+        initReportForm();
+    }
 })();
 </script>
 

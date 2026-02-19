@@ -148,15 +148,16 @@
       if (method !== 'post') return;
       if (form.hasAttribute('data-no-submit-spinner')) return;
 
-      // Capture: ao submeter, desativar botão e mostrar spinner
+      // Capture: ao submeter, desativar botão e mostrar spinner (apenas botões de submit, nunca inputs date/text)
       form.addEventListener('submit', function(e) {
         const formId = this.id;
+        const submitSelector = 'button[type=submit], input[type=submit]';
         let btn = null;
-        if (document.activeElement && (document.activeElement.form === this ||
-            (document.activeElement.getAttribute('form') === formId && document.activeElement.matches('button[type=submit], input[type=submit]')))) {
+        if (document.activeElement && document.activeElement.matches(submitSelector) &&
+            (document.activeElement.form === this || document.activeElement.getAttribute('form') === formId)) {
           btn = document.activeElement;
         }
-        if (!btn) btn = this.querySelector('button[type=submit], input[type=submit]');
+        if (!btn) btn = this.querySelector(submitSelector);
         if (btn && !btn.disabled) {
           btn.dataset.originalHtml = (btn.tagName === 'INPUT') ? btn.value : btn.innerHTML;
           btn.disabled = true;
@@ -346,29 +347,32 @@
   // Breakpoint aligned with CSS: sidebar hidden when <= 1320px
   var SIDEBAR_HIDDEN_BREAKPOINT = 1320;
 
+  // Atualiza o ícone (lista / X) em todos os botões que abrem o menu (header e FAB)
+  function setSidebarToggleIcons(showAsOpen) {
+    var toggleBtn = document.getElementById('sidebarToggleBtn');
+    var fabIcon = document.getElementById('sidebarFabIcon');
+    [toggleBtn ? toggleBtn.querySelector('i') : null, fabIcon].forEach(function(icon) {
+      if (!icon) return;
+      if (showAsOpen) {
+        icon.classList.remove('bi-list');
+        icon.classList.add('bi-x-lg');
+      } else {
+        icon.classList.remove('bi-x-lg');
+        icon.classList.add('bi-list');
+      }
+    });
+  }
+
   // Toggle sidebar when it is hidden (viewport <= SIDEBAR_HIDDEN_BREAKPOINT)
   function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
-    const toggleBtn = document.getElementById('sidebarToggleBtn');
     
     if (sidebar) {
       const isShowing = sidebar.classList.contains('show');
       sidebar.classList.toggle('show');
       // Overlay visibility: CSS .sidebar.show ~ .sidebar-overlay handles it
       
-      // Update icon on menu button
-      if (toggleBtn) {
-        const icon = toggleBtn.querySelector('i');
-        if (icon) {
-          if (isShowing) {
-            icon.classList.remove('bi-x-lg');
-            icon.classList.add('bi-list');
-          } else {
-            icon.classList.remove('bi-list');
-            icon.classList.add('bi-x-lg');
-          }
-        }
-      }
+      setSidebarToggleIcons(!isShowing);
       
       // Prevent body scroll when sidebar is open (sidebar hidden breakpoint)
       if (window.innerWidth <= SIDEBAR_HIDDEN_BREAKPOINT) {
@@ -388,22 +392,15 @@
   document.addEventListener('click', function(event) {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.querySelector('.sidebar-overlay');
-    const toggleBtn = document.getElementById('sidebarToggleBtn');
     const isToggleButton = event.target.closest('#sidebarToggleBtn') ||
+                          event.target.closest('#sidebarToggleFab') ||
                           event.target.closest('[onclick*="toggleSidebar"]');
     
     if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= SIDEBAR_HIDDEN_BREAKPOINT) {
       if (!sidebar.contains(event.target) && !isToggleButton && event.target !== overlay) {
         sidebar.classList.remove('show');
         document.body.style.overflow = '';
-        
-        if (toggleBtn) {
-          const icon = toggleBtn.querySelector('i');
-          if (icon) {
-            icon.classList.remove('bi-x-lg');
-            icon.classList.add('bi-list');
-          }
-        }
+        setSidebarToggleIcons(false);
       }
     }
   });
@@ -411,21 +408,13 @@
   // Close sidebar when clicking a link inside it
   document.addEventListener('click', function(event) {
     const sidebar = document.getElementById('sidebar');
-    const toggleBtn = document.getElementById('sidebarToggleBtn');
     if (sidebar && sidebar.classList.contains('show') && window.innerWidth <= SIDEBAR_HIDDEN_BREAKPOINT) {
       const link = event.target.closest('.sidebar-nav a');
       if (link) {
         setTimeout(function() {
           sidebar.classList.remove('show');
           document.body.style.overflow = '';
-          
-          if (toggleBtn) {
-            const icon = toggleBtn.querySelector('i');
-            if (icon) {
-              icon.classList.remove('bi-x-lg');
-              icon.classList.add('bi-list');
-            }
-          }
+          setSidebarToggleIcons(false);
         }, 300);
       }
     }
@@ -471,6 +460,80 @@
       });
     }
   });
+
+  /**
+   * Modal de confirmação (substitui confirm() nativo).
+   * Uso: data-confirm="mensagem" no form ou no botão submit; ou showConfirmModal({ title, message, onConfirm })
+   */
+  (function initConfirmModal() {
+    var modalEl = document.getElementById('confirmModal');
+    if (!modalEl) return;
+    var modal = new bootstrap.Modal(modalEl);
+    var titleEl = document.getElementById('confirmModalTitle');
+    var messageEl = document.getElementById('confirmModalMessage');
+    var confirmBtn = document.getElementById('confirmModalConfirmBtn');
+    var pendingCallback = null;
+
+    function show(options) {
+      var title = (options && options.title) ? options.title : 'Confirmar';
+      var message = (options && options.message) ? options.message : '';
+      pendingCallback = (options && typeof options.onConfirm === 'function') ? options.onConfirm : null;
+      if (titleEl) titleEl.textContent = title;
+      if (messageEl) messageEl.textContent = message;
+      modal.show();
+    }
+
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', function() {
+        if (typeof pendingCallback === 'function') {
+          pendingCallback();
+          pendingCallback = null;
+        }
+        modal.hide();
+      });
+    }
+
+    window.showConfirmModal = show;
+
+    document.addEventListener('submit', function(e) {
+      var form = e.target;
+      if (form.tagName !== 'FORM') return;
+      if (form._confirmSkip) {
+        form._confirmSkip = false;
+        return;
+      }
+      var msg = (e.submitter && e.submitter.getAttribute('data-confirm')) || form.getAttribute('data-confirm');
+      var title = (e.submitter && e.submitter.getAttribute('data-confirm-title')) || form.getAttribute('data-confirm-title') || 'Confirmar';
+      if (!msg) return;
+      e.preventDefault();
+      e.stopPropagation();
+      show({
+        title: title,
+        message: msg,
+        onConfirm: function() {
+          form._confirmSkip = true;
+          form.submit();
+        }
+      });
+    }, true);
+
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[data-confirm]');
+      if (!link) return;
+      var msg = link.getAttribute('data-confirm');
+      if (!msg) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var href = link.getAttribute('href');
+      show({
+        title: link.getAttribute('data-confirm-title') || 'Confirmar',
+        message: msg,
+        onConfirm: function() {
+          if (href) window.location = href;
+        }
+      });
+    }, true);
+  })();
 
   // Start initialization
   init();

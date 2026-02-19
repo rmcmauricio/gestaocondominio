@@ -27,7 +27,7 @@
                 <strong>Invoice {{ invoice_data.invoice_number }}</strong>: 
                 €{{ invoice_data.amount|number_format(2, ',', '.') }} 
                 ({{ invoice_data.new_extra_condominiums }} condomínios extras)
-                <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-extras" class="d-inline ms-2" onsubmit="return confirm('Tem a certeza que deseja cancelar este pagamento pendente?');">
+                <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-extras" class="d-inline ms-2" data-confirm="Tem a certeza que deseja cancelar este pagamento pendente?">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="btn btn-sm btn-outline-danger">
                         <i class="bi bi-x-circle"></i> Cancelar

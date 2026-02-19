@@ -14,7 +14,7 @@
                         <tr>
                             <td>{{ f.identifier }}</td><td>{{ f.permillage }}</td><td>{{ f.floor|default('-') }}</td><td>{{ f.typology|default('-') }}</td>
                             <td>
-                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/fractions/{{ f.id }}/delete" class="d-inline" onsubmit="return confirm('{{ page.t.step2_confirm_delete_fraction|default('Apagar esta fração?') }}');">
+                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/fractions/{{ f.id }}/delete" class="d-inline" data-confirm="{{ (page.t.step2_confirm_delete_fraction|default('Apagar esta fração?'))|e('html_attr') }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="redirect_url" value="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step=2">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ page.t.delete|default('Apagar') }}"><i class="bi bi-trash"></i></button>

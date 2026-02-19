@@ -173,7 +173,7 @@
                             <a href="{{ BASE_URL }}payments/{{ pending_subscription.id }}/create" class="btn btn-primary w-100 mb-2">
                                 <i class="bi bi-credit-card"></i> Efetuar Pagamento
                             </a>
-                            <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-plan-change" onsubmit="return confirm('Tem certeza que deseja cancelar esta alteração pendente?');">
+                            <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-plan-change" data-confirm="Tem certeza que deseja cancelar esta alteração pendente?">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <button type="submit" class="btn btn-outline-danger w-100">
                                     <i class="bi bi-x-circle"></i> Cancelar Alteração
@@ -361,7 +361,7 @@
                                             <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-sm btn-primary" title="Completar pagamento">
                                                 <i class="bi bi-credit-card"></i> Completar Pagamento
                                             </a>
-                                            <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-license-addition" class="d-inline-block" onsubmit="return confirm('Tem a certeza que deseja cancelar este pagamento pendente?');">
+                                            <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-license-addition" class="d-inline-block" data-confirm="Tem a certeza que deseja cancelar este pagamento pendente?">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancelar pagamento pendente">
                                                     <i class="bi bi-x-circle"></i> Cancelar
@@ -433,7 +433,7 @@
                                             <br><small class="text-muted">{{ condo.condominium_address }}</small>
                                         </div>
                                         {% if not user.is_demo and subscription.plan_type != 'condominio' %}
-                                        <form method="POST" action="{{ BASE_URL }}subscription/detach-condominium" class="d-inline" onsubmit="return confirm('Tem certeza que deseja desassociar este condomínio?');">
+                                        <form method="POST" action="{{ BASE_URL }}subscription/detach-condominium" class="d-inline" data-confirm="Tem certeza que deseja desassociar este condomínio?">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                             <input type="hidden" name="condominium_id" value="{{ condo.condominium_id }}">
                                             <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -464,7 +464,7 @@
                                             <a href="{{ BASE_URL }}payments/{{ subscription.id }}/create" class="btn btn-sm btn-primary" title="Completar pagamento">
                                                 <i class="bi bi-credit-card"></i> Completar Pagamento
                                             </a>
-                                            <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-extras" class="d-inline-block" onsubmit="return confirm('Tem a certeza que deseja cancelar este pagamento pendente?');">
+                                            <form method="POST" action="{{ BASE_URL }}subscription/cancel-pending-extras" class="d-inline-block" data-confirm="Tem a certeza que deseja cancelar este pagamento pendente?">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancelar pagamento pendente">
                                                     <i class="bi bi-x-circle"></i> Cancelar
@@ -514,7 +514,7 @@
                                 {% else %}
                                 <form method="POST" action="{{ BASE_URL }}subscription/cancel" class="mb-2">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <button type="submit" class="btn btn-outline-danger w-100" onclick="return confirm('Tem certeza que deseja cancelar a subscrição?')">
+                                    <button type="submit" class="btn btn-outline-danger w-100" data-confirm="Tem certeza que deseja cancelar a subscrição?">
                                         <i class="bi bi-x-circle"></i> Cancelar Subscrição
                                     </button>
                                 </form>

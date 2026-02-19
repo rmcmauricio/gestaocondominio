@@ -374,6 +374,11 @@ class FinanceController extends Controller
         $error = $_SESSION['error'] ?? null;
         $success = $_SESSION['success'] ?? null;
         unset($_SESSION['error'], $_SESSION['success']);
+
+        $expenseCategoryModel = new ExpenseCategory();
+        $revenueCategoryModel = new RevenueCategory();
+        $expenseCategories = $expenseCategoryModel->getByCondominium($condominiumId);
+        $revenueCategories = $revenueCategoryModel->getByCondominium($condominiumId);
         
         $this->data += [
             'viewName' => 'pages/finances/create-budget.html.twig',
@@ -383,6 +388,10 @@ class FinanceController extends Controller
             'available_years' => $availableYears,
             'selected_year' => $selectedYear,
             'existing_budget' => $existingBudget,
+            'expense_categories' => $expenseCategories,
+            'revenue_categories' => $revenueCategories,
+            'expense_category_names' => array_column($expenseCategories, 'name'),
+            'revenue_category_names' => array_column($revenueCategories, 'name'),
             'csrf_token' => Security::generateCSRFToken(),
             'user' => AuthMiddleware::user(),
             'error' => $error,
@@ -464,26 +473,33 @@ class FinanceController extends Controller
                 'notes' => $notes
             ]);
 
-            // Create revenue items
+            $revenueCategoryModel = new RevenueCategory();
+            $expenseCategoryModel = new ExpenseCategory();
             $sortOrder = 0;
             foreach ($revenueItems as $item) {
                 if (!empty($item['amount']) && $item['amount'] > 0) {
+                    $catName = trim(Security::sanitize($item['category'] ?? 'Outras'));
+                    if ($catName !== '') {
+                        $revenueCategoryModel->getOrCreate($condominiumId, $catName);
+                    }
                     $this->budgetItemModel->create([
                         'budget_id' => $budgetId,
-                        'category' => 'Receita: ' . Security::sanitize($item['category'] ?? 'Outras'),
+                        'category' => 'Receita: ' . ($catName !== '' ? $catName : 'Outras'),
                         'description' => Security::sanitize($item['description'] ?? ''),
                         'amount' => (float)$item['amount'],
                         'sort_order' => $sortOrder++
                     ]);
                 }
             }
-
-            // Create expense items
             foreach ($expenseItems as $item) {
                 if (!empty($item['amount']) && $item['amount'] > 0) {
+                    $catName = trim(Security::sanitize($item['category'] ?? 'Outras'));
+                    if ($catName !== '') {
+                        $expenseCategoryModel->getOrCreate($condominiumId, $catName);
+                    }
                     $this->budgetItemModel->create([
                         'budget_id' => $budgetId,
-                        'category' => 'Despesa: ' . Security::sanitize($item['category'] ?? 'Outras'),
+                        'category' => 'Despesa: ' . ($catName !== '' ? $catName : 'Outras'),
                         'description' => Security::sanitize($item['description'] ?? ''),
                         'amount' => (float)$item['amount'],
                         'sort_order' => $sortOrder++
@@ -1336,6 +1352,11 @@ class FinanceController extends Controller
         $items = $this->budgetItemModel->getByBudget($id);
 
         $this->loadPageTranslations('finances');
+
+        $expenseCategoryModel = new ExpenseCategory();
+        $revenueCategoryModel = new RevenueCategory();
+        $expenseCategories = $expenseCategoryModel->getByCondominium($condominiumId);
+        $revenueCategories = $revenueCategoryModel->getByCondominium($condominiumId);
         
         $this->data += [
             'viewName' => 'pages/finances/edit-budget.html.twig',
@@ -1343,6 +1364,10 @@ class FinanceController extends Controller
             'condominium' => $condominium,
             'budget' => $budget,
             'budget_items' => $items,
+            'expense_categories' => $expenseCategories,
+            'revenue_categories' => $revenueCategories,
+            'expense_category_names' => array_column($expenseCategories, 'name'),
+            'revenue_category_names' => array_column($revenueCategories, 'name'),
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $_SESSION['error'] ?? null,
             'success' => $_SESSION['success'] ?? null,
@@ -1421,26 +1446,33 @@ class FinanceController extends Controller
             // Delete existing items
             $this->budgetItemModel->deleteByBudget($id);
 
-            // Create revenue items
+            $revenueCategoryModel = new RevenueCategory();
+            $expenseCategoryModel = new ExpenseCategory();
             $sortOrder = 0;
             foreach ($revenueItems as $item) {
                 if (!empty($item['amount']) && $item['amount'] > 0) {
+                    $catName = trim(Security::sanitize($item['category'] ?? 'Outras'));
+                    if ($catName !== '') {
+                        $revenueCategoryModel->getOrCreate($condominiumId, $catName);
+                    }
                     $this->budgetItemModel->create([
                         'budget_id' => $id,
-                        'category' => 'Receita: ' . Security::sanitize($item['category'] ?? 'Outras'),
+                        'category' => 'Receita: ' . ($catName !== '' ? $catName : 'Outras'),
                         'description' => Security::sanitize($item['description'] ?? ''),
                         'amount' => (float)$item['amount'],
                         'sort_order' => $sortOrder++
                     ]);
                 }
             }
-
-            // Create expense items
             foreach ($expenseItems as $item) {
                 if (!empty($item['amount']) && $item['amount'] > 0) {
+                    $catName = trim(Security::sanitize($item['category'] ?? 'Outras'));
+                    if ($catName !== '') {
+                        $expenseCategoryModel->getOrCreate($condominiumId, $catName);
+                    }
                     $this->budgetItemModel->create([
                         'budget_id' => $id,
-                        'category' => 'Despesa: ' . Security::sanitize($item['category'] ?? 'Outras'),
+                        'category' => 'Despesa: ' . ($catName !== '' ? $catName : 'Outras'),
                         'description' => Security::sanitize($item['description'] ?? ''),
                         'amount' => (float)$item['amount'],
                         'sort_order' => $sortOrder++

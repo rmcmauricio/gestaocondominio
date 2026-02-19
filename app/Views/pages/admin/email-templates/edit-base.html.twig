@@ -131,7 +131,7 @@
                 <i class="bi bi-eye"></i> Preview
             </a>
             <div>
-                <button type="button" class="btn btn-outline-secondary" onclick="if(confirm('Tem certeza que deseja restaurar o template padrão?')) { restoreDefault(); }">
+                <button type="button" class="btn btn-outline-secondary" id="restoreDefaultBtn">
                     <i class="bi bi-arrow-counterclockwise"></i> Restaurar Padrão
                 </button>
                 <button type="submit" class="btn btn-primary">
@@ -143,29 +143,56 @@
 </div>
 
 <script>
-document.getElementById('templateForm').addEventListener('submit', function(e) {
-    // Get HTML from TinyMCE if it's initialized
-    let htmlBody;
-    if (tinymce.get('html_body')) {
-        htmlBody = tinymce.get('html_body').getContent();
-    } else {
-        htmlBody = document.getElementById('html_body').value;
+(function() {
+    var form = document.getElementById('templateForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (form._confirmSkip) {
+                form._confirmSkip = false;
+                return;
+            }
+            var htmlBody;
+            if (tinymce.get('html_body')) {
+                htmlBody = tinymce.get('html_body').getContent();
+            } else {
+                htmlBody = document.getElementById('html_body').value;
+            }
+            if (!htmlBody.includes('{body}')) {
+                e.preventDefault();
+                alert('Erro: O template deve conter o placeholder {body} onde o conteúdo será inserido.');
+                return false;
+            }
+            e.preventDefault();
+            if (typeof showConfirmModal === 'function') {
+                showConfirmModal({
+                    message: 'Tem certeza que deseja salvar as alterações? Isso afetará TODOS os emails do sistema.',
+                    onConfirm: function() {
+                        form._confirmSkip = true;
+                        form.submit();
+                    }
+                });
+            } else {
+                form._confirmSkip = true;
+                form.submit();
+            }
+            return false;
+        });
     }
-    
-    if (!htmlBody.includes('{body}')) {
-        e.preventDefault();
-        alert('Erro: O template deve conter o placeholder {body} onde o conteúdo será inserido.');
-        return false;
+    var restoreBtn = document.getElementById('restoreDefaultBtn');
+    if (restoreBtn) {
+        restoreBtn.addEventListener('click', function() {
+            if (typeof showConfirmModal === 'function') {
+                showConfirmModal({
+                    message: 'Tem certeza que deseja restaurar o template padrão?',
+                    onConfirm: restoreDefault
+                });
+            } else {
+                restoreDefault();
+            }
+        });
     }
-    
-    if (!confirm('Tem certeza que deseja salvar as alterações? Isso afetará TODOS os emails do sistema.')) {
-        e.preventDefault();
-        return false;
-    }
-});
-
+})();
 function restoreDefault() {
-    // Restaurar template padrão (será implementado depois)
     alert('Funcionalidade de restaurar padrão será implementada em breve.');
 }
 </script>

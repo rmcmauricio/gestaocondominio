@@ -186,6 +186,12 @@
                 </a>
             </li>
             
+            <li class="nav-item">
+                <a class="nav-link {% if viewName is defined and 'pages/finances/fees.html.twig' in viewName %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees">
+                    <i class="bi bi-receipt"></i> Quotas
+                </a>
+            </li>
+            
             {% set is_finances_page = viewName is defined and (
                 'pages/finances/' in viewName or 
                 'pages/financial-transactions/' in viewName or 
@@ -245,12 +251,6 @@
                         </a>
                     </li>
                 </ul>
-            </li>
-            
-            <li class="nav-item">
-                <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees">
-                    <i class="bi bi-receipt"></i> Quotas
-                </a>
             </li>
             
             <li class="nav-item">

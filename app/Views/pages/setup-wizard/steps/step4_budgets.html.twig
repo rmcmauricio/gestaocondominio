@@ -35,7 +35,7 @@
                                             <td class="py-1 border-0">{{ item.description|default('-') }}</td>
                                             <td class="py-1 border-0 text-end">{{ item.amount|number_format(2, ',', ' ') }} €</td>
                                             <td class="py-1 border-0">
-                                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/4" class="d-inline" onsubmit="return confirm('{{ page.t.step4_confirm_remove_item|default('Remover esta linha do orçamento?') }}');">
+                                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/4" class="d-inline" data-confirm="{{ (page.t.step4_confirm_remove_item|default('Remover esta linha do orçamento?'))|e('html_attr') }}">
                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                                     <input type="hidden" name="wizard_step4_submit" value="remove_budget_item">
                                                     <input type="hidden" name="budget_item_id" value="{{ item.id }}">
@@ -78,7 +78,7 @@
                             <td>{{ r.description|default('-') }}</td>
                             <td>{{ r.amount|number_format(2, ',', ' ') }} €</td>
                             <td>
-                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/4" class="d-inline" onsubmit="return confirm('{{ page.t.step4_confirm_remove|default('Remover esta receita?') }}');">
+                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/4" class="d-inline" data-confirm="{{ (page.t.step4_confirm_remove|default('Remover esta receita?'))|e('html_attr') }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="wizard_step4_submit" value="remove_revenue">
                                     <input type="hidden" name="remove_revenue_index" value="{{ loop.index0 }}">
@@ -115,7 +115,7 @@
                             <td>{{ e.description|default('-') }}</td>
                             <td>{{ e.amount|number_format(2, ',', ' ') }} €</td>
                             <td>
-                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/4" class="d-inline" onsubmit="return confirm('{{ page.t.step4_confirm_remove|default('Remover esta despesa?') }}');">
+                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard/step/4" class="d-inline" data-confirm="{{ (page.t.step4_confirm_remove|default('Remover esta despesa?'))|e('html_attr') }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="wizard_step4_submit" value="remove_expense">
                                     <input type="hidden" name="remove_expense_index" value="{{ loop.index0 }}">

@@ -17,17 +17,22 @@ function getBasePathForRedirect(): string {
 // Session: 24 hours after last user interaction (single source of truth)
 define('SESSION_INACTIVITY_SECONDS', 86400); // 24 * 3600
 
-// Read SESSION_SKIP_FINGERPRINT from .env if present (config not loaded yet)
-$sessionSkipFingerprint = false;
+// Fingerprint (User-Agent): desativado por defeito para evitar perda de sessão ao alternar
+// mobile/versão completa e ao navegar. Ativar só se precisar: SESSION_FINGERPRINT=1 em .env
+$sessionSkipFingerprint = true;
 $envFile = __DIR__ . '/.env';
 if (file_exists($envFile) && is_readable($envFile)) {
     foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
         if (strpos($line, '#') === 0) continue;
         if (strpos($line, '=') === false) continue;
         list($key, $val) = explode('=', $line, 2);
-        if (trim($key) === 'SESSION_SKIP_FINGERPRINT' && trim($val) === '1') {
+        $key = trim($key);
+        $val = trim($val);
+        if ($key === 'SESSION_FINGERPRINT' && $val === '1') {
+            $sessionSkipFingerprint = false;
+        }
+        if ($key === 'SESSION_SKIP_FINGERPRINT' && $val === '1') {
             $sessionSkipFingerprint = true;
-            break;
         }
     }
 }
@@ -55,12 +60,12 @@ if (session_status() === PHP_SESSION_NONE) {
     // Do NOT regenerate here periodically: it invalidates other tabs/requests that still
     // have the old cookie (e.g. mobile background tab, second tab) and causes constant logouts.
 
-    // Optional: Session fingerprint (User-Agent). Disable if you still get random logouts
-    // (e.g. mobile "request desktop site", PWA vs browser). Set SESSION_SKIP_FINGERPRINT=1 in .env
+    // Fingerprint (User-Agent): desativado por defeito; ativar com SESSION_FINGERPRINT=1 se necessário
     $skipFingerprint = $sessionSkipFingerprint || (getenv('SESSION_SKIP_FINGERPRINT') ?: '') === '1';
 
     if (isset($_SESSION['user']) && !$skipFingerprint) {
-        $currentUserAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        // Normalize User-Agent to avoid false mismatches on hard refresh (Ctrl+F5) or proxy quirks
+        $currentUserAgent = preg_replace('/\s+/', ' ', trim($_SERVER['HTTP_USER_AGENT'] ?? ''));
         $currentFingerprint = hash('sha256', $currentUserAgent);
 
         if (!isset($_SESSION['fingerprint'])) {

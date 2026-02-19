@@ -12,7 +12,7 @@
                     <tr>
                         <td>{{ s.name }}</td><td>{{ s.nif|default('-') }}</td><td>{{ s.phone|default(s.email|default('-')) }}</td>
                         <td>
-                            <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/suppliers/{{ s.id }}/delete" class="d-inline" onsubmit="return confirm('{{ page.t.step6_confirm_delete|default('Apagar este fornecedor?') }}');">
+                            <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/suppliers/{{ s.id }}/delete" class="d-inline" data-confirm="{{ (page.t.step6_confirm_delete|default('Apagar este fornecedor?'))|e('html_attr') }}">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <input type="hidden" name="redirect_url" value="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step=6">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ page.t.delete|default('Apagar') }}"><i class="bi bi-trash"></i></button>

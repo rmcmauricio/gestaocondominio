@@ -64,7 +64,7 @@
                                 <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/categories/{{ cat.id }}/edit" class="btn btn-sm btn-outline-primary" title="Editar">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/categories/{{ cat.id }}/delete" class="d-inline" onsubmit="return confirmDeleteCategory({{ cat.revenue_count|default(0) }}, '{{ cat.name|e('js') }}');">
+                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/revenues/categories/{{ cat.id }}/delete" class="d-inline" data-confirm="{% if cat.revenue_count|default(0) > 0 %}{{ (cat.revenue_count ~ ' receita(s) usam esta categoria («' ~ cat.name ~ '»). Pretende remover a categoria dessas receitas?')|e('html_attr') }}{% else %}{{ ('Eliminar a categoria «' ~ cat.name ~ '»?')|e('html_attr') }}{% endif %}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="clear_revenues" value="1">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
@@ -90,11 +90,3 @@
     </div>
 </div>
 
-<script>
-function confirmDeleteCategory(count, name) {
-    if (count > 0) {
-        return confirm(count + ' receita(s) usam esta categoria («' + name + '»). Pretende remover a categoria dessas receitas?');
-    }
-    return confirm('Eliminar a categoria «' + name + '»?');
-}
-</script>

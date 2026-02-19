@@ -92,7 +92,7 @@
                             </form>
                             {% endif %}
                             {% if notification.source_type == 'notification' %}
-                            <form method="POST" action="{{ BASE_URL }}m/notifications/{{ notification.id|e('url') }}/delete" class="m-notification-form-inline" onsubmit="return confirm('Eliminar esta notificação?');">
+                            <form method="POST" action="{{ BASE_URL }}m/notifications/{{ notification.id|e('url') }}/delete" class="m-notification-form-inline" data-confirm="Eliminar esta notificação?">
                                 <button type="submit" class="m-btn m-btn-sm m-btn-danger" title="{{ translations.delete|default('Eliminar') }}"><i class="bi bi-trash"></i></button>
                             </form>
                             {% endif %}

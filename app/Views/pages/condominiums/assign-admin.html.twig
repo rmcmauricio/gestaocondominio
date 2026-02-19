@@ -48,7 +48,7 @@
                             <div class="d-flex align-items-center gap-2">
                                 <span class="badge bg-primary">Admin</span>
                                 {% if admin.user_id != owner_id and admin.user_id != current_user_id %}
-                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/remove-admin" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover o cargo de administrador de {{ admin.name }}?');">
+                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/remove-admin" class="d-inline" data-confirm="{{ ('Tem certeza que deseja remover o cargo de administrador de ' ~ admin.name ~ '?')|e('html_attr') }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="user_id" value="{{ admin.user_id }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover Admin">

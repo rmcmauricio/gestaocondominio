@@ -325,7 +325,7 @@
                                         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/edit" class="btn btn-outline-secondary btn-sm" title="Editar">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover este documento?');">
+                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/delete" class="d-inline" data-confirm="Tem certeza que deseja remover este documento?">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                             <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar">
                                                 <i class="bi bi-trash"></i>
@@ -461,7 +461,7 @@
                                     <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/edit" class="btn btn-outline-secondary btn-sm" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </a>
-                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover este documento?');">
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/documents/{{ document.id }}/delete" class="d-inline" data-confirm="Tem certeza que deseja remover este documento?">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar">
                                             <i class="bi bi-trash"></i>

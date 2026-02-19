@@ -68,14 +68,14 @@
                         <form method="POST" action="{{ BASE_URL }}admin-transfers/accept" class="flex-fill">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <input type="hidden" name="transfer_id" value="{{ transfer.id }}">
-                            <button type="submit" class="btn btn-success w-100" onclick="return confirm('Tem certeza que deseja aceitar o convite para administrar este condomínio?');">
+                            <button type="submit" class="btn btn-success w-100" data-confirm="Tem certeza que deseja aceitar o convite para administrar este condomínio?">
                                 <i class="bi bi-check-circle"></i> Aceitar
                             </button>
                         </form>
                         <form method="POST" action="{{ BASE_URL }}admin-transfers/reject" class="flex-fill">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <input type="hidden" name="transfer_id" value="{{ transfer.id }}">
-                            <button type="submit" class="btn btn-outline-danger w-100" onclick="return confirm('Tem certeza que deseja rejeitar este convite?');">
+                            <button type="submit" class="btn btn-outline-danger w-100" data-confirm="Tem certeza que deseja rejeitar este convite?">
                                 <i class="bi bi-x-circle"></i> Rejeitar
                             </button>
                         </form>

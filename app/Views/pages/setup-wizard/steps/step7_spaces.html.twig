@@ -12,7 +12,7 @@
                     <tr>
                         <td>{{ s.name }}</td><td>{{ s.description|default('-') }}</td>
                         <td>
-                            <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/spaces/{{ s.id }}/delete" class="d-inline" onsubmit="return confirm('{{ page.t.step7_confirm_delete|default('Apagar este espaço?') }}');">
+                            <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/spaces/{{ s.id }}/delete" class="d-inline" data-confirm="{{ (page.t.step7_confirm_delete|default('Apagar este espaço?'))|e('html_attr') }}">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <input type="hidden" name="redirect_url" value="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step=7">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ page.t.delete|default('Apagar') }}"><i class="bi bi-trash"></i></button>
