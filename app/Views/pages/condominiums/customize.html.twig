@@ -167,10 +167,7 @@
 let isUpdating = false;
 
 function removeLogo(condominiumId) {
-    if (!confirm('Tem certeza que deseja remover o logotipo?')) {
-        return;
-    }
-    
+    var doRemove = function() {
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = '{{ BASE_URL }}condominiums/' + condominiumId + '/logo';
@@ -190,6 +187,12 @@ function removeLogo(condominiumId) {
     
     document.body.appendChild(form);
     form.submit();
+    };
+    if (typeof showConfirmModal === 'function') {
+        showConfirmModal({ message: 'Tem certeza que deseja remover o logotipo?', onConfirm: doRemove });
+    } else {
+        doRemove();
+    }
 }
 
 // Template selection with auto-save

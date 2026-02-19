@@ -93,7 +93,7 @@
                                 <i class="bi bi-pencil"></i> Editar
                             </a>
                             {% if space.is_blocked %}
-                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces/{{ space.id }}/unblock" class="d-inline" onsubmit="return confirm('Tem certeza que deseja desbloquear este espaço?');">
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces/{{ space.id }}/unblock" class="d-inline" data-confirm="Tem certeza que deseja desbloquear este espaço?">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <button type="submit" class="btn btn-outline-success btn-sm">
                                     <i class="bi bi-unlock"></i> Desbloquear
@@ -104,7 +104,7 @@
                                 <i class="bi bi-lock"></i> Bloquear
                             </a>
                             {% endif %}
-                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces/{{ space.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar este espaço?');">
+                            <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/spaces/{{ space.id }}/delete" class="d-inline" data-confirm="Tem certeza que deseja eliminar este espaço?">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <button type="submit" class="btn btn-outline-danger btn-sm">
                                     <i class="bi bi-trash"></i> Eliminar

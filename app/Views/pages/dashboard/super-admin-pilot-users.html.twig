@@ -201,7 +201,7 @@
                                         <form method="POST" action="{{ BASE_URL }}admin/pilot-users/send-invite" class="d-inline">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                             <input type="hidden" name="email" value="{{ pilot.email }}">
-                                            <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Tem certeza que deseja enviar um convite de registo para {{ pilot.email }}?');">
+                                            <button type="submit" class="btn btn-primary btn-sm" data-confirm="{{ ('Tem certeza que deseja enviar um convite de registo para ' ~ pilot.email ~ '?')|e('html_attr') }}">
                                                 <i class="bi bi-send"></i> Enviar Convite
                                             </button>
                                         </form>
@@ -267,7 +267,7 @@
                                 <form method="POST" action="{{ BASE_URL }}admin/pilot-users/send-invite">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="email" value="{{ pilot.email }}">
-                                    <button type="submit" class="btn btn-primary btn-sm w-100" onclick="return confirm('Tem certeza que deseja enviar um convite de registo para {{ pilot.email }}?');">
+                                    <button type="submit" class="btn btn-primary btn-sm w-100" data-confirm="{{ ('Tem certeza que deseja enviar um convite de registo para ' ~ pilot.email ~ '?')|e('html_attr') }}">
                                         <i class="bi bi-send"></i> Enviar Convite
                                     </button>
                                 </form>

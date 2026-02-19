@@ -541,11 +541,9 @@ function editPayment(paymentId, feeId) {
 
 // Delete payment function
 function deletePayment(paymentId, feeId) {
-    if (!confirm('Tem certeza que deseja eliminar este pagamento? Esta ação não pode ser desfeita e irá atualizar o estado da quota.')) {
-        return;
-    }
-    
-    const form = document.createElement('form');
+    var msg = 'Tem certeza que deseja eliminar este pagamento? Esta ação não pode ser desfeita e irá atualizar o estado da quota.';
+    var doDelete = function() {
+        const form = document.createElement('form');
     form.method = 'POST';
     form.action = `{{ BASE_URL }}condominiums/{{ condominium.id }}/fees/${feeId}/payments/${paymentId}/delete`;
     
@@ -576,5 +574,11 @@ function deletePayment(paymentId, feeId) {
     
     document.body.appendChild(form);
     form.submit();
+    };
+    if (typeof showConfirmModal === 'function') {
+        showConfirmModal({ message: msg, onConfirm: doDelete });
+    } else {
+        doDelete();
+    }
 }
 </script>

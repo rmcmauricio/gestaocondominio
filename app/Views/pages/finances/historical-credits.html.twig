@@ -27,6 +27,10 @@
     </div>
     {% endif %}
 
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle"></i> Use esta funcionalidade para registar créditos de anos anteriores ao registo do condomínio no sistema. O valor ficará na conta da fração e pode ser aplicado à liquidação de quotas.
+    </div>
+
     <div class="row">
         <div class="col-lg-8">
             <div class="card shadow-sm mb-4">
@@ -58,7 +62,7 @@
                                         <a href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-credits/{{ credit.id }}/edit" class="btn btn-outline-primary btn-sm" title="Editar">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-credits/{{ credit.id }}/delete" class="d-inline" onsubmit="return confirm('Tem a certeza que pretende eliminar este crédito histórico?');">
+                                        <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/historical-credits/{{ credit.id }}/delete" class="d-inline" data-confirm="Tem a certeza que pretende eliminar este crédito histórico?">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                             <button type="submit" class="btn btn-outline-danger btn-sm" title="Apagar">
                                                 <i class="bi bi-trash"></i>
@@ -139,10 +143,6 @@
                             <label for="notes" class="form-label">Notas</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3"
                                       placeholder="Informações adicionais sobre este crédito"></textarea>
-                        </div>
-
-                        <div class="alert alert-info">
-                            <small><i class="bi bi-info-circle"></i> Use esta funcionalidade para registar créditos de anos anteriores ao registo do condomínio no sistema. O valor ficará na conta da fração e pode ser aplicado à liquidação de quotas.</small>
                         </div>
 
                         <button type="submit" class="btn btn-success w-100">

@@ -54,6 +54,16 @@
     </section>
     {% endif %}
 
+    {% if overdue_fees|length == 0 and pending_fees|length == 0 %}
+    <section class="m-section">
+        <div class="m-card m-card-empty">
+            <h2 class="m-card-title"><i class="bi bi-currency-euro m-card-title-icon m-card-title-icon-muted"></i> Quotas por liquidar</h2>
+            <p class="m-empty"><i class="bi bi-check-circle"></i> Não tem quotas por liquidar.</p>
+            <a href="{{ BASE_URL }}m/fees" class="m-link-block"><i class="bi bi-chevron-right"></i> Ver quotas</a>
+        </div>
+    </section>
+    {% endif %}
+
     {% if fraction_balances|length > 0 %}
     <section class="m-section">
         <div class="m-card m-alert-balance">
@@ -130,7 +140,7 @@
                                     <button type="submit" class="m-btn m-btn-sm m-btn-success" title="Marcar como lida"><i class="bi bi-check"></i></button>
                                 </form>
                                 {% if notification.source_type == 'notification' %}
-                                <form method="POST" action="{{ BASE_URL }}m/notifications/{{ notification.id|e('url') }}/delete" class="m-notification-form-inline" onsubmit="return confirm('Eliminar esta notificação?');">
+                                <form method="POST" action="{{ BASE_URL }}m/notifications/{{ notification.id|e('url') }}/delete" class="m-notification-form-inline" data-confirm="Eliminar esta notificação?">
                                     <button type="submit" class="m-btn m-btn-sm m-btn-danger" title="Eliminar"><i class="bi bi-trash"></i></button>
                                 </form>
                                 {% endif %}
@@ -141,6 +151,14 @@
             {% endfor %}
         </div>
         <a href="{{ BASE_URL }}m/notifications" class="m-link-block m-notifications-ver-mais"><i class="bi bi-chevron-right"></i> Ver mais</a>
+    </section>
+    {% else %}
+    <section class="m-section">
+        <div class="m-card m-card-empty">
+            <h2 class="m-card-title"><i class="bi bi-bell m-card-title-icon m-card-title-icon-muted"></i> Notificações</h2>
+            <p class="m-empty"><i class="bi bi-check-circle"></i> Não tem notificações não lidas.</p>
+            <a href="{{ BASE_URL }}m/notifications" class="m-link-block"><i class="bi bi-chevron-right"></i> Ver notificações</a>
+        </div>
     </section>
     {% endif %}
 
@@ -198,6 +216,14 @@
         <p class="m-card-body">{{ unread_messages_count }} mensagem(ns) por ler.</p>
         {% endif %}
         <a href="{{ BASE_URL }}m/messages" class="m-link-block m-notifications-ver-mais"><i class="bi bi-chevron-right"></i> Ver mais</a>
+    </section>
+    {% else %}
+    <section class="m-section">
+        <div class="m-card m-card-empty">
+            <h2 class="m-card-title"><i class="bi bi-envelope m-card-title-icon m-card-title-icon-muted"></i> Mensagens</h2>
+            <p class="m-empty"><i class="bi bi-check-circle"></i> Não tem mensagens por ler.</p>
+            <a href="{{ BASE_URL }}m/messages" class="m-link-block"><i class="bi bi-chevron-right"></i> Ver mensagens</a>
+        </div>
     </section>
     {% endif %}
 

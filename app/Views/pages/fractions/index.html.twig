@@ -104,7 +104,7 @@
                                                             <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/remove-owner" class="d-inline">
                                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                                                 <input type="hidden" name="user_id" value="{{ owner.user_id }}">
-                                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Desassociar condómino" onclick="return confirm('Tem certeza que deseja desassociar {{ owner.name }} desta fração?');">
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Desassociar condómino" data-confirm="{{ ('Tem certeza que deseja desassociar ' ~ owner.name ~ ' desta fração?')|e('html_attr') }}">
                                                                     <i class="bi bi-person-dash"></i>
                                                                 </button>
                                                             </form>
@@ -162,7 +162,7 @@
                                                                 <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ invitation.id }}/resend" class="d-inline">
                                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                                                     <input type="hidden" name="fraction_id" value="{{ fraction.id }}">
-                                                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Reenviar convite" onclick="return confirm('Tem certeza que deseja reenviar o convite para {{ invitation.name }}?');">
+                                                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Reenviar convite" data-confirm="{{ ('Tem certeza que deseja reenviar o convite para ' ~ invitation.name ~ '?')|e('html_attr') }}">
                                                                         <i class="bi bi-arrow-repeat"></i>
                                                                     </button>
                                                                 </form>
@@ -170,7 +170,7 @@
                                                             <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ invitation.id }}/revoke" class="d-inline">
                                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                                                 <input type="hidden" name="fraction_id" value="{{ fraction.id }}">
-                                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Revogar convite" onclick="return confirm('Tem certeza que deseja revogar o convite para {{ invitation.name }}?');">
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Revogar convite" data-confirm="{{ ('Tem certeza que deseja revogar o convite para ' ~ invitation.name ~ '?')|e('html_attr') }}">
                                                                     <i class="bi bi-x-circle"></i>
                                                                 </button>
                                                             </form>
@@ -205,7 +205,7 @@
                                     <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#inviteModal{{ fraction.id }}" title="Convidar Condómino">
                                         <i class="bi bi-person-plus"></i>
                                     </button>
-                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover esta fração?');">
+                                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/delete" class="d-inline" data-confirm="Tem certeza que deseja remover esta fração?">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <button type="submit" class="btn btn-outline-danger btn-sm" title="Remover">
                                             <i class="bi bi-trash"></i>
@@ -274,7 +274,7 @@
                             <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/remove-owner" class="d-inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <input type="hidden" name="user_id" value="{{ owner.user_id }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Desassociar" onclick="return confirm('Desassociar {{ owner.name }}?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Desassociar" data-confirm="{{ ('Desassociar ' ~ owner.name ~ '?')|e('html_attr') }}">
                                     <i class="bi bi-person-dash"></i>
                                 </button>
                             </form>
@@ -327,7 +327,7 @@
                                 <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ invitation.id }}/resend" class="d-inline">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="fraction_id" value="{{ fraction.id }}">
-                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Reenviar" onclick="return confirm('Reenviar convite para {{ invitation.name }}?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Reenviar" data-confirm="{{ ('Reenviar convite para ' ~ invitation.name ~ '?')|e('html_attr') }}">
                                         <i class="bi bi-arrow-repeat"></i>
                                     </button>
                                 </form>
@@ -335,7 +335,7 @@
                             <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ invitation.id }}/revoke" class="d-inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <input type="hidden" name="fraction_id" value="{{ fraction.id }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Revogar" onclick="return confirm('Revogar convite para {{ invitation.name }}?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Revogar" data-confirm="{{ ('Revogar convite para ' ~ invitation.name ~ '?')|e('html_attr') }}">
                                     <i class="bi bi-x-circle"></i>
                                 </button>
                             </form>
@@ -367,7 +367,7 @@
                     <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#inviteModal{{ fraction.id }}">
                         <i class="bi bi-person-plus"></i> Convidar
                     </button>
-                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/delete" class="d-inline" onsubmit="return confirm('Remover esta fração?');">
+                    <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions/{{ fraction.id }}/delete" class="d-inline" data-confirm="Remover esta fração?">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <button type="submit" class="btn btn-outline-danger btn-sm">
                             <i class="bi bi-trash"></i> Remover

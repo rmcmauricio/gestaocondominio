@@ -146,6 +146,10 @@
                 <span class="sidebar-menu-tab-text">Menu</span>
                 <i class="bi bi-chevron-right" aria-hidden="true"></i>
             </button>
+            <!-- Floating Action Button - abrir menu (canto inferior direito, só em viewport <= 1320px) -->
+            <button type="button" class="sidebar-fab" id="sidebarToggleFab" onclick="toggleSidebar(); return false;" aria-label="Abrir menu" title="Abrir menu">
+                <i class="bi bi-list" id="sidebarFabIcon" aria-hidden="true"></i>
+            </button>
         {% endif %}
 
         <main class="main-content {% if viewName == 'pages/home.html.twig' or 'pages/legal/' in viewName or viewName == 'pages/help/index.html.twig' %}main-content-full{% endif %}">
@@ -170,6 +174,9 @@
 
     <!-- Help Modal (available on all pages) -->
     {% include 'blocks/help-modal.html.twig' %}
+
+    <!-- Modal de confirmação (substitui confirm() nativo) -->
+    {% include 'blocks/confirm-modal.html.twig' %}
 
     <!-- Modal: Nova categoria (receitas, despesas, movimentos, importação) -->
     {% include 'blocks/modal-new-category.html.twig' %}

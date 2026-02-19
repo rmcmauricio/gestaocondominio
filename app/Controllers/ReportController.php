@@ -7,7 +7,10 @@ use App\Core\Security;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Models\Condominium;
+use App\Models\CondominiumFeePeriod;
 use App\Models\Document;
+use App\Models\Fee;
+use App\Models\Fraction;
 use App\Services\ReportService;
 use App\Services\FileStorageService;
 
@@ -93,15 +96,19 @@ class ReportController extends Controller
         $year = (int)($_POST['year'] ?? date('Y'));
         $mode = $_POST['mode'] ?? '';
         $report = $this->reportService->generateBalanceSheet($condominiumId, $year);
-        $html = $this->renderBalanceSheetHtml($report);
+        if (!empty($report['no_budget'])) {
+            $html = $this->renderBalanceSheetNoBudgetHtml($report['year'], $condominiumId);
+        } else {
+            $html = $this->renderBalanceSheetHtml($report);
+        }
 
         if ($mode === 'ajax' || $this->isAjaxRequest()) {
-            $printUrl = BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports/balance-sheet/print?year=' . $year;
+            $printUrl = !empty($report['no_budget']) ? '' : BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports/balance-sheet/print?year=' . $year;
             $this->jsonSuccess([
                 'html' => $html,
                 'printUrl' => $printUrl,
                 'title' => 'Balancete ' . $year
-            ], 'Relatório gerado com sucesso');
+            ], !empty($report['no_budget']) ? 'Sem orçamento para o ano selecionado' : 'Relatório gerado com sucesso');
             return;
         }
 
@@ -140,6 +147,7 @@ class ReportController extends Controller
         $mode = $_POST['mode'] ?? '';
         
         $report = $this->reportService->generateFeesReport($condominiumId, $year, $month);
+        $this->enrichFeesReportWithQuadro($report, $condominiumId, $year);
         $html = $this->renderFeesReportHtml($report);
 
         if ($mode === 'ajax' || $this->isAjaxRequest()) {
@@ -173,11 +181,86 @@ class ReportController extends Controller
         $year = (int)($_GET['year'] ?? date('Y'));
         $month = !empty($_GET['month']) ? (int)$_GET['month'] : null;
         $report = $this->reportService->generateFeesReport($condominiumId, $year, $month);
+        $this->enrichFeesReportWithQuadro($report, $condominiumId, $year);
         $html = $this->renderFeesReportHtml($report);
         $title = 'Relatório de Quotas - ' . $year . ($month ? ' / ' . $month : '');
         
         echo $this->renderPrintTemplate($html, $title);
         exit;
+    }
+
+    /**
+     * Enrich fees report with quadro (fees map), fractions and period labels for document/print.
+     */
+    private function enrichFeesReportWithQuadro(array &$report, int $condominiumId, int $year): void
+    {
+        $feeModel = new Fee();
+        $fractionModel = new Fraction();
+        $cfp = new CondominiumFeePeriod();
+        $feePeriodType = $cfp->get($condominiumId, $year);
+        if ($feePeriodType === null) {
+            $feePeriodType = $this->inferFeePeriodType($condominiumId, $year);
+        }
+        $monthNames = [
+            1 => 'Janeiro', 2 => 'Fevereiro', 3 => 'Março', 4 => 'Abril',
+            5 => 'Maio', 6 => 'Junho', 7 => 'Julho', 8 => 'Agosto',
+            9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro'
+        ];
+        $report['fee_period_labels'] = $this->buildFeePeriodLabels($feePeriodType, $monthNames);
+        $report['fees_map'] = $feeModel->getFeesMapByYear($condominiumId, $year, null, $feePeriodType);
+        $report['fractions'] = $fractionModel->getByCondominiumId($condominiumId);
+    }
+
+    private function inferFeePeriodType(int $condominiumId, int $year): string
+    {
+        global $db;
+        if (!$db) {
+            return 'monthly';
+        }
+        $stmt = $db->prepare("
+            SELECT COUNT(DISTINCT COALESCE(period_index, period_month)) as c
+            FROM fees WHERE condominium_id = ? AND period_year = ?
+            AND (fee_type = 'regular' OR fee_type IS NULL) AND COALESCE(is_historical, 0) = 0
+        ");
+        $stmt->execute([$condominiumId, $year]);
+        $r = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $count = $r ? (int)$r['c'] : 0;
+        if ($count <= 0 || $count >= 12) {
+            return 'monthly';
+        }
+        if ($count === 6) {
+            return 'bimonthly';
+        }
+        if ($count === 4) {
+            return 'quarterly';
+        }
+        if ($count === 2) {
+            return 'semiannual';
+        }
+        if ($count === 1) {
+            return 'annual';
+        }
+        return 'monthly';
+    }
+
+    private function buildFeePeriodLabels(?string $periodType, array $monthNames): array
+    {
+        $periodType = $periodType ?? 'monthly';
+        switch ($periodType) {
+            case 'bimonthly':
+                return [1 => 'Jan-Fev', 2 => 'Mar-Abr', 3 => 'Mai-Jun', 4 => 'Jul-Ago', 5 => 'Set-Out', 6 => 'Nov-Dez'];
+            case 'quarterly':
+                return [1 => 'Q1', 2 => 'Q2', 3 => 'Q3', 4 => 'Q4'];
+            case 'semiannual':
+                return [1 => '1º Sem', 2 => '2º Sem'];
+            case 'annual':
+            case 'yearly':
+                return [1 => 'Anual'];
+            default:
+                return array_map(function ($m) {
+                    return mb_substr($m, 0, 3);
+                }, $monthNames);
+        }
     }
 
     public function expensesReport(int $condominiumId)
@@ -452,6 +535,30 @@ class ReportController extends Controller
         $mode = $_POST['mode'] ?? '';
         $report = $this->reportService->generateBudgetVsActual($condominiumId, $year);
         
+        if (!empty($report['no_budget'])) {
+            $html = $this->renderBudgetVsActualNoBudgetHtml($report['year'], $condominiumId);
+            if ($format === 'excel') {
+                header('Content-Type: text/csv; charset=utf-8');
+                header('Content-Disposition: attachment; filename="orcamento_vs_realizado_' . $year . '_' . date('Y-m-d') . '.csv"');
+                $out = fopen('php://output', 'w');
+                fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+                fputcsv($out, ['Não existe orçamento para o ano ' . $year . '. O relatório Orçamento vs Realizado só pode ser gerado quando existir orçamento aprovado para o ano. Crie um orçamento em: Finanças → Orçamentos → Criar orçamento (ano ' . $year . ').'], ';');
+                fclose($out);
+                exit;
+            }
+            if ($mode === 'ajax' || $this->isAjaxRequest()) {
+                $this->jsonSuccess([
+                    'html' => $html,
+                    'printUrl' => '',
+                    'title' => 'Orçamento vs Realizado - ' . $year
+                ], 'Sem orçamento para o ano selecionado');
+                exit;
+            }
+            header('Content-Type: text/html; charset=utf-8');
+            echo $html;
+            exit;
+        }
+
         if ($format === 'excel') {
             $this->exportBudgetVsActualToExcel($report, $year);
             exit;
@@ -485,8 +592,11 @@ class ReportController extends Controller
 
         $year = (int)($_GET['year'] ?? date('Y'));
         $report = $this->reportService->generateBudgetVsActual($condominiumId, $year);
-        $html = $this->renderBudgetVsActualHtml($report, $year);
-        
+        if (!empty($report['no_budget'])) {
+            $html = $this->renderBudgetVsActualNoBudgetHtml($report['year'], $condominiumId);
+        } else {
+            $html = $this->renderBudgetVsActualHtml($report, $year);
+        }
         echo $this->renderPrintTemplate($html, 'Orçamento vs Realizado - ' . $year);
         exit;
     }
@@ -558,8 +668,64 @@ class ReportController extends Controller
         exit;
     }
 
+    /**
+     * Render message when there is no budget for the year (do not generate balance sheet).
+     */
+    protected function renderBalanceSheetNoBudgetHtml(int $year, int $condominiumId): string
+    {
+        $createUrl = BASE_URL . 'condominiums/' . $condominiumId . '/budgets/create?year=' . $year;
+        return "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <title>Balancete {$year}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; }
+                .alert { padding: 16px; border-radius: 8px; background-color: #fff3cd; border: 1px solid #ffc107; color: #856404; }
+                .alert a { color: #0056b3; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <h1>Balancete {$year}</h1>
+            <p class=\"alert\">Não existe orçamento para o ano {$year}. O balancete só pode ser gerado quando existir orçamento aprovado para o ano.<br>
+            <a href=\"" . htmlspecialchars($createUrl) . "\">Criar orçamento para {$year}</a></p>
+        </body>
+        </html>";
+    }
+
+    /**
+     * Render message when there is no budget for the year (Orçamento vs Realizado).
+     */
+    protected function renderBudgetVsActualNoBudgetHtml(int $year, int $condominiumId): string
+    {
+        $createUrl = BASE_URL . 'condominiums/' . $condominiumId . '/budgets/create?year=' . $year;
+        return "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <title>Orçamento vs Realizado {$year}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; }
+                .alert { padding: 16px; border-radius: 8px; background-color: #fff3cd; border: 1px solid #ffc107; color: #856404; }
+                .alert a { color: #0056b3; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <h1>Orçamento vs Realizado - {$year}</h1>
+            <p class=\"alert\">Não existe orçamento para o ano {$year}. O relatório Orçamento vs Realizado só pode ser gerado quando existir orçamento aprovado para o ano.<br>
+            <a href=\"" . htmlspecialchars($createUrl) . "\">Criar orçamento para {$year}</a></p>
+        </body>
+        </html>";
+    }
+
     protected function renderBalanceSheetHtml(array $report): string
     {
+        $balance = $report['balance'];
+        $balanceClass = $balance < 0 ? ' class="text-danger"' : ($balance > 0 ? ' class="text-success"' : '');
+        $budgetResult = $report['budget_result'] ?? (($report['total_budget'] ?? 0) - $report['total_expenses']);
+        $budgetResultClass = $budgetResult < 0 ? ' class="text-danger"' : ($budgetResult > 0 ? ' class="text-success"' : '');
         return "
         <!DOCTYPE html>
         <html>
@@ -569,38 +735,48 @@ class ReportController extends Controller
             <style>
                 body { font-family: Arial, sans-serif; margin: 40px; }
                 h1 { color: #333; }
+                .subtitle { color: #666; font-size: 0.9em; margin-bottom: 16px; }
                 table { width: 100%; border-collapse: collapse; margin-top: 20px; }
                 th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                td.num { text-align: right; }
                 th { background-color: #f2f2f2; }
                 .total { font-weight: bold; }
+                .section { font-weight: bold; background-color: #f8f9fa; }
             </style>
         </head>
         <body>
             <h1>Balancete {$report['year']}</h1>
+            <p class=\"subtitle\">Resumo financeiro do ano (orçamento, despesas, quotas e resultado).</p>
             <table>
                 <tr>
                     <th>Descrição</th>
-                    <th>Valor</th>
+                    <th class=\"num\">Valor</th>
+                </tr>
+                <tr class=\"section\"><td colspan=\"2\">Receitas previstas e realizadas</td></tr>
+                <tr>
+                    <td>Orçamento (receita prevista)</td>
+                    <td class=\"num\">€" . number_format($report['total_budget'], 2, ',', '.') . "</td>
                 </tr>
                 <tr>
-                    <td>Orçamento</td>
-                    <td>€" . number_format($report['total_budget'], 2, ',', '.') . "</td>
+                    <td>Quotas Recebidas (receita realizada)</td>
+                    <td class=\"num\">€" . number_format($report['paid_fees'], 2, ',', '.') . "</td>
                 </tr>
+                <tr>
+                    <td>Quotas Pendentes (a receber)</td>
+                    <td class=\"num\">€" . number_format($report['pending_fees'], 2, ',', '.') . "</td>
+                </tr>
+                <tr class=\"section\"><td colspan=\"2\">Despesas e resultado</td></tr>
                 <tr>
                     <td>Despesas</td>
-                    <td>€" . number_format($report['total_expenses'], 2, ',', '.') . "</td>
+                    <td class=\"num\">€" . number_format($report['total_expenses'], 2, ',', '.') . "</td>
+                </tr>
+                <tr class=\"total\">
+                    <td>Saldo do período (Quotas Recebidas − Despesas)</td>
+                    <td class=\"num\"{$balanceClass}>€" . number_format($balance, 2, ',', '.') . "</td>
                 </tr>
                 <tr>
-                    <td>Quotas Recebidas</td>
-                    <td>€" . number_format($report['paid_fees'], 2, ',', '.') . "</td>
-                </tr>
-                <tr>
-                    <td>Quotas Pendentes</td>
-                    <td>€" . number_format($report['pending_fees'], 2, ',', '.') . "</td>
-                </tr>
-                <tr class='total'>
-                    <td>Saldo</td>
-                    <td>€" . number_format($report['balance'], 2, ',', '.') . "</td>
+                    <td>Resultado orçamental (Orçamento − Despesas)</td>
+                    <td class=\"num\"{$budgetResultClass}>€" . number_format($budgetResult, 2, ',', '.') . "</td>
                 </tr>
             </table>
         </body>
@@ -609,11 +785,12 @@ class ReportController extends Controller
 
     protected function renderFeesReportHtml(array $report): string
     {
-        // Prepare data for chart
         $paidAmount = $report['summary']['paid'] ?? 0;
         $pendingAmount = $report['summary']['pending'] ?? 0;
         $overdueAmount = $report['summary']['overdue'] ?? 0;
-        
+
+        $yearLabel = $report['year'] . ($report['month'] ? ' / ' . (int)$report['month'] : '');
+
         $html = "
         <!DOCTYPE html>
         <html>
@@ -624,19 +801,107 @@ class ReportController extends Controller
             <style>
                 body { font-family: Arial, sans-serif; margin: 40px; }
                 h1 { color: #333; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; }
+                h2 { color: #444; margin-top: 28px; margin-bottom: 12px; font-size: 1.1em; }
+                table { width: 100%; border-collapse: collapse; margin-top: 12px; margin-bottom: 20px; }
+                th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+                th { background-color: #f2f2f2; font-weight: bold; }
+                td.num, th.num { text-align: right; }
                 .chart-container { margin: 30px 0; max-width: 400px; height: 400px; }
+                .quadro-table th { text-align: center; }
+                .quadro-table td { text-align: center; }
+                .quadro-table td:first-child { text-align: left; font-weight: bold; }
+                .status-pago { color: #28a745; }
+                .status-pendente { color: #856404; }
+                .status-atraso { color: #dc3545; }
+                .valor-em-falta { font-weight: bold; color: #dc3545; }
             </style>
         </head>
         <body>
-            <h1>Relatório de Quotas - {$report['year']}" . ($report['month'] ? " / {$report['month']}" : '') . "</h1>
+            <h1>Relatório de Quotas - {$yearLabel}</h1>
             
             <div class='chart-container'>
                 <canvas id='feesStatusChart'></canvas>
             </div>
-            
+            <h3>Resumo</h3>
+            <p>Total: €" . number_format($report['summary']['total'], 2, ',', '.') . " &nbsp;|&nbsp; Pagas: €" . number_format($paidAmount, 2, ',', '.') . " &nbsp;|&nbsp; Pendentes: €" . number_format($pendingAmount, 2, ',', '.') . " &nbsp;|&nbsp; Em Atraso: €" . number_format($overdueAmount, 2, ',', '.') . "</p>";
+
+        // Quadro de Quotas (matriz fração x período) para gestão documental
+        $feesMap = $report['fees_map'] ?? [];
+        $fractions = $report['fractions'] ?? [];
+        $periodLabels = $report['fee_period_labels'] ?? [];
+        if (!empty($feesMap) && !empty($fractions) && !empty($periodLabels)) {
+            $html .= "
+            <h2>Quadro de Quotas</h2>
+            <table class='quadro-table'>
+                <tr>
+                    <th>Fração</th>";
+            foreach ($periodLabels as $idx => $label) {
+                $html .= "<th>" . htmlspecialchars($label) . "</th>";
+            }
+            $html .= "
+                    <th>Total</th>
+                    <th>Pago</th>
+                    <th>Em Falta</th>
+                </tr>";
+            foreach ($fractions as $frac) {
+                $fid = (int)$frac['id'];
+                $ident = htmlspecialchars($frac['identifier'] ?? '');
+                $rowTotal = 0.0;
+                $rowPaid = 0.0;
+                $rowPending = 0.0;
+                $rowCells = '';
+                foreach ($periodLabels as $periodIdx => $label) {
+                    $slotData = $feesMap[$periodIdx] ?? [];
+                    $cell = $slotData[$fid] ?? null;
+                    if (!$cell) {
+                        $rowCells .= "<td>-</td>";
+                    } else {
+                        $amt = (float)($cell['amount'] ?? 0);
+                        $paid = (float)($cell['paid_amount'] ?? 0);
+                        $rem = (float)($cell['remaining_amount'] ?? $amt - $paid);
+                        $rowTotal += $amt;
+                        $rowPaid += $paid;
+                        $rowPending += $rem;
+                        $status = $cell['status'] ?? 'pending';
+                        $statusClass = $status === 'paid' ? 'status-pago' : ($status === 'overdue' ? 'status-atraso' : 'status-pendente');
+                        $emFaltaClass = ($status !== 'paid' && $rem > 0) ? ' valor-em-falta' : '';
+                        $statusLabel = $this->translateStatus($status);
+                        $rowCells .= "<td class='{$statusClass}{$emFaltaClass}' title='€" . number_format($amt, 2, ',', '.') . "'>" . $statusLabel . " €" . number_format($amt, 2, ',', '.') . "</td>";
+                    }
+                }
+                if ($rowTotal > 0) {
+                    $html .= "<tr><td>{$ident}</td>" . $rowCells;
+                    $html .= "<td class='num'>€" . number_format($rowTotal, 2, ',', '.') . "</td>";
+                    $html .= "<td class='num'>€" . number_format($rowPaid, 2, ',', '.') . "</td>";
+                    $emFaltaCellClass = $rowPending > 0 ? ' valor-em-falta' : '';
+                    $html .= "<td class='num{$emFaltaCellClass}'>€" . number_format($rowPending, 2, ',', '.') . "</td></tr>";
+                }
+            }
+            $html .= "</table>";
+        }
+
+        // Tabela detalhada organizada por fração e por período
+        $fees = $report['fees'] ?? [];
+        $byFraction = [];
+        foreach ($fees as $fee) {
+            $key = $fee['fraction_identifier'] ?? '';
+            if (!isset($byFraction[$key])) {
+                $byFraction[$key] = [];
+            }
+            $byFraction[$key][] = $fee;
+        }
+        ksort($byFraction, SORT_NATURAL);
+        foreach ($byFraction as $fracIdent => $list) {
+            usort($list, function ($a, $b) {
+                $orderA = isset($a['period_index']) ? (int)$a['period_index'] : (isset($a['period_month']) ? (int)$a['period_month'] : 0);
+                $orderB = isset($b['period_index']) ? (int)$b['period_index'] : (isset($b['period_month']) ? (int)$b['period_month'] : 0);
+                return $orderA <=> $orderB;
+            });
+            $byFraction[$fracIdent] = $list;
+        }
+
+        $html .= "
+            <h2>Detalhe por fração e período</h2>
             <table>
                 <tr>
                     <th>Fração</th>
@@ -646,36 +911,36 @@ class ReportController extends Controller
                     <th>Data(s) de Pagamento</th>
                 </tr>";
 
-        foreach ($report['fees'] as $fee) {
-            $paymentDates = '';
-            if (!empty($fee['payment_dates'])) {
-                $dates = explode(', ', $fee['payment_dates']);
-                $formattedDates = array_map(function($date) {
-                    return date('d/m/Y', strtotime($date));
-                }, $dates);
-                $paymentDates = implode(', ', $formattedDates);
-            } else {
-                $paymentDates = '-';
-            }
-            
-            $html .= "
+        foreach ($byFraction as $fractionIdentifier => $feeList) {
+            foreach ($feeList as $fee) {
+                $paymentDates = '';
+                if (!empty($fee['payment_dates'])) {
+                    $dates = array_map('trim', explode(',', $fee['payment_dates']));
+                    $formattedDates = array_map(function ($d) {
+                        return date('d/m/Y', strtotime($d));
+                    }, $dates);
+                    $paymentDates = implode(', ', $formattedDates);
+                } else {
+                    $paymentDates = '-';
+                }
+                $displayStatus = $fee['status'];
+                if ($displayStatus === 'pending' && !empty($fee['due_date']) && strtotime($fee['due_date']) < time()) {
+                    $displayStatus = 'overdue';
+                }
+                $valorEmFaltaClass = ($displayStatus !== 'paid' && (float)$fee['amount'] > 0) ? ' valor-em-falta' : '';
+                $html .= "
                 <tr>
-                    <td>{$fee['fraction_identifier']}</td>
-                    <td>" . htmlspecialchars(\App\Models\Fee::formatPeriodForDisplay($fee)) . "</td>
-                    <td>€" . number_format($fee['amount'], 2, ',', '.') . "</td>
-                    <td>" . $this->translateStatus($fee['status']) . "</td>
+                    <td>" . htmlspecialchars($fee['fraction_identifier']) . "</td>
+                    <td>" . htmlspecialchars(Fee::formatPeriodForDisplay($fee)) . "</td>
+                    <td class='num{$valorEmFaltaClass}'>€" . number_format((float)$fee['amount'], 2, ',', '.') . "</td>
+                    <td>" . $this->translateStatus($displayStatus) . "</td>
                     <td>{$paymentDates}</td>
                 </tr>";
+            }
         }
 
         $html .= "
             </table>
-            <h3>Resumo</h3>
-            <p>Total: €" . number_format($report['summary']['total'], 2, ',', '.') . "</p>
-            <p>Pagas: €" . number_format($paidAmount, 2, ',', '.') . "</p>
-            <p>Pendentes: €" . number_format($pendingAmount, 2, ',', '.') . "</p>
-            <p>Em Atraso: €" . number_format($overdueAmount, 2, ',', '.') . "</p>
-            
             <script>
                 const ctx = document.getElementById('feesStatusChart');
                 if (ctx) {
@@ -718,8 +983,16 @@ class ReportController extends Controller
         return $html;
     }
 
-    protected function renderExpensesReportHtml(array $report, int $year): string
+    /**
+     * @param array $report
+     * @param int|string $startDateOrYear year (int) when endDate is null, else start_date (Y-m-d)
+     * @param string|null $endDate end_date (Y-m-d) or null for full year by year number
+     */
+    protected function renderExpensesReportHtml(array $report, $startDateOrYear, ?string $endDate = null): string
     {
+        $periodLabel = $endDate !== null
+            ? date('d/m/Y', strtotime($startDateOrYear)) . ' a ' . date('d/m/Y', strtotime($endDate))
+            : date('d/m/Y', strtotime((int)$startDateOrYear . '-01-01')) . ' a ' . date('d/m/Y', strtotime((int)$startDateOrYear . '-12-31'));
         // Prepare data for chart
         $categories = [];
         $amounts = [];
@@ -754,7 +1027,7 @@ class ReportController extends Controller
             </style>
         </head>
         <body>
-            <h1>Relatório de Despesas por Categoria - {$year}</h1>
+            <h1>Relatório de Despesas por Categoria - {$periodLabel}</h1>
             
             <div class='chart-container'>
                 <canvas id='expensesChart'></canvas>
@@ -1845,8 +2118,11 @@ class ReportController extends Controller
 
         $year = (int)($_GET['year'] ?? date('Y'));
         $report = $this->reportService->generateBalanceSheet($condominiumId, $year);
-        $html = $this->renderBalanceSheetHtml($report);
-        
+        if (!empty($report['no_budget'])) {
+            $html = $this->renderBalanceSheetNoBudgetHtml($report['year'], $condominiumId);
+        } else {
+            $html = $this->renderBalanceSheetHtml($report);
+        }
         echo $this->renderPrintTemplate($html, 'Balancete ' . $year);
         exit;
     }
@@ -1893,14 +2169,20 @@ class ReportController extends Controller
             case 'balance':
                 $year = (int)date('Y', strtotime($startDate));
                 $report = $this->reportService->generateBalanceSheet($condominiumId, $year);
-                $html = $this->renderBalanceSheetHtml($report);
+                if (!empty($report['no_budget'])) {
+                    $html = $this->renderBalanceSheetNoBudgetHtml($report['year'], $condominiumId);
+                    $printUrl = '';
+                } else {
+                    $html = $this->renderBalanceSheetHtml($report);
+                    $printUrl = BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports/balance-sheet/print?year=' . $year;
+                }
                 $title = 'Balancete ' . $year;
-                $printUrl = BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports/balance-sheet/print?year=' . $year;
                 break;
 
             case 'fees':
                 $year = (int)date('Y', strtotime($startDate));
                 $report = $this->reportService->generateFeesReport($condominiumId, $year);
+                $this->enrichFeesReportWithQuadro($report, $condominiumId, $year);
                 $html = $this->renderFeesReportHtml($report);
                 $title = 'Relatório de Quotas - ' . $year;
                 $printUrl = BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports/fees/print?year=' . $year;
@@ -1908,10 +2190,9 @@ class ReportController extends Controller
 
             case 'expenses':
                 $report = $this->reportService->generateExpensesByCategory($condominiumId, $startDate, $endDate);
-                $year = (int)date('Y', strtotime($startDate));
-                $html = $this->renderExpensesReportHtml($report, $year);
+                $html = $this->renderExpensesReportHtml($report, $startDate, $endDate);
                 $title = 'Relatório de Despesas - ' . date('d/m/Y', strtotime($startDate)) . ' a ' . date('d/m/Y', strtotime($endDate));
-                $printUrl = BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports/expenses/print?year=' . $year;
+                $printUrl = BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports/custom/print?report_type=expenses&start_date=' . urlencode($startDate) . '&end_date=' . urlencode($endDate);
                 break;
 
             case 'cash-flow':
@@ -1925,9 +2206,14 @@ class ReportController extends Controller
             case 'budget-vs-actual':
                 $year = (int)date('Y', strtotime($startDate));
                 $report = $this->reportService->generateBudgetVsActual($condominiumId, $year);
-                $html = $this->renderBudgetVsActualHtml($report, $year);
+                if (!empty($report['no_budget'])) {
+                    $html = $this->renderBudgetVsActualNoBudgetHtml($report['year'], $condominiumId);
+                    $printUrl = '';
+                } else {
+                    $html = $this->renderBudgetVsActualHtml($report, $year);
+                    $printUrl = BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports/budget-vs-actual/print?year=' . $year;
+                }
                 $title = 'Orçamento vs Realizado - ' . $year;
-                $printUrl = BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports/budget-vs-actual/print?year=' . $year;
                 break;
 
             case 'delinquency':
@@ -1996,6 +2282,15 @@ class ReportController extends Controller
                 case 'budget-vs-actual':
                     $year = (int)date('Y', strtotime($startDate));
                     $report = $this->reportService->generateBudgetVsActual($condominiumId, $year);
+                    if (!empty($report['no_budget'])) {
+                        header('Content-Type: text/csv; charset=utf-8');
+                        header('Content-Disposition: attachment; filename="orcamento_vs_realizado_' . $year . '_' . date('Y-m-d') . '.csv"');
+                        $out = fopen('php://output', 'w');
+                        fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+                        fputcsv($out, ['Não existe orçamento para o ano ' . $year . '. O relatório Orçamento vs Realizado só pode ser gerado quando existir orçamento aprovado para o ano. Crie um orçamento em: Finanças → Orçamentos → Criar orçamento (ano ' . $year . ').'], ';');
+                        fclose($out);
+                        exit;
+                    }
                     $this->exportBudgetVsActualToExcel($report, $year);
                     exit;
                     
@@ -2083,6 +2378,12 @@ class ReportController extends Controller
                 $report = $this->reportService->generateOccurrenceBySupplierReport($condominiumId, $startDate, $endDate);
                 $html = $this->renderOccurrenceBySupplierReportHtml($condominiumId, $report, $startDate, $endDate);
                 $title = 'Relatório de Ocorrências por Fornecedor - ' . date('d/m/Y', strtotime($startDate)) . ' a ' . date('d/m/Y', strtotime($endDate));
+                break;
+
+            case 'expenses':
+                $report = $this->reportService->generateExpensesByCategory($condominiumId, $startDate, $endDate);
+                $html = $this->renderExpensesReportHtml($report, $startDate, $endDate);
+                $title = 'Relatório de Despesas - ' . date('d/m/Y', strtotime($startDate)) . ' a ' . date('d/m/Y', strtotime($endDate));
                 break;
 
             default:
@@ -2211,6 +2512,91 @@ class ReportController extends Controller
     }
 
     /**
+     * Render "Saldos em contas" table for summary report (one row per account + total row)
+     */
+    protected function renderSummaryAccountsBalancesTable(array $report): string
+    {
+        $accounts = $report['accounts_balances'] ?? [];
+        $startDate = $report['start_date'] ?? '';
+        $endDate = $report['end_date'] ?? '';
+        $totalStart = $report['balance_start'] ?? 0;
+        $totalEnd = $report['balance_end'] ?? 0;
+        $totalVar = $report['balance_variation'] ?? 0;
+        $startLabel = $startDate ? date('d/m/Y', strtotime($startDate)) : '';
+        $endLabel = $endDate ? date('d/m/Y', strtotime($endDate)) : '';
+        $rows = '';
+        foreach ($accounts as $acc) {
+            $name = htmlspecialchars($acc['name'] ?? 'Conta');
+            $s = (float)($acc['balance_start'] ?? 0);
+            $e = (float)($acc['balance_end'] ?? 0);
+            $v = (float)($acc['balance_variation'] ?? 0);
+            $rows .= "<tr><td>{$name}</td><td class='num'>€" . number_format($s, 2, ',', '.') . "</td><td class='num'>€" . number_format($e, 2, ',', '.') . "</td><td class='num " . ($v >= 0 ? 'positive' : 'negative') . "'>€" . number_format($v, 2, ',', '.') . "</td></tr>";
+        }
+        $rows .= "<tr class='total'><td>Total</td><td class='num'>€" . number_format($totalStart, 2, ',', '.') . "</td><td class='num'>€" . number_format($totalEnd, 2, ',', '.') . "</td><td class='num " . ($totalVar >= 0 ? 'positive' : 'negative') . "'>€" . number_format($totalVar, 2, ',', '.') . "</td></tr>";
+        return "
+            <h2>Saldos em contas</h2>
+            <table>
+                <tr>
+                    <th>Conta</th>
+                    <th class='num'>Saldo início ({$startLabel})</th>
+                    <th class='num'>Saldo fim ({$endLabel})</th>
+                    <th class='num'>Diferença</th>
+                </tr>
+                {$rows}
+            </table>";
+    }
+
+    /**
+     * Render expenses by category table for summary report
+     */
+    protected function renderSummaryExpensesByCategoryTable(array $expensesByCategory): string
+    {
+        if (empty($expensesByCategory)) {
+            return "<h2>Despesas por categoria</h2><p class='text-muted'>Nenhuma despesa no período.</p>";
+        }
+        $rows = '';
+        $total = 0.0;
+        foreach ($expensesByCategory as $row) {
+            $cat = htmlspecialchars($row['category'] ?? 'Sem categoria');
+            $val = (float)($row['total'] ?? 0);
+            $total += $val;
+            $rows .= "<tr><td>{$cat}</td><td class='num negative'>€" . number_format($val, 2, ',', '.') . "</td></tr>";
+        }
+        $rows .= "<tr class='total'><td>Total</td><td class='num negative'>€" . number_format($total, 2, ',', '.') . "</td></tr>";
+        return "
+            <h2>Despesas por categoria</h2>
+            <table>
+                <tr><th>Categoria</th><th class='num'>Valor</th></tr>
+                {$rows}
+            </table>";
+    }
+
+    /**
+     * Render revenues/quotas by category table for summary report
+     */
+    protected function renderSummaryRevenuesByCategoryTable(array $revenuesByCategory): string
+    {
+        if (empty($revenuesByCategory)) {
+            return "<h2>Receitas / Quotas por categoria</h2><p class='text-muted'>Nenhuma receita no período.</p>";
+        }
+        $rows = '';
+        $total = 0.0;
+        foreach ($revenuesByCategory as $row) {
+            $cat = htmlspecialchars($row['category'] ?? 'Sem categoria');
+            $val = (float)($row['total'] ?? 0);
+            $total += $val;
+            $rows .= "<tr><td>{$cat}</td><td class='num positive'>€" . number_format($val, 2, ',', '.') . "</td></tr>";
+        }
+        $rows .= "<tr class='total'><td>Total</td><td class='num positive'>€" . number_format($total, 2, ',', '.') . "</td></tr>";
+        return "
+            <h2>Receitas / Quotas por categoria</h2>
+            <table>
+                <tr><th>Categoria</th><th class='num'>Valor</th></tr>
+                {$rows}
+            </table>";
+    }
+
+    /**
      * Render summary report HTML
      */
     protected function renderSummaryReportHtml(array $report): string
@@ -2225,14 +2611,18 @@ class ReportController extends Controller
             <style>
                 body { font-family: Arial, sans-serif; margin: 40px; }
                 h1 { color: #333; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                h2 { margin-top: 2em; margin-bottom: 0.5em; color: #444; }
+                table { width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 0; }
                 th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                 th { background-color: #f2f2f2; }
                 .total { font-weight: bold; }
+                .num { text-align: right; }
                 .positive { color: #28a745; }
                 .negative { color: #dc3545; }
+                .small { font-size: 0.9em; }
+                .text-muted { color: #6c757d; }
                 .chart-container { margin: 30px 0; max-width: 100%; height: 300px; }
-                .charts-row { display: flex; gap: 20px; flex-wrap: wrap; }
+                .charts-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 1em; }
                 .chart-wrapper { flex: 1; min-width: 300px; }
             </style>
         </head>
@@ -2253,6 +2643,8 @@ class ReportController extends Controller
                 </div>
             </div>
             
+            " . $this->renderSummaryAccountsBalancesTable($report) . "
+
             <h2>Receitas e Despesas</h2>
             <table>
                 <tr>
@@ -2268,10 +2660,15 @@ class ReportController extends Controller
                     <td class='negative'>€" . number_format($report['total_expenses'], 2, ',', '.') . "</td>
                 </tr>
                 <tr class='total'>
-                    <td>Saldo</td>
+                    <td>Resultado do período (Receitas − Despesas)</td>
                     <td class='" . ($report['balance'] >= 0 ? 'positive' : 'negative') . "'>€" . number_format($report['balance'], 2, ',', '.') . "</td>
                 </tr>
+                <tr>
+                    <td colspan='2' class='small text-muted'>Verificação: Saldo início + Resultado = Saldo fim → €" . number_format($report['balance_start'] ?? 0, 2, ',', '.') . " + €" . number_format($report['balance'], 2, ',', '.') . " = €" . number_format(($report['balance_start'] ?? 0) + $report['balance'], 2, ',', '.') . " (saldo fim: €" . number_format($report['balance_end'] ?? 0, 2, ',', '.') . ")</td>
+                </tr>
             </table>
+            " . $this->renderSummaryExpensesByCategoryTable($report['expenses_by_category'] ?? []) . "
+            " . $this->renderSummaryRevenuesByCategoryTable($report['revenues_by_category'] ?? []) . "
 
             <h2>Quotas</h2>
             <table>
@@ -2281,7 +2678,7 @@ class ReportController extends Controller
                 </tr>
                 <tr>
                     <td>Total de Quotas</td>
-                    <td>€" . number_format($report['fees']['paid_total'] + $report['fees']['pending_total'], 2, ',', '.') . "</td>
+                    <td>€" . number_format($report['fees']['paid_total'] + $report['fees']['pending_total'] + $report['fees']['overdue_total'], 2, ',', '.') . "</td>
                 </tr>
                 <tr>
                     <td>Quotas Pagas</td>
@@ -2296,7 +2693,6 @@ class ReportController extends Controller
                     <td class='negative'>€" . number_format($report['fees']['overdue_total'], 2, ',', '.') . "</td>
                 </tr>
             </table>
-            
             <script>
                 // Receitas vs Despesas Chart
                 const ctx1 = document.getElementById('revenueExpensesChart');
@@ -2400,7 +2796,7 @@ class ReportController extends Controller
                 
             case 'expenses':
                 $report = $this->reportService->generateExpensesByCategory($condominiumId, $startDate, $endDate);
-                return $this->renderExpensesReportHtmlForPdf($report, $year);
+                return $this->renderExpensesReportHtmlForPdf($report, $startDate, $endDate);
 
             case 'expenses-by-category-evolution':
                 $startYear = (int)($params['start_year'] ?? date('Y') - 4);
@@ -2410,6 +2806,9 @@ class ReportController extends Controller
                 
             case 'budget-vs-actual':
                 $report = $this->reportService->generateBudgetVsActual($condominiumId, $year);
+                if (!empty($report['no_budget'])) {
+                    return $this->renderBudgetVsActualNoBudgetHtml($report['year'], $condominiumId);
+                }
                 return $this->renderBudgetVsActualHtmlForPdf($report, $year);
                 
             case 'summary':
@@ -2419,6 +2818,7 @@ class ReportController extends Controller
             case 'fees':
                 $month = isset($params['month']) ? (int)$params['month'] : null;
                 $report = $this->reportService->generateFeesReport($condominiumId, $year, $month);
+                $this->enrichFeesReportWithQuadro($report, $condominiumId, $year);
                 return $this->renderFeesReportHtmlForPdf($report);
                 
             default:
@@ -2523,9 +2923,13 @@ class ReportController extends Controller
     
     /**
      * Render expenses report HTML with SVG chart for PDF
+     * @param int|string $startDateOrYear year (int) when endDate is null, else start_date (Y-m-d)
      */
-    protected function renderExpensesReportHtmlForPdf(array $report, int $year): string
+    protected function renderExpensesReportHtmlForPdf(array $report, $startDateOrYear, ?string $endDate = null): string
     {
+        $periodLabel = $endDate !== null
+            ? date('d/m/Y', strtotime($startDateOrYear)) . ' a ' . date('d/m/Y', strtotime($endDate))
+            : date('d/m/Y', strtotime((int)$startDateOrYear . '-01-01')) . ' a ' . date('d/m/Y', strtotime((int)$startDateOrYear . '-12-31'));
         $categories = [];
         $amounts = [];
         $total = 0;
@@ -2553,7 +2957,7 @@ class ReportController extends Controller
             </style>
         </head>
         <body>
-            <h1>Relatório de Despesas por Categoria - {$year}</h1>
+            <h1>Relatório de Despesas por Categoria - {$periodLabel}</h1>
             
             {$chartSvg}
             
@@ -2695,13 +3099,17 @@ class ReportController extends Controller
             <style>
                 body { font-family: Arial, sans-serif; margin: 40px; }
                 h1 { color: #333; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                h2 { margin-top: 2em; margin-bottom: 0.5em; color: #444; }
+                table { width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 0; }
                 th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                 th { background-color: #f2f2f2; }
                 .total { font-weight: bold; }
+                .num { text-align: right; }
                 .positive { color: #28a745; }
                 .negative { color: #dc3545; }
-                .charts-row { display: flex; gap: 20px; flex-wrap: wrap; margin: 20px 0; }
+                .small { font-size: 0.9em; }
+                .text-muted { color: #6c757d; }
+                .charts-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 1em; }
                 .chart-wrapper { flex: 1; min-width: 300px; }
             </style>
         </head>
@@ -2714,48 +3122,26 @@ class ReportController extends Controller
                 <div class='chart-wrapper'>{$feesChart}</div>
             </div>
             
+            " . $this->renderSummaryAccountsBalancesTable($report) . "
+
             <h2>Receitas e Despesas</h2>
             <table>
-                <tr>
-                    <th>Descrição</th>
-                    <th>Valor</th>
-                </tr>
-                <tr>
-                    <td>Total de Receitas</td>
-                    <td class='positive'>€" . number_format($report['total_revenue'], 2, ',', '.') . "</td>
-                </tr>
-                <tr>
-                    <td>Total de Despesas</td>
-                    <td class='negative'>€" . number_format($report['total_expenses'], 2, ',', '.') . "</td>
-                </tr>
-                <tr class='total'>
-                    <td>Saldo</td>
-                    <td class='" . ($report['balance'] >= 0 ? 'positive' : 'negative') . "'>€" . number_format($report['balance'], 2, ',', '.') . "</td>
-                </tr>
+                <tr><th>Descrição</th><th>Valor</th></tr>
+                <tr><td>Total de Receitas</td><td class='positive'>€" . number_format($report['total_revenue'], 2, ',', '.') . "</td></tr>
+                <tr><td>Total de Despesas</td><td class='negative'>€" . number_format($report['total_expenses'], 2, ',', '.') . "</td></tr>
+                <tr class='total'><td>Resultado do período (Receitas − Despesas)</td><td class='" . ($report['balance'] >= 0 ? 'positive' : 'negative') . "'>€" . number_format($report['balance'], 2, ',', '.') . "</td></tr>
+                <tr><td colspan='2' class='small text-muted'>Verificação: Saldo início + Resultado = Saldo fim → €" . number_format($report['balance_start'] ?? 0, 2, ',', '.') . " + €" . number_format($report['balance'], 2, ',', '.') . " = €" . number_format(($report['balance_start'] ?? 0) + $report['balance'], 2, ',', '.') . " (saldo fim: €" . number_format($report['balance_end'] ?? 0, 2, ',', '.') . ")</td></tr>
             </table>
+            " . $this->renderSummaryExpensesByCategoryTable($report['expenses_by_category'] ?? []) . "
+            " . $this->renderSummaryRevenuesByCategoryTable($report['revenues_by_category'] ?? []) . "
 
             <h2>Quotas</h2>
             <table>
-                <tr>
-                    <th>Descrição</th>
-                    <th>Valor</th>
-                </tr>
-                <tr>
-                    <td>Total de Quotas</td>
-                    <td>€" . number_format($report['fees']['paid_total'] + $report['fees']['pending_total'], 2, ',', '.') . "</td>
-                </tr>
-                <tr>
-                    <td>Quotas Pagas</td>
-                    <td class='positive'>€" . number_format($report['fees']['paid_total'], 2, ',', '.') . "</td>
-                </tr>
-                <tr>
-                    <td>Quotas Pendentes</td>
-                    <td class='negative'>€" . number_format($report['fees']['pending_total'], 2, ',', '.') . "</td>
-                </tr>
-                <tr>
-                    <td>Quotas em Atraso</td>
-                    <td class='negative'>€" . number_format($report['fees']['overdue_total'], 2, ',', '.') . "</td>
-                </tr>
+                <tr><th>Descrição</th><th>Valor</th></tr>
+                <tr><td>Total de Quotas</td><td>€" . number_format($report['fees']['paid_total'] + $report['fees']['pending_total'] + $report['fees']['overdue_total'], 2, ',', '.') . "</td></tr>
+                <tr><td>Quotas Pagas</td><td class='positive'>€" . number_format($report['fees']['paid_total'], 2, ',', '.') . "</td></tr>
+                <tr><td>Quotas Pendentes</td><td class='negative'>€" . number_format($report['fees']['pending_total'], 2, ',', '.') . "</td></tr>
+                <tr><td>Quotas em Atraso</td><td class='negative'>€" . number_format($report['fees']['overdue_total'], 2, ',', '.') . "</td></tr>
             </table>
         </body>
         </html>";
@@ -2764,19 +3150,20 @@ class ReportController extends Controller
     }
     
     /**
-     * Render fees report HTML with SVG chart for PDF
+     * Render fees report HTML with SVG chart for PDF (incl. Quadro de Quotas e detalhe por fração/período)
      */
     protected function renderFeesReportHtmlForPdf(array $report): string
     {
         $paidAmount = $report['summary']['paid'] ?? 0;
         $pendingAmount = $report['summary']['pending'] ?? 0;
         $overdueAmount = $report['summary']['overdue'] ?? 0;
-        
+        $yearLabel = $report['year'] . ($report['month'] ? ' / ' . (int)$report['month'] : '');
+
         $chartSvg = $this->generatePieChartSvg(
             ['Pagas', 'Pendentes', 'Em Atraso'],
             [$paidAmount, $pendingAmount, $overdueAmount]
         );
-        
+
         $html = "
         <!DOCTYPE html>
         <html>
@@ -2786,57 +3173,98 @@ class ReportController extends Controller
             <style>
                 body { font-family: Arial, sans-serif; margin: 40px; }
                 h1 { color: #333; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; }
+                h2 { color: #444; margin-top: 28px; margin-bottom: 12px; font-size: 1.1em; }
+                table { width: 100%; border-collapse: collapse; margin-top: 12px; margin-bottom: 20px; }
+                th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+                th { background-color: #f2f2f2; font-weight: bold; }
+                td.num, th.num { text-align: right; }
+                .quadro-table th { text-align: center; }
+                .quadro-table td { text-align: center; }
+                .quadro-table td:first-child { text-align: left; font-weight: bold; }
+                .valor-em-falta { font-weight: bold; color: #dc3545; }
             </style>
         </head>
         <body>
-            <h1>Relatório de Quotas - {$report['year']}" . ($report['month'] ? " / {$report['month']}" : '') . "</h1>
-            
+            <h1>Relatório de Quotas - {$yearLabel}</h1>
             {$chartSvg}
-            
-            <table>
-                <tr>
-                    <th>Fração</th>
-                    <th>Período</th>
-                    <th>Valor</th>
-                    <th>Status</th>
-                    <th>Data(s) de Pagamento</th>
-                </tr>";
+            <h3>Resumo</h3>
+            <p>Total: €" . number_format($report['summary']['total'], 2, ',', '.') . " | Pagas: €" . number_format($paidAmount, 2, ',', '.') . " | Pendentes: €" . number_format($pendingAmount, 2, ',', '.') . " | Em Atraso: €" . number_format($overdueAmount, 2, ',', '.') . "</p>";
 
-        foreach ($report['fees'] as $fee) {
-            $paymentDates = '';
-            if (!empty($fee['payment_dates'])) {
-                $dates = explode(', ', $fee['payment_dates']);
-                $formattedDates = array_map(function($date) {
-                    return date('d/m/Y', strtotime($date));
-                }, $dates);
-                $paymentDates = implode(', ', $formattedDates);
-            } else {
-                $paymentDates = '-';
+        $feesMap = $report['fees_map'] ?? [];
+        $fractions = $report['fractions'] ?? [];
+        $periodLabels = $report['fee_period_labels'] ?? [];
+        if (!empty($feesMap) && !empty($fractions) && !empty($periodLabels)) {
+            $html .= "<h2>Quadro de Quotas</h2><table class='quadro-table'><tr><th>Fração</th>";
+            foreach ($periodLabels as $label) {
+                $html .= "<th>" . htmlspecialchars($label) . "</th>";
             }
-            
-            $html .= "
-                <tr>
-                    <td>{$fee['fraction_identifier']}</td>
-                    <td>" . htmlspecialchars(\App\Models\Fee::formatPeriodForDisplay($fee)) . "</td>
-                    <td>€" . number_format($fee['amount'], 2, ',', '.') . "</td>
-                    <td>" . $this->translateStatus($fee['status']) . "</td>
-                    <td>{$paymentDates}</td>
-                </tr>";
+            $html .= "<th>Total</th><th>Pago</th><th>Em Falta</th></tr>";
+            foreach ($fractions as $frac) {
+                $fid = (int)$frac['id'];
+                $ident = htmlspecialchars($frac['identifier'] ?? '');
+                $rowTotal = 0.0;
+                $rowPaid = 0.0;
+                $rowPending = 0.0;
+                $rowCells = '';
+                foreach ($periodLabels as $periodIdx => $label) {
+                    $cell = ($feesMap[$periodIdx] ?? [])[$fid] ?? null;
+                    if (!$cell) {
+                        $rowCells .= "<td>-</td>";
+                    } else {
+                        $amt = (float)($cell['amount'] ?? 0);
+                        $paid = (float)($cell['paid_amount'] ?? 0);
+                        $rem = (float)($cell['remaining_amount'] ?? $amt - $paid);
+                        $rowTotal += $amt;
+                        $rowPaid += $paid;
+                        $rowPending += $rem;
+                        $status = $cell['status'] ?? 'pending';
+                        $statusLabel = $this->translateStatus($status);
+                        $emFaltaClass = ($status !== 'paid' && $rem > 0) ? ' valor-em-falta' : '';
+                        $rowCells .= "<td class='{$emFaltaClass}'>{$statusLabel} €" . number_format($amt, 2, ',', '.') . "</td>";
+                    }
+                }
+                if ($rowTotal > 0) {
+                    $emFaltaCellClass = $rowPending > 0 ? ' valor-em-falta' : '';
+                    $html .= "<tr><td>{$ident}</td>" . $rowCells . "<td class='num'>€" . number_format($rowTotal, 2, ',', '.') . "</td><td class='num'>€" . number_format($rowPaid, 2, ',', '.') . "</td><td class='num{$emFaltaCellClass}'>€" . number_format($rowPending, 2, ',', '.') . "</td></tr>";
+                }
+            }
+            $html .= "</table>";
         }
 
-        $html .= "
-            </table>
-            <h3>Resumo</h3>
-            <p>Total: €" . number_format($report['summary']['total'], 2, ',', '.') . "</p>
-            <p>Pagas: €" . number_format($paidAmount, 2, ',', '.') . "</p>
-            <p>Pendentes: €" . number_format($pendingAmount, 2, ',', '.') . "</p>
-            <p>Em Atraso: €" . number_format($overdueAmount, 2, ',', '.') . "</p>
-        </body>
-        </html>";
+        $fees = $report['fees'] ?? [];
+        $byFraction = [];
+        foreach ($fees as $fee) {
+            $key = $fee['fraction_identifier'] ?? '';
+            if (!isset($byFraction[$key])) {
+                $byFraction[$key] = [];
+            }
+            $byFraction[$key][] = $fee;
+        }
+        ksort($byFraction, SORT_NATURAL);
+        foreach ($byFraction as $fracIdent => $list) {
+            usort($list, function ($a, $b) {
+                $orderA = isset($a['period_index']) ? (int)$a['period_index'] : (isset($a['period_month']) ? (int)$a['period_month'] : 0);
+                $orderB = isset($b['period_index']) ? (int)$b['period_index'] : (isset($b['period_month']) ? (int)$b['period_month'] : 0);
+                return $orderA <=> $orderB;
+            });
+            $byFraction[$fracIdent] = $list;
+        }
 
+        $html .= "<h2>Detalhe por fração e período</h2><table><tr><th>Fração</th><th>Período</th><th>Valor</th><th>Status</th><th>Data(s) de Pagamento</th></tr>";
+        foreach ($byFraction as $feeList) {
+            foreach ($feeList as $fee) {
+                $paymentDates = !empty($fee['payment_dates']) ? implode(', ', array_map(function ($d) {
+                    return date('d/m/Y', strtotime(trim($d)));
+                }, explode(',', $fee['payment_dates']))) : '-';
+                $displayStatus = $fee['status'];
+                if ($displayStatus === 'pending' && !empty($fee['due_date']) && strtotime($fee['due_date']) < time()) {
+                    $displayStatus = 'overdue';
+                }
+                $valorEmFaltaClass = ($displayStatus !== 'paid' && (float)$fee['amount'] > 0) ? ' valor-em-falta' : '';
+                $html .= "<tr><td>" . htmlspecialchars($fee['fraction_identifier']) . "</td><td>" . htmlspecialchars(Fee::formatPeriodForDisplay($fee)) . "</td><td class='num{$valorEmFaltaClass}'>€" . number_format((float)$fee['amount'], 2, ',', '.') . "</td><td>" . $this->translateStatus($displayStatus) . "</td><td>{$paymentDates}</td></tr>";
+            }
+        }
+        $html .= "</table></body></html>";
         return $html;
     }
 
@@ -3225,6 +3653,16 @@ class ReportController extends Controller
             case 'balance':
                 $year = (int)date('Y', strtotime($startDate));
                 $report = $this->reportService->generateBalanceSheet($condominiumId, $year);
+                if (!empty($report['no_budget'])) {
+                    $sheet->setCellValue('A' . $row, 'Balancete');
+                    $sheet->getStyle('A' . $row)->applyFromArray($titleStyle);
+                    $row++;
+                    $sheet->setCellValue('A' . $row, 'Ano: ' . $year);
+                    $row++;
+                    $sheet->setCellValue('A' . $row, 'Não existe orçamento para o ano ' . $year . '. O balancete só pode ser gerado quando existir orçamento aprovado para o ano. Crie um orçamento em: Finanças → Orçamentos → Criar orçamento (ano ' . $year . ').');
+                    $sheet->getStyle('A' . $row)->getAlignment()->setWrapText(true);
+                    break;
+                }
                 $sheet->setCellValue('A' . $row, 'Balancete');
                 $sheet->getStyle('A' . $row)->applyFromArray($titleStyle);
                 $row++;
@@ -3234,21 +3672,24 @@ class ReportController extends Controller
                 $sheet->setCellValue('B' . $row, 'Valor');
                 $sheet->getStyle('A' . $row . ':B' . $row)->applyFromArray($headerStyle);
                 $row++;
-                $sheet->setCellValue('A' . $row, 'Orçamento');
+                $sheet->setCellValue('A' . $row, 'Orçamento (receita prevista)');
                 $sheet->setCellValue('B' . $row, number_format($report['total_budget'], 2, ',', '.'));
+                $row++;
+                $sheet->setCellValue('A' . $row, 'Quotas Recebidas (receita realizada)');
+                $sheet->setCellValue('B' . $row, number_format($report['paid_fees'], 2, ',', '.'));
+                $row++;
+                $sheet->setCellValue('A' . $row, 'Quotas Pendentes (a receber)');
+                $sheet->setCellValue('B' . $row, number_format($report['pending_fees'], 2, ',', '.'));
                 $row++;
                 $sheet->setCellValue('A' . $row, 'Despesas');
                 $sheet->setCellValue('B' . $row, number_format($report['total_expenses'], 2, ',', '.'));
                 $row++;
-                $sheet->setCellValue('A' . $row, 'Quotas Recebidas');
-                $sheet->setCellValue('B' . $row, number_format($report['paid_fees'], 2, ',', '.'));
-                $row++;
-                $sheet->setCellValue('A' . $row, 'Quotas Pendentes');
-                $sheet->setCellValue('B' . $row, number_format($report['pending_fees'], 2, ',', '.'));
-                $row++;
-                $sheet->setCellValue('A' . $row, 'Saldo');
+                $sheet->setCellValue('A' . $row, 'Saldo do período (Quotas Recebidas − Despesas)');
                 $sheet->setCellValue('B' . $row, number_format($report['balance'], 2, ',', '.'));
                 $sheet->getStyle('A' . $row . ':B' . $row)->applyFromArray($totalStyle);
+                $row++;
+                $sheet->setCellValue('A' . $row, 'Resultado orçamental (Orçamento − Despesas)');
+                $sheet->setCellValue('B' . $row, number_format($report['budget_result'] ?? (($report['total_budget'] ?? 0) - $report['total_expenses']), 2, ',', '.'));
                 break;
                 
             case 'fees':
@@ -3393,6 +3834,16 @@ class ReportController extends Controller
             case 'budget-vs-actual':
                 $year = (int)date('Y', strtotime($startDate));
                 $report = $this->reportService->generateBudgetVsActual($condominiumId, $year);
+                if (!empty($report['no_budget'])) {
+                    $sheet->setCellValue('A' . $row, 'Orçamento vs Realizado');
+                    $sheet->getStyle('A' . $row)->applyFromArray($titleStyle);
+                    $row++;
+                    $sheet->setCellValue('A' . $row, 'Ano: ' . $year);
+                    $row++;
+                    $sheet->setCellValue('A' . $row, 'Não existe orçamento para o ano ' . $year . '. O relatório Orçamento vs Realizado só pode ser gerado quando existir orçamento aprovado para o ano. Crie um orçamento em: Finanças → Orçamentos → Criar orçamento (ano ' . $year . ').');
+                    $sheet->getStyle('A' . $row)->getAlignment()->setWrapText(true);
+                    break;
+                }
                 $sheet->setCellValue('A' . $row, 'Relatório de Orçamento vs Realizado');
                 $sheet->getStyle('A' . $row)->applyFromArray($titleStyle);
                 $row++;
@@ -3485,6 +3936,26 @@ class ReportController extends Controller
                 $row++;
                 $sheet->setCellValue('A' . $row, 'Período: ' . date('d/m/Y', strtotime($startDate)) . ' a ' . date('d/m/Y', strtotime($endDate)));
                 $row += 2;
+                $sheet->setCellValue('A' . $row, 'Saldos em contas');
+                $sheet->getStyle('A' . $row)->applyFromArray($titleStyle);
+                $row++;
+                $this->addExcelHeader($sheet, $row, ['Conta', 'Saldo início', 'Saldo fim', 'Diferença'], $headerStyle);
+                foreach ($report['accounts_balances'] ?? [] as $acc) {
+                    $this->addExcelRow($sheet, $row, [
+                        $acc['name'] ?? 'Conta',
+                        number_format((float)($acc['balance_start'] ?? 0), 2, ',', '.'),
+                        number_format((float)($acc['balance_end'] ?? 0), 2, ',', '.'),
+                        number_format((float)($acc['balance_variation'] ?? 0), 2, ',', '.')
+                    ]);
+                }
+                $this->addExcelRow($sheet, $row, [
+                    'Total',
+                    number_format($report['balance_start'] ?? 0, 2, ',', '.'),
+                    number_format($report['balance_end'] ?? 0, 2, ',', '.'),
+                    number_format($report['balance_variation'] ?? 0, 2, ',', '.')
+                ]);
+                $sheet->getStyle('A' . $row . ':D' . $row)->applyFromArray($totalStyle);
+                $row += 2;
                 $sheet->setCellValue('A' . $row, 'Receitas e Despesas');
                 $sheet->getStyle('A' . $row)->applyFromArray($titleStyle);
                 $row++;
@@ -3493,14 +3964,32 @@ class ReportController extends Controller
                 $row++;
                 $this->addExcelRow($sheet, $row, ['Total de Despesas', number_format($report['total_expenses'], 2, ',', '.')]);
                 $row++;
-                $this->addExcelRow($sheet, $row, ['Saldo', number_format($report['balance'], 2, ',', '.')]);
+                $this->addExcelRow($sheet, $row, ['Resultado do período (Receitas − Despesas)', number_format($report['balance'], 2, ',', '.')]);
                 $sheet->getStyle('A' . $row . ':B' . $row)->applyFromArray($totalStyle);
+                $row++;
+                $this->addExcelRow($sheet, $row, ['Verificação: Saldo início + Resultado = Saldo fim', number_format(($report['balance_start'] ?? 0) + $report['balance'], 2, ',', '.') . ' (saldo fim: ' . number_format($report['balance_end'] ?? 0, 2, ',', '.') . ')']);
+                $row += 2;
+                $sheet->setCellValue('A' . $row, 'Despesas por categoria');
+                $sheet->getStyle('A' . $row)->applyFromArray($titleStyle);
+                $row++;
+                $this->addExcelHeader($sheet, $row, ['Categoria', 'Valor'], $headerStyle);
+                foreach ($report['expenses_by_category'] ?? [] as $item) {
+                    $this->addExcelRow($sheet, $row, [$item['category'] ?? 'Sem categoria', number_format((float)($item['total'] ?? 0), 2, ',', '.')]);
+                }
+                $row += 2;
+                $sheet->setCellValue('A' . $row, 'Receitas / Quotas por categoria');
+                $sheet->getStyle('A' . $row)->applyFromArray($titleStyle);
+                $row++;
+                $this->addExcelHeader($sheet, $row, ['Categoria', 'Valor'], $headerStyle);
+                foreach ($report['revenues_by_category'] ?? [] as $item) {
+                    $this->addExcelRow($sheet, $row, [$item['category'] ?? 'Sem categoria', number_format((float)($item['total'] ?? 0), 2, ',', '.')]);
+                }
                 $row += 2;
                 $sheet->setCellValue('A' . $row, 'Quotas');
                 $sheet->getStyle('A' . $row)->applyFromArray($titleStyle);
                 $row++;
                 $this->addExcelHeader($sheet, $row, ['Descrição', 'Valor'], $headerStyle);
-                $this->addExcelRow($sheet, $row, ['Total de Quotas', number_format(($report['fees']['paid_total'] + $report['fees']['pending_total']), 2, ',', '.')]);
+                $this->addExcelRow($sheet, $row, ['Total de Quotas', number_format(($report['fees']['paid_total'] + $report['fees']['pending_total'] + $report['fees']['overdue_total']), 2, ',', '.')]);
                 $row++;
                 $this->addExcelRow($sheet, $row, ['Quotas Pagas', number_format($report['fees']['paid_total'], 2, ',', '.')]);
                 $row++;

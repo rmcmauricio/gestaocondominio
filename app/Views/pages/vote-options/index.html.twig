@@ -84,7 +84,7 @@
                             </td>
                             <td>
                                 {% if not option.is_default %}
-                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/vote-options/{{ option.id }}/delete" class="d-inline" onsubmit="return confirm('Tem certeza que deseja eliminar esta opção?');">
+                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/vote-options/{{ option.id }}/delete" class="d-inline" data-confirm="Tem certeza que deseja eliminar esta opção?">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="_method" value="DELETE">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">

@@ -274,7 +274,7 @@
                                         {% if row.pending_invitation_id and row.email != '-' %}
                                         <form method="POST" action="{{ BASE_URL }}condominiums/{{ condominium.id }}/invitations/{{ row.pending_invitation_id }}/resend" class="d-inline">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                            <button type="submit" class="btn btn-sm btn-outline-success" title="Reenviar convite por email" onclick="return confirm('Reenviar o convite por email?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-success" title="Reenviar convite por email" data-confirm="Reenviar o convite por email?">
                                                 <i class="bi bi-envelope-arrow-up"></i> Reenviar convite
                                             </button>
                                         </form>

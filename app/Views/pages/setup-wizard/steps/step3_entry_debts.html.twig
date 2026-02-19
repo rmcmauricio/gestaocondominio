@@ -22,7 +22,7 @@
                             <td>{{ d.amount|number_format(2, ',', ' ') }} €</td>
                             <td>{{ d.due_date|default('-') }}</td>
                             <td>
-                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/finances/historical-debts/{{ d.id }}/delete" class="d-inline" onsubmit="return confirm('{{ page.t.step3_confirm_delete_debt|default('Apagar esta dívida histórica?') }}');">
+                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/finances/historical-debts/{{ d.id }}/delete" class="d-inline" data-confirm="{{ (page.t.step3_confirm_delete_debt|default('Apagar esta dívida histórica?'))|e('html_attr') }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="redirect_url" value="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step=3">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ page.t.delete|default('Apagar') }}"><i class="bi bi-trash"></i></button>
@@ -58,7 +58,7 @@
                             <td>{{ c.amount|number_format(2, ',', ' ') }} €</td>
                             <td>{{ c.description|default('-') }}</td>
                             <td>
-                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/finances/historical-credits/{{ c.id }}/delete" class="d-inline" onsubmit="return confirm('{{ page.t.step3_confirm_delete_credit|default('Apagar este crédito histórico?') }}');">
+                                <form method="post" action="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/finances/historical-credits/{{ c.id }}/delete" class="d-inline" data-confirm="{{ (page.t.step3_confirm_delete_credit|default('Apagar este crédito histórico?'))|e('html_attr') }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="redirect_url" value="{{ BASE_URL }}condominiums/{{ wizard_condominium_id }}/setup-wizard?step=3">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ page.t.delete|default('Apagar') }}"><i class="bi bi-trash"></i></button>

@@ -208,7 +208,7 @@
                                     </td>
                                     <td>
                                         {% if canDelete %}
-                                        <form method="POST" action="{{ BASE_URL }}admin/demo-access-requests/delete" style="display: inline;" onsubmit="return confirm('Tem a certeza que deseja eliminar este token expirado?');">
+                                        <form method="POST" action="{{ BASE_URL }}admin/demo-access-requests/delete" style="display: inline;" data-confirm="Tem a certeza que deseja eliminar este token expirado?">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                             <input type="hidden" name="delete_id" value="{{ request.id }}">
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar token expirado">
@@ -390,8 +390,11 @@ function confirmBulkDelete() {
     }
     
     const count = checkboxes.length;
-    if (confirm(`Tem a certeza que deseja eliminar ${count} token${count > 1 ? 's' : ''} expirado${count > 1 ? 's' : ''}?\n\nNota: Tokens de utilizadores subscritos à newsletter serão mantidos automaticamente.`)) {
-        document.getElementById('bulkDeleteForm').submit();
+    const msg = 'Tem a certeza que deseja eliminar ' + count + ' token' + (count > 1 ? 's' : '') + ' expirado' + (count > 1 ? 's' : '') + '?\n\nNota: Tokens de utilizadores subscritos à newsletter serão mantidos automaticamente.';
+    if (typeof showConfirmModal === 'function') {
+        showConfirmModal({ message: msg, onConfirm: function() { document.getElementById('bulkDeleteForm').submit(); } });
+    } else {
+        if (confirm(msg)) document.getElementById('bulkDeleteForm').submit();
     }
 }
 

@@ -126,7 +126,7 @@
                                     <small class="text-muted">{{ comment.created_at|date('d/m/Y H:i') }}</small>
                                 </div>
                                 {% if comment.user_id == current_user_id or is_admin %}
-                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ occurrence.condominium_id }}/occurrences/{{ occurrence.id }}/comments/{{ comment.id }}/delete" class="ms-2" onsubmit="return confirm('Tem certeza que deseja eliminar este comentário?');">
+                                <form method="POST" action="{{ BASE_URL }}condominiums/{{ occurrence.condominium_id }}/occurrences/{{ occurrence.id }}/comments/{{ comment.id }}/delete" class="ms-2" data-confirm="Tem certeza que deseja eliminar este comentário?">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">
                                         <i class="bi bi-trash"></i>

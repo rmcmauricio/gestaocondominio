@@ -38,6 +38,10 @@ class ReportService
     public function generateBalanceSheet(int $condominiumId, int $year): array
     {
         $budget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $year);
+        if (!$budget) {
+            return ['no_budget' => true, 'year' => $year];
+        }
+
         $startDate = "{$year}-01-01";
         $endDate = "{$year}-12-31";
         // Despesas sem transferências (getTotalByPeriodAndType já exclui related_type = 'transfer')
@@ -48,15 +52,18 @@ class ReportService
             return $fees[$key]['status'] === 'paid';
         }, ARRAY_FILTER_USE_BOTH));
 
+        $totalBudget = $budget['total_amount'] ?? 0;
+        $pendingFees = $totalFees - $paidFees;
         return [
             'year' => $year,
             'budget' => $budget,
-            'total_budget' => $budget['total_amount'] ?? 0,
+            'total_budget' => $totalBudget,
             'total_expenses' => $totalExpenses,
             'total_fees' => $totalFees,
             'paid_fees' => $paidFees,
-            'pending_fees' => $totalFees - $paidFees,
-            'balance' => ($budget['total_amount'] ?? 0) - $totalExpenses
+            'pending_fees' => $pendingFees,
+            'balance' => $paidFees - $totalExpenses,
+            'budget_result' => $totalBudget - $totalExpenses
         ];
     }
 
@@ -252,11 +259,7 @@ class ReportService
         $budget = $this->budgetModel->getByCondominiumAndYear($condominiumId, $year);
         
         if (!$budget) {
-            return [
-                'year' => $year,
-                'budget' => null,
-                'comparison' => []
-            ];
+            return ['no_budget' => true, 'year' => $year];
         }
 
         global $db;
@@ -367,7 +370,7 @@ class ReportService
             INNER JOIN condominium_users cu ON cu.fraction_id = f.fraction_id AND cu.condominium_id = f.condominium_id
             INNER JOIN users u ON u.id = cu.user_id
             WHERE f.condominium_id = :condominium_id
-            AND f.status = 'pending'
+            AND f.status IN ('pending', 'overdue')
             AND f.due_date < CURDATE()
             AND COALESCE(f.is_historical, 0) = 0
             AND (f.amount - COALESCE((
@@ -545,38 +548,51 @@ class ReportService
             return [];
         }
 
-        // Receitas: pagamentos de quotas
-        $stmt = $db->prepare("
-            SELECT COALESCE(SUM(fp.amount), 0) as total_revenue
-            FROM fee_payments fp
-            INNER JOIN fees f ON f.id = fp.fee_id
-            WHERE f.condominium_id = :condominium_id
-            AND DATE(fp.payment_date) BETWEEN :start_date AND :end_date
-        ");
-        $stmt->execute([
-            ':condominium_id' => $condominiumId,
-            ':start_date' => $startDate,
-            ':end_date' => $endDate
-        ]);
-        $revenueResult = $stmt->fetch();
-        $totalRevenue = (float)($revenueResult['total_revenue'] ?? 0);
-        // Receitas: movimentos de entrada (excl. transferências) + tabela revenues
-        $totalRevenue += $this->transactionModel->getTotalByPeriodAndType($condominiumId, $startDate, $endDate, 'income');
+        // Receitas: apenas movimentos de entrada (excl. transferências) + tabela revenues.
+        // Não somar fee_payments em separado: os pagamentos de quotas já estão em financial_transactions
+        // como income com related_type = 'fee_payment'; somar fee_payments duplicaria as quotas.
+        $totalRevenue = $this->transactionModel->getTotalByPeriodAndType($condominiumId, $startDate, $endDate, 'income');
         $totalRevenue += $this->revenueModel->getTotalByPeriod($condominiumId, $startDate, $endDate);
 
         // Despesas: financial_transactions expense, excluindo transferências
         $totalExpenses = $this->transactionModel->getTotalByPeriodAndType($condominiumId, $startDate, $endDate, 'expense');
 
-        // Get fees summary
+        // Saldos em contas: por conta (início, fim, diferença) e totais
+        $bankAccountModel = new BankAccount();
+        $accounts = $bankAccountModel->getActiveAccounts($condominiumId);
+        $dayBeforeStart = date('Y-m-d', strtotime($startDate . ' -1 day'));
+        $accountsBalances = [];
+        $balanceStart = 0.0;
+        $balanceEnd = 0.0;
+        foreach ($accounts as $acc) {
+            $start = $bankAccountModel->calculateBalanceAsOfDate((int)$acc['id'], $dayBeforeStart);
+            $end = $bankAccountModel->calculateBalanceAsOfDate((int)$acc['id'], $endDate);
+            $balanceStart += $start;
+            $balanceEnd += $end;
+            $accountsBalances[] = [
+                'name' => $acc['name'] ?? 'Conta',
+                'balance_start' => $start,
+                'balance_end' => $end,
+                'balance_variation' => $end - $start
+            ];
+        }
+        $balanceVariation = $balanceEnd - $balanceStart;
+
+        // Get fees summary: quotas com vencimento (due_date) no período do relatório
+        // Pendentes = não pagas e data limite ainda não passou (due_date >= hoje ou sem data)
+        // Em atraso = não pagas e data limite já passou (due_date < hoje)
         $stmt = $db->prepare("
             SELECT 
                 COUNT(*) as total_count,
                 SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) as paid_total,
-                SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) as pending_total,
-                SUM(CASE WHEN status = 'pending' AND due_date < CURDATE() THEN amount ELSE 0 END) as overdue_total
+                SUM(CASE WHEN status IN ('pending', 'overdue') AND (due_date IS NULL OR due_date >= CURDATE()) THEN amount ELSE 0 END) as pending_total,
+                SUM(CASE WHEN status IN ('pending', 'overdue') AND due_date IS NOT NULL AND due_date < CURDATE() THEN amount ELSE 0 END) as overdue_total
             FROM fees
             WHERE condominium_id = :condominium_id
-            AND DATE(created_at) BETWEEN :start_date AND :end_date
+            AND (
+                (due_date IS NOT NULL AND DATE(due_date) BETWEEN :start_date AND :end_date)
+                OR (due_date IS NULL AND period_year >= YEAR(:start_date) AND period_year <= YEAR(:end_date))
+            )
         ");
         $stmt->execute([
             ':condominium_id' => $condominiumId,
@@ -587,12 +603,45 @@ class ReportService
         
         $balance = $totalRevenue - $totalExpenses;
 
+        // Despesas por categoria (financial_transactions)
+        $expensesByCategory = $this->transactionModel->getExpensesByCategory($condominiumId, $startDate, $endDate);
+
+        // Receitas/Quotas por categoria: movimentos de entrada (FT) + tabela revenues, agrupados por categoria
+        $incomesByCategory = $this->transactionModel->getIncomesByCategory($condominiumId, $startDate, $endDate);
+        $revenuesByCategory = $this->revenueModel->getRevenuesByCategory($condominiumId, $startDate, $endDate);
+        $revenuesByCategoryMerged = [];
+        foreach ($incomesByCategory as $row) {
+            $cat = $row['category'] ?? 'Sem categoria';
+            if (!isset($revenuesByCategoryMerged[$cat])) {
+                $revenuesByCategoryMerged[$cat] = ['category' => $cat, 'total' => 0.0, 'count' => 0];
+            }
+            $revenuesByCategoryMerged[$cat]['total'] += (float)$row['total'];
+            $revenuesByCategoryMerged[$cat]['count'] += (int)($row['count'] ?? 0);
+        }
+        foreach ($revenuesByCategory as $row) {
+            $cat = $row['category'] ?? 'Sem categoria';
+            if (!isset($revenuesByCategoryMerged[$cat])) {
+                $revenuesByCategoryMerged[$cat] = ['category' => $cat, 'total' => 0.0, 'count' => 0];
+            }
+            $revenuesByCategoryMerged[$cat]['total'] += (float)$row['total'];
+            $revenuesByCategoryMerged[$cat]['count'] += (int)($row['count'] ?? 0);
+        }
+        usort($revenuesByCategoryMerged, function ($a, $b) {
+            return $b['total'] <=> $a['total'];
+        });
+
         return [
             'start_date' => $startDate,
             'end_date' => $endDate,
             'total_revenue' => $totalRevenue,
             'total_expenses' => $totalExpenses,
             'balance' => $balance,
+            'balance_start' => $balanceStart,
+            'balance_end' => $balanceEnd,
+            'balance_variation' => $balanceVariation,
+            'accounts_balances' => $accountsBalances,
+            'expenses_by_category' => $expensesByCategory,
+            'revenues_by_category' => array_values($revenuesByCategoryMerged),
             'fees' => [
                 'total_count' => (int)($feesResult['total_count'] ?? 0),
                 'paid_total' => (float)($feesResult['paid_total'] ?? 0),

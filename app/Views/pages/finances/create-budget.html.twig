@@ -45,16 +45,12 @@
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label small text-muted">Categoria</label>
-                                            <select class="form-select" name="expense_items[0][category]" required>
+                                            <select class="form-select budget-expense-category" name="expense_items[0][category]" required>
                                                 <option value="">Selecione...</option>
-                                                <option value="Limpeza">Limpeza</option>
-                                                <option value="Manutenção">Manutenção</option>
-                                                <option value="Segurança">Segurança</option>
-                                                <option value="Energia">Energia</option>
-                                                <option value="Água">Água</option>
-                                                <option value="Seguros">Seguros</option>
-                                                <option value="Administração">Administração</option>
-                                                <option value="Outras Despesas">Outras Despesas</option>
+                                                {% for cat in expense_categories|default([]) %}
+                                                <option value="{{ cat.name|e('html_attr') }}">{{ cat.name }}</option>
+                                                {% endfor %}
+                                                <option value="__new__">+ Criar nova...</option>
                                             </select>
                                         </div>
                                         <div class="col-md-5">
@@ -126,12 +122,13 @@
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label small text-muted">Categoria</label>
-                                            <select class="form-select revenue-category" name="revenue_items[0][category]" required>
+                                            <select class="form-select revenue-category budget-revenue-category" name="revenue_items[0][category]" required>
                                                 <option value="">Selecione...</option>
-                                                <option value="Quotas" selected>Quotas</option>
-                                                <option value="Multas">Multas</option>
-                                                <option value="Juros">Juros</option>
-                                                <option value="Outras Receitas">Outras Receitas</option>
+                                                {% for cat in revenue_categories|default([]) %}
+                                                <option value="{{ cat.name|e('html_attr') }}" {% if cat.name == 'Quotas' %}selected{% endif %}>{{ cat.name }}</option>
+                                                {% endfor %}
+                                                {% if not revenue_categories|default([])|length %}<option value="Quotas" selected>Quotas</option>{% endif %}
+                                                <option value="__new__">+ Criar nova...</option>
                                             </select>
                                         </div>
                                         <div class="col-md-5">
@@ -268,6 +265,11 @@
 </style>
 
 <script>
+var BUDGET_REVENUE_CATEGORIES = {{ revenue_category_names|default([])|json_encode|raw }};
+var BUDGET_EXPENSE_CATEGORIES = {{ expense_category_names|default([])|json_encode|raw }};
+if (!Array.isArray(BUDGET_REVENUE_CATEGORIES) || !BUDGET_REVENUE_CATEGORIES.length) BUDGET_REVENUE_CATEGORIES = ['Quotas', 'Multas', 'Juros', 'Outras Receitas'];
+if (!Array.isArray(BUDGET_EXPENSE_CATEGORIES) || !BUDGET_EXPENSE_CATEGORIES.length) BUDGET_EXPENSE_CATEGORIES = ['Limpeza', 'Manutenção', 'Segurança', 'Energia', 'Água', 'Seguros', 'Administração', 'Outras Despesas'];
+
 let revenueIndex = 1;
 let expenseIndex = 1;
 let suggestedQuotaValue = 0;
@@ -275,7 +277,20 @@ let isCalculating = false;
 let isSliderBeingUsed = false;
 let lastTotalExpenses = 0;
 
+function addBudgetCategoryOption(selectEl, name, isNew) {
+    var opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    var newOpt = selectEl.querySelector('option[value="__new__"]');
+    if (newOpt) selectEl.insertBefore(opt, newOpt);
+    else selectEl.appendChild(opt);
+    if (isNew) selectEl.value = name;
+}
+
 function addRevenueItem() {
+    var catOpts = '<option value="">Selecione...</option>';
+    BUDGET_REVENUE_CATEGORIES.forEach(function(n) { catOpts += '<option value="' + (n.replace(/"/g, '&quot;')) + '">' + (n.replace(/</g, '&lt;')) + '</option>'; });
+    catOpts += '<option value="__new__">+ Criar nova...</option>';
     const html = `
         <div class="revenue-item mb-3 p-3 border rounded bg-light">
             <div class="row g-3">
@@ -285,12 +300,8 @@ function addRevenueItem() {
                 </div>
                 <div class="col-md-6">
                     <label class="form-label small text-muted">Categoria</label>
-                    <select class="form-select revenue-category" name="revenue_items[${revenueIndex}][category]" required>
-                        <option value="">Selecione...</option>
-                        <option value="Quotas">Quotas</option>
-                        <option value="Multas">Multas</option>
-                        <option value="Juros">Juros</option>
-                        <option value="Outras Receitas">Outras Receitas</option>
+                    <select class="form-select revenue-category budget-revenue-category" name="revenue_items[${revenueIndex}][category]" required>
+                        ${catOpts}
                     </select>
                 </div>
                 <div class="col-md-5">
@@ -312,10 +323,14 @@ function addRevenueItem() {
     revenueIndex++;
     attachCalculators();
     attachCategoryListeners();
+    attachBudgetCategoryCreateListeners();
     calculateTotals();
 }
 
 function addExpenseItem() {
+    var catOpts = '<option value="">Selecione...</option>';
+    BUDGET_EXPENSE_CATEGORIES.forEach(function(n) { catOpts += '<option value="' + (n.replace(/"/g, '&quot;')) + '">' + (n.replace(/</g, '&lt;')) + '</option>'; });
+    catOpts += '<option value="__new__">+ Criar nova...</option>';
     const html = `
         <div class="expense-item mb-3 p-3 border rounded bg-light">
             <div class="row g-3">
@@ -325,16 +340,8 @@ function addExpenseItem() {
                 </div>
                 <div class="col-md-6">
                     <label class="form-label small text-muted">Categoria</label>
-                    <select class="form-select" name="expense_items[${expenseIndex}][category]" required>
-                        <option value="">Selecione...</option>
-                        <option value="Limpeza">Limpeza</option>
-                        <option value="Manutenção">Manutenção</option>
-                        <option value="Segurança">Segurança</option>
-                        <option value="Energia">Energia</option>
-                        <option value="Água">Água</option>
-                        <option value="Seguros">Seguros</option>
-                        <option value="Administração">Administração</option>
-                        <option value="Outras Despesas">Outras Despesas</option>
+                    <select class="form-select budget-expense-category" name="expense_items[${expenseIndex}][category]" required>
+                        ${catOpts}
                     </select>
                 </div>
                 <div class="col-md-5">
@@ -355,6 +362,7 @@ function addExpenseItem() {
     document.getElementById('expenseItems').insertAdjacentHTML('beforeend', html);
     expenseIndex++;
     attachCalculators();
+    attachBudgetCategoryCreateListeners();
     calculateTotals();
 }
 
@@ -561,6 +569,26 @@ function attachCategoryListeners() {
     });
 }
 
+function attachBudgetCategoryCreateListeners() {
+    document.querySelectorAll('.budget-expense-category, .budget-revenue-category').forEach(function(sel) {
+        if (sel.hasAttribute('data-budget-cat-listener')) return;
+        sel.setAttribute('data-budget-cat-listener', '1');
+        sel.addEventListener('change', function() {
+            var v = this.value;
+            var selectEl = this;
+            if (v !== '__new__') { selectEl.dataset.prevBudgetCat = v; return; }
+            if (typeof window.openNewCategoryModal === 'function') {
+                window.openNewCategoryModal(function(name) {
+                    addBudgetCategoryOption(selectEl, name, true);
+                    if (selectEl.classList.contains('budget-expense-category') && BUDGET_EXPENSE_CATEGORIES.indexOf(name) === -1) BUDGET_EXPENSE_CATEGORIES.push(name);
+                    if (selectEl.classList.contains('budget-revenue-category') && BUDGET_REVENUE_CATEGORIES.indexOf(name) === -1) BUDGET_REVENUE_CATEGORIES.push(name);
+                });
+            }
+            selectEl.value = selectEl.dataset.prevBudgetCat || '';
+        });
+    });
+}
+
 function calculateTotals() {
     // Prevenir loops infinitos
     if (isCalculating) {
@@ -657,6 +685,7 @@ function attachSliderListener() {
 document.addEventListener('DOMContentLoaded', function() {
     attachCalculators();
     attachCategoryListeners();
+    attachBudgetCategoryCreateListeners();
     updateQuotaClass();
     attachSliderListener();
     calculateTotals();
@@ -667,6 +696,7 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
         attachCalculators();
         attachCategoryListeners();
+        attachBudgetCategoryCreateListeners();
         updateQuotaClass();
         attachSliderListener();
         calculateTotals();
@@ -674,6 +704,7 @@ if (document.readyState === 'loading') {
 } else {
     attachCalculators();
     attachCategoryListeners();
+    attachBudgetCategoryCreateListeners();
     updateQuotaClass();
     attachSliderListener();
     calculateTotals();

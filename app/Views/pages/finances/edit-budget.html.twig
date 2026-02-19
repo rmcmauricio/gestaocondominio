@@ -39,12 +39,15 @@
                                             </div>
                                             <div class="col-md-6">
                                                 <label class="form-label small text-muted">Categoria</label>
-                                                <select class="form-select" name="revenue_items[{{ revenue_count }}][category]" required>
+                                                <select class="form-select budget-revenue-category" name="revenue_items[{{ revenue_count }}][category]" required>
                                                     <option value="">Selecione...</option>
-                                                    <option value="Quotas" {% if category_name == 'Quotas' %}selected="selected"{% endif %}>Quotas</option>
-                                                    <option value="Multas" {% if category_name == 'Multas' %}selected="selected"{% endif %}>Multas</option>
-                                                    <option value="Juros" {% if category_name == 'Juros' %}selected="selected"{% endif %}>Juros</option>
-                                                    <option value="Outras Receitas" {% if category_name == 'Outras Receitas' %}selected="selected"{% endif %}>Outras Receitas</option>
+                                                    {% for cat in revenue_categories|default([]) %}
+                                                    <option value="{{ cat.name|e('html_attr') }}" {% if category_name == cat.name %}selected="selected"{% endif %}>{{ cat.name }}</option>
+                                                    {% endfor %}
+                                                    {% if category_name and category_name not in revenue_category_names|default([]) %}
+                                                    <option value="{{ category_name|e('html_attr') }}" selected="selected">{{ category_name }}</option>
+                                                    {% endif %}
+                                                    <option value="__new__">+ Criar nova...</option>
                                                 </select>
                                             </div>
                                             <div class="col-md-5">
@@ -90,16 +93,15 @@
                                             </div>
                                             <div class="col-md-6">
                                                 <label class="form-label small text-muted">Categoria</label>
-                                                <select class="form-select" name="expense_items[{{ expense_count }}][category]" required>
+                                                <select class="form-select budget-expense-category" name="expense_items[{{ expense_count }}][category]" required>
                                                     <option value="">Selecione...</option>
-                                                    <option value="Limpeza" {% if category_name == 'Limpeza' %}selected="selected"{% endif %}>Limpeza</option>
-                                                    <option value="Manutenção" {% if category_name == 'Manutenção' %}selected="selected"{% endif %}>Manutenção</option>
-                                                    <option value="Segurança" {% if category_name == 'Segurança' %}selected="selected"{% endif %}>Segurança</option>
-                                                    <option value="Energia" {% if category_name == 'Energia' %}selected="selected"{% endif %}>Energia</option>
-                                                    <option value="Água" {% if category_name == 'Água' %}selected="selected"{% endif %}>Água</option>
-                                                    <option value="Seguros" {% if category_name == 'Seguros' %}selected="selected"{% endif %}>Seguros</option>
-                                                    <option value="Administração" {% if category_name == 'Administração' %}selected="selected"{% endif %}>Administração</option>
-                                                    <option value="Outras Despesas" {% if category_name == 'Outras Despesas' %}selected="selected"{% endif %}>Outras Despesas</option>
+                                                    {% for cat in expense_categories|default([]) %}
+                                                    <option value="{{ cat.name|e('html_attr') }}" {% if category_name == cat.name %}selected="selected"{% endif %}>{{ cat.name }}</option>
+                                                    {% endfor %}
+                                                    {% if category_name and category_name not in expense_category_names|default([]) %}
+                                                    <option value="{{ category_name|e('html_attr') }}" selected="selected">{{ category_name }}</option>
+                                                    {% endif %}
+                                                    <option value="__new__">+ Criar nova...</option>
                                                 </select>
                                             </div>
                                             <div class="col-md-5">
@@ -156,6 +158,11 @@
 </div>
 
 <script>
+var BUDGET_REVENUE_CATEGORIES = {{ revenue_category_names|default([])|json_encode|raw }};
+var BUDGET_EXPENSE_CATEGORIES = {{ expense_category_names|default([])|json_encode|raw }};
+if (!Array.isArray(BUDGET_REVENUE_CATEGORIES) || !BUDGET_REVENUE_CATEGORIES.length) BUDGET_REVENUE_CATEGORIES = ['Quotas', 'Multas', 'Juros', 'Outras Receitas'];
+if (!Array.isArray(BUDGET_EXPENSE_CATEGORIES) || !BUDGET_EXPENSE_CATEGORIES.length) BUDGET_EXPENSE_CATEGORIES = ['Limpeza', 'Manutenção', 'Segurança', 'Energia', 'Água', 'Seguros', 'Administração', 'Outras Despesas'];
+
 // Initialize indices based on existing items
 {% set revenue_items_count = 0 %}
 {% set expense_items_count = 0 %}
@@ -170,7 +177,40 @@
 let revenueIndex = {{ revenue_items_count }};
 let expenseIndex = {{ expense_items_count }};
 
+function addBudgetCategoryOption(selectEl, name, isNew) {
+    var opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    var newOpt = selectEl.querySelector('option[value="__new__"]');
+    if (newOpt) selectEl.insertBefore(opt, newOpt);
+    else selectEl.appendChild(opt);
+    if (isNew) selectEl.value = name;
+}
+
+function attachBudgetCategoryCreateListeners() {
+    document.querySelectorAll('.budget-expense-category, .budget-revenue-category').forEach(function(sel) {
+        if (sel.hasAttribute('data-budget-cat-listener')) return;
+        sel.setAttribute('data-budget-cat-listener', '1');
+        sel.addEventListener('change', function() {
+            var v = this.value;
+            var selectEl = this;
+            if (v !== '__new__') { selectEl.dataset.prevBudgetCat = v; return; }
+            if (typeof window.openNewCategoryModal === 'function') {
+                window.openNewCategoryModal(function(name) {
+                    addBudgetCategoryOption(selectEl, name, true);
+                    if (selectEl.classList.contains('budget-expense-category') && BUDGET_EXPENSE_CATEGORIES.indexOf(name) === -1) BUDGET_EXPENSE_CATEGORIES.push(name);
+                    if (selectEl.classList.contains('budget-revenue-category') && BUDGET_REVENUE_CATEGORIES.indexOf(name) === -1) BUDGET_REVENUE_CATEGORIES.push(name);
+                });
+            }
+            selectEl.value = selectEl.dataset.prevBudgetCat || '';
+        });
+    });
+}
+
 function addRevenueItem() {
+    var catOpts = '<option value="">Selecione...</option>';
+    BUDGET_REVENUE_CATEGORIES.forEach(function(n) { catOpts += '<option value="' + (n.replace(/"/g, '&quot;')) + '">' + (n.replace(/</g, '&lt;')) + '</option>'; });
+    catOpts += '<option value="__new__">+ Criar nova...</option>';
     const html = `
         <div class="revenue-item mb-3 p-3 border rounded bg-light">
             <div class="row g-3">
@@ -180,12 +220,8 @@ function addRevenueItem() {
                 </div>
                 <div class="col-md-6">
                     <label class="form-label small text-muted">Categoria</label>
-                    <select class="form-select" name="revenue_items[${revenueIndex}][category]" required>
-                        <option value="">Selecione...</option>
-                        <option value="Quotas">Quotas</option>
-                        <option value="Multas">Multas</option>
-                        <option value="Juros">Juros</option>
-                        <option value="Outras Receitas">Outras Receitas</option>
+                    <select class="form-select budget-revenue-category" name="revenue_items[${revenueIndex}][category]" required>
+                        ${catOpts}
                     </select>
                 </div>
                 <div class="col-md-5">
@@ -206,10 +242,14 @@ function addRevenueItem() {
     document.getElementById('revenueItems').insertAdjacentHTML('beforeend', html);
     revenueIndex++;
     attachCalculators();
+    attachBudgetCategoryCreateListeners();
     calculateTotals();
 }
 
 function addExpenseItem() {
+    var catOpts = '<option value="">Selecione...</option>';
+    BUDGET_EXPENSE_CATEGORIES.forEach(function(n) { catOpts += '<option value="' + (n.replace(/"/g, '&quot;')) + '">' + (n.replace(/</g, '&lt;')) + '</option>'; });
+    catOpts += '<option value="__new__">+ Criar nova...</option>';
     const html = `
         <div class="expense-item mb-3 p-3 border rounded bg-light">
             <div class="row g-3">
@@ -219,16 +259,8 @@ function addExpenseItem() {
                 </div>
                 <div class="col-md-6">
                     <label class="form-label small text-muted">Categoria</label>
-                    <select class="form-select" name="expense_items[${expenseIndex}][category]" required>
-                        <option value="">Selecione...</option>
-                        <option value="Limpeza">Limpeza</option>
-                        <option value="Manutenção">Manutenção</option>
-                        <option value="Segurança">Segurança</option>
-                        <option value="Energia">Energia</option>
-                        <option value="Água">Água</option>
-                        <option value="Seguros">Seguros</option>
-                        <option value="Administração">Administração</option>
-                        <option value="Outras Despesas">Outras Despesas</option>
+                    <select class="form-select budget-expense-category" name="expense_items[${expenseIndex}][category]" required>
+                        ${catOpts}
                     </select>
                 </div>
                 <div class="col-md-5">
@@ -249,6 +281,7 @@ function addExpenseItem() {
     document.getElementById('expenseItems').insertAdjacentHTML('beforeend', html);
     expenseIndex++;
     attachCalculators();
+    attachBudgetCategoryCreateListeners();
     calculateTotals();
 }
 
@@ -289,6 +322,7 @@ function attachCalculators() {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     attachCalculators();
+    attachBudgetCategoryCreateListeners();
     calculateTotals();
 });
 
@@ -296,10 +330,12 @@ document.addEventListener('DOMContentLoaded', function() {
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
         attachCalculators();
+        attachBudgetCategoryCreateListeners();
         calculateTotals();
     });
 } else {
     attachCalculators();
+    attachBudgetCategoryCreateListeners();
     calculateTotals();
 }
 </script>

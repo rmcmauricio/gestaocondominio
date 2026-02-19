@@ -507,21 +507,19 @@ document.addEventListener('click', function(e) {
         const rowIndex = deleteBtn.dataset.rowIndex;
         const row = document.querySelector(`tr[data-row-index="${rowIndex}"]`);
         
-        if (row && confirm('Tem a certeza que deseja apagar esta linha?')) {
-            // Mark row as deleted
-            deletedRows.add(parseInt(rowIndex));
-            
-            // Remove row from DOM
-            row.remove();
-            
-            // Update counts
-            updateCounts();
-            
-            // Update row numbers
-            updateRowNumbers();
-            
-            // Update pagination
-            updatePreviewPagination();
+        if (row) {
+            var doDelete = function() {
+                deletedRows.add(parseInt(rowIndex));
+                row.remove();
+                updateCounts();
+                updateRowNumbers();
+                updatePreviewPagination();
+            };
+            if (typeof showConfirmModal === 'function') {
+                showConfirmModal({ message: 'Tem a certeza que deseja apagar esta linha?', onConfirm: doDelete });
+            } else {
+                doDelete();
+            }
         }
     }
 });

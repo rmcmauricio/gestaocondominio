@@ -223,7 +223,7 @@
                                     </td>
                                     <td>
                                         {% if condo.status == 'active' and plan.plan_type != 'condominio' %}
-                                        <form method="POST" action="{{ BASE_URL }}admin/subscriptions-manage/detach-condominium" class="d-inline" onsubmit="return confirm('Tem certeza que deseja desassociar este condomínio?');">
+                                        <form method="POST" action="{{ BASE_URL }}admin/subscriptions-manage/detach-condominium" class="d-inline" data-confirm="Tem certeza que deseja desassociar este condomínio?">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                             <input type="hidden" name="subscription_id" value="{{ subscription.id }}">
                                             <input type="hidden" name="condominium_id" value="{{ condo.condominium_id }}">

@@ -36,16 +36,63 @@
   width: auto;
 }
 
-.m-versao-completa {
-  font-size: 0.875rem;
-  color: var(--color-primary, #e07920);
-  text-decoration: none;
-  font-weight: 500;
+/* Botões do header: Versão completa + Logout */
+.m-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
-.m-versao-completa:hover {
-  color: var(--color-primary-dark, #c7650e);
-  text-decoration: underline;
+.m-header-actions .m-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: var(--radius-md, 0.375rem);
+  border: 1px solid transparent;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  white-space: nowrap;
+}
+
+.m-header-actions .m-btn-label {
+  display: none; /* Só ícones no header mobile */
+}
+
+.m-header-actions .m-btn i {
+  font-size: 1.25rem;
+}
+
+.m-btn-versao-completa {
+  color: var(--color-primary, #e07920);
+  background: transparent;
+  border-color: var(--color-primary, #e07920);
+}
+
+.m-btn-versao-completa:hover {
+  color: #fff;
+  background: var(--color-primary, #e07920);
+  border-color: var(--color-primary, #e07920);
+}
+
+.m-btn-logout {
+  color: var(--bs-danger, #dc3545);
+  background: transparent;
+  border-color: var(--bs-danger, #dc3545);
+}
+
+.m-btn-logout:hover {
+  color: #fff;
+  background: var(--bs-danger, #dc3545);
+  border-color: var(--bs-danger, #dc3545);
 }
 
 /* Condominium selector in header */

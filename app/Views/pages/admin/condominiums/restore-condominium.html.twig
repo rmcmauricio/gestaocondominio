@@ -96,7 +96,7 @@
                                         <i class="bi bi-arrow-counterclockwise"></i> Restaurar
                                     </button>
                                 </form>
-                                <form method="post" action="{{ url_backup_delete|default(BASE_URL ~ 'admin/condominiums/backup-delete') }}" class="d-inline ms-1" onsubmit="return confirm('Apagar este backup? Esta ação não pode ser desfeita.');">
+                                <form method="post" action="{{ url_backup_delete|default(BASE_URL ~ 'admin/condominiums/backup-delete') }}" class="d-inline ms-1" data-confirm="Apagar este backup? Esta ação não pode ser desfeita.">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="backup_path" value="{{ backup.path }}">
                                     <input type="hidden" name="redirect_url" value="{{ url_restore_page|default(BASE_URL ~ 'admin/condominiums/' ~ condominium_id ~ '/restore') }}">
