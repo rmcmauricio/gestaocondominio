@@ -68,6 +68,36 @@ class ReportController extends Controller
         $this->renderMainTemplate();
     }
 
+    /**
+     * Página de teste: lista todos os pagamentos de quotas no ano com ano da quota (period_year).
+     * Ajuda a despistar Balancete (anos anteriores / adiantamentos). GET com ?year=2025.
+     */
+    public function debugQuotasPayments(int $condominiumId)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        $condominium = $this->condominiumModel->findById($condominiumId);
+        if (!$condominium) {
+            $_SESSION['error'] = 'Condomínio não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums');
+            exit;
+        }
+
+        $year = (int)($_GET['year'] ?? date('Y'));
+        $data = $this->reportService->getDebugQuotasPaymentsByYear($condominiumId, $year);
+
+        $this->data += [
+            'viewName' => 'pages/finances/reports-debug-quotas-payments.html.twig',
+            'page' => ['titulo' => 'Teste: Quotas pagas no ano ' . $year],
+            'condominium' => $condominium,
+            'debug' => $data,
+            'year' => $year,
+        ];
+        $this->renderMainTemplate();
+    }
+
     public function balanceSheet(int $condominiumId)
     {
         AuthMiddleware::require();
@@ -726,9 +756,9 @@ class ReportController extends Controller
         $balanceClass = $balance < 0 ? ' class="text-danger"' : ($balance > 0 ? ' class="text-success"' : '');
         $budgetRevenue = $report['budget_revenue'] ?? ($report['total_budget'] ?? 0);
         $budgetExpenses = $report['budget_expenses'] ?? 0;
-        // Diferença = Realizado − Orçamentado. Realizado receitas = total quotas recebidas no ano (ano em curso + anos anteriores)
-        $totalQuotasReceived = $report['total_quotas_received_in_year'] ?? ($report['paid_fees'] ?? 0);
-        $revDev = $report['revenue_deviation'] ?? ($totalQuotasReceived - $budgetRevenue);
+        // Total receitas realizadas = quotas (em curso + anteriores) + outras receitas (para comparação com orçamento)
+        $totalRevenueRealized = $report['total_revenue_realized'] ?? ($report['total_quotas_received_in_year'] ?? $report['paid_fees'] ?? 0);
+        $revDev = $report['revenue_deviation'] ?? ($totalRevenueRealized - $budgetRevenue);
         $expDev = $report['expense_deviation'] ?? ($report['total_expenses'] - $budgetExpenses);
         $budgetResultPlanned = $report['budget_result_planned'] ?? ($budgetRevenue - $budgetExpenses);
         $budgetDeviation = $report['budget_deviation'] ?? ($balance - $budgetResultPlanned);
@@ -739,6 +769,8 @@ class ReportController extends Controller
         $nbs = '—';
         $paidCurrent = $report['paid_fees_current_year'] ?? 0;
         $paidPrior = $report['paid_fees_prior_years'] ?? 0;
+        $paidFuture = $report['paid_fees_future_years'] ?? 0;
+        $otherRevenues = $report['other_revenues'] ?? 0;
         return "
         <!DOCTYPE html>
         <html lang=\"pt-PT\">
@@ -783,10 +815,22 @@ class ReportController extends Controller
                     <td class=\"num\">" . $fmt($paidPrior) . "</td>
                     <td class=\"num\">{$nbs}</td>
                 </tr>
+                <tr>
+                    <td>Quotas recebidas (anos posteriores / adiantamentos)</td>
+                    <td class=\"num\">{$nbs}</td>
+                    <td class=\"num\">" . $fmt($paidFuture) . "</td>
+                    <td class=\"num\">{$nbs}</td>
+                </tr>
+                <tr>
+                    <td>Outras receitas recebidas</td>
+                    <td class=\"num\">{$nbs}</td>
+                    <td class=\"num\">" . $fmt($otherRevenues) . "</td>
+                    <td class=\"num\">{$nbs}</td>
+                </tr>
                 <tr class=\"total\">
                     <td>Receitas (receita prevista vs total receitas realizadas)</td>
                     <td class=\"num\">" . $fmt($budgetRevenue) . "</td>
-                    <td class=\"num\">" . $fmt($totalQuotasReceived) . "</td>
+                    <td class=\"num\">" . $fmt($totalRevenueRealized) . "</td>
                     <td class=\"num\"{$revDevClass}>" . $fmt($revDev) . "</td>
                 </tr>
                 <tr>
@@ -3707,8 +3751,8 @@ class ReportController extends Controller
                 $row++;
                 $budgetRev = $report['budget_revenue'] ?? $report['total_budget'];
                 $budgetExp = $report['budget_expenses'] ?? 0;
-                $totalQuotasReceived = $report['total_quotas_received_in_year'] ?? $report['paid_fees'];
-                $revDev = $report['revenue_deviation'] ?? ($totalQuotasReceived - $budgetRev);
+                $totalRevenueRealized = $report['total_revenue_realized'] ?? $report['total_quotas_received_in_year'] ?? $report['paid_fees'];
+                $revDev = $report['revenue_deviation'] ?? ($totalRevenueRealized - $budgetRev);
                 $expDev = $report['expense_deviation'] ?? ($report['total_expenses'] - $budgetExp);
                 $budgetRes = $report['budget_result_planned'] ?? ($budgetRev - $budgetExp);
                 $budgetDev = $report['budget_deviation'] ?? ($report['balance'] - $budgetRes);
@@ -3722,9 +3766,19 @@ class ReportController extends Controller
                 $sheet->setCellValue('C' . $row, number_format($report['paid_fees_prior_years'] ?? 0, 2, ',', '.'));
                 $sheet->setCellValue('D' . $row, '—');
                 $row++;
+                $sheet->setCellValue('A' . $row, 'Quotas recebidas (anos posteriores / adiantamentos)');
+                $sheet->setCellValue('B' . $row, '—');
+                $sheet->setCellValue('C' . $row, number_format($report['paid_fees_future_years'] ?? 0, 2, ',', '.'));
+                $sheet->setCellValue('D' . $row, '—');
+                $row++;
+                $sheet->setCellValue('A' . $row, 'Outras receitas recebidas');
+                $sheet->setCellValue('B' . $row, '—');
+                $sheet->setCellValue('C' . $row, number_format($report['other_revenues'] ?? 0, 2, ',', '.'));
+                $sheet->setCellValue('D' . $row, '—');
+                $row++;
                 $sheet->setCellValue('A' . $row, 'Receitas (receita prevista vs total receitas realizadas)');
                 $sheet->setCellValue('B' . $row, number_format($budgetRev, 2, ',', '.'));
-                $sheet->setCellValue('C' . $row, number_format($totalQuotasReceived, 2, ',', '.'));
+                $sheet->setCellValue('C' . $row, number_format($totalRevenueRealized, 2, ',', '.'));
                 $sheet->setCellValue('D' . $row, number_format($revDev, 2, ',', '.'));
                 $sheet->getStyle('A' . $row . ':D' . $row)->applyFromArray($totalStyle);
                 $row++;

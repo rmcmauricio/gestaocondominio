@@ -39,6 +39,7 @@ class FractionController extends Controller
     {
         AuthMiddleware::require();
         RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
 
         $condominium = $this->condominiumModel->findById($condominiumId);
         if (!$condominium) {

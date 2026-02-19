@@ -169,6 +169,7 @@
                             {% if is_admin %}
                             <td class="no-row-click" style="text-align: left; font-size: 0.75rem; max-width: 200px;">
                                 {% set hasLiquidatedFees = liquidatedFeesByTransaction[transaction.id] is defined and liquidatedFeesByTransaction[transaction.id]|length > 0 %}
+                                {% set hasRemaining = remainingAmountByTransaction[transaction.id] is defined and remainingAmountByTransaction[transaction.id] > 0 %}
                                 {% if hasLiquidatedFees %}
                                     {# Show liquidated fees #}
                                     <div class="liquidated-quotas-list">
@@ -181,6 +182,17 @@
                                         </div>
                                         {% endfor %}
                                     </div>
+                                    {% if hasRemaining %}
+                                    <div class="mt-1" style="text-align: center;">
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-primary quota-liquidation-btn"
+                                                data-transaction-id="{{ transaction.id }}"
+                                                data-amount="{{ remainingAmountByTransaction[transaction.id] }}"
+                                                title="Ainda há valor restante para liquidar mais quotas">
+                                            <i class="bi bi-cash-coin"></i> Liquidar mais
+                                        </button>
+                                    </div>
+                                    {% endif %}
                                 {% elseif transaction.transaction_type == 'income' and transaction.related_type != 'fee_payment' and transaction.related_type != 'fraction_account' and transaction.related_type != 'transfer' %}
                                 <div style="text-align: center;">
                                     <button type="button"
@@ -828,16 +840,25 @@ function openTransactionDetailsModal(tid) {
                 }
                 const t = data.transaction;
                 const fees = data.liquidated_fees || [];
+                const amountAllocated = parseFloat(data.amount_allocated) || 0;
+                const remainingAmount = parseFloat(data.remaining_amount) || 0;
+                const isIncome = t.transaction_type === 'income';
                 let html = '<div class="row g-3">';
                 html += '<div class="col-md-6"><strong>Data:</strong><br>' + (t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('pt-PT') : '-') + '</div>';
-                html += '<div class="col-md-6"><strong>Tipo:</strong><br>' + (t.transaction_type === 'income' ? '<span class="text-success">Entrada</span>' : '<span class="text-danger">Saída</span>') + '</div>';
+                html += '<div class="col-md-6"><strong>Tipo:</strong><br>' + (isIncome ? '<span class="text-success">Entrada</span>' : '<span class="text-danger">Saída</span>') + '</div>';
                 html += '<div class="col-md-6"><strong>Conta:</strong><br>' + (t.account_name || '-') + '</div>';
-                html += '<div class="col-md-6"><strong>Valor:</strong><br><strong class="' + (t.transaction_type === 'income' ? 'text-success' : 'text-danger') + '">' + (t.transaction_type === 'income' ? '+' : '-') + '€' + parseFloat(t.amount).toFixed(2).replace('.', ',') + '</strong></div>';
+                html += '<div class="col-md-6"><strong>Valor:</strong><br><strong class="' + (isIncome ? 'text-success' : 'text-danger') + '">' + (isIncome ? '+' : '-') + '€' + parseFloat(t.amount).toFixed(2).replace('.', ',') + '</strong></div>';
                 if (t.fraction_identifier) html += '<div class="col-md-6"><strong>Fração:</strong><br>' + t.fraction_identifier + '</div>';
                 if (t.reference) html += '<div class="col-md-6"><strong>Referência:</strong><br><code>' + t.reference + '</code></div>';
                 if (t.category) html += '<div class="col-md-6"><strong>Categoria:</strong><br>' + t.category + '</div>';
                 if (t.transfer_account_name) html += '<div class="col-12"><strong>Transferência para:</strong><br>' + t.transfer_account_name + '</div>';
                 html += '<div class="col-12"><strong>Descrição:</strong><br>' + (t.description || '-') + '</div>';
+                if (isIncome && t.related_type !== 'transfer') {
+                    html += '<div class="col-12"><div class="alert alert-light border mb-0">';
+                    html += '<strong>Valor associado a quotas:</strong> €' + amountAllocated.toFixed(2).replace('.', ',') + '<br>';
+                    html += '<strong>Valor restante (não associado):</strong> <span class="text-primary">€' + remainingAmount.toFixed(2).replace('.', ',') + '</span>';
+                    html += '</div></div>';
+                }
                 if (fees.length > 0) {
                     const isAdmin = {{ is_admin|default(false) ? 'true' : 'false' }};
                     html += '<div class="col-12"><strong>Quotas associadas/liquidadas:</strong><ul class="list-group list-group-flush mt-1">';
@@ -859,8 +880,12 @@ function openTransactionDetailsModal(tid) {
                     const isAdmin = {{ is_admin|default(false) ? 'true' : 'false' }};
                     const rt = t.related_type || '';
                     const hasLinkedPayments = fees.length > 0 || rt === 'fee_payment' || rt === 'fraction_account' || t.category === 'Quotas';
+                    const canLiquidateQuotas = isIncome && rt !== 'transfer' && remainingAmount > 0;
                     let footerHtml = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>';
                     if (isAdmin) {
+                        if (canLiquidateQuotas) {
+                            footerHtml += '<button type="button" class="btn btn-outline-primary liquidar-mais-quotas-btn" data-transaction-id="' + t.id + '" data-remaining-amount="' + remainingAmount + '" title="Associar mais quotas a este movimento"><i class="bi bi-cash-coin me-1"></i>' + (fees.length > 0 ? 'Liquidar mais quotas' : 'Liquidar quotas') + '</button>';
+                        }
                         if (rt === 'transfer') {
                             footerHtml += '<a href="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/edit" class="btn btn-primary"><i class="bi bi-pencil me-1"></i>Editar</a>';
                             footerHtml += '<form method="POST" action="{{ BASE_URL }}condominiums/' + condominiumId + '/financial-transactions/' + t.id + '/delete" class="d-inline" data-confirm="Tem certeza que deseja eliminar esta transferência? Ambas as transações serão eliminadas."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Eliminar Transferência</button></form>';
@@ -1144,17 +1169,50 @@ document.addEventListener('click', function(e) {
     }
 })();
 
+function openQuotaLiquidationModal(transactionId, amount) {
+    currentTransactionId = transactionId;
+    currentTransactionAmount = parseFloat(amount) || 0;
+
+    const modalCheckbox = document.getElementById('modal_quota_liquidation_checkbox');
+    const modalConfig = document.getElementById('modal_quota_config');
+    const modalFraction = document.getElementById('modal_quota_fraction');
+    const modalList = document.getElementById('modal_quota_list');
+    const balanceInfo = document.getElementById('modal_fraction_balance_info');
+    const useBalanceCheckbox = document.getElementById('modal_use_fraction_balance');
+
+    if (modalCheckbox) modalCheckbox.checked = true;
+    if (modalConfig) modalConfig.style.display = 'block';
+    if (modalFraction) modalFraction.value = '';
+    if (modalList) modalList.style.display = 'none';
+    if (balanceInfo) balanceInfo.style.display = 'none';
+    if (useBalanceCheckbox) useBalanceCheckbox.checked = false;
+
+    const checkboxesDiv = document.querySelector('.quota-checkboxes-modal');
+    const summaryDiv = document.querySelector('.quota-summary-modal');
+    const remainingDestSection = document.getElementById('modal_remaining_destination_section');
+    const oldestRadio = document.getElementById('modal_remaining_oldest');
+    if (checkboxesDiv) checkboxesDiv.innerHTML = '';
+    if (summaryDiv) summaryDiv.style.display = 'none';
+    if (remainingDestSection) remainingDestSection.style.display = 'none';
+    if (oldestRadio) oldestRadio.checked = true;
+
+    const modalElement = document.getElementById('quotaLiquidationModal');
+    if (modalElement) {
+        if (!quotaModal) initQuotaModal();
+        if (quotaModal) quotaModal.show();
+        else { const bsModal = new bootstrap.Modal(modalElement); bsModal.show(); }
+    }
+}
+
 // Handle quota liquidation button click - open modal
 document.addEventListener('click', function(e) {
     const btn = e.target.closest('.quota-liquidation-btn');
     if (btn) {
         e.preventDefault();
         e.stopPropagation();
-
         currentTransactionId = btn.dataset.transactionId;
         currentTransactionAmount = parseFloat(btn.dataset.amount) || 0;
 
-        // Reset modal
         const modalCheckbox = document.getElementById('modal_quota_liquidation_checkbox');
         const modalConfig = document.getElementById('modal_quota_config');
         const modalFraction = document.getElementById('modal_quota_fraction');
@@ -1178,19 +1236,26 @@ document.addEventListener('click', function(e) {
         if (remainingDestSection) remainingDestSection.style.display = 'none';
         if (oldestRadio) oldestRadio.checked = true;
 
-        // Show modal
         const modalElement = document.getElementById('quotaLiquidationModal');
         if (modalElement) {
-            if (!quotaModal) {
-                initQuotaModal();
-            }
-            if (quotaModal) {
-                quotaModal.show();
-            } else {
-                const bsModal = new bootstrap.Modal(modalElement);
-                bsModal.show();
-            }
+            if (!quotaModal) initQuotaModal();
+            if (quotaModal) quotaModal.show();
+            else { const bsModal = new bootstrap.Modal(modalElement); bsModal.show(); }
         }
+    }
+
+    const btnMais = e.target.closest('.liquidar-mais-quotas-btn');
+    if (btnMais) {
+        e.preventDefault();
+        e.stopPropagation();
+        const tid = btnMais.dataset.transactionId;
+        const remaining = parseFloat(btnMais.dataset.remainingAmount) || 0;
+        const detailsModalEl = document.getElementById('transactionDetailsModal');
+        if (detailsModalEl) {
+            const detailsModal = bootstrap.Modal.getInstance(detailsModalEl);
+            if (detailsModal) detailsModal.hide();
+        }
+        openQuotaLiquidationModal(tid, remaining);
     }
 });
 

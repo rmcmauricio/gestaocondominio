@@ -370,72 +370,82 @@ class DashboardController extends Controller
     }
 
 
-    protected function condominoDashboard()
+    /**
+     * Returns the data array for the condomino dashboard (for use in DashboardController or CondominiumController).
+     */
+    public function getCondominoDashboardData(): array
     {
         AuthMiddleware::require();
-
         $userId = AuthMiddleware::userId();
 
         // Get user's condominiums and fractions
         $condominiumUserModel = new \App\Models\CondominiumUser();
         $userCondominiums = $condominiumUserModel->getUserCondominiums($userId);
 
-        // Get pending fees
+        $today = date('Y-m-d');
         $feeModel = new \App\Models\Fee();
+
+        // Overdue and pending fees (same structure as mobile – all condominiums)
+        $overdueFees = [];
+        $totalOverdue = 0.0;
+        $overdueCondominiumIds = [];
         $pendingFees = [];
-        $totalPending = 0;
+        $totalPending = 0.0;
 
         foreach ($userCondominiums as $uc) {
-            if ($uc['fraction_id']) {
-                $fees = $feeModel->getPendingByFraction($uc['fraction_id']);
-                foreach ($fees as &$f) {
-                    $f['period_display'] = \App\Models\Fee::formatPeriodForDisplay($f);
+            if (empty($uc['fraction_id'])) {
+                continue;
+            }
+            $fees = $feeModel->getOutstandingByFraction($uc['fraction_id']);
+            foreach ($fees as $f) {
+                $dueDate = $f['due_date'] ?? null;
+                $remaining = (float)($f['remaining'] ?? $f['amount'] ?? 0);
+                $f['remaining'] = $remaining;
+                $f['period_display'] = \App\Models\Fee::formatPeriodForDisplay($f);
+                $f['condominium_name'] = $uc['condominium_name'] ?? '';
+                $f['condominium_id'] = (int)$uc['condominium_id'];
+                $f['fraction_identifier'] = $uc['fraction_identifier'] ?? '';
+                if ($dueDate && $dueDate < $today) {
+                    $overdueFees[] = $f;
+                    $totalOverdue += $remaining;
+                    $overdueCondominiumIds[(int)$uc['condominium_id']] = true;
+                } else {
+                    $pendingFees[] = $f;
+                    $totalPending += $remaining;
                 }
-                unset($f);
-                $pendingFees = array_merge($pendingFees, $fees);
-                $totalPending += $feeModel->getTotalPendingByFraction($uc['fraction_id']);
             }
         }
+        $overdueCondominiumIds = array_keys($overdueCondominiumIds);
 
-        // Get recent expenses (last 5, from financial_transactions)
-        $transactionModel = new \App\Models\FinancialTransaction();
-        $recentExpenses = [];
-        if (!empty($userCondominiums)) {
-            $condominiumIds = array_unique(array_column($userCondominiums, 'condominium_id'));
-            foreach ($condominiumIds as $condominiumId) {
-                $txs = $transactionModel->getByCondominium($condominiumId, ['transaction_type' => 'expense', 'limit' => 5]);
-                $recentExpenses = array_merge($recentExpenses, $txs);
+        // IBAN for condominiums with overdue (for full dashboard)
+        $overdueCondominiumIbans = [];
+        if (!empty($overdueCondominiumIds)) {
+            $bankAccountModel = new \App\Models\BankAccount();
+            $condominiumModel = new \App\Models\Condominium();
+            foreach ($overdueCondominiumIds as $cid) {
+                $accounts = $bankAccountModel->getActiveAccounts($cid);
+                $iban = null;
+                foreach ($accounts as $acc) {
+                    if (($acc['account_type'] ?? '') === 'bank' && !empty($acc['iban'])) {
+                        $iban = trim($acc['iban']);
+                        break;
+                    }
+                }
+                if ($iban !== null && $iban !== '') {
+                    $condo = $condominiumModel->findById($cid);
+                    $overdueCondominiumIbans[] = [
+                        'condominium_id' => $cid,
+                        'condominium_name' => $condo['name'] ?? '',
+                        'iban' => $iban,
+                    ];
+                }
             }
-            usort($recentExpenses, function($a, $b) {
-                return strtotime($b['transaction_date'] ?? '') - strtotime($a['transaction_date'] ?? '');
-            });
-            $recentExpenses = array_slice($recentExpenses, 0, 5);
-        }
-
-        // Get recent documents (last 5)
-        $documentModel = new \App\Models\Document();
-        $recentDocuments = [];
-        if (!empty($userCondominiums)) {
-            $condominiumIds = array_unique(array_column($userCondominiums, 'condominium_id'));
-            foreach ($condominiumIds as $condominiumId) {
-                // Get documents visible to condominos
-                $documents = $documentModel->getByCondominium($condominiumId, [
-                    'visibility' => 'condominos',
-                    'limit' => 5,
-                    'sort_by' => 'created_at',
-                    'sort_order' => 'DESC'
-                ]);
-                $recentDocuments = array_merge($recentDocuments, $documents);
-            }
-            usort($recentDocuments, function($a, $b) {
-                return strtotime($b['created_at']) - strtotime($a['created_at']);
-            });
-            $recentDocuments = array_slice($recentDocuments, 0, 5);
         }
 
         // Get user's reservations (last 5)
         $reservationModel = new \App\Models\Reservation();
         $userReservations = [];
+        $futureReservations = [];
         if (!empty($userCondominiums)) {
             $condominiumIds = array_unique(array_column($userCondominiums, 'condominium_id'));
             global $db;
@@ -458,6 +468,22 @@ class DashboardController extends Controller
                 $params = array_merge([$userId], $condominiumIds);
                 $stmt->execute($params);
                 $userReservations = $stmt->fetchAll() ?: [];
+
+                $stmtFuture = $db->prepare("
+                    SELECT r.*, s.name as space_name, f.identifier as fraction_identifier, c.name as condominium_name
+                    FROM reservations r
+                    INNER JOIN spaces s ON s.id = r.space_id
+                    INNER JOIN fractions f ON f.id = r.fraction_id
+                    INNER JOIN condominiums c ON c.id = r.condominium_id
+                    WHERE r.user_id = ?
+                    AND r.condominium_id IN ($placeholders)
+                    AND r.start_date >= ?
+                    ORDER BY r.start_date ASC
+                    LIMIT 10
+                ");
+                $paramsFuture = array_merge([$userId], $condominiumIds, [$today]);
+                $stmtFuture->execute($paramsFuture);
+                $futureReservations = $stmtFuture->fetchAll() ?: [];
             }
         }
 
@@ -487,95 +513,6 @@ class DashboardController extends Controller
             }
         }
 
-        // Create a map of condominium_id to condominium_name
-        $condominiumNames = [];
-        foreach ($userCondominiums as $uc) {
-            if (!isset($condominiumNames[$uc['condominium_id']])) {
-                $condominiumNames[$uc['condominium_id']] = $uc['condominium_name'];
-            }
-        }
-
-        // Get open votes for user's condominiums
-        $standaloneVoteModel = new \App\Models\StandaloneVote();
-        $openVotes = [];
-        $recentVoteResults = [];
-        if (!empty($userCondominiums)) {
-            $condominiumIds = array_unique(array_column($userCondominiums, 'condominium_id'));
-            foreach ($condominiumIds as $condominiumId) {
-                $votes = $standaloneVoteModel->getOpenByCondominium($condominiumId);
-                foreach ($votes as $vote) {
-                    $vote['condominium_id'] = $condominiumId;
-                    $vote['condominium_name'] = $condominiumNames[$condominiumId] ?? '';
-                    $openVotes[] = $vote;
-                }
-
-                // Get recent results (last 3 per condominium)
-                $results = $standaloneVoteModel->getRecentResults($condominiumId, 3);
-                foreach ($results as $result) {
-                    $result['condominium_id'] = $condominiumId;
-                    $result['condominium_name'] = $condominiumNames[$condominiumId] ?? '';
-                    $result['results'] = $standaloneVoteModel->getResults($result['id']);
-                    $recentVoteResults[] = $result;
-                }
-            }
-
-            // Sort by voting_started_at DESC
-            usort($openVotes, function($a, $b) {
-                return strtotime($b['voting_started_at'] ?? '') - strtotime($a['voting_started_at'] ?? '');
-            });
-
-            // Sort recent results by voting_ended_at DESC
-            usort($recentVoteResults, function($a, $b) {
-                return strtotime($b['voting_ended_at'] ?? '') - strtotime($a['voting_ended_at'] ?? '');
-            });
-
-            // Limit to last 3 overall
-            $recentVoteResults = array_slice($recentVoteResults, 0, 3);
-        }
-
-        // Get vote options for each vote (filtered by allowed options)
-        $voteOptionModel = new \App\Models\VoteOption();
-        $voteOptionsByVote = [];
-        if (!empty($openVotes)) {
-            foreach ($openVotes as $vote) {
-                $allowedOptionIds = $vote['allowed_options'] ?? [];
-                $allOptions = $voteOptionModel->getByCondominium($vote['condominium_id']);
-
-                // Filter to only allowed options
-                $options = [];
-                if (!empty($allowedOptionIds)) {
-                    foreach ($allOptions as $option) {
-                        if (in_array($option['id'], $allowedOptionIds)) {
-                            $options[] = $option;
-                        }
-                    }
-                } else {
-                    // Backward compatibility: if no allowed options specified, use all
-                    $options = $allOptions;
-                }
-
-                $voteOptionsByVote[$vote['id']] = $options;
-            }
-        }
-
-        // Get user's votes for open votes
-        $standaloneVoteResponseModel = new \App\Models\StandaloneVoteResponse();
-        $userVotes = [];
-        if (!empty($openVotes) && !empty($userCondominiums)) {
-            foreach ($userCondominiums as $uc) {
-                if ($uc['fraction_id']) {
-                    foreach ($openVotes as $vote) {
-                        if ($vote['condominium_id'] == $uc['condominium_id']) {
-                            $userVote = $standaloneVoteResponseModel->getByFraction($vote['id'], $uc['fraction_id']);
-                            if ($userVote) {
-                                $userVotes[$vote['id']] = $userVote;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         // Get unread notifications (max 3)
         $notificationService = new \App\Services\NotificationService();
         $allNotifications = $notificationService->getUnifiedNotifications($userId, 50);
@@ -586,27 +523,102 @@ class DashboardController extends Controller
         $unreadNotifications = array_values($unreadNotifications);
         $unreadNotifications = array_slice($unreadNotifications, 0, 3);
 
-        $this->loadPageTranslations('dashboard');
+        // Saldo em conta (créditos) – por fração, apenas quando balance != 0
+        $fractionAccountModel = new \App\Models\FractionAccount();
+        $condominiumModel = new \App\Models\Condominium();
+        $fractionBalances = [];
+        foreach ($userCondominiums as $uc) {
+            if (empty($uc['fraction_id'])) {
+                continue;
+            }
+            $acc = $fractionAccountModel->getByFraction($uc['fraction_id']);
+            if ($acc && (float)$acc['balance'] != 0) {
+                $condo = $condominiumModel->findById($uc['condominium_id']);
+                $fractionBalances[] = [
+                    'condominium_name' => $condo['name'] ?? '',
+                    'fraction_identifier' => $uc['fraction_identifier'] ?? '',
+                    'condominium_id' => (int)$uc['condominium_id'],
+                    'balance' => (float)$acc['balance'],
+                ];
+            }
+        }
 
-        $this->data += [
-            'viewName' => 'pages/dashboard/condomino.html.twig',
-            'page' => ['titulo' => 'Painel Condómino'],
+        // Últimos recibos (todos os condomínios do utilizador)
+        $receiptModel = new \App\Models\Receipt();
+        $allReceipts = $receiptModel->getByUser($userId, ['receipt_type' => 'final']);
+        foreach ($allReceipts as &$r) {
+            $r['period_display'] = \App\Models\Fee::formatPeriodForDisplay([
+                'period_year' => $r['period_year'] ?? null,
+                'period_month' => $r['period_month'] ?? null,
+                'period_index' => $r['period_index'] ?? null,
+                'period_type' => $r['period_type'] ?? 'monthly',
+                'fee_type' => $r['fee_type'] ?? 'regular',
+                'reference' => $r['fee_reference'] ?? $r['reference'] ?? '',
+            ]);
+        }
+        unset($r);
+        $lastReceipts = array_slice($allReceipts, 0, 5);
+
+        // Mensagens não lidas (todos os condomínios)
+        $messageModel = new \App\Models\Message();
+        $unreadMessagesCount = 0;
+        $unreadMessages = [];
+        $condominiumIds = array_unique(array_column($userCondominiums, 'condominium_id'));
+        $condominiumNamesById = [];
+        foreach ($userCondominiums as $uc) {
+            $cid = (int)$uc['condominium_id'];
+            if (!isset($condominiumNamesById[$cid])) {
+                $condominiumNamesById[$cid] = $uc['condominium_name'] ?? '';
+            }
+        }
+        foreach ($condominiumIds as $condominiumId) {
+            $unreadMessagesCount += $messageModel->getUnreadCount($condominiumId, $userId);
+            $list = $messageModel->getByCondominium($condominiumId, [
+                'recipient_id' => $userId,
+                'is_read' => 0,
+                'limit' => 5,
+            ]);
+            foreach ($list as $msg) {
+                if ((int)($msg['from_user_id'] ?? 0) !== $userId) {
+                    $msg['condominium_name'] = $condominiumNamesById[(int)($msg['condominium_id'] ?? 0)] ?? '';
+                    $unreadMessages[] = $msg;
+                }
+            }
+        }
+        usort($unreadMessages, function ($a, $b) {
+            return strtotime($b['created_at'] ?? '') - strtotime($a['created_at'] ?? '');
+        });
+        $unreadMessages = array_slice($unreadMessages, 0, 5);
+
+        $firstCondominiumId = !empty($userCondominiums) ? (int)$userCondominiums[0]['condominium_id'] : null;
+
+        return [
             'user_condominiums' => $userCondominiums,
-            'pending_fees' => array_slice($pendingFees, 0, 5),
+            'first_condominium_id' => $firstCondominiumId,
+            'overdue_fees' => $overdueFees,
+            'total_overdue' => $totalOverdue,
+            'overdue_condominium_ibans' => $overdueCondominiumIbans,
+            'pending_fees' => $pendingFees,
             'total_pending' => $totalPending,
-            'recent_expenses' => $recentExpenses,
-            'recent_documents' => $recentDocuments,
             'user_reservations' => $userReservations,
             'user_occurrences' => $userOccurrences,
-            'open_votes' => $openVotes,
-            'recent_vote_results' => $recentVoteResults,
-            'vote_options_by_vote' => $voteOptionsByVote,
-            'user_votes' => $userVotes,
+            'future_reservations' => $futureReservations,
             'unread_notifications' => $unreadNotifications,
+            'fraction_balances' => $fractionBalances,
+            'last_receipts' => $lastReceipts,
+            'unread_messages_count' => $unreadMessagesCount,
+            'unread_messages' => $unreadMessages,
             'csrf_token' => \App\Core\Security::generateCSRFToken(),
             'user' => AuthMiddleware::user()
         ];
+    }
 
+    protected function condominoDashboard()
+    {
+        $this->loadPageTranslations('dashboard');
+        $this->data += $this->getCondominoDashboardData();
+        $this->data['viewName'] = 'pages/dashboard/condomino.html.twig';
+        $this->data['page'] = ['titulo' => 'Painel Condómino'];
         $this->renderMainTemplate();
     }
 }

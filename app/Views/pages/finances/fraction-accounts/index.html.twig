@@ -41,8 +41,13 @@
                     </thead>
                     <tbody>
                         {% for row in rows %}
-                        <tr>
-                            <td><strong>{% include 'blocks/fraction-popover.html.twig' with { identifier: row.fraction.identifier, owner_name: row.owner_name, floor: row.floor } only %}</strong></td>
+                        <tr class="{% if user_fraction_ids is defined and row.fraction_id in user_fraction_ids %}table-warning{% endif %}">
+                            <td>
+                                <strong>{% include 'blocks/fraction-popover.html.twig' with { identifier: row.fraction.identifier, owner_name: row.owner_name, floor: row.floor } only %}</strong>
+                                {% if user_fraction_ids is defined and row.fraction_id in user_fraction_ids %}
+                                <span class="badge bg-primary ms-2" title="A sua fração">A minha fração</span>
+                                {% endif %}
+                            </td>
                             <td class="text-end">
                                 <span class="{% if row.balance > 0 %}text-success{% elseif row.balance < 0 %}text-danger{% else %}text-muted{% endif %} fw-bold">
                                     €{{ row.balance|number_format(2, ',', '.') }}

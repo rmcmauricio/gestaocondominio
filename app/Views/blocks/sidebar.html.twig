@@ -5,11 +5,13 @@
     </div>
     <nav class="sidebar-nav">
         <ul class="nav flex-column">
+            {% if user.role == 'super_admin' or (current_condominium_role|default(null)) == 'admin' %}
             <li class="nav-item">
                 <a class="nav-link" href="{{ BASE_URL }}dashboard">
                     <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
             </li>
+            {% endif %}
             
             {% if user.role == 'super_admin' %}
             <li class="nav-section">
@@ -75,25 +77,6 @@
                     <i class="bi bi-envelope-paper"></i> Templates de Email
                 </a>
             </li>
-            {% if addons is defined and addons.help_chatbot %}
-            <li class="nav-item">
-                <a class="nav-link {% if viewName is defined and 'addon_help_chatbot' in viewName|default('') %}active{% endif %}" href="{{ BASE_URL }}admin/help">
-                    <i class="bi bi-question-circle"></i> Ajuda
-                </a>
-            </li>
-            {% endif %}
-            {% if addons is defined and addons.support_tickets %}
-            <li class="nav-item">
-                <a class="nav-link {% if viewName is defined and 'addon_support_tickets' in viewName|default('') %}active{% endif %}" href="{{ BASE_URL }}admin/tickets">
-                    <i class="bi bi-ticket-perforated"></i> Tickets
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{{ BASE_URL }}admin/tickets/create">
-                    <i class="bi bi-plus-circle"></i> Novo ticket
-                </a>
-            </li>
-            {% endif %}
             {% endif %}
             
             {% if user_condominiums and user_condominiums|length > 0 %}
@@ -180,11 +163,13 @@
                 </a>
             </li>
             
+            {% if current_condominium_role == 'admin' or (is_admin|default(false)) %}
             <li class="nav-item">
                 <a class="nav-link" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fractions">
                     <i class="bi bi-house-door"></i> Frações
                 </a>
             </li>
+            {% endif %}
             
             <li class="nav-item">
                 <a class="nav-link {% if viewName is defined and 'pages/finances/fees.html.twig' in viewName %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/fees">
@@ -245,11 +230,13 @@
                         </a>
                     </li>
                     {% endif %}
+                    {% if current_condominium_role == 'admin' or not current_condominium_role %}
                     <li class="nav-item">
                         <a class="nav-link ps-4 {% if viewName is defined and 'pages/finances/reports.html.twig' in viewName %}active{% endif %}" href="{{ BASE_URL }}condominiums/{{ condominium.id }}/finances/reports">
                             <i class="bi bi-file-earmark-text"></i> Relatórios
                         </a>
                     </li>
+                    {% endif %}
                 </ul>
             </li>
             
@@ -315,7 +302,7 @@
             {% endif %}
             {% endif %}
             
-            {% if condominium and current_condominium_role == 'admin' %}
+            {% if condominium and (current_condominium_role == 'admin' or user.role == 'super_admin' or user.role == 'admin') %}
             <li class="nav-section">
                 <span class="nav-section-title">Administração</span>
             </li>
@@ -342,6 +329,27 @@
                     <i class="bi bi-credit-card"></i> Subscrição
                 </a>
             </li>
+            
+            {% if addons is defined and addons.help_chatbot %}
+            <li class="nav-item">
+                <a class="nav-link {% if viewName is defined and 'addon_help_chatbot' in viewName|default('') %}active{% endif %}" href="{{ BASE_URL }}admin/help">
+                    <i class="bi bi-question-circle"></i> Ajuda
+                </a>
+            </li>
+            {% endif %}
+            
+            {% if addons is defined and addons.support_tickets %}
+            <li class="nav-item">
+                <a class="nav-link {% if viewName is defined and 'addon_support_tickets' in viewName|default('') %}active{% endif %}" href="{{ BASE_URL }}admin/tickets">
+                    <i class="bi bi-ticket-perforated"></i> Tickets
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ BASE_URL }}admin/tickets/create">
+                    <i class="bi bi-plus-circle"></i> Novo ticket
+                </a>
+            </li>
+            {% endif %}
             
             {% if user.role == 'super_admin' %}
             <li class="nav-item">

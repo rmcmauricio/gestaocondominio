@@ -11,7 +11,7 @@ class HelpController extends Controller
     public function index(): void
     {
         AuthMiddleware::require();
-        RoleMiddleware::requireSuperAdmin();
+        RoleMiddleware::requireAnyRole(['admin', 'super_admin']);
 
         $this->data['viewName'] = '@addon_help_chatbot/index.html.twig';
         $this->data['page'] = [
@@ -26,7 +26,7 @@ class HelpController extends Controller
     public function search(): void
     {
         AuthMiddleware::require();
-        RoleMiddleware::requireSuperAdmin();
+        RoleMiddleware::requireAnyRole(['admin', 'super_admin']);
 
         $q = trim($_GET['q'] ?? $_POST['q'] ?? '');
         if ($q === '') {
