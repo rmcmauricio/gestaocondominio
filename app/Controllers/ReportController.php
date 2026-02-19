@@ -666,13 +666,14 @@ class ReportController extends Controller
         }
 
         $html = $this->renderDelinquencyHtml($report);
+        $delinquencyTitle = 'Relatório de Quotas em Atraso - até à data ' . date('d/m/Y');
 
         if ($mode === 'ajax' || $this->isAjaxRequest()) {
             $printUrl = BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports/delinquency/print';
             $this->jsonSuccess([
                 'html' => $html,
                 'printUrl' => $printUrl,
-                'title' => 'Relatório de Quotas em Atraso'
+                'title' => $delinquencyTitle
             ]);
             exit;
         }
@@ -693,8 +694,8 @@ class ReportController extends Controller
 
         $report = $this->reportService->generateDelinquencyReport($condominiumId);
         $html = $this->renderDelinquencyHtml($report);
-        
-        echo $this->renderPrintTemplate($html, 'Relatório de Quotas em Atraso');
+        $delinquencyTitle = 'Relatório de Quotas em Atraso - até à data ' . date('d/m/Y');
+        echo $this->renderPrintTemplate($html, $delinquencyTitle);
         exit;
     }
 
@@ -1663,12 +1664,13 @@ class ReportController extends Controller
 
     protected function renderDelinquencyHtml(array $report): string
     {
+        $title = 'Relatório de Quotas em Atraso - até à data ' . date('d/m/Y');
         $html = "
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset='UTF-8'>
-            <title>Relatório de Quotas em Atraso</title>
+            <title>" . htmlspecialchars($title) . "</title>
             <style>
                 body { font-family: Arial, sans-serif; margin: 40px; }
                 h1 { color: #333; }
@@ -1679,36 +1681,32 @@ class ReportController extends Controller
             </style>
         </head>
         <body>
-            <h1>Relatório de Quotas em Atraso</h1>
+            <h1>" . htmlspecialchars($title) . "</h1>
             <p><strong>Total de devedores:</strong> {$report['total_delinquents']}</p>
             <p><strong>Dívida total:</strong> €" . number_format($report['total_debt'], 2, ',', '.') . "</p>
             <table>
                 <tr>
                     <th>Fração</th>
                     <th>Proprietário</th>
-                    <th>Email</th>
                     <th>Quotas em Atraso</th>
                     <th>Valor Total</th>
-                    <th>Vencimento Mais Antigo</th>
                 </tr>";
 
         foreach ($report['delinquents'] as $delinquent) {
+            $ownerName = $delinquent['owner_name'] ?? '-';
             $html .= "
                 <tr>
-                    <td>{$delinquent['fraction_identifier']}</td>
-                    <td>{$delinquent['owner_name']}</td>
-                    <td>{$delinquent['owner_email']}</td>
+                    <td>" . htmlspecialchars($delinquent['fraction_identifier'] ?? '') . "</td>
+                    <td>" . htmlspecialchars($ownerName) . "</td>
                     <td>{$delinquent['overdue_count']}</td>
-                    <td>€" . number_format($delinquent['total_debt'], 2, ',', '.') . "</td>
-                    <td>" . date('d/m/Y', strtotime($delinquent['oldest_due_date'])) . "</td>
+                    <td>€" . number_format((float)($delinquent['total_debt'] ?? 0), 2, ',', '.') . "</td>
                 </tr>";
         }
 
         $html .= "
                 <tr class='total'>
-                    <td colspan='4'>Total</td>
+                    <td colspan='3'>Total</td>
                     <td>€" . number_format($report['total_debt'], 2, ',', '.') . "</td>
-                    <td></td>
                 </tr>
             </table>
         </body>
@@ -1845,16 +1843,14 @@ class ReportController extends Controller
         
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
         
-        fputcsv($output, ['Fração', 'Proprietário', 'Email', 'Quotas em Atraso', 'Valor Total', 'Vencimento Mais Antigo'], ';');
+        fputcsv($output, ['Fração', 'Proprietário', 'Quotas em Atraso', 'Valor Total'], ';');
         
         foreach ($report['delinquents'] as $delinquent) {
             fputcsv($output, [
-                $delinquent['fraction_identifier'],
-                $delinquent['owner_name'],
-                $delinquent['owner_email'],
+                $delinquent['fraction_identifier'] ?? '',
+                $delinquent['owner_name'] ?? '-',
                 $delinquent['overdue_count'],
-                number_format($delinquent['total_debt'], 2, ',', '.'),
-                date('d/m/Y', strtotime($delinquent['oldest_due_date']))
+                number_format((float)($delinquent['total_debt'] ?? 0), 2, ',', '.')
             ], ';');
         }
         
@@ -1862,9 +1858,7 @@ class ReportController extends Controller
             'Total',
             '',
             '',
-            '',
-            number_format($report['total_debt'], 2, ',', '.'),
-            ''
+            number_format($report['total_debt'], 2, ',', '.')
         ], ';');
         
         fclose($output);
@@ -2294,7 +2288,7 @@ class ReportController extends Controller
             case 'delinquency':
                 $report = $this->reportService->generateDelinquencyReport($condominiumId);
                 $html = $this->renderDelinquencyHtml($report);
-                $title = 'Relatório de Inadimplência';
+                $title = 'Relatório de Quotas em Atraso - até à data ' . date('d/m/Y');
                 $printUrl = BASE_URL . 'condominiums/' . $condominiumId . '/finances/reports/delinquency/print';
                 break;
 
@@ -3980,31 +3974,27 @@ class ReportController extends Controller
                 
             case 'delinquency':
                 $report = $this->reportService->generateDelinquencyReport($condominiumId);
-                $sheet->setCellValue('A' . $row, 'Relatório de Quotas em Atraso');
+                $sheet->setCellValue('A' . $row, 'Relatório de Quotas em Atraso - até à data ' . date('d/m/Y'));
                 $sheet->getStyle('A' . $row)->applyFromArray($titleStyle);
                 $row++;
                 $sheet->setCellValue('A' . $row, 'Data de geração: ' . date('d/m/Y'));
                 $row += 2;
-                $this->addExcelHeader($sheet, $row, ['Fração', 'Proprietário', 'Email', 'Quotas em Atraso', 'Valor Total', 'Vencimento Mais Antigo'], $headerStyle);
+                $this->addExcelHeader($sheet, $row, ['Fração', 'Proprietário', 'Quotas em Atraso', 'Valor Total'], $headerStyle);
                 foreach ($report['delinquents'] as $delinquent) {
                     $this->addExcelRow($sheet, $row, [
-                        $delinquent['fraction_identifier'],
-                        $delinquent['owner_name'],
-                        $delinquent['owner_email'],
+                        $delinquent['fraction_identifier'] ?? '',
+                        $delinquent['owner_name'] ?? '-',
                         $delinquent['overdue_count'],
-                        number_format($delinquent['total_debt'], 2, ',', '.'),
-                        date('d/m/Y', strtotime($delinquent['oldest_due_date']))
+                        number_format((float)($delinquent['total_debt'] ?? 0), 2, ',', '.')
                     ]);
                 }
                 $this->addExcelRow($sheet, $row, [
                     'Total',
                     '',
                     '',
-                    '',
-                    number_format($report['total_debt'], 2, ',', '.'),
-                    ''
+                    number_format($report['total_debt'], 2, ',', '.')
                 ]);
-                $sheet->getStyle('A' . $row . ':F' . $row)->applyFromArray($totalStyle);
+                $sheet->getStyle('A' . $row . ':D' . $row)->applyFromArray($totalStyle);
                 break;
                 
             case 'occurrences':

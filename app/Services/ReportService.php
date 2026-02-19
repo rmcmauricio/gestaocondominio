@@ -560,56 +560,103 @@ class ReportService
     }
 
     /**
-     * Generate delinquency report
+     * Generate delinquency report (quotas em atraso).
+     * Agrupa por fração (uma linha por fração com dívida). Nome do proprietário via Fraction::getOwnerAndFloorByFractionIds (mesma lógica que no resto da app).
      */
     public function generateDelinquencyReport(int $condominiumId): array
     {
         global $db;
-        
+
         if (!$db) {
             return [];
         }
 
         $sql = "
             SELECT 
-                fr.identifier as fraction_identifier,
-                u.name as owner_name,
-                u.email as owner_email,
-                COUNT(f.id) as overdue_count,
-                SUM(f.amount - COALESCE((
-                    SELECT SUM(fp.amount) 
-                    FROM fee_payments fp 
-                    WHERE fp.fee_id = f.id
-                ), 0)) as total_debt,
-                MIN(f.due_date) as oldest_due_date,
-                MAX(f.due_date) as newest_due_date
-            FROM fees f
-            INNER JOIN fractions fr ON fr.id = f.fraction_id
-            INNER JOIN condominium_users cu ON cu.fraction_id = f.fraction_id AND cu.condominium_id = f.condominium_id
-            INNER JOIN users u ON u.id = cu.user_id
-            WHERE f.condominium_id = :condominium_id
-            AND f.status IN ('pending', 'overdue')
-            AND f.due_date < CURDATE()
-            AND COALESCE(f.is_historical, 0) = 0
-            AND (f.amount - COALESCE((
-                SELECT SUM(fp.amount) 
-                FROM fee_payments fp 
-                WHERE fp.fee_id = f.id
-            ), 0)) > 0
-            GROUP BY fr.id, fr.identifier, u.id, u.name, u.email
-            ORDER BY total_debt DESC
+                fr.id AS fraction_id,
+                fr.identifier AS fraction_identifier,
+                agg.overdue_count,
+                agg.total_debt,
+                agg.newest_due_date
+            FROM (
+                SELECT 
+                    f.fraction_id,
+                    COUNT(f.id) AS overdue_count,
+                    SUM(f.amount - COALESCE((
+                        SELECT SUM(fp.amount) FROM fee_payments fp WHERE fp.fee_id = f.id
+                    ), 0)) AS total_debt,
+                    MAX(f.due_date) AS newest_due_date
+                FROM fees f
+                WHERE f.condominium_id = :condominium_id
+                  AND f.status IN ('pending', 'overdue')
+                  AND (COALESCE(f.is_historical, 0) = 1 OR (f.due_date IS NOT NULL AND f.due_date < CURDATE()))
+                  AND (f.amount - COALESCE((
+                      SELECT SUM(fp.amount) FROM fee_payments fp WHERE fp.fee_id = f.id
+                  ), 0)) > 0
+                GROUP BY f.fraction_id
+            ) agg
+            INNER JOIN fractions fr ON fr.id = agg.fraction_id AND fr.condominium_id = :condominium_id
+            ORDER BY agg.total_debt DESC
         ";
 
         $stmt = $db->prepare($sql);
         $stmt->execute([':condominium_id' => $condominiumId]);
-        $delinquents = $stmt->fetchAll() ?: [];
+        $delinquents = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
-        $totalDebt = array_sum(array_column($delinquents, 'total_debt'));
+        if (!empty($delinquents)) {
+            $fractionModel = new \App\Models\Fraction();
+            $fractionIds = array_column($delinquents, 'fraction_id');
+            $ownerByFraction = $fractionModel->getOwnerAndFloorByFractionIds($fractionIds);
+            foreach ($delinquents as &$row) {
+                $fid = (int)($row['fraction_id'] ?? 0);
+                $row['owner_name'] = $ownerByFraction[$fid]['owner_name'] ?? null;
+            }
+            unset($row);
+
+            // Proprietários pendentes (convites não aceites): quando não há user, usar nome do convite
+            $missingOwnerIds = [];
+            foreach ($delinquents as $row) {
+                $fid = (int)($row['fraction_id'] ?? 0);
+                if ($fid && empty(trim((string)($row['owner_name'] ?? '')))) {
+                    $missingOwnerIds[$fid] = true;
+                }
+            }
+            $missingOwnerIds = array_keys($missingOwnerIds);
+            $pendingNamesByFraction = [];
+            if (!empty($missingOwnerIds) && $db) {
+                $placeholders = implode(',', array_fill(0, count($missingOwnerIds), '?'));
+                $stmtInv = $db->prepare("
+                    SELECT fraction_id, name FROM invitations
+                    WHERE condominium_id = ? AND fraction_id IN ({$placeholders})
+                    AND accepted_at IS NULL
+                    AND (expires_at IS NULL OR expires_at > NOW())
+                    ORDER BY created_at DESC
+                ");
+                $stmtInv->execute(array_merge([$condominiumId], $missingOwnerIds));
+                foreach ($stmtInv->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $inv) {
+                    $fid = (int)$inv['fraction_id'];
+                    if (!isset($pendingNamesByFraction[$fid]) && trim((string)($inv['name'] ?? '')) !== '') {
+                        $pendingNamesByFraction[$fid] = trim($inv['name']);
+                    }
+                }
+            }
+            foreach ($delinquents as &$row) {
+                $fid = isset($row['fraction_id']) ? (int) $row['fraction_id'] : 0;
+                $ownerName = isset($row['owner_name']) ? trim((string) $row['owner_name']) : '';
+                if ($fid && $ownerName === '' && isset($pendingNamesByFraction[$fid])) {
+                    $row['owner_name'] = $pendingNamesByFraction[$fid];
+                }
+                unset($row['fraction_id']);
+            }
+            unset($row);
+        }
+
+        $totalDebt = (float) array_sum(array_column($delinquents, 'total_debt'));
 
         return [
             'delinquents' => $delinquents,
             'total_debt' => $totalDebt,
-            'total_delinquents' => count($delinquents)
+            'total_delinquents' => count($delinquents),
         ];
     }
 
