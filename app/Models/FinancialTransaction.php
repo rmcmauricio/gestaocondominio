@@ -574,7 +574,10 @@ class FinancialTransaction extends Model
 
     /**
      * Get amount already used from this transaction for quota liquidation.
-     * Used = fee_payments (direct association) + fraction_account_movements debits (via liquidate flow).
+     * Uses the same concept as getTransactionInfo amount_allocated: only quota applications,
+     * without double-counting (fee_payments and quota_application debits represent the same events).
+     * Returns max(payments sum, quota_application debits sum) so dissociateCredit maxCredited
+     * matches the modal's "valor restante" (amount - allocated).
      */
     public function getAmountUsedForQuotas(int $transactionId): float
     {
@@ -582,7 +585,7 @@ class FinancialTransaction extends Model
             return 0.0;
         }
 
-        // From fee_payments (registar pagamento associando a movimento)
+        // From fee_payments (direct association to movement)
         $stmt = $this->db->prepare("
             SELECT COALESCE(SUM(amount), 0) as total
             FROM fee_payments
@@ -592,17 +595,18 @@ class FinancialTransaction extends Model
         $fp = $stmt->fetch();
         $fromPayments = (float)($fp['total'] ?? 0);
 
-        // From fraction_account_movements debits (liquidar quotas from transaction)
+        // From fraction_account_movements debits for quotas only (quota_application; exclude 'other' dissociate debits)
         $stmt = $this->db->prepare("
             SELECT COALESCE(SUM(amount), 0) as total
             FROM fraction_account_movements
-            WHERE source_financial_transaction_id = :id AND type = 'debit'
+            WHERE source_financial_transaction_id = :id AND type = 'debit' AND source_type = 'quota_application'
         ");
         $stmt->execute([':id' => $transactionId]);
         $fam = $stmt->fetch();
-        $fromDebits = (float)($fam['total'] ?? 0);
+        $fromQuotaDebits = (float)($fam['total'] ?? 0);
 
-        return $fromPayments + $fromDebits;
+        // Avoid double-counting: when we liquidate we create both fee_payment and quota_application debit for the same amount
+        return max($fromPayments, $fromQuotaDebits);
     }
 
     /**

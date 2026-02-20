@@ -30,8 +30,62 @@
     const quotaList = document.getElementById(prefix + 'quota_list');
     const quotaCheckboxes = document.querySelector('.' + prefix + 'quota-checkboxes');
     const quotaSummary = document.querySelector('.' + prefix + 'quota-summary');
+    const actionCreate = document.getElementById(prefix + 'action_create');
+    const actionAssociate = document.getElementById(prefix + 'action_associate');
+    const associateSection = document.getElementById(prefix + 'associate_section');
+    const existingTransactionSelect = document.getElementById(prefix + 'existing_transaction_id');
+    const createFractionSection = document.getElementById(prefix + 'create_fraction_section');
+    const paymentDateInput = document.getElementById(prefix + 'payment_date');
     
     if (!fractionSelect) return;
+    
+    function toggleLqAction() {
+        const isAssociate = actionAssociate && actionAssociate.checked;
+        if (associateSection) associateSection.style.display = isAssociate ? 'block' : 'none';
+        if (createFractionSection) createFractionSection.style.display = 'block';
+        if (paymentFields) {
+            if (isAssociate) {
+                paymentFields.style.display = 'none';
+                if (amountInput) amountInput.removeAttribute('required');
+                if (paymentMethodSelect) paymentMethodSelect.removeAttribute('required');
+                if (bankAccountSelect) bankAccountSelect.removeAttribute('required');
+                if (existingTransactionSelect) existingTransactionSelect.setAttribute('required', 'required');
+            } else {
+                paymentFields.style.display = 'block';
+                if (amountInput) amountInput.setAttribute('required', 'required');
+                if (paymentMethodSelect) paymentMethodSelect.setAttribute('required', 'required');
+                if (bankAccountSelect) bankAccountSelect.setAttribute('required', 'required');
+                if (existingTransactionSelect) existingTransactionSelect.removeAttribute('required');
+            }
+        }
+        if (isAssociate && existingTransactionSelect && existingTransactionSelect.value) {
+            const opt = existingTransactionSelect.options[existingTransactionSelect.selectedIndex];
+            if (opt && opt.value) {
+                const fractionId = opt.dataset.fractionId;
+                if (fractionId) {
+                    fractionSelect.value = fractionId;
+                    fractionSelect.dispatchEvent(new Event('change'));
+                }
+            }
+        }
+    }
+    if (actionCreate) actionCreate.addEventListener('change', toggleLqAction);
+    if (actionAssociate) actionAssociate.addEventListener('change', toggleLqAction);
+    toggleLqAction();
+    
+    if (existingTransactionSelect) {
+        existingTransactionSelect.addEventListener('change', function() {
+            const opt = this.options[this.selectedIndex];
+            if (!opt || !opt.value) return;
+            const fractionId = opt.dataset.fractionId;
+            const txDate = opt.dataset.date;
+            if (fractionId) {
+                fractionSelect.value = fractionId;
+                fractionSelect.dispatchEvent(new Event('change'));
+            }
+            if (txDate && paymentDateInput) paymentDateInput.value = txDate;
+        });
+    }
     
     function escapeHtml(text) {
         const div = document.createElement('div');

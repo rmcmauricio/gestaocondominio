@@ -608,16 +608,17 @@ class ReportService
             $fractionIds = array_column($delinquents, 'fraction_id');
             $ownerByFraction = $fractionModel->getOwnerAndFloorByFractionIds($fractionIds);
             foreach ($delinquents as &$row) {
-                $fid = (int)($row['fraction_id'] ?? 0);
-                $row['owner_name'] = $ownerByFraction[$fid]['owner_name'] ?? null;
+                $fid = isset($row['fraction_id']) ? (int) $row['fraction_id'] : 0;
+                $row['owner_name'] = isset($ownerByFraction[$fid]['owner_name']) ? $ownerByFraction[$fid]['owner_name'] : null;
             }
             unset($row);
 
             // Proprietários pendentes (convites não aceites): quando não há user, usar nome do convite
             $missingOwnerIds = [];
             foreach ($delinquents as $row) {
-                $fid = (int)($row['fraction_id'] ?? 0);
-                if ($fid && empty(trim((string)($row['owner_name'] ?? '')))) {
+                $fid = isset($row['fraction_id']) ? (int) $row['fraction_id'] : 0;
+                $on = isset($row['owner_name']) ? trim((string) $row['owner_name']) : '';
+                if ($fid && $on === '') {
                     $missingOwnerIds[$fid] = true;
                 }
             }
@@ -634,9 +635,10 @@ class ReportService
                 ");
                 $stmtInv->execute(array_merge([$condominiumId], $missingOwnerIds));
                 foreach ($stmtInv->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $inv) {
-                    $fid = (int)$inv['fraction_id'];
-                    if (!isset($pendingNamesByFraction[$fid]) && trim((string)($inv['name'] ?? '')) !== '') {
-                        $pendingNamesByFraction[$fid] = trim($inv['name']);
+                    $fid = (int) $inv['fraction_id'];
+                    $invName = isset($inv['name']) ? trim((string) $inv['name']) : '';
+                    if (!isset($pendingNamesByFraction[$fid]) && $invName !== '') {
+                        $pendingNamesByFraction[$fid] = $invName;
                     }
                 }
             }

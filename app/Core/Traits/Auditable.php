@@ -268,81 +268,14 @@ trait Auditable
     }
 
     /**
-     * Log audit to database
+     * Log audit to database (delegates to AuditManager so condominium_id is handled for audit_financial etc.)
      */
     protected function logAudit(array $data): void
     {
         if (!$this->db) {
             return;
         }
-
-        try {
-            $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
-            $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
-            $tableName = $data['table_name'] ?? $this->getTableName();
-
-            // Determine which audit table to use
-            $auditTableName = $this->getAuditTableName($tableName);
-
-            // Check if the audit table has the new fields (old_data, new_data, etc.)
-            $stmt = $this->db->query("SHOW COLUMNS FROM {$auditTableName} LIKE 'old_data'");
-            $hasNewFields = $stmt->rowCount() > 0;
-
-            if ($hasNewFields) {
-                // Use new format with old_data, new_data, table_name, operation
-                $stmt = $this->db->prepare("
-                    INSERT INTO {$auditTableName} (
-                        user_id, action, model, model_id, description,
-                        ip_address, user_agent, old_data, new_data, table_name, operation
-                    )
-                    VALUES (
-                        :user_id, :action, :model, :model_id, :description,
-                        :ip_address, :user_agent, :old_data, :new_data, :table_name, :operation
-                    )
-                ");
-
-                $stmt->execute([
-                    ':user_id' => $data['user_id'],
-                    ':action' => $data['action'],
-                    ':model' => $data['model'] ?? null,
-                    ':model_id' => $data['model_id'] ?? null,
-                    ':description' => $data['description'] ?? null,
-                    ':ip_address' => $ipAddress,
-                    ':user_agent' => $userAgent,
-                    ':old_data' => isset($data['old_data']) ? (is_string($data['old_data']) ? $data['old_data'] : json_encode($data['old_data'])) : null,
-                    ':new_data' => isset($data['new_data']) ? (is_string($data['new_data']) ? $data['new_data'] : json_encode($data['new_data'])) : null,
-                    ':table_name' => $tableName,
-                    ':operation' => $data['operation'] ?? null
-                ]);
-            } else {
-                // Fallback to old format for compatibility (only for audit_logs)
-                if ($auditTableName === 'audit_logs') {
-                    $stmt = $this->db->prepare("
-                        INSERT INTO audit_logs (
-                            user_id, action, model, model_id, description, ip_address, user_agent
-                        )
-                        VALUES (
-                            :user_id, :action, :model, :model_id, :description, :ip_address, :user_agent
-                        )
-                    ");
-
-                    $stmt->execute([
-                        ':user_id' => $data['user_id'],
-                        ':action' => $data['action'],
-                        ':model' => $data['model'] ?? null,
-                        ':model_id' => $data['model_id'] ?? null,
-                        ':description' => $data['description'] ?? null,
-                        ':ip_address' => $ipAddress,
-                        ':user_agent' => $userAgent
-                    ]);
-                } else {
-                    // Fallback for audit_payments (and other specialized tables) without new fields
-                    \App\Core\AuditManager::insertLegacyAudit($this->db, $auditTableName, $data, $ipAddress, $userAgent, $tableName);
-                }
-            }
-        } catch (\Exception $e) {
-            // Log error but don't break the flow
-            error_log("Audit log error: " . $e->getMessage());
-        }
+        $data['table_name'] = $data['table_name'] ?? $this->getTableName();
+        \App\Core\AuditManager::logAudit($data);
     }
 }
