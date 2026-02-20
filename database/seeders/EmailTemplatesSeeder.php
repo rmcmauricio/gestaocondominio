@@ -937,6 +937,47 @@ Aceder à Demonstração: {accessUrl}
                 ]
             ],
             [
+                'template_key' => 'pilot_email_verification',
+                'name' => 'Verificação de email - Inscrição User Piloto',
+                'description' => 'Email com link para confirmar o email na inscrição como user piloto (anti-spam)',
+                'subject' => 'Confirme o seu email - Inscrição User Piloto',
+                'html_body' => '<div class="greeting">Olá!</div>
+<div class="message">
+    <p>Obrigado por demonstrar interesse em ser utilizador piloto do <strong>O Meu Prédio</strong>!</p>
+    <p>Para confirmar que este email é válido e concluir a sua inscrição, clique no botão abaixo.</p>
+    <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0;"><strong>⚠️ Um passo em falta:</strong> Só após confirmar o email a sua inscrição será registada e entraremos em contacto.</p>
+    </div>
+</div>
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{verificationUrl}" class="button" style="background: #F98E13; color: #ffffff !important; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; display: inline-block;">Confirmar o meu email</a>
+</div>
+<div class="warning">
+    <ul>
+        <li>Este link é válido por 24 horas</li>
+        <li>Se não solicitou esta inscrição, pode ignorar este email</li>
+    </ul>
+</div>
+<div class="link-box">
+    <div class="link-label">Se o botão não funcionar, copie e cole no navegador:</div>
+    {verificationUrl}
+</div>',
+                'text_body' => 'Olá!
+
+Obrigado por demonstrar interesse em ser utilizador piloto do O Meu Prédio!
+
+Para confirmar que este email é válido e concluir a sua inscrição, abra o link abaixo no navegador:
+
+{verificationUrl}
+
+Este link é válido por 24 horas. Se não solicitou esta inscrição, pode ignorar este email.',
+                'available_fields' => [
+                    ['key' => '{email}', 'description' => 'Email do utilizador', 'required' => false],
+                    ['key' => '{verificationUrl}', 'description' => 'URL para confirmar o email', 'required' => true],
+                    ['key' => '{baseUrl}', 'description' => 'URL base do sistema', 'required' => false]
+                ]
+            ],
+            [
                 'template_key' => 'pilot_signup_thank_you',
                 'name' => 'Agradecimento - Inscrição User Piloto',
                 'description' => 'Email de agradecimento enviado quando um utilizador se inscreve como user piloto',

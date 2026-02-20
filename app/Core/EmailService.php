@@ -804,6 +804,37 @@ class EmailService
     }
 
     /**
+     * Send pilot signup email verification (link to confirm email - filters bots).
+     */
+    public function sendPilotVerificationEmail(string $email, string $verificationUrl): bool
+    {
+        $template = $this->emailTemplateModel->findByKey('pilot_email_verification');
+        if (!$template) {
+            error_log("EmailService: Template 'pilot_email_verification' not found in database. Please run seeder.");
+            return false;
+        }
+
+        $subject = $template['subject'] ?? 'Confirme o seu email - Inscrição User Piloto';
+        $html = $this->renderTemplate('pilot_email_verification', [
+            'email' => $email,
+            'verificationUrl' => $verificationUrl,
+            'baseUrl' => BASE_URL
+        ]);
+        $text = $this->renderTextTemplate('pilot_email_verification', [
+            'email' => $email,
+            'verificationUrl' => $verificationUrl,
+            'baseUrl' => BASE_URL
+        ]);
+
+        if (empty($html)) {
+            error_log("EmailService: Failed to render 'pilot_email_verification' template.");
+            return false;
+        }
+
+        return $this->sendEmail($email, $subject, $html, $text, 'pilot_email_verification');
+    }
+
+    /**
      * Send pilot signup thank you email
      */
     public function sendPilotSignupThankYouEmail(string $email): bool

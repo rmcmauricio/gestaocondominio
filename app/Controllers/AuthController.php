@@ -2050,65 +2050,45 @@ class AuthController extends Controller
             exit;
         }
 
-        // Subscribe to newsletter with source 'pilot_user'
+        // Already verified pilot user (registered in newsletter) -> show same success to avoid leaking info
+        $newsletterService = new \App\Services\NewsletterService();
+        global $db;
+        $stmt = $db->prepare("SELECT 1 FROM newsletter_subscribers WHERE email = :email AND source = 'pilot_user' AND unsubscribed_at IS NULL LIMIT 1");
+        $stmt->execute([':email' => $email]);
+        if ($stmt->fetch()) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'message' => 'Obrigado pelo seu interesse! Receberá um convite para registo brevemente.']);
+                exit;
+            }
+            $_SESSION['pilot_signup_success'] = 'Obrigado pelo seu interesse! Entraremos em contacto em breve.';
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+
+        // Require email verification first (filter bots): create token and send verification email only
         try {
-            $newsletterService = new \App\Services\NewsletterService();
-            $success = $newsletterService->subscribe($email, 'pilot_user');
+            $tokenModel = new \App\Models\PilotEmailVerificationToken();
+            $token = $tokenModel->createToken($email);
+            $verificationUrl = BASE_URL . 'pilot/verify-email?token=' . urlencode($token);
 
-            if ($success) {
-                // Get subscription date for notification
-                global $db;
-                $stmt = $db->prepare("SELECT subscribed_at FROM newsletter_subscribers WHERE email = :email AND source = 'pilot_user' LIMIT 1");
-                $stmt->execute([':email' => $email]);
-                $subscriber = $stmt->fetch();
-                $subscribedAt = $subscriber ? date('d/m/Y H:i', strtotime($subscriber['subscribed_at'])) : date('d/m/Y H:i');
+            $emailService = new \App\Core\EmailService();
+            $sent = $emailService->sendPilotVerificationEmail($email, $verificationUrl);
 
-                // Create email service instance once
-                $emailService = new \App\Core\EmailService();
-
-                // Send thank you email to pilot user
-                $thankYouSent = false;
-                try {
-                    $thankYouSent = $emailService->sendPilotSignupThankYouEmail($email);
-                    if (!$thankYouSent) {
-                        error_log("AuthController: Failed to send pilot signup thank you email to: {$email}");
-                    } else {
-                        error_log("AuthController: Successfully sent pilot signup thank you email to: {$email}");
-                    }
-                } catch (\Exception $emailException) {
-                    // Log email error but don't fail the signup
-                    error_log("AuthController: Exception sending pilot signup thank you email to {$email}: " . $emailException->getMessage());
-                    error_log("AuthController: Exception trace: " . $emailException->getTraceAsString());
-                }
-
-                // Send notification email to super admin
-                $notificationSent = false;
-                try {
-                    $notificationSent = $emailService->sendPilotUserNotificationEmail($email, $subscribedAt);
-                    if (!$notificationSent) {
-                        error_log("AuthController: Failed to send pilot user notification to super admin for: {$email}");
-                    } else {
-                        error_log("AuthController: Successfully sent pilot user notification to super admin for: {$email}");
-                    }
-                } catch (\Exception $notificationException) {
-                    // Log notification error but don't fail the signup
-                    error_log("AuthController: Exception sending pilot user notification to super admin for {$email}: " . $notificationException->getMessage());
-                    error_log("AuthController: Exception trace: " . $notificationException->getTraceAsString());
-                }
-                
+            if ($sent) {
                 if ($isAjax) {
                     header('Content-Type: application/json');
-                    echo json_encode(['success' => true, 'message' => 'Obrigado pelo seu interesse! Receberá um convite para registo brevemente.']);
+                    echo json_encode(['success' => true, 'message' => 'Enviámos um email de confirmação. Verifique a sua caixa de entrada e clique no link para concluir a inscrição.']);
                     exit;
                 }
-                $_SESSION['pilot_signup_success'] = 'Obrigado pelo seu interesse! Entraremos em contacto em breve.';
+                $_SESSION['pilot_signup_success'] = 'Enviámos um email de confirmação. Verifique a sua caixa de entrada e clique no link para concluir a inscrição.';
             } else {
                 if ($isAjax) {
                     header('Content-Type: application/json');
-                    echo json_encode(['success' => false, 'message' => 'Erro ao processar inscrição. Por favor, tente novamente.']);
+                    echo json_encode(['success' => false, 'message' => 'Erro ao enviar o email de confirmação. Por favor, tente novamente.']);
                     exit;
                 }
-                $_SESSION['pilot_signup_error'] = 'Erro ao processar inscrição. Por favor, tente novamente.';
+                $_SESSION['pilot_signup_error'] = 'Erro ao enviar o email de confirmação. Por favor, tente novamente.';
             }
         } catch (\Exception $e) {
             error_log("AuthController: Error processing pilot signup for {$email}: " . $e->getMessage());
@@ -2119,6 +2099,71 @@ class AuthController extends Controller
                 exit;
             }
             $_SESSION['pilot_signup_error'] = 'Erro ao processar inscrição. Por favor, tente novamente.';
+        }
+
+        header('Location: ' . $redirectUrl);
+        exit;
+    }
+
+    /**
+     * Verify pilot signup email (link sent after initial signup). On success: subscribe as pilot_user, send thank you + superAdmin notification.
+     */
+    public function verifyPilotEmail()
+    {
+        $token = isset($_GET['token']) ? trim($_GET['token']) : '';
+        $redirectUrl = BASE_URL;
+
+        if (empty($token)) {
+            $_SESSION['pilot_signup_error'] = 'Link de confirmação inválido ou em falta.';
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+
+        $tokenModel = new \App\Models\PilotEmailVerificationToken();
+        $tokenData = $tokenModel->findByToken($token);
+
+        if (!$tokenData) {
+            $_SESSION['pilot_signup_error'] = 'Link de confirmação inválido ou expirado. Pode pedir uma nova confirmação na página inicial.';
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+
+        $email = $tokenData['email'];
+
+        try {
+            $newsletterService = new \App\Services\NewsletterService();
+            $subscribed = $newsletterService->subscribe($email, 'pilot_user');
+
+            if (!$subscribed) {
+                $_SESSION['pilot_signup_error'] = 'Não foi possível concluir a inscrição. Por favor, tente novamente.';
+                header('Location: ' . $redirectUrl);
+                exit;
+            }
+
+            $tokenModel->deleteByToken($token);
+
+            global $db;
+            $stmt = $db->prepare("SELECT subscribed_at FROM newsletter_subscribers WHERE email = :email AND source = 'pilot_user' LIMIT 1");
+            $stmt->execute([':email' => $email]);
+            $subscriber = $stmt->fetch();
+            $subscribedAt = $subscriber ? date('d/m/Y H:i', strtotime($subscriber['subscribed_at'])) : date('d/m/Y H:i');
+
+            $emailService = new \App\Core\EmailService();
+            try {
+                $emailService->sendPilotSignupThankYouEmail($email);
+            } catch (\Exception $e) {
+                error_log("AuthController: verifyPilotEmail thank you email failed: " . $e->getMessage());
+            }
+            try {
+                $emailService->sendPilotUserNotificationEmail($email, $subscribedAt);
+            } catch (\Exception $e) {
+                error_log("AuthController: verifyPilotEmail superAdmin notification failed: " . $e->getMessage());
+            }
+
+            $_SESSION['pilot_signup_success'] = 'Obrigado! A sua inscrição foi confirmada. Entraremos em contacto em breve.';
+        } catch (\Exception $e) {
+            error_log("AuthController: verifyPilotEmail error: " . $e->getMessage());
+            $_SESSION['pilot_signup_error'] = 'Erro ao confirmar a inscrição. Por favor, tente novamente.';
         }
 
         header('Location: ' . $redirectUrl);
