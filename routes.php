@@ -57,8 +57,9 @@ $router->get('/reset-password', 'App\Controllers\AuthController@resetPassword');
 $router->post('/reset-password/process', 'App\Controllers\AuthController@processResetPassword');
 $router->get('/logout', 'App\Controllers\AuthController@logout');
 
-// Pilot user signup route
+// Pilot user signup and email verification
 $router->post('/pilot/signup', 'App\Controllers\AuthController@processPilotSignup');
+$router->get('/pilot/verify-email', 'App\Controllers\AuthController@verifyPilotEmail');
 
 // Google OAuth routes
 $router->get('/auth/google', 'App\Controllers\AuthController@googleAuth');
