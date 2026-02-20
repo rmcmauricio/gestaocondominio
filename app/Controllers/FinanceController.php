@@ -2826,6 +2826,55 @@ class FinanceController extends Controller
         $bankAccountModel = new BankAccount();
         $bankAccounts = $bankAccountModel->getActiveAccounts($condominiumId);
 
+        // Movimentos de crédito (entrada) categorizados como Quotas, com saldo não associado: só estes para "Associar a movimento"
+        // Excluir: transferências, categoria diferente de Quotas, valor restante efetivo 0 (todo aplicado a quotas ou em crédito na fração)
+        $transactionModel = new FinancialTransaction();
+        $bankTx = $transactionModel->getByCondominium($condominiumId, ['transaction_type' => 'income', 'account_type' => 'bank', 'limit' => 100]);
+        $cashTx = $transactionModel->getByCondominium($condominiumId, ['transaction_type' => 'income', 'account_type' => 'cash', 'limit' => 100]);
+        $allCandidates = array_merge($bankTx, $cashTx);
+        global $db;
+        $stmtHasCredit = $db ? $db->prepare("
+            SELECT 1 FROM fraction_account_movements
+            WHERE type = 'credit' AND source_type = 'quota_payment' AND source_reference_id = :tid
+            LIMIT 1
+        ") : null;
+        $availableTransactions = [];
+        foreach ($allCandidates as $tx) {
+            if (isset($tx['related_type']) && $tx['related_type'] === 'transfer') {
+                continue;
+            }
+            // Apenas movimentos categorizados como Quotas
+            if (empty($tx['category']) || trim((string) $tx['category']) !== 'Quotas') {
+                continue;
+            }
+            $amount = (float)($tx['amount'] ?? 0);
+            $used = $transactionModel->getAmountUsedForQuotas((int)$tx['id']);
+            if ($amount <= 0 || $used >= $amount) {
+                continue;
+            }
+            // Se o movimento já tem crédito na fração, o valor restante foi aplicado em saldo → valor restante efetivo = 0
+            $effectiveRemaining = $amount - $used;
+            if ($stmtHasCredit) {
+                $stmtHasCredit->execute([':tid' => (int)$tx['id']]);
+                if ($stmtHasCredit->fetch()) {
+                    $effectiveRemaining = 0.0;
+                }
+            }
+            if ($effectiveRemaining <= 0) {
+                continue;
+            }
+            $tx['remaining_amount'] = round($effectiveRemaining, 2);
+            $availableTransactions[] = $tx;
+        }
+        usort($availableTransactions, function ($a, $b) {
+            $da = strtotime($a['transaction_date'] ?? '0');
+            $db = strtotime($b['transaction_date'] ?? '0');
+            if ($da !== $db) {
+                return $db <=> $da;
+            }
+            return (int)($b['id'] ?? 0) <=> (int)($a['id'] ?? 0);
+        });
+
         $this->loadPageTranslations('finances');
         
         // Get and clear session messages
@@ -2843,6 +2892,7 @@ class FinanceController extends Controller
             'condominium' => $condominium,
             'fractions' => $fractions,
             'bank_accounts' => $bankAccounts,
+            'available_transactions' => $availableTransactions,
             'csrf_token' => Security::generateCSRFToken(),
             'error' => $error,
             'success' => $success,
@@ -2879,6 +2929,7 @@ class FinanceController extends Controller
         }
 
         $fractionId = (int)($_POST['fraction_id'] ?? 0);
+        $existingTransactionId = !empty($_POST['existing_transaction_id']) ? (int)$_POST['existing_transaction_id'] : null;
         $amount = !empty($_POST['amount']) ? (float)$_POST['amount'] : 0;
         $paymentMethod = Security::sanitize($_POST['payment_method'] ?? '');
         $bankAccountId = !empty($_POST['bank_account_id']) ? (int)$_POST['bank_account_id'] : 0;
@@ -2891,6 +2942,12 @@ class FinanceController extends Controller
             $_SESSION['error'] = 'Selecione a fração.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
             exit;
+        }
+
+        // Associar a movimento existente: aplicar liquidação ao movimento indicado (sem criar novo)
+        if ($existingTransactionId) {
+            $this->liquidateQuotasAssociateToMovement($condominiumId, $existingTransactionId, $fractionId, $paymentDate, $selectedFeeIds);
+            return;
         }
         
         // If using only fraction balance (no new payment), skip payment validations
@@ -2988,9 +3045,6 @@ class FinanceController extends Controller
                     $description .= ' - ' . $notes;
                 }
 
-                // Generate reference automatically
-                $ref = 'REF' . $condominiumId . $fractionId . date('YmdHis');
-
                 $transactionModel = new FinancialTransaction();
                 $transactionId = $transactionModel->create([
                     'condominium_id' => $condominiumId,
@@ -3002,11 +3056,15 @@ class FinanceController extends Controller
                     'description' => $description,
                     'category' => 'Quotas',
                     'income_entry_type' => 'quota',
-                    'reference' => $ref,
+                    'reference' => null,
                     'related_type' => 'fraction_account',
                     'related_id' => $accountId,
                     'created_by' => $userId
                 ]);
+
+                // REF-{id_cond}/{fracao}-{id-movimento}
+                $ref = 'REF-' . $condominiumId . '/' . ($fraction['identifier'] ?? $fractionId) . '-' . $transactionId;
+                $transactionModel->update($transactionId, ['reference' => $ref]);
 
                 $movementId = $faModel->addCredit($accountId, $amount, 'quota_payment', $transactionId, $description);
                 
@@ -3093,6 +3151,147 @@ class FinanceController extends Controller
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
             exit;
         }
+    }
+
+    /**
+     * Liquidar quotas associando a um movimento existente (valor restante do movimento aplicado às quotas).
+     */
+    protected function liquidateQuotasAssociateToMovement(int $condominiumId, int $transactionId, int $fractionId, string $paymentDate, array $selectedFeeIds): void
+    {
+        $transactionModel = new FinancialTransaction();
+        $transaction = $transactionModel->findById($transactionId);
+        if (!$transaction || (int)$transaction['condominium_id'] !== $condominiumId) {
+            $_SESSION['error'] = 'Movimento não encontrado.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
+            exit;
+        }
+        if ($transaction['transaction_type'] !== 'income') {
+            $_SESSION['error'] = 'Apenas movimentos de entrada podem ser usados para liquidar quotas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
+            exit;
+        }
+        if (isset($transaction['related_type']) && $transaction['related_type'] === 'transfer') {
+            $_SESSION['error'] = 'Movimentos de transferência não podem ser usados para liquidar quotas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
+            exit;
+        }
+        $txFractionId = (int)($transaction['fraction_id'] ?? 0);
+        if ($txFractionId > 0 && $txFractionId !== $fractionId) {
+            $_SESSION['error'] = 'O movimento não pertence à fração selecionada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
+            exit;
+        }
+        if ($txFractionId <= 0) {
+            $transaction['fraction_id'] = $fractionId;
+        }
+        $amount = (float)$transaction['amount'];
+        $used = $transactionModel->getAmountUsedForQuotas($transactionId);
+        if ($amount <= 0 || $used >= $amount) {
+            $_SESSION['error'] = 'O movimento não tem valor disponível para liquidar quotas.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
+            exit;
+        }
+
+        $fractionModel = new Fraction();
+        $fraction = $fractionModel->findById($fractionId);
+        if (!$fraction || $fraction['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Fração inválida.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
+            exit;
+        }
+
+        try {
+            global $db;
+            $db->beginTransaction();
+            $userId = AuthMiddleware::userId();
+            $liquidationService = new LiquidationService();
+            $result = $liquidationService->liquidateSelectedFees(
+                $fractionId,
+                $selectedFeeIds,
+                $userId,
+                $paymentDate,
+                $transactionId,
+                'oldest'
+            );
+
+            $fractionIdentifier = $fraction['identifier'] ?? '';
+            $description = $transaction['description'] ?? '';
+            $pos = strpos($description, ' | Fração ');
+            if ($pos !== false) {
+                $description = trim(substr($description, 0, $pos));
+            }
+            if ($fractionIdentifier !== '') {
+                $description .= ($description !== '' ? ' | ' : '') . 'Fração ' . $fractionIdentifier;
+            }
+            $fullyPaidCount = is_array($result['fully_paid']) ? count($result['fully_paid']) : (int)($result['fully_paid'] ?? 0);
+            $partiallyPaidCount = is_array($result['partially_paid']) ? count($result['partially_paid']) : (int)($result['partially_paid'] ?? 0);
+            if ($fullyPaidCount > 0 || $partiallyPaidCount > 0) {
+                $liquidationDetails = [];
+                if ($fullyPaidCount > 0) {
+                    $liquidationDetails[] = $fullyPaidCount . ' quota(s) totalmente paga(s)';
+                }
+                if ($partiallyPaidCount > 0) {
+                    $liquidationDetails[] = $partiallyPaidCount . ' quota(s) parcialmente paga(s)';
+                }
+                $description .= ($description !== '' ? ' | ' : '') . implode(', ', $liquidationDetails);
+            }
+            $creditRemaining = (float)($result['credit_remaining'] ?? 0);
+            $unregisteredAmount = (float)($result['unregistered_amount'] ?? 0);
+            if ($creditRemaining > 0) {
+                $description .= ($description !== '' ? ' | ' : '') . 'Valor restante em saldo: ' . number_format($creditRemaining, 2, ',', '.') . ' €';
+            } elseif ($unregisteredAmount > 0) {
+                $description .= ($description !== '' ? ' | ' : '') . 'Quotas antigas não registadas: ' . number_format($unregisteredAmount, 2, ',', '.') . ' €';
+            }
+
+            $updateData = ['description' => $description, 'related_type' => 'fee_payment'];
+            if ($txFractionId <= 0) {
+                $updateData['fraction_id'] = $fractionId;
+            }
+            $transactionModel->update($transactionId, $updateData);
+
+            $stmt = $db->prepare("SELECT id FROM fraction_account_movements WHERE type = 'credit' AND source_type = 'quota_payment' AND source_reference_id = :tid LIMIT 1");
+            $stmt->execute([':tid' => $transactionId]);
+            $movRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if ($movRow) {
+                $builtDesc = 'Crédito por liquidação de quotas - Fração ' . $fractionIdentifier . ' - Movimento #' . $transactionId;
+                if ($fullyPaidCount > 0 || $partiallyPaidCount > 0) {
+                    $builtDesc .= ' | ' . $fullyPaidCount . ' quota(s) totalmente paga(s)';
+                    if ($partiallyPaidCount > 0) {
+                        $builtDesc .= ', ' . $partiallyPaidCount . ' parcialmente paga(s)';
+                    }
+                }
+                if ($creditRemaining > 0) {
+                    $builtDesc .= ' | Restante em saldo: ' . number_format($creditRemaining, 2, ',', '.') . ' €';
+                }
+                (new FractionAccountMovement())->update((int)$movRow['id'], ['description' => $builtDesc]);
+            }
+
+            $receiptSvc = new ReceiptService();
+            foreach ($result['fully_paid'] ?? [] as $fid) {
+                $receiptSvc->generateForFullyPaidFee($fid, $result['fully_paid_payments'][$fid] ?? null, $condominiumId, $userId);
+            }
+
+            $this->auditService->logFinancial([
+                'condominium_id' => $condominiumId,
+                'entity_type' => 'financial_transaction',
+                'entity_id' => $transactionId,
+                'action' => 'quotas_liquidated_associate',
+                'user_id' => $userId,
+                'amount' => $amount - $used,
+                'new_status' => 'completed',
+                'description' => 'Liquidação de quotas associada ao movimento #' . $transactionId . ' (Fração ' . $fractionIdentifier . '). Quotas totalmente pagas: ' . $fullyPaidCount . ', Parcialmente: ' . $partiallyPaidCount
+            ]);
+
+            $db->commit();
+            $_SESSION['success'] = 'Valor do movimento aplicado às quotas em atraso da fração ' . $fractionIdentifier . '. ' . $fullyPaidCount . ' quota(s) totalmente paga(s), ' . $partiallyPaidCount . ' parcialmente paga(s).';
+        } catch (\Exception $e) {
+            if (isset($db)) {
+                $db->rollBack();
+            }
+            $_SESSION['error'] = 'Erro ao liquidar quotas: ' . $e->getMessage();
+        }
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/fees/liquidate');
+        exit;
     }
 
     /**
@@ -5096,30 +5295,36 @@ class FinanceController extends Controller
         RoleMiddleware::requireCondominiumAccess($condominiumId);
         RoleMiddleware::requireAdminInCondominium($condominiumId);
 
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+        $self = $this;
+        $jsonError = static function (string $message) use ($isAjax, $condominiumId, $self) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $message]);
+                exit;
+            }
+            $_SESSION['error'] = $message;
+            header('Location: ' . $self->buildFeesRedirectUrl($condominiumId));
             exit;
+        };
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $jsonError('Método não permitido.');
         }
 
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
-            $_SESSION['error'] = 'Token de segurança inválido.';
-            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
-            exit;
+            $jsonError('Token de segurança inválido.');
         }
 
         $fee = $this->feeModel->findById($feeId);
         if (!$fee || $fee['condominium_id'] != $condominiumId) {
-            $_SESSION['error'] = 'Quota não encontrada.';
-            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
-            exit;
+            $jsonError('Quota não encontrada.');
         }
 
         $payment = $this->feePaymentModel->findById($paymentId);
         if (!$payment || $payment['fee_id'] != $feeId) {
-            $_SESSION['error'] = 'Pagamento não encontrado.';
-            header('Location: ' . $this->buildFeesRedirectUrl($condominiumId));
-            exit;
+            $jsonError('Pagamento não encontrado.');
         }
 
         // Log deletion to history BEFORE deleting
@@ -5197,8 +5402,10 @@ class FinanceController extends Controller
                 $stmtCount->execute([':tid' => $transactionId, ':tid2' => $transactionId]);
                 $count = (int)($stmtCount->fetch(\PDO::FETCH_ASSOC)['cnt'] ?? 0);
                 if ($count === 0) {
+                    // Ao remover a última quota associada: limpar referência e descrição (mesmo que ainda exista crédito aplicado)
                     $transactionModel = new FinancialTransaction();
                     $transactionModel->update($transactionId, [
+                        'description' => 'Quotas',
                         'reference' => null,
                         'category' => null,
                         'related_type' => null,
@@ -5256,6 +5463,14 @@ class FinanceController extends Controller
             $_SESSION['error'] = 'Erro ao eliminar o pagamento.';
         }
 
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => $success,
+                'message' => $success ? 'Associação da quota eliminada.' : ($_SESSION['error'] ?? 'Erro ao eliminar o pagamento.')
+            ]);
+            exit;
+        }
         if (!empty($_POST['redirect_to']) && $_POST['redirect_to'] === 'financial-transactions') {
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
         } else {

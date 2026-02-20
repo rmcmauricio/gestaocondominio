@@ -139,20 +139,43 @@ class AuditManager
             $stmt = $db->query("SHOW COLUMNS FROM {$auditTableName} LIKE 'old_data'");
             $hasNewFields = $stmt->rowCount() > 0;
 
-            if ($hasNewFields) {
-                // Use new format with old_data, new_data, table_name, operation
-                $stmt = $db->prepare("
-                    INSERT INTO {$auditTableName} (
-                        user_id, action, model, model_id, description, 
-                        ip_address, user_agent, old_data, new_data, table_name, operation
-                    )
-                    VALUES (
-                        :user_id, :action, :model, :model_id, :description,
-                        :ip_address, :user_agent, :old_data, :new_data, :table_name, :operation
-                    )
-                ");
+            // Check if audit table has condominium_id (e.g. audit_financial, audit_documents)
+            $stmt = $db->query("SHOW COLUMNS FROM {$auditTableName} WHERE Field = 'condominium_id'");
+            $hasCondominiumId = $stmt->rowCount() > 0;
+            $condominiumId = null;
+            if ($hasCondominiumId) {
+                $condominiumId = isset($data['condominium_id']) ? (int) $data['condominium_id'] : null;
+                if ($condominiumId === null && isset($data['new_data'])) {
+                    $decoded = is_string($data['new_data']) ? json_decode($data['new_data'], true) : $data['new_data'];
+                    if (is_array($decoded) && isset($decoded['condominium_id'])) {
+                        $condominiumId = (int) $decoded['condominium_id'];
+                    }
+                }
+                if ($condominiumId === null && isset($data['old_data'])) {
+                    $decoded = is_string($data['old_data']) ? json_decode($data['old_data'], true) : $data['old_data'];
+                    if (is_array($decoded) && isset($decoded['condominium_id'])) {
+                        $condominiumId = (int) $decoded['condominium_id'];
+                    }
+                }
+                if ($condominiumId === null && !empty($_SESSION['current_condominium_id'])) {
+                    $condominiumId = (int) $_SESSION['current_condominium_id'];
+                }
+            }
 
-                $stmt->execute([
+            if ($hasNewFields) {
+                // audit_documents requires document_type (NOT NULL); generic payload doesn't have it → use audit_logs
+                if ($auditTableName === 'audit_documents') {
+                    $auditTableName = 'audit_logs';
+                }
+                // audit_financial uses entity_type/entity_id (AuditService::logFinancial); generic payload has model/model_id → use audit_logs
+                if ($auditTableName === 'audit_financial' && !isset($data['entity_type'])) {
+                    $auditTableName = 'audit_logs';
+                    $stmt = $db->query("SHOW COLUMNS FROM audit_logs LIKE 'old_data'");
+                    $hasNewFields = $stmt->rowCount() > 0;
+                }
+                $columns = 'user_id, action, model, model_id, description, ip_address, user_agent, old_data, new_data, table_name, operation';
+                $placeholders = ':user_id, :action, :model, :model_id, :description, :ip_address, :user_agent, :old_data, :new_data, :table_name, :operation';
+                $params = [
                     ':user_id' => $data['user_id'] ?? null,
                     ':action' => $data['action'] ?? 'delete',
                     ':model' => $data['model'] ?? null,
@@ -164,7 +187,28 @@ class AuditManager
                     ':new_data' => isset($data['new_data']) ? (is_string($data['new_data']) ? $data['new_data'] : json_encode($data['new_data'])) : null,
                     ':table_name' => $tableName,
                     ':operation' => $data['operation'] ?? 'delete'
-                ]);
+                ];
+                if ($auditTableName !== 'audit_logs') {
+                    if ($hasCondominiumId && $condominiumId !== null) {
+                        $columns = 'condominium_id, ' . $columns;
+                        $placeholders = ':condominium_id, ' . $placeholders;
+                        $params[':condominium_id'] = $condominiumId;
+                    } elseif ($hasCondominiumId && $condominiumId === null) {
+                        // Table requires condominium_id but we don't have one: log to audit_logs instead
+                        $auditTableName = 'audit_logs';
+                    }
+                }
+                // If target is audit_logs, ensure we only use columns that exist (old installs may lack old_data etc.)
+                if ($auditTableName === 'audit_logs') {
+                    $stmt = $db->query("SHOW COLUMNS FROM audit_logs LIKE 'old_data'");
+                    if ($stmt->rowCount() === 0) {
+                        $columns = 'user_id, action, model, model_id, description, ip_address, user_agent';
+                        $placeholders = ':user_id, :action, :model, :model_id, :description, :ip_address, :user_agent';
+                        unset($params[':old_data'], $params[':new_data'], $params[':table_name'], $params[':operation']);
+                    }
+                }
+                $stmt = $db->prepare("INSERT INTO {$auditTableName} ({$columns}) VALUES ({$placeholders})");
+                $stmt->execute($params);
             } else {
                 // Fallback to old format for compatibility (only for audit_logs)
                 if ($auditTableName === 'audit_logs') {

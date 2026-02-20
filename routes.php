@@ -422,6 +422,7 @@ $router->post('/condominiums/{condominium_id}/financial-transactions/import/proc
 $router->get('/condominiums/{condominium_id}/financial-transactions/import/pending-fees/{fraction_id}', 'App\Controllers\FinancialTransactionController@getPendingFees');
 $router->get('/condominiums/{condominium_id}/financial-transactions/fraction-balance/{fraction_id}', 'App\Controllers\FinancialTransactionController@getFractionBalance');
 $router->post('/condominiums/{condominium_id}/financial-transactions/{id}/liquidate-quotas', 'App\Controllers\FinancialTransactionController@liquidateQuotas');
+$router->post('/condominiums/{condominium_id}/financial-transactions/{id}/dissociate-credit', 'App\Controllers\FinancialTransactionController@dissociateCredit');
 $router->post('/condominiums/{condominium_id}/financial-transactions/{id}/set-category', 'App\Controllers\FinancialTransactionController@setCategory');
 
 // Vote routes

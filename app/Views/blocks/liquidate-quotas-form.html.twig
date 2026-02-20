@@ -12,6 +12,7 @@
 {% set form_id_prefix = form_id_prefix|default('lq_') %}
 {% set is_modal = is_modal|default(false) %}
 {% set form_action = form_action|default(BASE_URL ~ 'condominiums/' ~ condominium.id ~ '/fees/liquidate-quotas') %}
+{% set available_transactions = available_transactions|default([]) %}
 
 <form method="POST" action="{{ form_action }}" id="{% if form_id_prefix %}{{ form_id_prefix }}form{% else %}form{% endif %}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -23,6 +24,31 @@
     {% endif %}
     
     <div class="mb-3">
+        <label class="form-label">Movimento <span class="text-danger">*</span></label>
+        <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="lq_action" id="{{ form_id_prefix }}action_create" value="create" checked>
+            <label class="form-check-label" for="{{ form_id_prefix }}action_create">Criar novo movimento financeiro</label>
+        </div>
+        <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="lq_action" id="{{ form_id_prefix }}action_associate" value="associate">
+            <label class="form-check-label" for="{{ form_id_prefix }}action_associate">Associar a movimento existente (com saldo não associado)</label>
+        </div>
+    </div>
+    
+    <div id="{{ form_id_prefix }}associate_section" style="display: none;" class="mb-3">
+        <label for="{{ form_id_prefix }}existing_transaction_id" class="form-label">Movimento existente <span class="text-danger">*</span></label>
+        <select class="form-select" id="{{ form_id_prefix }}existing_transaction_id" name="existing_transaction_id">
+            <option value="">Selecione um movimento...</option>
+            {% for tx in available_transactions %}
+            <option value="{{ tx.id }}" data-fraction-id="{{ tx.fraction_id }}" data-remaining="{{ tx.remaining_amount|default(tx.amount)|number_format(2, '.', '') }}" data-date="{{ tx.transaction_date|date('Y-m-d') }}">
+                {{ tx.transaction_date|date('d/m/Y') }} - {{ (tx.description|slice(0, 40)) }}{% if tx.description|length > 40 %}...{% endif %} - €{{ tx.amount|number_format(2, ',', '.') }} (Restante: €{{ (tx.remaining_amount|default(tx.amount))|number_format(2, ',', '.') }}) - {{ tx.fraction_identifier|default('') }}
+            </option>
+            {% endfor %}
+        </select>
+        <small class="text-muted">Apenas movimentos de crédito com valor ainda não aplicado a quotas.</small>
+    </div>
+    
+    <div class="mb-3" id="{{ form_id_prefix }}create_fraction_section">
         <label for="{{ form_id_prefix }}fraction_id" class="form-label">Fração <span class="text-danger">*</span></label>
         <select class="form-select" id="{{ form_id_prefix }}fraction_id" name="fraction_id" required {% if not is_modal %}autofocus{% endif %}>
             <option value="">Selecione a fração...</option>
