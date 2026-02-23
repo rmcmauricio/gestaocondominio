@@ -38,6 +38,11 @@
                                         </label>
                                         <input type="email" class="form-control form-control-lg" id="pilot_email_register" name="email" placeholder="seu@email.com" required>
                                     </div>
+                                    {% if RECAPTCHA_SITE_KEY is defined and RECAPTCHA_SITE_KEY %}
+                                    <div class="mb-3">
+                                        <div class="g-recaptcha" id="pilotRecaptchaRegister" data-sitekey="{{ RECAPTCHA_SITE_KEY }}"></div>
+                                    </div>
+                                    {% endif %}
                                     <div class="d-grid">
                                         <button type="submit" class="btn btn-light btn-lg d-flex align-items-center justify-content-center gap-2" style="border: none; padding: 0.75rem 2rem; font-weight: 600; color: #e07920;">
                                             <i class="bi bi-send-fill"></i>
@@ -287,6 +292,9 @@ document.getElementById('registerForm')?.addEventListener('submit', function(e) 
 
 // Pilot signup form handling for register page
 {% if is_registration_disabled|default(false) %}
+{% if RECAPTCHA_SITE_KEY is defined and RECAPTCHA_SITE_KEY %}
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+{% endif %}
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('pilotSignupFormRegister');
     const successDiv = document.getElementById('pilotSignupSuccessRegister');
@@ -318,6 +326,12 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Get form data
             const formData = new FormData(form);
+            {% if RECAPTCHA_SITE_KEY is defined and RECAPTCHA_SITE_KEY %}
+            if (typeof grecaptcha !== 'undefined') {
+                const recaptchaEl = document.getElementById('pilotRecaptchaRegister');
+                if (recaptchaEl) formData.append('g-recaptcha-response', grecaptcha.getResponse());
+            }
+            {% endif %}
             
             // Disable submit button
             const submitBtn = form.querySelector('button[type="submit"]');

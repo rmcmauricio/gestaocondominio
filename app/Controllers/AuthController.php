@@ -2012,6 +2012,20 @@ class AuthController extends Controller
             $redirectUrl = BASE_URL;
         }
 
+        // Rate limit by IP (persistent, works for cookie-less bots)
+        try {
+            RateLimitMiddleware::require('pilot_signup');
+        } catch (\Exception $e) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+                exit;
+            }
+            $_SESSION['pilot_signup_error'] = $e->getMessage();
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+
         // Verify CSRF token
         $csrfToken = $_POST['csrf_token'] ?? '';
         if (!Security::verifyCSRFToken($csrfToken)) {
@@ -2066,9 +2080,37 @@ class AuthController extends Controller
             exit;
         }
 
+        // Re-send cooldown: do not send a new verification email if same email requested recently (e.g. last hour)
+        $tokenModel = new \App\Models\PilotEmailVerificationToken();
+        if ($tokenModel->hasRecentRequest($email, 3600)) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'message' => 'Se já recebeu um email de confirmação, verifique a caixa de entrada. Se não recebeu, aguarde alguns minutos antes de pedir novamente.']);
+                exit;
+            }
+            $_SESSION['pilot_signup_success'] = 'Se já recebeu um email de confirmação, verifique a caixa de entrada. Se não recebeu, aguarde alguns minutos antes de pedir novamente.';
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+
+        // Verify reCAPTCHA if configured
+        if (defined('RECAPTCHA_SECRET') && RECAPTCHA_SECRET !== '') {
+            $recaptchaResponse = $_POST['g-recaptcha-response'] ?? '';
+            if (empty($recaptchaResponse) || !$this->verifyRecaptcha($recaptchaResponse)) {
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'message' => 'Por favor, confirme que não é um robô.']);
+                    exit;
+                }
+                $_SESSION['pilot_signup_error'] = 'Por favor, confirme que não é um robô.';
+                header('Location: ' . $redirectUrl);
+                exit;
+            }
+        }
+
         // Require email verification first (filter bots): create token and send verification email only
         try {
-            $tokenModel = new \App\Models\PilotEmailVerificationToken();
+            RateLimitMiddleware::recordAttempt('pilot_signup');
             $token = $tokenModel->createToken($email);
             $verificationUrl = BASE_URL . 'pilot/verify-email?token=' . urlencode($token);
 
@@ -2168,6 +2210,43 @@ class AuthController extends Controller
 
         header('Location: ' . $redirectUrl);
         exit;
+    }
+
+    /**
+     * Verify reCAPTCHA response with Google API.
+     *
+     * @param string $response g-recaptcha-response from form
+     * @return bool True if verification succeeded
+     */
+    private function verifyRecaptcha(string $response): bool
+    {
+        if (!defined('RECAPTCHA_SECRET') || RECAPTCHA_SECRET === '') {
+            return true;
+        }
+
+        $url = 'https://www.google.com/recaptcha/api/siteverify';
+        $data = [
+            'secret' => RECAPTCHA_SECRET,
+            'response' => $response,
+            'remoteip' => $_SERVER['REMOTE_ADDR'] ?? ''
+        ];
+
+        $options = [
+            'http' => [
+                'method' => 'POST',
+                'header' => 'Content-type: application/x-www-form-urlencoded',
+                'content' => http_build_query($data)
+            ]
+        ];
+        $context = stream_context_create($options);
+        $result = @file_get_contents($url, false, $context);
+
+        if ($result === false) {
+            return false;
+        }
+
+        $json = json_decode($result, true);
+        return isset($json['success']) && $json['success'] === true;
     }
 }
 
