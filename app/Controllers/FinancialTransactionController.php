@@ -16,7 +16,6 @@ use App\Models\Assembly;
 use App\Models\FractionAccount;
 use App\Models\FractionAccountMovement;
 use App\Models\FeePaymentHistory;
-use App\Models\Budget;
 use App\Services\LiquidationService;
 use App\Services\ReceiptService;
 use App\Services\AuditService;
@@ -426,13 +425,11 @@ class FinancialTransactionController extends Controller
         $incomeEntryType = Security::sanitize($_POST['income_entry_type'] ?? '');
         $fractionId = !empty($_POST['fraction_id']) ? (int)$_POST['fraction_id'] : null;
 
-        // Não permitir criar movimentos em anos com orçamento/contas aprovados
+        // Não permitir criar movimentos em anos com contas aprovadas
         $transactionYear = (int)date('Y', strtotime($transactionDate));
         $assemblyModel = new Assembly();
-        $budgetModel = new Budget();
-        if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $transactionYear)
-            || $budgetModel->hasApprovedBudgetForYear($condominiumId, $transactionYear)) {
-            $_SESSION['error'] = 'Não é possível criar movimentos para o ano ' . $transactionYear . ' pois o orçamento ou as contas deste ano estão aprovados.';
+        if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $transactionYear)) {
+            $_SESSION['error'] = 'Não é possível criar movimentos para o ano ' . $transactionYear . ' pois as contas deste ano estão aprovadas.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/create');
             exit;
         }
@@ -947,13 +944,11 @@ class FinancialTransactionController extends Controller
             exit;
         }
 
-        // Não permitir editar movimentos de anos com orçamento/contas aprovados
+        // Não permitir editar movimentos de anos com contas aprovadas
         $transactionYear = (int)date('Y', strtotime($transaction['transaction_date']));
         $assemblyModel = new Assembly();
-        $budgetModel = new Budget();
-        if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $transactionYear)
-            || $budgetModel->hasApprovedBudgetForYear($condominiumId, $transactionYear)) {
-            $_SESSION['error'] = 'Não é possível editar movimentos do ano ' . $transactionYear . ' pois o orçamento ou as contas deste ano estão aprovados.';
+        if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $transactionYear)) {
+            $_SESSION['error'] = 'Não é possível editar movimentos do ano ' . $transactionYear . ' pois as contas deste ano estão aprovadas.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
             exit;
         }
@@ -1029,23 +1024,20 @@ class FinancialTransactionController extends Controller
             exit;
         }
 
-        // Não permitir editar movimentos de anos com orçamento/contas aprovados (data antiga e nova)
+        // Não permitir editar movimentos de anos com contas aprovadas (data antiga e nova)
         $oldTransactionYear = (int)date('Y', strtotime($transaction['transaction_date']));
         $newTransactionDate = $_POST['transaction_date'] ?? $transaction['transaction_date'];
         $newTransactionYear = (int)date('Y', strtotime($newTransactionDate));
         
         $assemblyModel = new Assembly();
-        $budgetModel = new Budget();
-        if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $oldTransactionYear)
-            || $budgetModel->hasApprovedBudgetForYear($condominiumId, $oldTransactionYear)) {
-            $_SESSION['error'] = 'Não é possível editar movimentos do ano ' . $oldTransactionYear . ' pois o orçamento ou as contas deste ano estão aprovados.';
+        if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $oldTransactionYear)) {
+            $_SESSION['error'] = 'Não é possível editar movimentos do ano ' . $oldTransactionYear . ' pois as contas deste ano estão aprovadas.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
             exit;
         }
         if ($newTransactionYear !== $oldTransactionYear
-            && ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $newTransactionYear)
-                || $budgetModel->hasApprovedBudgetForYear($condominiumId, $newTransactionYear))) {
-            $_SESSION['error'] = 'Não é possível alterar a data para o ano ' . $newTransactionYear . ' pois o orçamento ou as contas estão aprovados.';
+            && $assemblyModel->hasApprovedAccountsForYear($condominiumId, $newTransactionYear)) {
+            $_SESSION['error'] = 'Não é possível alterar a data para o ano ' . $newTransactionYear . ' pois as contas deste ano estão aprovadas.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions/' . $id . '/edit');
             exit;
         }
@@ -1375,13 +1367,11 @@ class FinancialTransactionController extends Controller
             exit;
         }
 
-        // Não permitir apagar movimentos de anos com orçamento/contas aprovados
+        // Não permitir apagar movimentos de anos com contas aprovadas
         $transactionYear = (int)date('Y', strtotime($transaction['transaction_date']));
         $assemblyModel = new Assembly();
-        $budgetModel = new Budget();
-        if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $transactionYear)
-            || $budgetModel->hasApprovedBudgetForYear($condominiumId, $transactionYear)) {
-            $_SESSION['error'] = 'Não é possível eliminar movimentos do ano ' . $transactionYear . ' pois o orçamento ou as contas deste ano estão aprovados.';
+        if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $transactionYear)) {
+            $_SESSION['error'] = 'Não é possível eliminar movimentos do ano ' . $transactionYear . ' pois as contas deste ano estão aprovadas.';
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
             exit;
         }
@@ -1592,10 +1582,8 @@ class FinancialTransactionController extends Controller
                 exit;
             }
             $transactionYear = (int)date('Y', strtotime($transaction['transaction_date']));
-            $budgetModel = new Budget();
-            if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $transactionYear)
-                || $budgetModel->hasApprovedBudgetForYear($condominiumId, $transactionYear)) {
-                $_SESSION['error'] = 'Não é possível eliminar movimentos do ano ' . $transactionYear . ' pois o orçamento ou as contas deste ano estão aprovados.';
+            if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $transactionYear)) {
+                $_SESSION['error'] = 'Não é possível eliminar movimentos do ano ' . $transactionYear . ' pois as contas deste ano estão aprovadas.';
                 header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
                 exit;
             }
@@ -1613,9 +1601,8 @@ class FinancialTransactionController extends Controller
                             exit;
                         }
                         $pairedYear = (int)date('Y', strtotime($paired['transaction_date']));
-                        if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $pairedYear)
-                            || $budgetModel->hasApprovedBudgetForYear($condominiumId, $pairedYear)) {
-                            $_SESSION['error'] = 'Não é possível eliminar movimentos do ano ' . $pairedYear . ' pois o orçamento ou as contas estão aprovados.';
+                        if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $pairedYear)) {
+                            $_SESSION['error'] = 'Não é possível eliminar movimentos do ano ' . $pairedYear . ' pois as contas deste ano estão aprovadas.';
                             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/financial-transactions');
                             exit;
                         }
@@ -2223,16 +2210,14 @@ class FinancialTransactionController extends Controller
                     }
                 }
 
-                // Não permitir criar movimentos em anos com orçamento/contas aprovados
+                // Não permitir criar movimentos em anos com contas aprovadas
                 $transactionYear = (int)date('Y', strtotime($rowData['transaction_date']));
                 $assemblyModel = new Assembly();
-                $budgetModel = new Budget();
-                if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $transactionYear)
-                    || $budgetModel->hasApprovedBudgetForYear($condominiumId, $transactionYear)) {
+                if ($assemblyModel->hasApprovedAccountsForYear($condominiumId, $transactionYear)) {
                     $errorCount++;
                     $errors[] = [
                         'row' => $rowData['_row_index'] ?? ($index + 1),
-                        'errors' => ['Não é possível criar movimentos para o ano ' . $transactionYear . ' pois o orçamento ou as contas deste ano estão aprovados.']
+                        'errors' => ['Não é possível criar movimentos para o ano ' . $transactionYear . ' pois as contas deste ano estão aprovadas.']
                     ];
                     continue;
                 }

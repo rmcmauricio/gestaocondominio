@@ -138,6 +138,7 @@ class CondominiumBackupService
             $data['tables']['notifications'] = $this->exportTable("notifications", "condominium_id", $condominiumId);
             $data['tables']['invitations'] = $this->exportTable("invitations", "condominium_id", $condominiumId);
             $data['tables']['assembly_account_approvals'] = $this->exportTable("assembly_account_approvals", "condominium_id", $condominiumId);
+            $data['tables']['assembly_account_approval_events'] = $this->exportTable("assembly_account_approval_events", "condominium_id", $condominiumId);
             $data['tables']['admin_transfer_pending'] = $this->exportTable("admin_transfer_pending", "condominium_id", $condominiumId);
 
             // assembly_agenda_point_vote_topics pivot
@@ -669,7 +670,22 @@ class CondominiumBackupService
                     $this->insertRow("invitations", $row, ['condominium_id' => $newCondominiumId, 'fraction_id' => $fracId], $restoreInPlace);
                 }
                 foreach ($data['tables']['assembly_account_approvals'] ?? [] as $row) {
-                    $this->insertRow("assembly_account_approvals", $row, ['condominium_id' => $newCondominiumId], $restoreInPlace);
+                    $asmId = !empty($row['assembly_id']) ? ($map['assemblies'][$row['assembly_id']] ?? null) : null;
+                    $reopenedAsmId = !empty($row['reopened_assembly_id']) ? ($map['assemblies'][$row['reopened_assembly_id']] ?? null) : null;
+                    $this->insertRow("assembly_account_approvals", $row, [
+                        'condominium_id' => $newCondominiumId,
+                        'assembly_id' => $asmId,
+                        'reopened_assembly_id' => $reopenedAsmId
+                    ], $restoreInPlace);
+                }
+                foreach ($data['tables']['assembly_account_approval_events'] ?? [] as $row) {
+                    $asmId = !empty($row['assembly_id']) ? ($map['assemblies'][$row['assembly_id']] ?? null) : null;
+                    if ($asmId !== null) {
+                        $this->insertRow("assembly_account_approval_events", $row, [
+                            'condominium_id' => $newCondominiumId,
+                            'assembly_id' => $asmId
+                        ], $restoreInPlace);
+                    }
                 }
                 foreach ($data['tables']['admin_transfer_pending'] ?? [] as $row) {
                     $userId = $map['users'][$row['user_id']] ?? null;
@@ -726,7 +742,7 @@ class CondominiumBackupService
             'revenues', 'receipts', 'reservations', 'documents', 'minutes_revisions',
             'messages', 'message_attachments', 'occurrences', 'occurrence_comments',
             'occurrence_history', 'occurrence_attachments', 'notifications', 'invitations',
-            'assembly_account_approvals', 'admin_transfer_pending'
+            'assembly_account_approvals', 'assembly_account_approval_events', 'admin_transfer_pending'
         ];
         foreach ($tables as $table) {
             try {

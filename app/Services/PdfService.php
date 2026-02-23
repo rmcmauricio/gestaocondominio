@@ -1302,8 +1302,24 @@ class PdfService
             $topicsSections .= '<div class="section"><div class="section-number">8️⃣ Encerramento</div><p>Nada mais havendo a tratar, foi a reunião encerrada pelas <span class="underline">' . htmlspecialchars($endTime) . '</span> horas, sendo lavrada a presente acta que, depois de lida e aprovada, vai ser assinada por todos os presentes.</p></div>';
         }
 
+        // Account approval / rectification events for this assembly (for acta)
+        $approvalModel = new \App\Models\AssemblyAccountApproval();
+        $accountApprovalEvents = $approvalModel->getEventsByAssembly($assembly['id']);
+        $accountApprovalsSectionHtml = '';
+        if (!empty($accountApprovalEvents)) {
+            $accountApprovalsSectionHtml = '<div class="section"><div class="section-title">Aprovação / Rectificação de Contas</div><p>Nesta assembleia foram registadas as seguintes deliberações relativas a contas:</p><ul>';
+            foreach ($accountApprovalEvents as $ev) {
+                $actionLabel = ($ev['action'] ?? '') === 'reopening'
+                    ? 'Contas do ano ' . (int)($ev['approved_year'] ?? 0) . ' abertas para rectificação'
+                    : 'Contas do ano ' . (int)($ev['approved_year'] ?? 0) . ' aprovadas';
+                $accountApprovalsSectionHtml .= '<li>' . htmlspecialchars($actionLabel) . ' (' . date('d/m/Y H:i', strtotime($ev['created_at'])) . ' — ' . htmlspecialchars($ev['user_name'] ?? '') . ')</li>';
+            }
+            $accountApprovalsSectionHtml .= '</ul></div>';
+        }
+
         $template = str_replace('{{assembly_agenda}}', $agendaFormatted, $template);
         $template = str_replace('{{topics_sections}}', $topicsSections, $template);
+        $template = str_replace('{{account_approvals_section}}', $accountApprovalsSectionHtml, $template);
         $template = str_replace('{{generation_date}}', $generationDate, $template);
 
         return $template;

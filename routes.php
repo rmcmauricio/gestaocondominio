@@ -396,6 +396,7 @@ $router->post('/condominiums/{condominium_id}/assemblies/{id}/agenda-points', 'A
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/agenda-points/{point_id}/link-vote', 'App\Controllers\AssemblyController@updateAgendaPointVoteTopic');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/agenda-points/{point_id}/unlink-vote/{topic_id}', 'App\Controllers\AssemblyController@unlinkAgendaPointVoteTopic');
 $router->post('/condominiums/{condominium_id}/assemblies/{id}/approve-accounts', 'App\Controllers\AssemblyController@approveAccounts');
+$router->post('/condominiums/{condominium_id}/assemblies/{id}/reopen-accounts', 'App\Controllers\AssemblyController@reopenAccounts');
 
 // Bank Accounts routes
 $router->get('/condominiums/{condominium_id}/bank-accounts', 'App\Controllers\BankAccountController@index');

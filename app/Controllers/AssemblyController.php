@@ -416,9 +416,33 @@ class AssemblyController extends Controller
         $userRole = RoleMiddleware::getUserRoleInCondominium($userId, $condominiumId);
         $isAdmin = ($userRole === 'admin');
 
-        // Get account approvals for this condominium
+        // Get account approvals for this condominium (includes reopened state)
         $approvalModel = new AssemblyAccountApproval();
         $approvedYears = $approvalModel->getByCondominium($condominiumId);
+        $currentYear = (int)date('Y');
+        $yearsAvailableForApproval = [];
+        for ($y = $currentYear - 1; $y >= $currentYear - 10; $y--) {
+            if (!$approvalModel->hasApprovedYear($condominiumId, $y)) {
+                $yearsAvailableForApproval[] = $y;
+            }
+        }
+        // Anos em rectificação (abertos para edição — só nestes casos ou na primeira aprovação se mostra o formulário)
+        $yearsInRectification = [];
+        $hasAnyApprovedLocked = false;
+        foreach ($approvedYears as $row) {
+            if (!empty($row['reopened_at'])) {
+                $yearsInRectification[] = (int)$row['approved_year'];
+            } else {
+                $hasAnyApprovedLocked = true;
+            }
+        }
+        $yearsInRectification = array_unique($yearsInRectification);
+        sort($yearsInRectification, SORT_NUMERIC);
+        // Mostrar formulário só se: há ano(s) em rectificação (para re-aprovar) OU ainda não há nenhum ano aprovado (primeira aprovação)
+        $showApprovalForm = count($yearsInRectification) > 0 || !$hasAnyApprovedLocked;
+        $approvalFormYears = count($yearsInRectification) > 0 ? $yearsInRectification : $yearsAvailableForApproval;
+        $approvalFormIsRectification = count($yearsInRectification) > 0;
+        $accountApprovalEvents = $approvalModel->getEventsByAssembly($id);
 
         $mt = !empty($minutesTemplate) ? $minutesTemplate[0] : null;
         $reviewDeadline = null;
@@ -497,7 +521,12 @@ class AssemblyController extends Controller
             'my_revision' => $myRevision,
             'today_ymd' => date('Y-m-d'),
             'approved_years' => $approvedYears,
-            'current_year' => (int)date('Y'),
+            'years_available_for_approval' => $yearsAvailableForApproval,
+            'show_approval_form' => $showApprovalForm,
+            'approval_form_years' => $approvalFormYears,
+            'approval_form_is_rectification' => $approvalFormIsRectification,
+            'account_approval_events' => $accountApprovalEvents,
+            'current_year' => $currentYear,
             'csrf_token' => Security::generateCSRFToken(),
             'convocation_recipients' => $convocationRecipients,
             'convocation_recipient_identifiers' => array_column($convocationRecipients, 'identifier'),
@@ -2422,45 +2451,66 @@ class AssemblyController extends Controller
             exit;
         }
 
-        // Check if year is already approved
         $approvalModel = new AssemblyAccountApproval();
-        if ($approvalModel->hasApprovedYear($condominiumId, $year)) {
-            $_SESSION['error'] = 'As contas do ano ' . $year . ' já foram aprovadas anteriormente.';
-            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
-            exit;
-        }
+        $existingApproval = $approvalModel->getByYear($condominiumId, $year);
 
         try {
             $userId = AuthMiddleware::userId();
             $notes = !empty($_POST['notes']) ? Security::sanitize($_POST['notes']) : null;
 
-            // Create approval record
-            $approvalId = $approvalModel->create([
-                'assembly_id' => $id,
-                'condominium_id' => $condominiumId,
-                'approved_year' => $year,
-                'approved_at' => date('Y-m-d H:i:s'),
-                'approved_by' => $userId,
-                'notes' => $notes
-            ]);
+            if ($existingApproval && !empty($existingApproval['reopened_at'])) {
+                // Re-approve after rectification
+                if (!$approvalModel->reapprove($condominiumId, $year, $id, $userId, $notes)) {
+                    throw new \Exception('Erro ao re-aprovar contas do ano.');
+                }
+                $approvalModel->recordEvent($id, $condominiumId, $year, 'approval', $userId, $notes);
 
-            // Log audit
-            $auditService = new AuditService();
-            $auditService->logFinancial([
-                'condominium_id' => $condominiumId,
-                'entity_type' => 'assembly_account_approval',
-                'entity_id' => $approvalId,
-                'action' => 'accounts_approved',
-                'user_id' => $userId,
-                'description' => "Contas do ano {$year} aprovadas na assembleia {$assembly['title']}",
-                'changes' => [
+                $auditService = new AuditService();
+                $auditService->logFinancial([
+                    'condominium_id' => $condominiumId,
+                    'entity_type' => 'assembly_account_approval',
+                    'entity_id' => (int)$existingApproval['id'],
+                    'action' => 'accounts_reapproved',
+                    'user_id' => $userId,
+                    'description' => "Contas do ano {$year} re-aprovadas (rectificação) na assembleia {$assembly['title']}",
+                    'changes' => ['assembly_id' => $id, 'approved_year' => $year, 'notes' => $notes]
+                ]);
+
+                $_SESSION['success'] = 'Contas do ano ' . $year . ' re-aprovadas com sucesso! Os movimentos financeiros deste ano voltam a ficar bloqueados para edição/apagação.';
+            } elseif ($existingApproval && empty($existingApproval['reopened_at'])) {
+                $_SESSION['error'] = 'As contas do ano ' . $year . ' já foram aprovadas e não estão em rectificação.';
+                header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+                exit;
+            } else {
+                // First-time approval
+                $approvalId = $approvalModel->create([
                     'assembly_id' => $id,
+                    'condominium_id' => $condominiumId,
                     'approved_year' => $year,
+                    'approved_at' => date('Y-m-d H:i:s'),
+                    'approved_by' => $userId,
                     'notes' => $notes
-                ]
-            ]);
+                ]);
 
-            $_SESSION['success'] = 'Contas do ano ' . $year . ' aprovadas com sucesso! Os movimentos financeiros deste ano ficam bloqueados para edição/apagação.';
+                $approvalModel->recordEvent($id, $condominiumId, $year, 'approval', $userId, $notes);
+
+                $auditService = new AuditService();
+                $auditService->logFinancial([
+                    'condominium_id' => $condominiumId,
+                    'entity_type' => 'assembly_account_approval',
+                    'entity_id' => $approvalId,
+                    'action' => 'accounts_approved',
+                    'user_id' => $userId,
+                    'description' => "Contas do ano {$year} aprovadas na assembleia {$assembly['title']}",
+                    'changes' => [
+                        'assembly_id' => $id,
+                        'approved_year' => $year,
+                        'notes' => $notes
+                    ]
+                ]);
+
+                $_SESSION['success'] = 'Contas do ano ' . $year . ' aprovadas com sucesso! Os movimentos financeiros deste ano ficam bloqueados para edição/apagação.';
+            }
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
             exit;
         } catch (\Exception $e) {
@@ -2468,6 +2518,90 @@ class AssemblyController extends Controller
             header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
             exit;
         }
+    }
+
+    /**
+     * Reopen a year for rectification (allows editing/deleting movements until re-approved)
+     */
+    public function reopenAccounts(int $condominiumId, int $id)
+    {
+        AuthMiddleware::require();
+        RoleMiddleware::requireCondominiumAccess($condominiumId);
+        RoleMiddleware::requireAdminInCondominium($condominiumId);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Método inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!Security::verifyCSRFToken($csrfToken)) {
+            $_SESSION['error'] = 'Token de segurança inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $assembly = $this->assemblyModel->findById($id);
+        if (!$assembly || $assembly['condominium_id'] != $condominiumId) {
+            $_SESSION['error'] = 'Assembleia não encontrada.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        if ($assembly['status'] !== 'completed') {
+            $_SESSION['error'] = 'Apenas assembleias concluídas podem abrir contas para rectificação.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $year = !empty($_POST['reopened_year']) ? (int)$_POST['reopened_year'] : null;
+        if (!$year || $year < 2000 || $year > 2100) {
+            $_SESSION['error'] = 'Ano inválido.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        $approvalModel = new AssemblyAccountApproval();
+        $existingApproval = $approvalModel->getByYear($condominiumId, $year);
+
+        if (!$existingApproval) {
+            $_SESSION['error'] = 'Não existe aprovação de contas para o ano ' . $year . '. Só pode abrir para rectificação anos que tenham sido aprovados.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        if (!empty($existingApproval['reopened_at'])) {
+            $_SESSION['error'] = 'As contas do ano ' . $year . ' já estão em rectificação (abertas para edição). Pode editar movimentos e depois re-aprovar nesta assembleia.';
+            header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+            exit;
+        }
+
+        try {
+            $userId = AuthMiddleware::userId();
+            if (!$approvalModel->reopen($condominiumId, $year, $id, $userId)) {
+                throw new \Exception('Erro ao abrir contas para rectificação.');
+            }
+            $approvalModel->recordEvent($id, $condominiumId, $year, 'reopening', $userId, null);
+
+            $auditService = new AuditService();
+            $auditService->logFinancial([
+                'condominium_id' => $condominiumId,
+                'entity_type' => 'assembly_account_approval',
+                'entity_id' => (int)$existingApproval['id'],
+                'action' => 'accounts_reopened_for_rectification',
+                'user_id' => $userId,
+                'description' => "Contas do ano {$year} abertas para rectificação na assembleia {$assembly['title']}",
+                'changes' => ['assembly_id' => $id, 'approved_year' => $year]
+            ]);
+
+            $_SESSION['success'] = 'Contas do ano ' . $year . ' abertas para rectificação. Pode editar/apagar/inserir movimentos desse ano. Após as alterações, re-aprove as contas nesta assembleia.';
+        } catch (\Exception $e) {
+            $_SESSION['error'] = 'Erro ao abrir para rectificação: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . 'condominiums/' . $condominiumId . '/assemblies/' . $id);
+        exit;
     }
 }
 
