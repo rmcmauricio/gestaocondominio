@@ -43,6 +43,31 @@ class PilotEmailVerificationToken extends Model
     }
 
     /**
+     * Check if this email has a recent verification request (to limit re-sends / spam).
+     *
+     * @param string $email Email address
+     * @param int $withinSeconds Consider "recent" if last request was within this many seconds (default 1 hour)
+     * @return bool True if there was a recent request
+     */
+    public function hasRecentRequest(string $email, int $withinSeconds = 3600): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT 1 FROM {$this->table}
+            WHERE email = :email AND created_at > DATE_SUB(NOW(), INTERVAL :seconds SECOND)
+            LIMIT 1
+        ");
+        $stmt->bindValue(':email', $email, \PDO::PARAM_STR);
+        $stmt->bindValue(':seconds', $withinSeconds, \PDO::PARAM_INT);
+        $stmt->execute();
+
+        return (bool) $stmt->fetch();
+    }
+
+    /**
      * Find valid token (not expired).
      *
      * @param string $token Token string
