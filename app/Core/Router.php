@@ -89,8 +89,8 @@ class Router extends Controller
             }
         }
 
-        // Normalize URI
-        $uri = trim($uri, '/');
+        // Normalize URI (ensure string: parse_url can return null for path)
+        $uri = trim($uri ?? '', '/');
         if ($uri === '' || $uri === false) {
             $uri = '/';
         } else {
