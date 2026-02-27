@@ -31,6 +31,7 @@
                                 <form id="pilotSignupFormRegister" method="POST" action="{{ BASE_URL }}pilot/signup">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="source" value="register">
+                                    <input type="text" name="website" style="display:none" tabindex="-1" autocomplete="off">
                                     <div class="mb-3">
                                         <label for="pilot_email_register" class="form-label text-white d-flex align-items-center gap-2">
                                             <i class="bi bi-envelope"></i>
