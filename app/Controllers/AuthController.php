@@ -2039,6 +2039,19 @@ class AuthController extends Controller
             exit;
         }
 
+        // Honeypot: campo "website" deve vir vazio (bots preenchem tudo)
+        $website = trim($_POST['website'] ?? '');
+        if ($website !== '') {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'message' => 'Obrigado pelo seu interesse! Entraremos em contacto em breve.']);
+                exit;
+            }
+            $_SESSION['pilot_signup_success'] = 'Obrigado pelo seu interesse! Entraremos em contacto em breve.';
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+
         $email = Security::sanitize($_POST['email'] ?? '');
 
         // Validate email
